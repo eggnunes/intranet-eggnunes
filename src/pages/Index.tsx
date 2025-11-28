@@ -88,6 +88,15 @@ const Index = () => {
     });
   };
 
+  const handleReset = () => {
+    setFiles([]);
+    setProcessedDocuments([]);
+    toast({
+      title: "Aplicativo reiniciado",
+      description: "Pronto para processar novos documentos",
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -137,6 +146,7 @@ const Index = () => {
             processedDocuments={processedDocuments}
             onDownload={handleDownload}
             onDownloadAll={handleDownloadAll}
+            onReset={handleReset}
           />
         </div>
       </main>
