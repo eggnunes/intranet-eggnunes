@@ -12,6 +12,7 @@ interface ProcessingStatusProps {
   processedDocuments: ProcessedDocument[];
   onDownload: (url: string, name: string) => void;
   onDownloadAll: () => void;
+  onReset: () => void;
 }
 
 export const ProcessingStatus = ({
@@ -19,6 +20,7 @@ export const ProcessingStatus = ({
   processedDocuments,
   onDownload,
   onDownloadAll,
+  onReset,
 }: ProcessingStatusProps) => {
   if (isProcessing) {
     return (
@@ -49,11 +51,16 @@ export const ProcessingStatus = ({
             Processamento concluído
           </h3>
         </div>
-        {processedDocuments.length > 1 && (
-          <Button onClick={onDownloadAll} variant="default">
-            Baixar todos
+        <div className="flex gap-2">
+          <Button onClick={onReset} variant="outline">
+            Nova tarefa
           </Button>
-        )}
+          {processedDocuments.length > 1 && (
+            <Button onClick={onDownloadAll} variant="default">
+              Baixar todos
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-3">
