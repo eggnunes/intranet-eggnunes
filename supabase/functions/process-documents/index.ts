@@ -24,14 +24,15 @@ serve(async (req) => {
   }
 
   try {
-    const { images, apiKey } = await req.json();
+    const { images } = await req.json();
 
     if (!images || !Array.isArray(images) || images.length === 0) {
       throw new Error('Nenhuma imagem fornecida');
     }
 
+    const apiKey = Deno.env.get('OPENAI_API_KEY');
     if (!apiKey) {
-      throw new Error('API Key não fornecida');
+      throw new Error('API Key não configurada no servidor');
     }
 
     console.log(`Processando ${images.length} imagens`);
