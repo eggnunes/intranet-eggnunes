@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { PDFDocument, degrees } from "npm:pdf-lib@1.17.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -50,12 +51,99 @@ serve(async (req) => {
     const groupedDocs = groupDocumentsByType(images, analyses);
     console.log(`Agrupados em ${groupedDocs.length} documentos`);
 
-    // Gerar PDFs (simulado - em produção usaria biblioteca de PDF)
-    const documents = groupedDocs.map((group, index) => ({
-      name: `${group.type}_${index + 1}.pdf`,
-      url: `data:application/pdf;base64,${btoa('PDF simulado')}`, // Em produção, geraria PDF real
-      pageCount: group.images.length,
-    }));
+    // Gerar PDFs reais
+    const documents = [];
+    
+    for (let i = 0; i < groupedDocs.length; i++) {
+      const group = groupedDocs[i];
+      const pdfDoc = await PDFDocument.create();
+      
+      for (let j = 0; j < group.images.length; j++) {
+        const image = group.images[j];
+        const analysis = group.analyses[j];
+        
+        // Decodificar base64
+        const imageBytes = Uint8Array.from(atob(image.data), c => c.charCodeAt(0));
+        
+        // Adicionar imagem ao PDF
+        let pdfImage;
+        try {
+          if (image.type.includes('png')) {
+            pdfImage = await pdfDoc.embedPng(imageBytes);
+          } else {
+            pdfImage = await pdfDoc.embedJpg(imageBytes);
+          }
+        } catch (e) {
+          console.error(`Erro ao processar imagem ${image.name}:`, e);
+          // Tentar como JPEG se PNG falhar
+          try {
+            pdfImage = await pdfDoc.embedJpg(imageBytes);
+          } catch (e2) {
+            console.error(`Falha ao processar ${image.name} como JPEG também`);
+            continue;
+          }
+        }
+        
+        // Determinar dimensões e rotação
+        const imgWidth = pdfImage.width;
+        const imgHeight = pdfImage.height;
+        const rotation = analysis.rotation || 0;
+        
+        // Criar página com dimensões corretas considerando rotação
+        let page;
+        if (rotation === 90 || rotation === 270) {
+          page = pdfDoc.addPage([imgHeight, imgWidth]);
+        } else {
+          page = pdfDoc.addPage([imgWidth, imgHeight]);
+        }
+        
+        // Desenhar imagem com rotação apropriada
+        if (rotation === 0) {
+          page.drawImage(pdfImage, {
+            x: 0,
+            y: 0,
+            width: imgWidth,
+            height: imgHeight,
+          });
+        } else if (rotation === 90) {
+          page.drawImage(pdfImage, {
+            x: 0,
+            y: imgWidth,
+            width: imgWidth,
+            height: imgHeight,
+            rotate: degrees(-90),
+          });
+        } else if (rotation === 180) {
+          page.drawImage(pdfImage, {
+            x: imgWidth,
+            y: imgHeight,
+            width: imgWidth,
+            height: imgHeight,
+            rotate: degrees(180),
+          });
+        } else if (rotation === 270) {
+          page.drawImage(pdfImage, {
+            x: imgHeight,
+            y: 0,
+            width: imgWidth,
+            height: imgHeight,
+            rotate: degrees(90),
+          });
+        }
+      }
+      
+      // Salvar PDF
+      const pdfBytes = await pdfDoc.save();
+      const pdfBase64 = btoa(String.fromCharCode(...pdfBytes));
+      
+      documents.push({
+        name: `${group.type}_${i + 1}.pdf`,
+        url: `data:application/pdf;base64,${pdfBase64}`,
+        pageCount: group.images.length,
+      });
+    }
+
+    console.log(`${documents.length} PDFs gerados com sucesso`);
 
     return new Response(
       JSON.stringify({ documents }),
@@ -139,21 +227,24 @@ async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnal
 function groupDocumentsByType(
   images: ImageData[],
   analyses: ImageAnalysis[]
-): Array<{ type: string; images: ImageData[] }> {
-  const groups: Map<string, ImageData[]> = new Map();
+): Array<{ type: string; images: ImageData[]; analyses: ImageAnalysis[] }> {
+  const groups: Map<string, { images: ImageData[]; analyses: ImageAnalysis[] }> = new Map();
   
   images.forEach((image, index) => {
     const analysis = analyses[index];
     const docType = analysis.documentType.toLowerCase().replace(/\s+/g, '_');
     
     if (!groups.has(docType)) {
-      groups.set(docType, []);
+      groups.set(docType, { images: [], analyses: [] });
     }
-    groups.get(docType)!.push(image);
+    const group = groups.get(docType)!;
+    group.images.push(image);
+    group.analyses.push(analysis);
   });
 
-  return Array.from(groups.entries()).map(([type, imgs]) => ({
+  return Array.from(groups.entries()).map(([type, data]) => ({
     type,
-    images: imgs
+    images: data.images,
+    analyses: data.analyses
   }));
 }
