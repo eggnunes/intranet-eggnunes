@@ -98,36 +98,38 @@ serve(async (req) => {
         }
         
         // Desenhar imagem com rotação apropriada
+        const { width: pageWidth, height: pageHeight } = page.getSize();
+        
         if (rotation === 0) {
           page.drawImage(pdfImage, {
             x: 0,
             y: 0,
-            width: imgWidth,
-            height: imgHeight,
+            width: pageWidth,
+            height: pageHeight,
           });
         } else if (rotation === 90) {
           page.drawImage(pdfImage, {
             x: 0,
-            y: imgWidth,
-            width: imgWidth,
-            height: imgHeight,
+            y: pageHeight,
+            width: pageHeight,
+            height: pageWidth,
             rotate: degrees(-90),
           });
         } else if (rotation === 180) {
           page.drawImage(pdfImage, {
-            x: imgWidth,
-            y: imgHeight,
-            width: imgWidth,
-            height: imgHeight,
-            rotate: degrees(180),
+            x: pageWidth,
+            y: pageHeight,
+            width: pageWidth,
+            height: pageHeight,
+            rotate: degrees(-180),
           });
         } else if (rotation === 270) {
           page.drawImage(pdfImage, {
-            x: imgHeight,
+            x: pageWidth,
             y: 0,
-            width: imgWidth,
-            height: imgHeight,
-            rotate: degrees(90),
+            width: pageHeight,
+            height: pageWidth,
+            rotate: degrees(-270),
           });
         }
       }

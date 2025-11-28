@@ -26,19 +26,7 @@ export const FileUpload = ({ onFilesSelected, files }: FileUploadProps) => {
     e.stopPropagation();
     setIsDragging(false);
 
-    const droppedFiles = Array.from(e.dataTransfer.files).filter(
-      file => file.type.startsWith('image/')
-    );
-
-    if (droppedFiles.length === 0) {
-      toast({
-        title: "Formato inválido",
-        description: "Por favor, envie apenas imagens (JPEG, PNG, etc.)",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    const droppedFiles = Array.from(e.dataTransfer.files);
     onFilesSelected([...files, ...droppedFiles]);
   }, [files, onFilesSelected, toast]);
 
@@ -70,16 +58,15 @@ export const FileUpload = ({ onFilesSelected, files }: FileUploadProps) => {
         <input
           type="file"
           multiple
-          accept="image/*"
           onChange={handleFileInput}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />
         <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
         <p className="text-lg font-medium text-foreground mb-2">
-          Arraste suas imagens aqui
+          Arraste seus arquivos aqui
         </p>
         <p className="text-sm text-muted-foreground">
-          ou clique para selecionar arquivos
+          ou clique para selecionar (imagens, PDFs, documentos)
         </p>
       </div>
 
@@ -87,12 +74,21 @@ export const FileUpload = ({ onFilesSelected, files }: FileUploadProps) => {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {files.map((file, index) => (
             <div key={index} className="relative group">
-              <div className="aspect-square rounded-lg overflow-hidden bg-muted shadow-card">
-                <img
-                  src={URL.createObjectURL(file)}
-                  alt={file.name}
-                  className="w-full h-full object-cover"
-                />
+              <div className="aspect-square rounded-lg overflow-hidden bg-muted shadow-card flex items-center justify-center">
+                {file.type.startsWith('image/') ? (
+                  <img
+                    src={URL.createObjectURL(file)}
+                    alt={file.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-4">
+                    <Upload className="w-8 h-8 text-muted-foreground mb-2" />
+                    <span className="text-xs text-muted-foreground text-center">
+                      {file.type || 'Arquivo'}
+                    </span>
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => removeFile(index)}
