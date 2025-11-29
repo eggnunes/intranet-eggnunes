@@ -5,11 +5,13 @@ import { DayPicker } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>;
 
 function Calendar({ className, classNames, showOutsideDays = true, ...props }: CalendarProps) {
   const [month, setMonth] = React.useState<Date>(props.selected as Date || new Date());
+  const [inputValue, setInputValue] = React.useState("");
   
   const years = Array.from({ length: 100 }, (_, i) => new Date().getFullYear() - i);
   const months = [
@@ -21,9 +23,37 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
     setMonth(newMonth);
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInputValue(value);
+    
+    // Tenta fazer parse da data no formato dd/MM/yyyy
+    const parts = value.split('/');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10);
+      const monthNum = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      
+      if (!isNaN(day) && !isNaN(monthNum) && !isNaN(year)) {
+        const newDate = new Date(year, monthNum, day);
+        if (newDate.getDate() === day && newDate.getMonth() === monthNum && newDate.getFullYear() === year) {
+          setMonth(newDate);
+        }
+      }
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex gap-2 px-3">
+      <div className="px-3 space-y-3">
+        <Input
+          type="text"
+          placeholder="dd/mm/aaaa"
+          value={inputValue}
+          onChange={handleInputChange}
+          className="text-center"
+        />
+        <div className="flex gap-2">
         <Select
           value={month.getMonth().toString()}
           onValueChange={(value) => {
@@ -63,6 +93,7 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
             ))}
           </SelectContent>
         </Select>
+        </div>
       </div>
       
       <DayPicker
