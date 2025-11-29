@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { FileUpload } from '@/components/FileUpload';
+import { FilePreview } from '@/components/FilePreview';
 import { ProcessingStatus } from '@/components/ProcessingStatus';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,6 +19,7 @@ const Index = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processedDocuments, setProcessedDocuments] = useState<ProcessedDocument[]>([]);
+  const [mergeAll, setMergeAll] = useState(false);
   const { toast } = useToast();
 
   const handleProcess = async () => {
@@ -51,6 +55,7 @@ const Index = () => {
       const { data, error } = await supabase.functions.invoke('process-documents', {
         body: {
           images: imagesBase64,
+          mergeAll,
         },
       });
 
@@ -91,10 +96,16 @@ const Index = () => {
   const handleReset = () => {
     setFiles([]);
     setProcessedDocuments([]);
+    setMergeAll(false);
     toast({
       title: "Aplicativo reiniciado",
       description: "Pronto para processar novos documentos",
     });
+  };
+
+  const handleRemoveFile = (index: number) => {
+    const newFiles = files.filter((_, i) => i !== index);
+    setFiles(newFiles);
   };
 
   return (
@@ -122,21 +133,52 @@ const Index = () => {
           {/* File Upload */}
           <div className="bg-card p-6 rounded-xl border border-border shadow-card">
             <h2 className="text-lg font-semibold text-foreground mb-4">
-              Documentos para processar
+              Adicionar Documentos
             </h2>
             <FileUpload files={files} onFilesSelected={setFiles} />
           </div>
 
-          {/* Process Button */}
+          {/* File Preview & Reorder */}
+          {files.length > 0 && processedDocuments.length === 0 && (
+            <div className="bg-card p-6 rounded-xl border border-border shadow-card">
+              <FilePreview 
+                files={files} 
+                onFilesChange={setFiles}
+                onRemove={handleRemoveFile}
+              />
+            </div>
+          )}
+
+          {/* Options & Process Button */}
           {files.length > 0 && !isProcessing && processedDocuments.length === 0 && (
-            <div className="flex justify-center">
-              <Button
-                onClick={handleProcess}
-                size="lg"
-                className="bg-gradient-primary shadow-elegant hover:shadow-card transition-all"
-              >
-                Processar documentos
-              </Button>
+            <div className="space-y-6">
+              <div className="bg-card p-6 rounded-xl border border-border shadow-card">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label htmlFor="merge-all" className="text-base font-medium">
+                      Mesclar todos em um único PDF
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      Quando ativado, todos os documentos serão unidos em um único arquivo PDF
+                    </p>
+                  </div>
+                  <Switch
+                    id="merge-all"
+                    checked={mergeAll}
+                    onCheckedChange={setMergeAll}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-center">
+                <Button
+                  onClick={handleProcess}
+                  size="lg"
+                  className="bg-gradient-primary shadow-elegant hover:shadow-card transition-all"
+                >
+                  Processar documentos ({files.length} arquivo{files.length !== 1 ? 's' : ''})
+                </Button>
+              </div>
             </div>
           )}
 
