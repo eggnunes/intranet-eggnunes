@@ -153,6 +153,63 @@ export type Database = {
           },
         ]
       }
+      suggestion_tag_relations: {
+        Row: {
+          created_at: string
+          id: string
+          suggestion_id: string
+          tag_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          suggestion_id: string
+          tag_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          suggestion_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suggestion_tag_relations_suggestion_id_fkey"
+            columns: ["suggestion_id"]
+            isOneToOne: false
+            referencedRelation: "suggestions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suggestion_tag_relations_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "suggestion_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suggestion_tags: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       suggestion_votes: {
         Row: {
           created_at: string

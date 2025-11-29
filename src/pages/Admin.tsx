@@ -21,6 +21,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { SuggestionComments } from '@/components/SuggestionComments';
+import { SuggestionTagManager } from '@/components/SuggestionTagManager';
 import { useNavigate } from 'react-router-dom';
 
 interface PendingUser {
@@ -546,6 +547,11 @@ export default function Admin() {
                             <span>•</span>
                             <span>{new Date(suggestion.created_at).toLocaleDateString('pt-BR')}</span>
                           </div>
+
+                          <SuggestionTagManager
+                            suggestionId={suggestion.id}
+                            isAdmin={true}
+                          />
 
                           <div className="flex items-center gap-3">
                             <div className="flex items-center gap-1 text-sm">
