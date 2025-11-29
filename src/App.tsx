@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
 import Historico from "./pages/Historico";
 import RotaDoc from "./pages/RotaDoc";
+import AgentesIA from "./pages/AgentesIA";
 import Sugestoes from "./pages/Sugestoes";
 import DashboardSugestoes from "./pages/DashboardSugestoes";
 import Forum from "./pages/Forum";
@@ -65,6 +66,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <RotaDoc />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/agentes-ia"
+              element={
+                <ProtectedRoute>
+                  <AgentesIA />
                 </ProtectedRoute>
               }
             />
