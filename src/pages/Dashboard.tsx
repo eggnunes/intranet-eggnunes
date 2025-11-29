@@ -167,7 +167,7 @@ export default function Dashboard() {
     { icon: MessageSquare, url: 'https://s17.chatguru.app/', label: 'ChatGuru', description: 'Sistema de WhatsApp' },
     { icon: Users, url: 'https://accounts.rdstation.com/?locale=pt-BR&trial_origin=rds--header-login', label: 'RD Station CRM', description: 'CRM' },
     { icon: Mail, url: 'https://outlook.office.com/mail/', label: 'E-mail', description: 'Outlook' },
-    { icon: Video, url: 'https://teams.microsoft.com/v2/', label: 'Microsoft Teams', description: 'Reuniões e Chat' },
+    { icon: Video, url: 'https://teams.microsoft.com/v2/', label: 'Microsoft Teams', description: 'Arquivos, Reuniões e Chat' },
     { icon: Building2, url: 'https://credlocaliza.com.br/', label: 'Credlocaliza', description: 'Consultas' },
   ];
 
