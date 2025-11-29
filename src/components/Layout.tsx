@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
-import { LogOut, Home, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake } from 'lucide-react';
+import { LogOut, Home, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
@@ -135,6 +135,14 @@ export const Layout = ({ children }: LayoutProps) => {
       >
         <Cake className="w-4 h-4" />
         Aniversários
+      </Button>
+      <Button 
+        variant="ghost" 
+        onClick={() => { navigate('/equipe'); setMobileMenuOpen(false); }}
+        className="gap-2 justify-start"
+      >
+        <Users className="w-4 h-4" />
+        Equipe
       </Button>
       {isAdmin && (
         <Button 
