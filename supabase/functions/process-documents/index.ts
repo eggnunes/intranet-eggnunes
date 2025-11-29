@@ -66,13 +66,37 @@ serve(async (req) => {
         const image = group.images[j];
         const analysis = group.analyses[j];
         
-        // Pular arquivos PDF - eles não podem ser processados como imagens
+        // Processar arquivos PDF - extrair páginas e rotacionar
         if (image.type === 'application/pdf') {
-          console.log(`Pulando arquivo PDF: ${image.name}`);
+          console.log(`Processando PDF: ${image.name}`);
+          try {
+            // Decodificar PDF base64
+            const pdfBytes = Uint8Array.from(atob(image.data), c => c.charCodeAt(0));
+            const sourcePdf = await PDFDocument.load(pdfBytes);
+            
+            // Copiar todas as páginas do PDF de origem
+            const pageCount = sourcePdf.getPageCount();
+            console.log(`PDF ${image.name} tem ${pageCount} página(s)`);
+            
+            for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+              const [copiedPage] = await pdfDoc.copyPages(sourcePdf, [pageIndex]);
+              
+              // Aplicar rotação se detectada pela IA
+              const rotation = analysis.rotation || 0;
+              if (rotation !== 0) {
+                console.log(`Aplicando rotação de ${rotation}° na página ${pageIndex + 1}`);
+                copiedPage.setRotation(degrees(rotation));
+              }
+              
+              pdfDoc.addPage(copiedPage);
+            }
+          } catch (e) {
+            console.error(`Erro ao processar PDF ${image.name}:`, e);
+          }
           continue;
         }
         
-        // Decodificar base64
+        // Decodificar base64 para imagens
         const imageBytes = Uint8Array.from(atob(image.data), c => c.charCodeAt(0));
         
         // Adicionar imagem ao PDF
@@ -191,12 +215,13 @@ serve(async (req) => {
 });
 
 async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnalysis> {
-  // Verificar se é uma imagem válida para análise
+  // Verificar se é uma imagem ou PDF válido para análise
   const isImage = image.type.startsWith('image/');
+  const isPDF = image.type === 'application/pdf';
   
-  if (!isImage) {
-    // Para arquivos não-imagem (PDF, DOCX, etc), retornar valores padrão
-    console.log(`Arquivo ${image.name} não é imagem (${image.type}), usando valores padrão`);
+  if (!isImage && !isPDF) {
+    // Para outros arquivos (DOCX, etc), retornar valores padrão
+    console.log(`Arquivo ${image.name} não é imagem nem PDF (${image.type}), usando valores padrão`);
     return {
       rotation: 0,
       documentType: 'documento',
@@ -205,16 +230,18 @@ async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnal
     };
   }
 
-  // Validar tipo MIME de imagem suportado
-  const supportedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-  if (!supportedTypes.includes(image.type)) {
-    console.log(`Tipo de imagem ${image.type} não suportado, usando valores padrão`);
-    return {
-      rotation: 0,
-      documentType: 'documento',
-      confidence: 0.5,
-      text: ''
-    };
+  // Validar tipo MIME de imagem suportado (PDFs são sempre suportados)
+  if (isImage) {
+    const supportedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!supportedTypes.includes(image.type)) {
+      console.log(`Tipo de imagem ${image.type} não suportado, usando valores padrão`);
+      return {
+        rotation: 0,
+        documentType: 'documento',
+        confidence: 0.5,
+        text: ''
+      };
+    }
   }
 
   // Usar Lovable AI (Google Gemini 2.5 Flash) para análise rápida
