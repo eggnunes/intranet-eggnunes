@@ -303,6 +303,37 @@ export default function Dashboard() {
 
         <Separator className="my-8" />
 
+        {/* Ferramentas do Escritório */}
+        <section>
+          <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20">
+              <Building2 className="h-5 w-5 text-primary" />
+            </div>
+            Ferramentas do Escritório
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {toolLinks.map((tool) => (
+              <Card key={tool.url} className="hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
+                <a href={tool.url} target="_blank" rel="noopener noreferrer">
+                  <CardContent className="p-6">
+                    <div className="flex items-start gap-4">
+                      <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                        <tool.icon className="w-6 h-6 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-lg mb-1 group-hover:text-primary transition-colors">{tool.label}</h3>
+                        <p className="text-sm text-muted-foreground">{tool.description}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </a>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        <Separator className="my-8" />
+
         {/* Direito para Servidores Públicos - Área Principal */}
         <section>
           <div className="mb-6">
@@ -423,31 +454,6 @@ export default function Dashboard() {
         </section>
 
         <Separator className="my-8" />
-
-
-        {/* Ferramentas do Escritório */}
-        <section>
-          <h2 className="text-2xl font-bold mb-6">Ferramentas do Escritório</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {toolLinks.map((tool) => (
-              <Card key={tool.url} className="hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
-                <a href={tool.url} target="_blank" rel="noopener noreferrer">
-                  <CardContent className="p-6">
-                    <div className="flex items-start gap-4">
-                      <div className="p-3 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                        <tool.icon className="w-6 h-6 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg mb-1 group-hover:text-primary transition-colors">{tool.label}</h3>
-                        <p className="text-sm text-muted-foreground">{tool.description}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </a>
-              </Card>
-            ))}
-          </div>
-        </section>
 
         {/* Redes Sociais */}
         <section>
