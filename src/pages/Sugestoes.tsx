@@ -37,9 +37,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, Lightbulb, MessageSquare } from "lucide-react";
+import { Loader2, Send, Lightbulb, MessageSquare, Filter, X } from "lucide-react";
 import { SuggestionComments } from "@/components/SuggestionComments";
 import { SuggestionVotes } from "@/components/SuggestionVotes";
 import { SuggestionTagManager } from "@/components/SuggestionTagManager";
@@ -82,6 +88,7 @@ export default function Sugestoes() {
   const [selectedSuggestion, setSelectedSuggestion] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [sortBy, setSortBy] = useState<string>("newest");
 
@@ -95,7 +102,7 @@ export default function Sugestoes() {
   });
 
   const { data: allSuggestions, refetch: refetchAll } = useQuery({
-    queryKey: ["all-suggestions", filterStatus, filterCategory, searchQuery, sortBy],
+    queryKey: ["all-suggestions", filterStatus, filterCategory, searchQuery, sortBy, selectedTags],
     queryFn: async () => {
       let query = supabase
         .from("suggestions")
@@ -142,6 +149,29 @@ export default function Sugestoes() {
         comments: commentsCount[suggestion.id] || 0,
       }));
 
+      // Filtrar por tags se houver tags selecionadas
+      if (selectedTags.length > 0) {
+        const { data: tagRelations } = await supabase
+          .from("suggestion_tag_relations")
+          .select("suggestion_id, tag_id")
+          .in("suggestion_id", suggestionIds);
+
+        // Agrupar tags por sugestão
+        const suggestionTagsMap = tagRelations?.reduce((acc, rel) => {
+          if (!acc[rel.suggestion_id]) {
+            acc[rel.suggestion_id] = [];
+          }
+          acc[rel.suggestion_id].push(rel.tag_id);
+          return acc;
+        }, {} as Record<string, string[]>) || {};
+
+        // Filtrar sugestões que têm TODAS as tags selecionadas
+        enrichedData = enrichedData.filter((s) => {
+          const suggestionTags = suggestionTagsMap[s.id] || [];
+          return selectedTags.every((tagId) => suggestionTags.includes(tagId));
+        });
+      }
+
       // Aplicar busca local
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -182,6 +212,32 @@ export default function Sugestoes() {
       return enrichedData;
     },
   });
+
+  // Buscar todas as tags disponíveis
+  const { data: allTags } = useQuery({
+    queryKey: ["all-tags"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("suggestion_tags")
+        .select("*")
+        .order("name");
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const toggleTag = (tagId: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tagId)
+        ? prev.filter((id) => id !== tagId)
+        : [...prev, tagId]
+    );
+  };
+
+  const clearTags = () => {
+    setSelectedTags([]);
+  };
 
   const { data: mySuggestions, refetch: refetchMine } = useQuery({
     queryKey: ["my-suggestions"],
@@ -404,6 +460,59 @@ export default function Sugestoes() {
                     ))}
                   </SelectContent>
                 </Select>
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="gap-2">
+                      <Filter className="h-4 w-4" />
+                      Tags {selectedTags.length > 0 && `(${selectedTags.length})`}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 bg-popover z-50">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-sm">Filtrar por tags</h4>
+                        {selectedTags.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={clearTags}
+                            className="h-auto p-1"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        {allTags && allTags.length > 0 ? (
+                          allTags.map((tag) => (
+                            <div key={tag.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`tag-${tag.id}`}
+                                checked={selectedTags.includes(tag.id)}
+                                onCheckedChange={() => toggleTag(tag.id)}
+                              />
+                              <label
+                                htmlFor={`tag-${tag.id}`}
+                                className="flex items-center gap-2 text-sm cursor-pointer flex-1"
+                              >
+                                <div
+                                  className="w-3 h-3 rounded-full"
+                                  style={{ backgroundColor: tag.color }}
+                                />
+                                <span>{tag.name}</span>
+                              </label>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground text-center py-2">
+                            Nenhuma tag disponível
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
 
                 <Select value={sortBy} onValueChange={setSortBy}>
                   <SelectTrigger className="w-[180px]">
