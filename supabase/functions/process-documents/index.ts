@@ -32,12 +32,13 @@ serve(async (req) => {
       throw new Error('Nenhuma imagem fornecida');
     }
 
-    const apiKey = Deno.env.get('OPENAI_API_KEY');
+    // Usar Lovable AI (Google Gemini) - provisionado automaticamente
+    const apiKey = Deno.env.get('LOVABLE_API_KEY');
     if (!apiKey) {
       throw new Error('API Key não configurada no servidor');
     }
 
-    console.log(`Processando ${images.length} imagens`);
+    console.log(`Processando ${images.length} imagens com Lovable AI`);
 
     // Analisar cada imagem com GPT-4 Vision
     const analyses: ImageAnalysis[] = [];
@@ -182,10 +183,10 @@ async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnal
     };
   }
 
-  // Validar tipo MIME de imagem suportado pela API OpenAI
+  // Validar tipo MIME de imagem suportado
   const supportedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
   if (!supportedTypes.includes(image.type)) {
-    console.log(`Tipo de imagem ${image.type} não suportado pela API, usando valores padrão`);
+    console.log(`Tipo de imagem ${image.type} não suportado, usando valores padrão`);
     return {
       rotation: 0,
       documentType: 'documento',
@@ -194,26 +195,26 @@ async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnal
     };
   }
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  // Usar Lovable AI (Google Gemini 2.5 Flash) para análise rápida
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      max_tokens: 500,
+      model: 'google/gemini-2.5-flash',
       messages: [
         {
           role: 'system',
-          content: 'Você é um especialista em análise de documentos jurídicos. Analise a imagem e determine: 1) Se está rotacionada e em quantos graus (0, 90, 180, 270), 2) Que tipo de documento é (relatório médico, procuração, contrato, etc), 3) Extraia todo o texto visível na imagem (OCR). Responda APENAS em formato JSON com as chaves: rotation (número), documentType (string), confidence (número 0-1), text (string com o texto extraído).'
+          content: 'Você é um especialista em análise de documentos jurídicos e médicos. Analise a imagem e determine: 1) Se está rotacionada e em quantos graus (0, 90, 180, 270), 2) Que tipo de documento é (relatório médico, procuração, contrato, receita, atestado, etc), 3) Extraia todo o texto visível na imagem. Responda APENAS em formato JSON válido com as chaves: rotation (número), documentType (string), confidence (número 0-1), text (string com o texto extraído).'
         },
         {
           role: 'user',
           content: [
             {
               type: 'text',
-              text: 'Analise este documento e retorne o JSON solicitado.'
+              text: 'Analise este documento e retorne o JSON solicitado com a rotação correta, tipo de documento e texto extraído.'
             },
             {
               type: 'image_url',
@@ -229,7 +230,7 @@ async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnal
 
   if (!response.ok) {
     const error = await response.text();
-    console.error('Erro na API OpenAI:', error);
+    console.error('Erro na Lovable AI:', error);
     throw new Error(`Erro ao analisar imagem: ${response.status}`);
   }
 
