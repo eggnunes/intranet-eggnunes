@@ -169,6 +169,17 @@ export default function Profile() {
 
       if (error) throw error;
 
+      // Recarregar os dados do perfil após salvar
+      const { data: updatedProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (updatedProfile && updatedProfile.birth_date) {
+        setBirthDate(new Date(updatedProfile.birth_date));
+      }
+
       toast({
         title: 'Perfil atualizado',
         description: 'Suas informações foram salvas com sucesso!',
@@ -176,6 +187,9 @@ export default function Profile() {
 
       setAvatarFile(null);
       setAvatarPreview(null);
+      
+      // Forçar reload da página para atualizar o hook useUserRole
+      window.location.reload();
     } catch (error: any) {
       toast({
         title: 'Erro ao salvar perfil',
