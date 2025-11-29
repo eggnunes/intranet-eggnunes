@@ -23,6 +23,13 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
     setMonth(newMonth);
   };
 
+  const triggerSelect = (date: Date) => {
+    const anyProps: any = props;
+    if (typeof anyProps.onSelect === 'function') {
+      anyProps.onSelect(date);
+    }
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setInputValue(value);
@@ -38,6 +45,7 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         const newDate = new Date(year, monthNum, day);
         if (newDate.getDate() === day && newDate.getMonth() === monthNum && newDate.getFullYear() === year) {
           setMonth(newDate);
+          triggerSelect(newDate);
         }
       }
     }
