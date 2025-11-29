@@ -15,6 +15,7 @@ import DashboardSugestoes from "./pages/DashboardSugestoes";
 import Forum from "./pages/Forum";
 import ForumTopic from "./pages/ForumTopic";
 import DocumentosUteis from "./pages/DocumentosUteis";
+import Aniversarios from "./pages/Aniversarios";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
@@ -114,6 +115,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <DocumentosUteis />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/aniversarios"
+              element={
+                <ProtectedRoute>
+                  <Aniversarios />
                 </ProtectedRoute>
               }
             />

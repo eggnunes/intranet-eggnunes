@@ -1,17 +1,76 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, MessageSquare, History, FolderOpen, TrendingUp, User, Mail, Book, Phone, Users, Instagram, Music, Video, Building2, Home, Briefcase, Award, ExternalLink, Shield, Gavel, FileCheck, Banknote, Clock, AlertCircle } from 'lucide-react';
+import { FileText, MessageSquare, History, FolderOpen, TrendingUp, User, Mail, Book, Phone, Users, Instagram, Music, Video, Building2, Home, Briefcase, Award, ExternalLink, Shield, Gavel, FileCheck, Banknote, Clock, AlertCircle, Cake } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { supabase } from '@/integrations/supabase/client';
+import { format, getMonth, getDate } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+interface BirthdayProfile {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+  birth_date: string;
+  position: string | null;
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { profile, loading, isApproved } = useUserRole();
+  const [monthBirthdays, setMonthBirthdays] = useState<BirthdayProfile[]>([]);
+  const [loadingBirthdays, setLoadingBirthdays] = useState(true);
+
+  useEffect(() => {
+    fetchMonthBirthdays();
+  }, []);
+
+  const fetchMonthBirthdays = async () => {
+    const currentMonth = getMonth(new Date());
+    
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, avatar_url, birth_date, position')
+      .eq('approval_status', 'approved')
+      .not('birth_date', 'is', null);
+
+    if (!error && data) {
+      const filtered = data.filter((p) => {
+        if (p.birth_date) {
+          return getMonth(new Date(p.birth_date)) === currentMonth;
+        }
+        return false;
+      });
+
+      // Ordenar por dia do mês
+      filtered.sort((a, b) => {
+        const dayA = getDate(new Date(a.birth_date!));
+        const dayB = getDate(new Date(b.birth_date!));
+        return dayA - dayB;
+      });
+
+      setMonthBirthdays(filtered as BirthdayProfile[]);
+    }
+    setLoadingBirthdays(false);
+  };
+
+  const getPositionLabel = (position: string | null) => {
+    if (!position) return '';
+    const positions: { [key: string]: string } = {
+      socio: 'Sócio',
+      advogado: 'Advogado',
+      estagiario: 'Estagiário',
+      comercial: 'Comercial',
+      administrativo: 'Administrativo',
+    };
+    return positions[position] || position;
+  };
 
   if (loading) {
     return (
@@ -461,6 +520,72 @@ export default function Dashboard() {
               );
             })}
           </div>
+        </section>
+
+        <Separator className="my-8" />
+
+        {/* Aniversariantes do Mês */}
+        <section>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-pink-500/20 to-rose-500/20">
+                <Cake className="h-5 w-5 text-pink-600" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold">Aniversariantes do Mês</h2>
+                <p className="text-sm text-muted-foreground">Celebre com a equipe</p>
+              </div>
+            </div>
+            <Button variant="outline" onClick={() => navigate('/aniversarios')} className="gap-2">
+              Ver todos
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          {loadingBirthdays ? (
+            <Card>
+              <CardContent className="p-8 text-center text-muted-foreground">
+                Carregando aniversariantes...
+              </CardContent>
+            </Card>
+          ) : monthBirthdays.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center text-muted-foreground">
+                Nenhum aniversariante este mês.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {monthBirthdays.map((person) => (
+                <Card
+                  key={person.id}
+                  className="bg-gradient-to-br from-pink-500/10 to-rose-500/5 hover:from-pink-500/20 hover:to-rose-500/10 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border-pink-200/50"
+                >
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-4">
+                      <Avatar className="h-16 w-16 border-2 border-pink-400/50">
+                        <AvatarImage src={person.avatar_url || undefined} />
+                        <AvatarFallback className="bg-gradient-to-br from-pink-400/20 to-rose-400/20">
+                          <User className="h-8 w-8 text-pink-600" />
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-lg truncate">{person.full_name}</p>
+                        <p className="text-sm text-pink-700 font-medium">
+                          {format(new Date(person.birth_date), "dd 'de' MMMM", { locale: ptBR })}
+                        </p>
+                        {person.position && (
+                          <Badge variant="outline" className="mt-2 text-xs border-pink-400 text-pink-700">
+                            {getPositionLabel(person.position)}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </section>
 
         <Separator className="my-8" />
