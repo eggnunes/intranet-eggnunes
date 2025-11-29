@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Check, X, Shield, UserPlus, History, Lightbulb } from 'lucide-react';
+import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, ThumbsUp, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -15,6 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { SuggestionComments } from '@/components/SuggestionComments';
 import { useNavigate } from 'react-router-dom';
 
 interface PendingUser {
@@ -63,6 +69,9 @@ export default function Admin() {
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [usageHistory, setUsageHistory] = useState<UsageHistoryItem[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [openSuggestions, setOpenSuggestions] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -79,7 +88,7 @@ export default function Admin() {
       fetchUsageHistory();
       fetchSuggestions();
     }
-  }, [isAdmin]);
+  }, [isAdmin, filterStatus, filterCategory]);
 
   const fetchPendingUsers = async () => {
     const { data } = await supabase
@@ -234,10 +243,20 @@ export default function Admin() {
   };
 
   const fetchSuggestions = async () => {
-    const { data: suggestionsData } = await supabase
+    let query = supabase
       .from('suggestions')
       .select('*')
       .order('created_at', { ascending: false });
+
+    if (filterStatus !== "all") {
+      query = query.eq('status', filterStatus);
+    }
+
+    if (filterCategory !== "all") {
+      query = query.eq('category', filterCategory);
+    }
+
+    const { data: suggestionsData } = await query;
 
     if (!suggestionsData) {
       setSuggestions([]);
@@ -253,9 +272,34 @@ export default function Admin() {
 
     const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || []);
 
+    // Buscar contagem de votos
+    const suggestionIds = suggestionsData.map(s => s.id);
+    const { data: votesData } = await supabase
+      .from('suggestion_votes')
+      .select('suggestion_id')
+      .in('suggestion_id', suggestionIds);
+
+    const votesCount = votesData?.reduce((acc, vote) => {
+      acc[vote.suggestion_id] = (acc[vote.suggestion_id] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>) || {};
+
+    // Buscar contagem de comentários
+    const { data: commentsData } = await supabase
+      .from('suggestion_comments')
+      .select('suggestion_id')
+      .in('suggestion_id', suggestionIds);
+
+    const commentsCount = commentsData?.reduce((acc, comment) => {
+      acc[comment.suggestion_id] = (acc[comment.suggestion_id] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>) || {};
+
     const enrichedSuggestions = suggestionsData.map(item => ({
       ...item,
-      profiles: profilesMap.get(item.user_id) || { email: 'Desconhecido', full_name: 'Desconhecido' }
+      profiles: profilesMap.get(item.user_id) || { email: 'Desconhecido', full_name: 'Desconhecido' },
+      votes: votesCount[item.id] || 0,
+      comments: commentsCount[item.id] || 0,
     }));
     
     setSuggestions(enrichedSuggestions);
@@ -280,6 +324,18 @@ export default function Admin() {
       });
       fetchSuggestions();
     }
+  };
+
+  const toggleSuggestion = (id: string) => {
+    setOpenSuggestions(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   };
 
   const categories = {
@@ -425,60 +481,125 @@ export default function Admin() {
                 <CardDescription>
                   Gerencie as sugestões e atualize seus status
                 </CardDescription>
+                <div className="flex gap-2 pt-2">
+                  <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os status</SelectItem>
+                      {statusOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filterCategory} onValueChange={setFilterCategory}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as categorias</SelectItem>
+                      {Object.entries(categories).map(([key, label]) => (
+                        <SelectItem key={key} value={key}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardHeader>
               <CardContent>
                 {suggestions.length === 0 ? (
                   <p className="text-muted-foreground text-center py-8">
-                    Nenhuma sugestão registrada
+                    Nenhuma sugestão encontrada
                   </p>
                 ) : (
                   <div className="space-y-4">
-                    {suggestions.map((suggestion) => (
-                      <div
+                    {suggestions.map((suggestion: any) => (
+                      <Collapsible
                         key={suggestion.id}
-                        className="p-4 border border-border rounded-lg space-y-3"
+                        open={openSuggestions.has(suggestion.id)}
+                        onOpenChange={() => toggleSuggestion(suggestion.id)}
                       >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-base">{suggestion.title}</h3>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {suggestion.description}
-                            </p>
+                        <div className="p-4 border border-border rounded-lg space-y-3">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-base">{suggestion.title}</h3>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                {suggestion.description}
+                              </p>
+                            </div>
+                            <Badge variant={statusBadgeVariant(suggestion.status)}>
+                              {statusOptions.find(s => s.value === suggestion.status)?.label}
+                            </Badge>
                           </div>
-                          <Badge variant={statusBadgeVariant(suggestion.status)}>
-                            {statusOptions.find(s => s.value === suggestion.status)?.label}
-                          </Badge>
-                        </div>
-                        
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>
-                            {categories[suggestion.category as keyof typeof categories] || suggestion.category}
-                          </span>
-                          <span>•</span>
-                          <span>{suggestion.profiles?.full_name}</span>
-                          <span>•</span>
-                          <span>{new Date(suggestion.created_at).toLocaleDateString('pt-BR')}</span>
-                        </div>
+                          
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <span>
+                              {categories[suggestion.category as keyof typeof categories] || suggestion.category}
+                            </span>
+                            <span>•</span>
+                            <span>{suggestion.profiles?.full_name}</span>
+                            <span>•</span>
+                            <span>{new Date(suggestion.created_at).toLocaleDateString('pt-BR')}</span>
+                          </div>
 
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">Atualizar status:</span>
-                          <Select
-                            value={suggestion.status}
-                            onValueChange={(value) => handleUpdateSuggestionStatus(suggestion.id, value)}
-                          >
-                            <SelectTrigger className="w-[180px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {statusOptions.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1 text-sm">
+                              <ThumbsUp className="h-4 w-4" />
+                              <span>{suggestion.votes}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-sm">
+                              <MessageSquare className="h-4 w-4" />
+                              <span>{suggestion.comments}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">Status:</span>
+                              <Select
+                                value={suggestion.status}
+                                onValueChange={(value) => handleUpdateSuggestionStatus(suggestion.id, value)}
+                              >
+                                <SelectTrigger className="w-[180px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {statusOptions.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <CollapsibleTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                {openSuggestions.has(suggestion.id) ? (
+                                  <>
+                                    <ChevronUp className="h-4 w-4 mr-2" />
+                                    Ocultar comentários
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown className="h-4 w-4 mr-2" />
+                                    Ver comentários
+                                  </>
+                                )}
+                              </Button>
+                            </CollapsibleTrigger>
+                          </div>
+
+                          <CollapsibleContent className="pt-4 border-t">
+                            <SuggestionComments suggestionId={suggestion.id} isAdmin={true} />
+                          </CollapsibleContent>
                         </div>
-                      </div>
+                      </Collapsible>
                     ))}
                   </div>
                 )}

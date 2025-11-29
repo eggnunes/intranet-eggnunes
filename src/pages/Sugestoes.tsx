@@ -30,9 +30,18 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, Lightbulb } from "lucide-react";
+import { Loader2, Send, Lightbulb, MessageSquare } from "lucide-react";
+import { SuggestionComments } from "@/components/SuggestionComments";
+import { SuggestionVotes } from "@/components/SuggestionVotes";
 
 const suggestionSchema = z.object({
   title: z
@@ -67,6 +76,9 @@ const statusMap = {
 export default function Sugestoes() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
 
   const form = useForm<SuggestionForm>({
     resolver: zodResolver(suggestionSchema),
@@ -77,7 +89,58 @@ export default function Sugestoes() {
     },
   });
 
-  const { data: mySuggestions, refetch } = useQuery({
+  const { data: allSuggestions, refetch: refetchAll } = useQuery({
+    queryKey: ["all-suggestions", filterStatus, filterCategory],
+    queryFn: async () => {
+      let query = supabase
+        .from("suggestions")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (filterStatus !== "all") {
+        query = query.eq("status", filterStatus);
+      }
+
+      if (filterCategory !== "all") {
+        query = query.eq("category", filterCategory);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      // Buscar contagem de votos
+      const suggestionIds = data.map((s) => s.id);
+      const { data: votesData } = await supabase
+        .from("suggestion_votes")
+        .select("suggestion_id")
+        .in("suggestion_id", suggestionIds);
+
+      const votesCount = votesData?.reduce((acc, vote) => {
+        acc[vote.suggestion_id] = (acc[vote.suggestion_id] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>) || {};
+
+      // Buscar contagem de comentários
+      const { data: commentsData } = await supabase
+        .from("suggestion_comments")
+        .select("suggestion_id")
+        .in("suggestion_id", suggestionIds);
+
+      const commentsCount = commentsData?.reduce((acc, comment) => {
+        acc[comment.suggestion_id] = (acc[comment.suggestion_id] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>) || {};
+
+      return data.map((suggestion) => ({
+        ...suggestion,
+        votes: votesCount[suggestion.id] || 0,
+        comments: commentsCount[suggestion.id] || 0,
+      }));
+    },
+  });
+
+  const { data: mySuggestions, refetch: refetchMine } = useQuery({
     queryKey: ["my-suggestions"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -123,7 +186,8 @@ export default function Sugestoes() {
       });
 
       form.reset();
-      refetch();
+      refetchMine();
+      refetchAll();
     } catch (error: any) {
       toast({
         title: "Erro ao enviar sugestão",
@@ -137,7 +201,7 @@ export default function Sugestoes() {
 
   return (
     <Layout>
-      <div className="container mx-auto p-6 max-w-6xl">
+      <div className="container mx-auto p-6 max-w-7xl">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Sugestões e Melhorias</h1>
           <p className="text-muted-foreground">
@@ -145,17 +209,16 @@ export default function Sugestoes() {
           </p>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-3">
           {/* Formulário de Nova Sugestão */}
-          <Card>
+          <Card className="lg:col-span-1">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Lightbulb className="h-5 w-5" />
                 Nova Sugestão
               </CardTitle>
               <CardDescription>
-                Compartilhe suas ideias para tornar nosso ambiente de trabalho
-                ainda melhor
+                Compartilhe suas ideias
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -251,28 +314,58 @@ export default function Sugestoes() {
             </CardContent>
           </Card>
 
-          {/* Minhas Sugestões */}
-          <Card>
+          {/* Todas as Sugestões */}
+          <Card className="lg:col-span-2">
             <CardHeader>
-              <CardTitle>Minhas Sugestões</CardTitle>
+              <CardTitle>Todas as Sugestões</CardTitle>
               <CardDescription>
-                Acompanhe o status das suas sugestões enviadas
+                Veja e vote nas sugestões da comunidade
               </CardDescription>
+              <div className="flex gap-2 pt-2">
+                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os status</SelectItem>
+                    {Object.entries(statusMap).map(([key, { label }]) => (
+                      <SelectItem key={key} value={key}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={filterCategory} onValueChange={setFilterCategory}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as categorias</SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {!mySuggestions || mySuggestions.length === 0 ? (
+                {!allSuggestions || allSuggestions.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">
-                    Você ainda não enviou nenhuma sugestão.
+                    Nenhuma sugestão encontrada.
                   </p>
                 ) : (
-                  mySuggestions.map((suggestion) => (
+                  allSuggestions.map((suggestion: any) => (
                     <div
                       key={suggestion.id}
-                      className="border rounded-lg p-4 space-y-2"
+                      className="border rounded-lg p-4 space-y-3 hover:bg-muted/50 transition-colors cursor-pointer"
+                      onClick={() => setSelectedSuggestion(suggestion.id)}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="font-semibold text-sm">
+                        <h3 className="font-semibold text-sm flex-1">
                           {suggestion.title}
                         </h3>
                         <Badge
@@ -297,11 +390,18 @@ export default function Sugestoes() {
                       <p className="text-sm text-muted-foreground line-clamp-2">
                         {suggestion.description}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(suggestion.created_at).toLocaleDateString(
-                          "pt-BR"
-                        )}
-                      </p>
+                      <div className="flex items-center gap-3">
+                        <SuggestionVotes suggestionId={suggestion.id} />
+                        <Button variant="ghost" size="sm" className="gap-2">
+                          <MessageSquare className="h-4 w-4" />
+                          {suggestion.comments}
+                        </Button>
+                        <p className="text-xs text-muted-foreground ml-auto">
+                          {new Date(suggestion.created_at).toLocaleDateString(
+                            "pt-BR"
+                          )}
+                        </p>
+                      </div>
                     </div>
                   ))
                 )}
@@ -309,6 +409,26 @@ export default function Sugestoes() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Dialog de Comentários */}
+        <Dialog
+          open={!!selectedSuggestion}
+          onOpenChange={() => setSelectedSuggestion(null)}
+        >
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {allSuggestions?.find((s: any) => s.id === selectedSuggestion)?.title}
+              </DialogTitle>
+              <DialogDescription>
+                {allSuggestions?.find((s: any) => s.id === selectedSuggestion)?.description}
+              </DialogDescription>
+            </DialogHeader>
+            {selectedSuggestion && (
+              <SuggestionComments suggestionId={selectedSuggestion} />
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
