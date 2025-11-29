@@ -144,6 +144,13 @@ serve(async (req) => {
         }
       }
       
+      // Verificar se o PDF tem pelo menos uma página antes de salvar
+      // Se todos os arquivos foram PDFs (e foram pulados), não gerar PDF vazio
+      if (pdfDoc.getPageCount() === 0) {
+        console.log(`Grupo ${group.type} não tem páginas válidas, pulando`);
+        continue;
+      }
+      
       // Salvar PDF
       const pdfBytes = await pdfDoc.save();
       
@@ -160,7 +167,7 @@ serve(async (req) => {
       documents.push({
         name: `${group.type}_${i + 1}.pdf`,
         url: `data:application/pdf;base64,${pdfBase64}`,
-        pageCount: group.images.length,
+        pageCount: pdfDoc.getPageCount(),
       });
     }
 
