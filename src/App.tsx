@@ -11,6 +11,9 @@ import Historico from "./pages/Historico";
 import RotaDoc from "./pages/RotaDoc";
 import Sugestoes from "./pages/Sugestoes";
 import DashboardSugestoes from "./pages/DashboardSugestoes";
+import Forum from "./pages/Forum";
+import ForumTopic from "./pages/ForumTopic";
+import DocumentosUteis from "./pages/DocumentosUteis";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
@@ -78,6 +81,30 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <DashboardSugestoes />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/forum"
+              element={
+                <ProtectedRoute>
+                  <Forum />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/forum/:id"
+              element={
+                <ProtectedRoute>
+                  <ForumTopic />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/documentos-uteis"
+              element={
+                <ProtectedRoute>
+                  <DocumentosUteis />
                 </ProtectedRoute>
               }
             />
