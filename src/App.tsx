@@ -17,6 +17,7 @@ import ForumTopic from "./pages/ForumTopic";
 import DocumentosUteis from "./pages/DocumentosUteis";
 import Aniversarios from "./pages/Aniversarios";
 import Profile from "./pages/Profile";
+import Equipe from "./pages/Equipe";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
@@ -132,6 +133,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Profile />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/equipe"
+              element={
+                <ProtectedRoute>
+                  <Equipe />
                 </ProtectedRoute>
               }
             />
