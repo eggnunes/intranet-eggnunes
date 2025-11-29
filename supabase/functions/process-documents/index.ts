@@ -17,6 +17,7 @@ interface ImageAnalysis {
   rotation: number;
   documentType: string;
   confidence: number;
+  text?: string; // OCR text
 }
 
 serve(async (req) => {
@@ -25,7 +26,7 @@ serve(async (req) => {
   }
 
   try {
-    const { images } = await req.json();
+    const { images, mergeAll = false } = await req.json();
 
     if (!images || !Array.isArray(images) || images.length === 0) {
       throw new Error('Nenhuma imagem fornecida');
@@ -47,8 +48,10 @@ serve(async (req) => {
       console.log(`Imagem ${image.name} analisada:`, analysis);
     }
 
-    // Agrupar documentos por tipo
-    const groupedDocs = groupDocumentsByType(images, analyses);
+    // Agrupar documentos por tipo ou mesclar tudo
+    const groupedDocs = mergeAll 
+      ? [{ type: 'documento_completo', images, analyses }]
+      : groupDocumentsByType(images, analyses);
     console.log(`Agrupados em ${groupedDocs.length} documentos`);
 
     // Gerar PDFs reais
@@ -173,11 +176,11 @@ async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnal
     },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
-      max_tokens: 300,
+      max_tokens: 500,
       messages: [
         {
           role: 'system',
-          content: 'Você é um especialista em análise de documentos jurídicos. Analise a imagem e determine: 1) Se está rotacionada e em quantos graus (0, 90, 180, 270), 2) Que tipo de documento é (relatório médico, procuração, contrato, etc). Responda APENAS em formato JSON com as chaves: rotation (número), documentType (string), confidence (número 0-1).'
+          content: 'Você é um especialista em análise de documentos jurídicos. Analise a imagem e determine: 1) Se está rotacionada e em quantos graus (0, 90, 180, 270), 2) Que tipo de documento é (relatório médico, procuração, contrato, etc), 3) Extraia todo o texto visível na imagem (OCR). Responda APENAS em formato JSON com as chaves: rotation (número), documentType (string), confidence (número 0-1), text (string com o texto extraído).'
         },
         {
           role: 'user',
@@ -222,7 +225,8 @@ async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnal
   return {
     rotation: result.rotation || 0,
     documentType: result.documentType || 'documento',
-    confidence: result.confidence || 0.5
+    confidence: result.confidence || 0.5,
+    text: result.text || ''
   };
 }
 
