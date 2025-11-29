@@ -82,6 +82,8 @@ export default function Sugestoes() {
   const [selectedSuggestion, setSelectedSuggestion] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [sortBy, setSortBy] = useState<string>("newest");
 
   const form = useForm<SuggestionForm>({
     resolver: zodResolver(suggestionSchema),
@@ -93,12 +95,11 @@ export default function Sugestoes() {
   });
 
   const { data: allSuggestions, refetch: refetchAll } = useQuery({
-    queryKey: ["all-suggestions", filterStatus, filterCategory],
+    queryKey: ["all-suggestions", filterStatus, filterCategory, searchQuery, sortBy],
     queryFn: async () => {
       let query = supabase
         .from("suggestions")
-        .select("*")
-        .order("created_at", { ascending: false });
+        .select("*");
 
       if (filterStatus !== "all") {
         query = query.eq("status", filterStatus);
@@ -135,11 +136,50 @@ export default function Sugestoes() {
         return acc;
       }, {} as Record<string, number>) || {};
 
-      return data.map((suggestion) => ({
+      let enrichedData = data.map((suggestion) => ({
         ...suggestion,
         votes: votesCount[suggestion.id] || 0,
         comments: commentsCount[suggestion.id] || 0,
       }));
+
+      // Aplicar busca local
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        enrichedData = enrichedData.filter(
+          (s) =>
+            s.title.toLowerCase().includes(query) ||
+            s.description.toLowerCase().includes(query)
+        );
+      }
+
+      // Aplicar ordenação
+      switch (sortBy) {
+        case "newest":
+          enrichedData.sort((a, b) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+          break;
+        case "oldest":
+          enrichedData.sort((a, b) => 
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
+          break;
+        case "most_voted":
+          enrichedData.sort((a, b) => b.votes - a.votes);
+          break;
+        case "most_commented":
+          enrichedData.sort((a, b) => b.comments - a.comments);
+          break;
+        case "relevance":
+          enrichedData.sort((a, b) => {
+            const scoreA = a.votes * 2 + a.comments;
+            const scoreB = b.votes * 2 + b.comments;
+            return scoreB - scoreA;
+          });
+          break;
+      }
+
+      return enrichedData;
     },
   });
 
@@ -324,7 +364,19 @@ export default function Sugestoes() {
               <CardDescription>
                 Veja e vote nas sugestões da comunidade
               </CardDescription>
-              <div className="flex gap-2 pt-2">
+              
+              {/* Busca */}
+              <div className="pt-4">
+                <Input
+                  placeholder="Buscar sugestões por título ou descrição..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Filtros e Ordenação */}
+              <div className="flex gap-2 pt-2 flex-wrap">
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
                   <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Status" />
@@ -350,6 +402,19 @@ export default function Sugestoes() {
                         {cat.label}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Ordenar por" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="newest">Mais recentes</SelectItem>
+                    <SelectItem value="oldest">Mais antigas</SelectItem>
+                    <SelectItem value="most_voted">Mais votadas</SelectItem>
+                    <SelectItem value="most_commented">Mais comentadas</SelectItem>
+                    <SelectItem value="relevance">Relevância</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

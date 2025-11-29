@@ -4,6 +4,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -72,6 +73,8 @@ export default function Admin() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [sortBy, setSortBy] = useState<string>("newest");
   const [openSuggestions, setOpenSuggestions] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -89,7 +92,7 @@ export default function Admin() {
       fetchUsageHistory();
       fetchSuggestions();
     }
-  }, [isAdmin, filterStatus, filterCategory]);
+  }, [isAdmin, filterStatus, filterCategory, searchQuery, sortBy]);
 
   const fetchPendingUsers = async () => {
     const { data } = await supabase
@@ -246,8 +249,7 @@ export default function Admin() {
   const fetchSuggestions = async () => {
     let query = supabase
       .from('suggestions')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select('*');
 
     if (filterStatus !== "all") {
       query = query.eq('status', filterStatus);
@@ -296,12 +298,49 @@ export default function Admin() {
       return acc;
     }, {} as Record<string, number>) || {};
 
-    const enrichedSuggestions = suggestionsData.map(item => ({
+    let enrichedSuggestions = suggestionsData.map(item => ({
       ...item,
       profiles: profilesMap.get(item.user_id) || { email: 'Desconhecido', full_name: 'Desconhecido' },
       votes: votesCount[item.id] || 0,
       comments: commentsCount[item.id] || 0,
     }));
+
+    // Aplicar busca local
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      enrichedSuggestions = enrichedSuggestions.filter(
+        (s: any) =>
+          s.title.toLowerCase().includes(query) ||
+          s.description.toLowerCase().includes(query)
+      );
+    }
+
+    // Aplicar ordenação
+    switch (sortBy) {
+      case "newest":
+        enrichedSuggestions.sort((a: any, b: any) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        break;
+      case "oldest":
+        enrichedSuggestions.sort((a: any, b: any) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+        break;
+      case "most_voted":
+        enrichedSuggestions.sort((a: any, b: any) => b.votes - a.votes);
+        break;
+      case "most_commented":
+        enrichedSuggestions.sort((a: any, b: any) => b.comments - a.comments);
+        break;
+      case "relevance":
+        enrichedSuggestions.sort((a: any, b: any) => {
+          const scoreA = a.votes * 2 + a.comments;
+          const scoreB = b.votes * 2 + b.comments;
+          return scoreB - scoreA;
+        });
+        break;
+    }
     
     setSuggestions(enrichedSuggestions);
   };
@@ -482,7 +521,19 @@ export default function Admin() {
                 <CardDescription>
                   Gerencie as sugestões e atualize seus status
                 </CardDescription>
-                <div className="flex gap-2 pt-2">
+                
+                {/* Busca */}
+                <div className="pt-4">
+                  <Input
+                    placeholder="Buscar sugestões por título ou descrição..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Filtros e Ordenação */}
+                <div className="flex gap-2 pt-2 flex-wrap">
                   <Select value={filterStatus} onValueChange={setFilterStatus}>
                     <SelectTrigger className="w-[180px]">
                       <SelectValue placeholder="Status" />
@@ -508,6 +559,19 @@ export default function Admin() {
                           {label}
                         </SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Ordenar por" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="newest">Mais recentes</SelectItem>
+                      <SelectItem value="oldest">Mais antigas</SelectItem>
+                      <SelectItem value="most_voted">Mais votadas</SelectItem>
+                      <SelectItem value="most_commented">Mais comentadas</SelectItem>
+                      <SelectItem value="relevance">Relevância</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
