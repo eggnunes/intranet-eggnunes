@@ -174,6 +174,9 @@ export default function Dashboard() {
               <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent mb-2">
                 Olá, {profile?.full_name?.split(' ')[0]}!
               </h1>
+              <p className="text-foreground/80 text-lg mb-3">
+                Seja bem-vindo à Intranet Egg Nunes! Acesse suas ferramentas e recursos.
+              </p>
               <div className="flex items-center gap-2">
                 <Badge className="bg-primary/10 text-primary border-primary/20 text-sm">
                   {profile?.position === 'socio' && 'Sócio'}
@@ -187,6 +190,44 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Sobre o Escritório */}
+        <Card className="border-l-4 border-l-primary">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-primary" />
+              Sobre o Escritório
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-foreground/80 leading-relaxed">
+              <strong>Egg Nunes Advogados Associados</strong> é um escritório de advocacia referência 
+              desde 1994, com atuação em todo o Brasil. Especializado em diversas áreas do direito, 
+              o escritório conta com uma equipe qualificada para atender as demandas de seus clientes 
+              com excelência e dedicação.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="outline" size="sm" asChild>
+                <a href="https://www.eggnunes.com.br/#equipe" target="_blank" rel="noopener noreferrer" className="gap-2">
+                  <Users className="w-4 h-4" />
+                  Nossa Equipe
+                </a>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <a href="https://www.eggnunes.com.br/blog" target="_blank" rel="noopener noreferrer" className="gap-2">
+                  <Book className="w-4 h-4" />
+                  Blog
+                </a>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <a href="https://api.whatsapp.com/send/?phone=553132268742" target="_blank" rel="noopener noreferrer" className="gap-2">
+                  <Phone className="w-4 h-4" />
+                  WhatsApp
+                </a>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Ferramentas */}
         <section>
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
@@ -198,11 +239,11 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {tools.map((tool, idx) => {
               const colors = [
-                'from-blue-500/10 to-blue-600/5 hover:border-blue-500/40',
-                'from-purple-500/10 to-purple-600/5 hover:border-purple-500/40',
-                'from-emerald-500/10 to-emerald-600/5 hover:border-emerald-500/40',
-                'from-orange-500/10 to-orange-600/5 hover:border-orange-500/40',
-                'from-pink-500/10 to-pink-600/5 hover:border-pink-500/40',
+                'from-blue-500/10 to-blue-600/5 hover:from-blue-500/20 hover:to-blue-600/10 hover:border-blue-500/40 hover:shadow-blue-500/20',
+                'from-purple-500/10 to-purple-600/5 hover:from-purple-500/20 hover:to-purple-600/10 hover:border-purple-500/40 hover:shadow-purple-500/20',
+                'from-emerald-500/10 to-emerald-600/5 hover:from-emerald-500/20 hover:to-emerald-600/10 hover:border-emerald-500/40 hover:shadow-emerald-500/20',
+                'from-orange-500/10 to-orange-600/5 hover:from-orange-500/20 hover:to-orange-600/10 hover:border-orange-500/40 hover:shadow-orange-500/20',
+                'from-pink-500/10 to-pink-600/5 hover:from-pink-500/20 hover:to-pink-600/10 hover:border-pink-500/40 hover:shadow-pink-500/20',
               ];
               const iconColors = [
                 'text-blue-600',
@@ -214,16 +255,16 @@ export default function Dashboard() {
               return (
                 <Card
                   key={tool.path}
-                  className={`bg-gradient-to-br ${colors[idx]} hover:shadow-lg transition-all duration-300 cursor-pointer border`}
+                  className={`bg-gradient-to-br ${colors[idx]} hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border group`}
                   onClick={() => navigate(tool.path)}
                 >
                   <CardHeader>
                     <div className="flex items-center gap-3">
-                      <div className={`p-3 rounded-lg bg-white/80 shadow-sm`}>
+                      <div className={`p-3 rounded-lg bg-white/80 shadow-sm group-hover:scale-110 transition-transform duration-300`}>
                         <tool.icon className={`h-5 w-5 ${iconColors[idx]}`} />
                       </div>
                       <div className="flex-1">
-                        <CardTitle className="text-lg">
+                        <CardTitle className="text-lg group-hover:text-primary transition-colors">
                           {tool.title}
                         </CardTitle>
                         <CardDescription className="text-xs mt-1">
@@ -254,20 +295,20 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {servidorPublicoAreas.map((area, idx) => {
               const bgColors = [
-                'from-emerald-500/10 to-emerald-600/5 hover:border-emerald-500/40',
-                'from-blue-500/10 to-blue-600/5 hover:border-blue-500/40',
-                'from-red-500/10 to-red-600/5 hover:border-red-500/40',
-                'from-purple-500/10 to-purple-600/5 hover:border-purple-500/40',
-                'from-cyan-500/10 to-cyan-600/5 hover:border-cyan-500/40',
-                'from-teal-500/10 to-teal-600/5 hover:border-teal-500/40',
+                'from-emerald-500/10 to-emerald-600/5 hover:from-emerald-500/20 hover:to-emerald-600/10 hover:border-emerald-500/40 hover:shadow-emerald-500/20',
+                'from-blue-500/10 to-blue-600/5 hover:from-blue-500/20 hover:to-blue-600/10 hover:border-blue-500/40 hover:shadow-blue-500/20',
+                'from-red-500/10 to-red-600/5 hover:from-red-500/20 hover:to-red-600/10 hover:border-red-500/40 hover:shadow-red-500/20',
+                'from-purple-500/10 to-purple-600/5 hover:from-purple-500/20 hover:to-purple-600/10 hover:border-purple-500/40 hover:shadow-purple-500/20',
+                'from-cyan-500/10 to-cyan-600/5 hover:from-cyan-500/20 hover:to-cyan-600/10 hover:border-cyan-500/40 hover:shadow-cyan-500/20',
+                'from-teal-500/10 to-teal-600/5 hover:from-teal-500/20 hover:to-teal-600/10 hover:border-teal-500/40 hover:shadow-teal-500/20',
               ];
               const iconBgColors = [
-                'bg-emerald-100 text-emerald-700',
-                'bg-blue-100 text-blue-700',
-                'bg-red-100 text-red-700',
-                'bg-purple-100 text-purple-700',
-                'bg-cyan-100 text-cyan-700',
-                'bg-teal-100 text-teal-700',
+                'bg-emerald-100 text-emerald-700 group-hover:bg-emerald-200',
+                'bg-blue-100 text-blue-700 group-hover:bg-blue-200',
+                'bg-red-100 text-red-700 group-hover:bg-red-200',
+                'bg-purple-100 text-purple-700 group-hover:bg-purple-200',
+                'bg-cyan-100 text-cyan-700 group-hover:bg-cyan-200',
+                'bg-teal-100 text-teal-700 group-hover:bg-teal-200',
               ];
               return (
                 <a
@@ -277,21 +318,21 @@ export default function Dashboard() {
                   rel="noopener noreferrer"
                   className="group"
                 >
-                  <Card className={`h-full bg-gradient-to-br ${bgColors[idx]} hover:shadow-lg transition-all duration-300 border`}>
+                  <Card className={`h-full bg-gradient-to-br ${bgColors[idx]} hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border`}>
                     <CardHeader>
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <CardTitle className="text-lg flex items-center gap-2">
-                            <div className={`p-2 rounded-lg ${iconBgColors[idx]}`}>
-                              <area.icon className="h-4 w-4" />
+                            <div className={`p-2 rounded-lg transition-all duration-300 ${iconBgColors[idx]}`}>
+                              <area.icon className="h-4 w-4 group-hover:scale-110 transition-transform" />
                             </div>
-                            {area.title}
+                            <span className="group-hover:text-primary transition-colors">{area.title}</span>
                           </CardTitle>
                           <CardDescription className="mt-2 text-xs">
                             {area.description}
                           </CardDescription>
                         </div>
-                        <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
+                        <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:scale-110 transition-all flex-shrink-0" />
                       </div>
                     </CardHeader>
                   </Card>
@@ -314,11 +355,19 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {imobiliarioProducts.map((product, idx) => {
               const bgColors = [
-                'from-amber-500/10 to-amber-600/5 hover:border-amber-500/40',
-                'from-orange-500/10 to-orange-600/5 hover:border-orange-500/40',
-                'from-rose-500/10 to-rose-600/5 hover:border-rose-500/40',
-                'from-red-500/10 to-red-600/5 hover:border-red-500/40',
+                'from-amber-500/10 to-amber-600/5 hover:from-amber-500/20 hover:to-amber-600/10 hover:border-amber-500/40 hover:shadow-amber-500/20',
+                'from-orange-500/10 to-orange-600/5 hover:from-orange-500/20 hover:to-orange-600/10 hover:border-orange-500/40 hover:shadow-orange-500/20',
+                'from-rose-500/10 to-rose-600/5 hover:from-rose-500/20 hover:to-rose-600/10 hover:border-rose-500/40 hover:shadow-rose-500/20',
+                'from-red-500/10 to-red-600/5 hover:from-red-500/20 hover:to-red-600/10 hover:border-red-500/40 hover:shadow-red-500/20',
               ];
+              const iconBgColors = [
+                'bg-amber-100 text-amber-700 group-hover:bg-amber-200',
+                'bg-orange-100 text-orange-700 group-hover:bg-orange-200',
+                'bg-rose-100 text-rose-700 group-hover:bg-rose-200',
+                'bg-red-100 text-red-700 group-hover:bg-red-200',
+              ];
+              const icons = [Home, Building2, Briefcase, FileCheck];
+              const Icon = icons[idx];
               return (
                 <a
                   key={product.title}
@@ -327,18 +376,21 @@ export default function Dashboard() {
                   rel="noopener noreferrer"
                   className="group"
                 >
-                  <Card className={`h-full bg-gradient-to-br ${bgColors[idx]} hover:shadow-lg transition-all duration-300 border`}>
+                  <Card className={`h-full bg-gradient-to-br ${bgColors[idx]} hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border`}>
                     <CardHeader>
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <CardTitle className="text-lg">
-                            {product.title}
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <div className={`p-2 rounded-lg transition-all duration-300 ${iconBgColors[idx]}`}>
+                              <Icon className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                            </div>
+                            <span className="group-hover:text-primary transition-colors">{product.title}</span>
                           </CardTitle>
-                          <CardDescription className="mt-1 text-xs">
+                          <CardDescription className="mt-2 text-xs">
                             {product.description}
                           </CardDescription>
                         </div>
-                        <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                        <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:scale-110 transition-all flex-shrink-0" />
                       </div>
                     </CardHeader>
                   </Card>
@@ -350,74 +402,6 @@ export default function Dashboard() {
 
         <Separator className="my-8" />
 
-        {/* Links Úteis */}
-        <section>
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
-            <Users className="h-6 w-6 text-primary" />
-            Links Úteis do Escritório
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="hover:shadow-lg transition-all duration-300">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Users className="h-4 w-4 text-primary" />
-                  Nossa Equipe
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => window.open('https://www.eggnunes.com.br/#equipe', '_blank')}
-                >
-                  Conhecer a Equipe
-                  <ExternalLink className="h-3 w-3 ml-2" />
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-lg transition-all duration-300">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Book className="h-4 w-4 text-primary" />
-                  Blog
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => window.open('https://www.eggnunes.com.br/blog/', '_blank')}
-                >
-                  Acessar Blog
-                  <ExternalLink className="h-3 w-3 ml-2" />
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-lg transition-all duration-300">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Phone className="h-4 w-4 text-primary" />
-                  WhatsApp
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => window.open('https://api.whatsapp.com/send/?phone=553132268742', '_blank')}
-                >
-                  Enviar Mensagem
-                  <ExternalLink className="h-3 w-3 ml-2" />
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </section>
 
         {/* Redes Sociais */}
         <section>
@@ -427,10 +411,10 @@ export default function Dashboard() {
               <Button
                 key={social.url}
                 variant="outline"
-                className="h-auto py-3 flex-col gap-2 hover:border-primary"
+                className="h-auto py-3 flex-col gap-2 hover:border-primary hover:shadow-md hover:-translate-y-0.5 hover:bg-primary/5 transition-all duration-300 group"
                 onClick={() => window.open(social.url, '_blank')}
               >
-                <social.icon className="h-5 w-5" />
+                <social.icon className="h-5 w-5 group-hover:scale-110 transition-transform" />
                 <span className="text-xs">{social.label}</span>
               </Button>
             ))}
