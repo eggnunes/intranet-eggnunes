@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
-import { LogOut, Home, Shield, History } from 'lucide-react';
+import { LogOut, Home, Shield, History, Lightbulb } from 'lucide-react';
 import logoEggNunes from '@/assets/logo-eggnunes.png';
 
 interface LayoutProps {
@@ -53,6 +53,14 @@ export const Layout = ({ children }: LayoutProps) => {
                 >
                   <History className="w-4 h-4" />
                   Histórico
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => navigate('/sugestoes')}
+                  className="gap-2"
+                >
+                  <Lightbulb className="w-4 h-4" />
+                  Sugestões
                 </Button>
               </nav>
             </div>
