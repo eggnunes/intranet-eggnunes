@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_agent_favorites: {
+        Row: {
+          agent_url: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          agent_url: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          agent_url?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       forum_notifications: {
         Row: {
           created_at: string
