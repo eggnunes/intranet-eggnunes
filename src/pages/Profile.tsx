@@ -9,18 +9,27 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { User, Lock, Calendar, Upload, IdCard } from 'lucide-react';
+import { User, Lock, Calendar, Upload, IdCard, History } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 
 const BRAZILIAN_STATES = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
   'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
   'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
 ];
+
+interface UsageHistoryItem {
+  id: string;
+  tool_name: string;
+  action: string;
+  created_at: string;
+  metadata: any;
+}
 
 export default function Profile() {
   const { user } = useAuth();
@@ -43,6 +52,8 @@ export default function Profile() {
 
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [usageHistory, setUsageHistory] = useState<UsageHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
 
   useEffect(() => {
     if (profile) {
@@ -53,8 +64,25 @@ export default function Profile() {
       if (profile.birth_date) {
         setBirthDate(new Date(profile.birth_date));
       }
+      fetchUsageHistory();
     }
   }, [profile]);
+
+  const fetchUsageHistory = async () => {
+    if (!user) return;
+    
+    const { data, error } = await supabase
+      .from('usage_history')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (!error && data) {
+      setUsageHistory(data);
+    }
+    setHistoryLoading(false);
+  };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -432,6 +460,55 @@ export default function Profile() {
             >
               {changingPassword ? 'Alterando...' : 'Alterar Senha'}
             </Button>
+          </CardContent>
+        </Card>
+
+        {/* Usage History */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <History className="w-5 h-5" />
+              Histórico de Uso
+            </CardTitle>
+            <CardDescription>
+              Últimas 50 ações realizadas no sistema
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {historyLoading ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Carregando histórico...
+              </div>
+            ) : usageHistory.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhuma ação registrada ainda
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                {usageHistory.map((item) => (
+                  <div key={item.id}>
+                    <div className="border-l-2 border-primary/30 pl-4 py-2">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <p className="font-medium">{item.tool_name}</p>
+                          <p className="text-sm text-muted-foreground">{item.action}</p>
+                          {item.metadata && Object.keys(item.metadata).length > 0 && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {JSON.stringify(item.metadata).substring(0, 100)}
+                              {JSON.stringify(item.metadata).length > 100 ? '...' : ''}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {format(new Date(item.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                        </span>
+                      </div>
+                    </div>
+                    <Separator className="my-2" />
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
