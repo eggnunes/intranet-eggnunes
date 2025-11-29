@@ -158,6 +158,8 @@ export default function Profile() {
         updated_at: new Date().toISOString(),
       };
 
+      console.log('Salvando perfil com dados:', updateData);
+
       if (avatarUrl) {
         updateData.avatar_url = avatarUrl;
       }
@@ -167,7 +169,10 @@ export default function Profile() {
         .update(updateData)
         .eq('id', user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erro ao atualizar perfil:', error);
+        throw error;
+      }
 
       // Recarregar os dados do perfil após salvar
       const { data: updatedProfile } = await supabase
