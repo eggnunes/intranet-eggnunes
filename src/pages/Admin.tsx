@@ -7,7 +7,14 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Check, X, Shield, UserPlus, History } from 'lucide-react';
+import { Check, X, Shield, UserPlus, History, Lightbulb } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useNavigate } from 'react-router-dom';
 
 interface PendingUser {
@@ -36,11 +43,26 @@ interface UsageHistoryItem {
   };
 }
 
+interface Suggestion {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  status: string;
+  user_id: string;
+  created_at: string;
+  profiles?: {
+    email: string;
+    full_name: string;
+  };
+}
+
 export default function Admin() {
   const { isAdmin, loading } = useUserRole();
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [usageHistory, setUsageHistory] = useState<UsageHistoryItem[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -55,6 +77,7 @@ export default function Admin() {
       fetchPendingUsers();
       fetchAdminUsers();
       fetchUsageHistory();
+      fetchSuggestions();
     }
   }, [isAdmin]);
 
@@ -210,6 +233,84 @@ export default function Admin() {
     }
   };
 
+  const fetchSuggestions = async () => {
+    const { data: suggestionsData } = await supabase
+      .from('suggestions')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!suggestionsData) {
+      setSuggestions([]);
+      return;
+    }
+
+    // Buscar perfis dos usuários
+    const userIds = [...new Set(suggestionsData.map(item => item.user_id))];
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('id, email, full_name')
+      .in('id', userIds);
+
+    const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || []);
+
+    const enrichedSuggestions = suggestionsData.map(item => ({
+      ...item,
+      profiles: profilesMap.get(item.user_id) || { email: 'Desconhecido', full_name: 'Desconhecido' }
+    }));
+    
+    setSuggestions(enrichedSuggestions);
+  };
+
+  const handleUpdateSuggestionStatus = async (suggestionId: string, newStatus: string) => {
+    const { error } = await supabase
+      .from('suggestions')
+      .update({ status: newStatus })
+      .eq('id', suggestionId);
+
+    if (error) {
+      toast({
+        title: 'Erro',
+        description: 'Erro ao atualizar status da sugestão',
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Status atualizado',
+        description: 'O status da sugestão foi atualizado com sucesso',
+      });
+      fetchSuggestions();
+    }
+  };
+
+  const categories = {
+    melhoria: 'Melhoria de Ferramenta',
+    nova_ferramenta: 'Nova Ferramenta',
+    bug: 'Reportar Problema',
+    geral: 'Sugestão Geral',
+  };
+
+  const statusOptions = [
+    { value: 'pending', label: 'Pendente' },
+    { value: 'em_analise', label: 'Em Análise' },
+    { value: 'concluida', label: 'Concluída' },
+    { value: 'rejeitada', label: 'Rejeitada' },
+  ];
+
+  const statusBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return 'secondary';
+      case 'em_analise':
+        return 'default';
+      case 'concluida':
+        return 'default';
+      case 'rejeitada':
+        return 'destructive';
+      default:
+        return 'secondary';
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -235,12 +336,21 @@ export default function Admin() {
         </div>
 
         <Tabs defaultValue="pending" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="pending" className="gap-2">
               <UserPlus className="w-4 h-4" />
               Aprovações
               {pendingUsers.length > 0 && (
                 <Badge variant="destructive" className="ml-2">{pendingUsers.length}</Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="suggestions" className="gap-2">
+              <Lightbulb className="w-4 h-4" />
+              Sugestões
+              {suggestions.filter(s => s.status === 'pending').length > 0 && (
+                <Badge variant="secondary" className="ml-2">
+                  {suggestions.filter(s => s.status === 'pending').length}
+                </Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="admins" className="gap-2">
@@ -299,6 +409,74 @@ export default function Admin() {
                             <X className="w-4 h-4" />
                             Rejeitar
                           </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="suggestions">
+            <Card>
+              <CardHeader>
+                <CardTitle>Sugestões dos Usuários</CardTitle>
+                <CardDescription>
+                  Gerencie as sugestões e atualize seus status
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {suggestions.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">
+                    Nenhuma sugestão registrada
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {suggestions.map((suggestion) => (
+                      <div
+                        key={suggestion.id}
+                        className="p-4 border border-border rounded-lg space-y-3"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-base">{suggestion.title}</h3>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {suggestion.description}
+                            </p>
+                          </div>
+                          <Badge variant={statusBadgeVariant(suggestion.status)}>
+                            {statusOptions.find(s => s.value === suggestion.status)?.label}
+                          </Badge>
+                        </div>
+                        
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <span>
+                            {categories[suggestion.category as keyof typeof categories] || suggestion.category}
+                          </span>
+                          <span>•</span>
+                          <span>{suggestion.profiles?.full_name}</span>
+                          <span>•</span>
+                          <span>{new Date(suggestion.created_at).toLocaleDateString('pt-BR')}</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">Atualizar status:</span>
+                          <Select
+                            value={suggestion.status}
+                            onValueChange={(value) => handleUpdateSuggestionStatus(suggestion.id, value)}
+                          >
+                            <SelectTrigger className="w-[180px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {statusOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                     ))}

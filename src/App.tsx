@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
 import Historico from "./pages/Historico";
 import RotaDoc from "./pages/RotaDoc";
+import Sugestoes from "./pages/Sugestoes";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
@@ -60,6 +61,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <RotaDoc />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sugestoes"
+              element={
+                <ProtectedRoute>
+                  <Sugestoes />
                 </ProtectedRoute>
               }
             />
