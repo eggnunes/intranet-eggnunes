@@ -161,20 +161,21 @@ export default function Dashboard() {
     <Layout>
       <div className="space-y-12">
         {/* Hero Section */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 p-8 border border-border">
-          <div className="flex items-center gap-6">
-            <Avatar className="h-20 w-20 border-4 border-primary/20 shadow-lg">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/15 via-accent/10 to-primary/5 p-8 border border-primary/20 shadow-md">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,hsl(221_83%_53%/0.1),transparent_50%)]"></div>
+          <div className="relative flex items-center gap-6">
+            <Avatar className="h-20 w-20 border-4 border-primary/30 shadow-lg">
               <AvatarImage src={profile?.avatar_url} />
-              <AvatarFallback className="bg-primary/10 text-primary text-2xl">
+              <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-2xl">
                 <User className="h-10 w-10" />
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <h1 className="text-4xl font-bold text-foreground mb-2">
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent mb-2">
                 Olá, {profile?.full_name?.split(' ')[0]}!
               </h1>
               <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-sm">
+                <Badge className="bg-primary/10 text-primary border-primary/20 text-sm">
                   {profile?.position === 'socio' && 'Sócio'}
                   {profile?.position === 'advogado' && 'Advogado'}
                   {profile?.position === 'estagiario' && 'Estagiário'}
@@ -189,33 +190,51 @@ export default function Dashboard() {
         {/* Ferramentas */}
         <section>
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
-            <Briefcase className="h-6 w-6 text-primary" />
+            <div className="p-2 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20">
+              <Briefcase className="h-5 w-5 text-primary" />
+            </div>
             Ferramentas da Intranet
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {tools.map((tool) => (
-              <Card
-                key={tool.path}
-                className="hover:shadow-lg transition-all duration-300 cursor-pointer hover:border-primary"
-                onClick={() => navigate(tool.path)}
-              >
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 rounded-lg bg-primary/10">
-                      <tool.icon className="h-5 w-5 text-primary" />
+            {tools.map((tool, idx) => {
+              const colors = [
+                'from-blue-500/10 to-blue-600/5 hover:border-blue-500/40',
+                'from-purple-500/10 to-purple-600/5 hover:border-purple-500/40',
+                'from-emerald-500/10 to-emerald-600/5 hover:border-emerald-500/40',
+                'from-orange-500/10 to-orange-600/5 hover:border-orange-500/40',
+                'from-pink-500/10 to-pink-600/5 hover:border-pink-500/40',
+              ];
+              const iconColors = [
+                'text-blue-600',
+                'text-purple-600',
+                'text-emerald-600',
+                'text-orange-600',
+                'text-pink-600',
+              ];
+              return (
+                <Card
+                  key={tool.path}
+                  className={`bg-gradient-to-br ${colors[idx]} hover:shadow-lg transition-all duration-300 cursor-pointer border`}
+                  onClick={() => navigate(tool.path)}
+                >
+                  <CardHeader>
+                    <div className="flex items-center gap-3">
+                      <div className={`p-3 rounded-lg bg-white/80 shadow-sm`}>
+                        <tool.icon className={`h-5 w-5 ${iconColors[idx]}`} />
+                      </div>
+                      <div className="flex-1">
+                        <CardTitle className="text-lg">
+                          {tool.title}
+                        </CardTitle>
+                        <CardDescription className="text-xs mt-1">
+                          {tool.description}
+                        </CardDescription>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <CardTitle className="text-lg">
-                        {tool.title}
-                      </CardTitle>
-                      <CardDescription className="text-xs mt-1">
-                        {tool.description}
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-            ))}
+                  </CardHeader>
+                </Card>
+              );
+            })}
           </div>
         </section>
 
@@ -225,38 +244,60 @@ export default function Dashboard() {
         <section>
           <div className="mb-6">
             <h2 className="text-2xl font-bold flex items-center gap-3">
-              <Shield className="h-6 w-6 text-primary" />
+              <div className="p-2 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20">
+                <Shield className="h-5 w-5 text-primary" />
+              </div>
               Direito para Servidores Públicos
             </h2>
             <p className="text-muted-foreground text-sm mt-1">Nossa principal área de atuação</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {servidorPublicoAreas.map((area) => (
-              <a
-                key={area.title}
-                href={area.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group"
-              >
-                <Card className="h-full hover:shadow-lg transition-all duration-300 hover:border-primary">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <area.icon className="h-5 w-5 text-primary" />
-                          {area.title}
-                        </CardTitle>
-                        <CardDescription className="mt-1 text-xs">
-                          {area.description}
-                        </CardDescription>
+            {servidorPublicoAreas.map((area, idx) => {
+              const bgColors = [
+                'from-emerald-500/10 to-emerald-600/5 hover:border-emerald-500/40',
+                'from-blue-500/10 to-blue-600/5 hover:border-blue-500/40',
+                'from-red-500/10 to-red-600/5 hover:border-red-500/40',
+                'from-purple-500/10 to-purple-600/5 hover:border-purple-500/40',
+                'from-cyan-500/10 to-cyan-600/5 hover:border-cyan-500/40',
+                'from-teal-500/10 to-teal-600/5 hover:border-teal-500/40',
+              ];
+              const iconBgColors = [
+                'bg-emerald-100 text-emerald-700',
+                'bg-blue-100 text-blue-700',
+                'bg-red-100 text-red-700',
+                'bg-purple-100 text-purple-700',
+                'bg-cyan-100 text-cyan-700',
+                'bg-teal-100 text-teal-700',
+              ];
+              return (
+                <a
+                  key={area.title}
+                  href={area.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group"
+                >
+                  <Card className={`h-full bg-gradient-to-br ${bgColors[idx]} hover:shadow-lg transition-all duration-300 border`}>
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <div className={`p-2 rounded-lg ${iconBgColors[idx]}`}>
+                              <area.icon className="h-4 w-4" />
+                            </div>
+                            {area.title}
+                          </CardTitle>
+                          <CardDescription className="mt-2 text-xs">
+                            {area.description}
+                          </CardDescription>
+                        </div>
+                        <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
                       </div>
-                      <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                    </div>
-                  </CardHeader>
-                </Card>
-              </a>
-            ))}
+                    </CardHeader>
+                  </Card>
+                </a>
+              );
+            })}
           </div>
         </section>
 
@@ -265,35 +306,45 @@ export default function Dashboard() {
         {/* Direito Imobiliário */}
         <section>
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
-            <Home className="h-6 w-6 text-primary" />
+            <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20">
+              <Home className="h-5 w-5 text-amber-700" />
+            </div>
             Direito Imobiliário
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {imobiliarioProducts.map((product) => (
-              <a
-                key={product.title}
-                href={product.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group"
-              >
-                <Card className="h-full hover:shadow-lg transition-all duration-300 hover:border-primary">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg">
-                          {product.title}
-                        </CardTitle>
-                        <CardDescription className="mt-1 text-xs">
-                          {product.description}
-                        </CardDescription>
+            {imobiliarioProducts.map((product, idx) => {
+              const bgColors = [
+                'from-amber-500/10 to-amber-600/5 hover:border-amber-500/40',
+                'from-orange-500/10 to-orange-600/5 hover:border-orange-500/40',
+                'from-rose-500/10 to-rose-600/5 hover:border-rose-500/40',
+                'from-red-500/10 to-red-600/5 hover:border-red-500/40',
+              ];
+              return (
+                <a
+                  key={product.title}
+                  href={product.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group"
+                >
+                  <Card className={`h-full bg-gradient-to-br ${bgColors[idx]} hover:shadow-lg transition-all duration-300 border`}>
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <CardTitle className="text-lg">
+                            {product.title}
+                          </CardTitle>
+                          <CardDescription className="mt-1 text-xs">
+                            {product.description}
+                          </CardDescription>
+                        </div>
+                        <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                       </div>
-                      <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                    </div>
-                  </CardHeader>
-                </Card>
-              </a>
-            ))}
+                    </CardHeader>
+                  </Card>
+                </a>
+              );
+            })}
           </div>
         </section>
 
