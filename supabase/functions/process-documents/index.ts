@@ -168,6 +168,32 @@ serve(async (req) => {
 });
 
 async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnalysis> {
+  // Verificar se é uma imagem válida para análise
+  const isImage = image.type.startsWith('image/');
+  
+  if (!isImage) {
+    // Para arquivos não-imagem (PDF, DOCX, etc), retornar valores padrão
+    console.log(`Arquivo ${image.name} não é imagem (${image.type}), usando valores padrão`);
+    return {
+      rotation: 0,
+      documentType: 'documento',
+      confidence: 0.5,
+      text: ''
+    };
+  }
+
+  // Validar tipo MIME de imagem suportado pela API OpenAI
+  const supportedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+  if (!supportedTypes.includes(image.type)) {
+    console.log(`Tipo de imagem ${image.type} não suportado pela API, usando valores padrão`);
+    return {
+      rotation: 0,
+      documentType: 'documento',
+      confidence: 0.5,
+      text: ''
+    };
+  }
+
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -217,7 +243,8 @@ async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnal
     return {
       rotation: 0,
       documentType: 'documento',
-      confidence: 0.5
+      confidence: 0.5,
+      text: ''
     };
   }
 
