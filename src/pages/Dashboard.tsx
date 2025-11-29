@@ -247,12 +247,22 @@ export default function Dashboard() {
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/15 via-accent/10 to-primary/5 p-8 border border-primary/20 shadow-md">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,hsl(221_83%_53%/0.1),transparent_50%)]"></div>
           <div className="relative flex items-center gap-6">
-            <Avatar className="h-20 w-20 border-4 border-primary/30 shadow-lg">
-              <AvatarImage src={profile?.avatar_url} />
-              <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-2xl">
-                <User className="h-10 w-10" />
-              </AvatarFallback>
-            </Avatar>
+            <div className="flex flex-col items-center gap-2">
+              <Avatar className="h-20 w-20 border-4 border-primary/30 shadow-lg">
+                <AvatarImage src={profile?.avatar_url} />
+                <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-2xl">
+                  <User className="h-10 w-10" />
+                </AvatarFallback>
+              </Avatar>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/profile')}
+                className="text-xs text-primary hover:text-primary/80 hover:bg-primary/10"
+              >
+                Editar perfil
+              </Button>
+            </div>
             <div className="flex-1">
               <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent mb-2">
                 Olá, {profile?.full_name?.split(' ')[0]}!

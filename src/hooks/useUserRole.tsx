@@ -14,6 +14,9 @@ export interface UserProfile {
   created_at: string;
   avatar_url: string | null;
   position: 'socio' | 'advogado' | 'estagiario' | 'comercial' | 'administrativo' | null;
+  birth_date: string | null;
+  oab_number: string | null;
+  oab_state: string | null;
 }
 
 export const useUserRole = () => {
