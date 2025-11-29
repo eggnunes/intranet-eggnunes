@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, ThumbsUp, ChevronDown, ChevronUp, Filter } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Select,
   SelectContent,
@@ -36,12 +37,16 @@ interface PendingUser {
   email: string;
   full_name: string;
   created_at: string;
+  avatar_url: string | null;
+  position: string | null;
 }
 
 interface AdminUser {
   id: string;
   email: string;
   full_name: string;
+  avatar_url: string | null;
+  position: string | null;
 }
 
 interface UsageHistoryItem {
@@ -106,7 +111,7 @@ export default function Admin() {
   const fetchPendingUsers = async () => {
     const { data } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, email, full_name, created_at, avatar_url, position')
       .eq('approval_status', 'pending')
       .order('created_at', { ascending: false });
     setPendingUsers(data || []);
@@ -120,7 +125,9 @@ export default function Admin() {
         profiles (
           id,
           email,
-          full_name
+          full_name,
+          avatar_url,
+          position
         )
       `)
       .eq('role', 'admin');
@@ -129,6 +136,8 @@ export default function Admin() {
       id: item.profiles.id,
       email: item.profiles.email,
       full_name: item.profiles.full_name,
+      avatar_url: item.profiles.avatar_url,
+      position: item.profiles.position,
     })) || [];
     
     setAdminUsers(admins);
@@ -545,12 +554,29 @@ export default function Admin() {
                         key={user.id}
                         className="flex items-center justify-between p-4 border border-border rounded-lg"
                       >
-                        <div>
-                          <p className="font-medium">{user.full_name}</p>
-                          <p className="text-sm text-muted-foreground">{user.email}</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Solicitado em {new Date(user.created_at).toLocaleDateString('pt-BR')}
-                          </p>
+                        <div className="flex items-center gap-4 flex-1">
+                          <Avatar className="h-12 w-12 border-2 border-primary/20">
+                            <AvatarImage src={user.avatar_url || undefined} />
+                            <AvatarFallback className="bg-primary/10 text-primary">
+                              {user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{user.full_name}</p>
+                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                            {user.position && (
+                              <Badge variant="secondary" className="text-xs mt-1">
+                                {user.position === 'socio' && 'Sócio'}
+                                {user.position === 'advogado' && 'Advogado'}
+                                {user.position === 'estagiario' && 'Estagiário'}
+                                {user.position === 'comercial' && 'Comercial'}
+                                {user.position === 'administrativo' && 'Administrativo'}
+                              </Badge>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Solicitado em {new Date(user.created_at).toLocaleDateString('pt-BR')}
+                            </p>
+                          </div>
                         </div>
                         <div className="flex gap-2">
                           <Button
@@ -811,11 +837,28 @@ export default function Admin() {
                       key={admin.id}
                       className="flex items-center justify-between p-4 border border-border rounded-lg"
                     >
-                      <div className="flex items-center gap-3">
-                        <Shield className="w-5 h-5 text-primary" />
-                        <div>
-                          <p className="font-medium">{admin.full_name}</p>
-                          <p className="text-sm text-muted-foreground">{admin.email}</p>
+                      <div className="flex items-center gap-4">
+                        <Avatar className="h-12 w-12 border-2 border-primary/20">
+                          <AvatarImage src={admin.avatar_url || undefined} />
+                          <AvatarFallback className="bg-primary/10 text-primary">
+                            {admin.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex items-center gap-3">
+                          <Shield className="w-5 h-5 text-primary" />
+                          <div>
+                            <p className="font-medium">{admin.full_name}</p>
+                            <p className="text-sm text-muted-foreground">{admin.email}</p>
+                            {admin.position && (
+                              <Badge variant="secondary" className="text-xs mt-1">
+                                {admin.position === 'socio' && 'Sócio'}
+                                {admin.position === 'advogado' && 'Advogado'}
+                                {admin.position === 'estagiario' && 'Estagiário'}
+                                {admin.position === 'comercial' && 'Comercial'}
+                                {admin.position === 'administrativo' && 'Administrativo'}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <Button
