@@ -11,7 +11,12 @@ interface ProcessedDocument {
 interface ProcessingStatusProps {
   isProcessing: boolean;
   processedDocuments: ProcessedDocument[];
-  processingProgress: { current: number; total: number };
+  processingProgress: { 
+    current: number; 
+    total: number;
+    startTime: number;
+    estimatedTimeRemaining: number;
+  };
   onDownload: (url: string, name: string) => void;
   onDownloadAll: () => void;
   onReset: () => void;
@@ -30,6 +35,18 @@ export const ProcessingStatus = ({
       ? Math.min((processingProgress.current / processingProgress.total) * 100, 100)
       : 0;
 
+    const formatTimeRemaining = (seconds: number) => {
+      if (seconds < 60) {
+        return `${seconds} segundo${seconds !== 1 ? 's' : ''}`;
+      }
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      if (remainingSeconds === 0) {
+        return `${minutes} minuto${minutes !== 1 ? 's' : ''}`;
+      }
+      return `${minutes}min ${remainingSeconds}s`;
+    };
+
     return (
       <div className="flex flex-col items-center justify-center py-12 space-y-6">
         <Loader2 className="w-12 h-12 text-accent animate-spin" />
@@ -45,9 +62,14 @@ export const ProcessingStatus = ({
           
           <div className="space-y-2">
             <Progress value={progressPercentage} className="h-2" />
-            <p className="text-xs text-muted-foreground text-center">
-              {Math.round(progressPercentage)}% concluído
-            </p>
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{Math.round(progressPercentage)}% concluído</span>
+              {processingProgress.estimatedTimeRemaining > 0 && (
+                <span className="font-medium">
+                  ~{formatTimeRemaining(processingProgress.estimatedTimeRemaining)} restante
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
