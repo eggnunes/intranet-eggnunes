@@ -10,6 +10,7 @@ import Admin from "./pages/Admin";
 import Historico from "./pages/Historico";
 import RotaDoc from "./pages/RotaDoc";
 import Sugestoes from "./pages/Sugestoes";
+import DashboardSugestoes from "./pages/DashboardSugestoes";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
@@ -69,6 +70,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Sugestoes />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard-sugestoes"
+              element={
+                <ProtectedRoute>
+                  <DashboardSugestoes />
                 </ProtectedRoute>
               }
             />

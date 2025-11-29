@@ -42,6 +42,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, Lightbulb, MessageSquare } from "lucide-react";
 import { SuggestionComments } from "@/components/SuggestionComments";
 import { SuggestionVotes } from "@/components/SuggestionVotes";
+import { SuggestionTagManager } from "@/components/SuggestionTagManager";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const suggestionSchema = z.object({
   title: z
@@ -75,6 +77,7 @@ const statusMap = {
 
 export default function Sugestoes() {
   const { toast } = useToast();
+  const { isAdmin } = useUserRole();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedSuggestion, setSelectedSuggestion] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -390,6 +393,10 @@ export default function Sugestoes() {
                       <p className="text-sm text-muted-foreground line-clamp-2">
                         {suggestion.description}
                       </p>
+                      <SuggestionTagManager
+                        suggestionId={suggestion.id}
+                        isAdmin={isAdmin}
+                      />
                       <div className="flex items-center gap-3">
                         <SuggestionVotes suggestionId={suggestion.id} />
                         <Button variant="ghost" size="sm" className="gap-2">

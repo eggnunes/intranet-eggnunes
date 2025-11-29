@@ -174,7 +174,7 @@ export function SuggestionComments({ suggestionId, isAdmin = false }: Suggestion
                       })}
                     </p>
                   </div>
-                  {(isAdmin || comment.user_id === currentUserId) && (
+                  {isAdmin && (
                     <Button
                       variant="ghost"
                       size="sm"
