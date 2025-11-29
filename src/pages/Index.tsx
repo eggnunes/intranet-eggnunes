@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { FilePreview } from '@/components/FilePreview';
 import { ProcessingStatus } from '@/components/ProcessingStatus';
+import { ProcessingHistory } from '@/components/ProcessingHistory';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { useProcessingHistory } from '@/hooks/useProcessingHistory';
 import { FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -27,6 +29,7 @@ const Index = () => {
     estimatedTimeRemaining: 0
   });
   const { toast } = useToast();
+  const { history, addToHistory, clearHistory } = useProcessingHistory();
 
   const handleProcess = async () => {
     if (files.length === 0) {
@@ -115,6 +118,16 @@ const Index = () => {
         estimatedTimeRemaining: 0
       });
       setProcessedDocuments(data.documents);
+      
+      // Salvar no histórico
+      const processingTime = Math.floor((Date.now() - startTime) / 1000);
+      addToHistory({
+        fileCount: files.length,
+        processingTime,
+        documentCount: data.documents.length,
+        mergedAll: mergeAll,
+      });
+      
       toast({
         title: "Sucesso!",
         description: `${data.documents.length} documento(s) processado(s) com sucesso`,
@@ -189,6 +202,11 @@ const Index = () => {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="space-y-8">
+          {/* Processing History */}
+          {history.length > 0 && processedDocuments.length === 0 && !isProcessing && (
+            <ProcessingHistory history={history} onClearHistory={clearHistory} />
+          )}
+
           {/* File Upload */}
           <div className="bg-card p-6 rounded-xl border border-border shadow-card">
             <h2 className="text-lg font-semibold text-foreground mb-4">
