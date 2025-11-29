@@ -9,6 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Camera } from 'lucide-react';
 import logoEggNunes from '@/assets/logo-eggnunes.png';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -16,6 +22,7 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [position, setPosition] = useState('');
+  const [birthDate, setBirthDate] = useState<Date>();
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -107,19 +114,21 @@ export default function Auth() {
               full_name: fullName,
               position: position,
               avatar_url: avatarUrl,
+              birth_date: birthDate ? format(birthDate, 'yyyy-MM-dd') : null,
             },
           },
         });
 
         if (error) throw error;
 
-        // Atualizar profile com cargo e avatar
+        // Atualizar profile com cargo, avatar e data de nascimento
         if (data.user) {
           await supabase
             .from('profiles')
             .update({
               position: position as any,
               avatar_url: avatarUrl,
+              birth_date: birthDate ? format(birthDate, 'yyyy-MM-dd') : null,
             })
             .eq('id', data.user.id);
         }
@@ -189,6 +198,36 @@ export default function Auth() {
                       <SelectItem value="administrativo">Administrativo</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="birthDate">Data de Nascimento</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !birthDate && "text-muted-foreground"
+                        )}
+                        disabled={loading}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {birthDate ? format(birthDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione sua data de nascimento"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={birthDate}
+                        onSelect={setBirthDate}
+                        initialFocus
+                        disabled={(date) =>
+                          date > new Date() || date < new Date("1900-01-01")
+                        }
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="space-y-2">
                   <Label>Foto de perfil</Label>

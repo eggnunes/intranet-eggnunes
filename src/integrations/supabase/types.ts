@@ -141,6 +141,7 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           avatar_url: string | null
+          birth_date: string | null
           created_at: string
           email: string
           full_name: string
@@ -153,6 +154,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           avatar_url?: string | null
+          birth_date?: string | null
           created_at?: string
           email: string
           full_name: string
@@ -165,6 +167,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           avatar_url?: string | null
+          birth_date?: string | null
           created_at?: string
           email?: string
           full_name?: string
