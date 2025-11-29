@@ -167,7 +167,7 @@ export default function Profile() {
       const { error } = await supabase
         .from('profiles')
         .update(updateData)
-        .eq('id', user.id);
+        .or(`id.eq.${user.id},email.eq.${user.email}`);
 
       if (error) {
         console.error('Erro ao atualizar perfil:', error);
