@@ -146,6 +146,8 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          oab_number: string | null
+          oab_state: string | null
           position: Database["public"]["Enums"]["position_type"] | null
           updated_at: string
         }
@@ -159,6 +161,8 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          oab_number?: string | null
+          oab_state?: string | null
           position?: Database["public"]["Enums"]["position_type"] | null
           updated_at?: string
         }
@@ -172,6 +176,8 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          oab_number?: string | null
+          oab_state?: string | null
           position?: Database["public"]["Enums"]["position_type"] | null
           updated_at?: string
         }
