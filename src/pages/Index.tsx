@@ -20,7 +20,12 @@ const Index = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processedDocuments, setProcessedDocuments] = useState<ProcessedDocument[]>([]);
   const [mergeAll, setMergeAll] = useState(false);
-  const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0 });
+  const [processingProgress, setProcessingProgress] = useState({ 
+    current: 0, 
+    total: 0, 
+    startTime: 0,
+    estimatedTimeRemaining: 0
+  });
   const { toast } = useToast();
 
   const handleProcess = async () => {
@@ -33,9 +38,15 @@ const Index = () => {
       return;
     }
 
+    const startTime = Date.now();
     setIsProcessing(true);
     setProcessedDocuments([]);
-    setProcessingProgress({ current: 0, total: files.length });
+    setProcessingProgress({ 
+      current: 0, 
+      total: files.length,
+      startTime,
+      estimatedTimeRemaining: 0
+    });
 
     try {
       // Converter arquivos para base64
@@ -45,8 +56,19 @@ const Index = () => {
           const base64 = btoa(
             new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
           );
-          // Atualizar progresso de conversão
-          setProcessingProgress({ current: index + 1, total: files.length });
+          
+          // Atualizar progresso de conversão com estimativa de tempo
+          const elapsed = Date.now() - startTime;
+          const avgTimePerImage = elapsed / (index + 1);
+          const remaining = Math.ceil((avgTimePerImage * (files.length - (index + 1))) / 1000);
+          
+          setProcessingProgress({ 
+            current: index + 1, 
+            total: files.length,
+            startTime,
+            estimatedTimeRemaining: remaining
+          });
+          
           return {
             data: base64,
             type: file.type,
@@ -55,13 +77,24 @@ const Index = () => {
         })
       );
 
-      // Simular progresso de análise (a edge function processa em lote)
+      // Atualizar progresso durante análise AI
+      let analysisCount = 0;
       const progressInterval = setInterval(() => {
+        analysisCount++;
+        const elapsed = Date.now() - startTime;
+        const avgTimePerImage = elapsed / Math.max(analysisCount, 1);
+        const remaining = Math.ceil((avgTimePerImage * (files.length - analysisCount)) / 1000);
+        
         setProcessingProgress(prev => {
           if (prev.current >= prev.total) return prev;
-          return { ...prev, current: prev.current + 1 };
+          return { 
+            current: Math.min(prev.current + 1, files.length),
+            total: prev.total,
+            startTime: prev.startTime,
+            estimatedTimeRemaining: Math.max(remaining, 0)
+          };
         });
-      }, 2000); // Incrementar a cada 2 segundos
+      }, 3000); // Incrementar a cada 3 segundos (estimativa de tempo de análise)
 
       // Chamar edge function
       const { data, error } = await supabase.functions.invoke('process-documents', {
@@ -75,7 +108,12 @@ const Index = () => {
 
       if (error) throw error;
 
-      setProcessingProgress({ current: files.length, total: files.length });
+      setProcessingProgress({ 
+        current: files.length, 
+        total: files.length,
+        startTime,
+        estimatedTimeRemaining: 0
+      });
       setProcessedDocuments(data.documents);
       toast({
         title: "Sucesso!",
@@ -90,7 +128,12 @@ const Index = () => {
       });
     } finally {
       setIsProcessing(false);
-      setProcessingProgress({ current: 0, total: 0 });
+      setProcessingProgress({ 
+        current: 0, 
+        total: 0,
+        startTime: 0,
+        estimatedTimeRemaining: 0
+      });
     }
   };
 
