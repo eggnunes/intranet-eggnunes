@@ -66,6 +66,12 @@ serve(async (req) => {
         const image = group.images[j];
         const analysis = group.analyses[j];
         
+        // Pular arquivos PDF - eles não podem ser processados como imagens
+        if (image.type === 'application/pdf') {
+          console.log(`Pulando arquivo PDF: ${image.name}`);
+          continue;
+        }
+        
         // Decodificar base64
         const imageBytes = Uint8Array.from(atob(image.data), c => c.charCodeAt(0));
         
@@ -140,7 +146,16 @@ serve(async (req) => {
       
       // Salvar PDF
       const pdfBytes = await pdfDoc.save();
-      const pdfBase64 = btoa(String.fromCharCode(...pdfBytes));
+      
+      // Converter para base64 sem causar stack overflow
+      // Processar em chunks para evitar "Maximum call stack size exceeded"
+      let pdfBase64 = '';
+      const chunkSize = 8192;
+      for (let i = 0; i < pdfBytes.length; i += chunkSize) {
+        const chunk = pdfBytes.slice(i, i + chunkSize);
+        pdfBase64 += String.fromCharCode(...chunk);
+      }
+      pdfBase64 = btoa(pdfBase64);
       
       documents.push({
         name: `${group.type}_${i + 1}.pdf`,
