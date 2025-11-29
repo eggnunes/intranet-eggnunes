@@ -20,6 +20,7 @@ const Index = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processedDocuments, setProcessedDocuments] = useState<ProcessedDocument[]>([]);
   const [mergeAll, setMergeAll] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0 });
   const { toast } = useToast();
 
   const handleProcess = async () => {
@@ -34,15 +35,18 @@ const Index = () => {
 
     setIsProcessing(true);
     setProcessedDocuments([]);
+    setProcessingProgress({ current: 0, total: files.length });
 
     try {
       // Converter arquivos para base64
       const imagesBase64 = await Promise.all(
-        files.map(async (file) => {
+        files.map(async (file, index) => {
           const buffer = await file.arrayBuffer();
           const base64 = btoa(
             new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
           );
+          // Atualizar progresso de conversão
+          setProcessingProgress({ current: index + 1, total: files.length });
           return {
             data: base64,
             type: file.type,
@@ -50,6 +54,14 @@ const Index = () => {
           };
         })
       );
+
+      // Simular progresso de análise (a edge function processa em lote)
+      const progressInterval = setInterval(() => {
+        setProcessingProgress(prev => {
+          if (prev.current >= prev.total) return prev;
+          return { ...prev, current: prev.current + 1 };
+        });
+      }, 2000); // Incrementar a cada 2 segundos
 
       // Chamar edge function
       const { data, error } = await supabase.functions.invoke('process-documents', {
@@ -59,8 +71,11 @@ const Index = () => {
         },
       });
 
+      clearInterval(progressInterval);
+
       if (error) throw error;
 
+      setProcessingProgress({ current: files.length, total: files.length });
       setProcessedDocuments(data.documents);
       toast({
         title: "Sucesso!",
@@ -75,6 +90,7 @@ const Index = () => {
       });
     } finally {
       setIsProcessing(false);
+      setProcessingProgress({ current: 0, total: 0 });
     }
   };
 
@@ -186,6 +202,7 @@ const Index = () => {
           <ProcessingStatus
             isProcessing={isProcessing}
             processedDocuments={processedDocuments}
+            processingProgress={processingProgress}
             onDownload={handleDownload}
             onDownloadAll={handleDownloadAll}
             onReset={handleReset}

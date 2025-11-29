@@ -1,5 +1,6 @@
 import { Loader2, CheckCircle2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 
 interface ProcessedDocument {
   name: string;
@@ -10,6 +11,7 @@ interface ProcessedDocument {
 interface ProcessingStatusProps {
   isProcessing: boolean;
   processedDocuments: ProcessedDocument[];
+  processingProgress: { current: number; total: number };
   onDownload: (url: string, name: string) => void;
   onDownloadAll: () => void;
   onReset: () => void;
@@ -18,21 +20,35 @@ interface ProcessingStatusProps {
 export const ProcessingStatus = ({
   isProcessing,
   processedDocuments,
+  processingProgress,
   onDownload,
   onDownloadAll,
   onReset,
 }: ProcessingStatusProps) => {
   if (isProcessing) {
+    const progressPercentage = processingProgress.total > 0 
+      ? Math.min((processingProgress.current / processingProgress.total) * 100, 100)
+      : 0;
+
     return (
-      <div className="flex flex-col items-center justify-center py-12 space-y-4">
+      <div className="flex flex-col items-center justify-center py-12 space-y-6">
         <Loader2 className="w-12 h-12 text-accent animate-spin" />
-        <div className="text-center">
-          <p className="text-lg font-medium text-foreground">
-            Processando documentos...
-          </p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Analisando imagens, rotacionando e gerando PDFs
-          </p>
+        <div className="text-center space-y-4 w-full max-w-md">
+          <div>
+            <p className="text-lg font-medium text-foreground">
+              Processando documentos...
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Analisando imagem {processingProgress.current} de {processingProgress.total}
+            </p>
+          </div>
+          
+          <div className="space-y-2">
+            <Progress value={progressPercentage} className="h-2" />
+            <p className="text-xs text-muted-foreground text-center">
+              {Math.round(progressPercentage)}% concluído
+            </p>
+          </div>
         </div>
       </div>
     );
