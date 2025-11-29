@@ -12,7 +12,7 @@ import { toast } from '@/hooks/use-toast';
 import { User, Lock, Calendar, Upload, IdCard, History } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
@@ -62,7 +62,7 @@ export default function Profile() {
       setOabNumber((profile as any).oab_number || '');
       setOabState((profile as any).oab_state || '');
       if (profile.birth_date) {
-        setBirthDate(new Date(profile.birth_date));
+        setBirthDate(parse(profile.birth_date, 'yyyy-MM-dd', new Date()));
       }
       fetchUsageHistory();
     }
@@ -182,7 +182,7 @@ export default function Profile() {
         .single();
 
       if (updatedProfile && updatedProfile.birth_date) {
-        setBirthDate(new Date(updatedProfile.birth_date));
+        setBirthDate(parse(updatedProfile.birth_date, 'yyyy-MM-dd', new Date()));
       }
 
       toast({

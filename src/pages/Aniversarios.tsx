@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Cake, User } from 'lucide-react';
-import { format, getMonth, getDate } from 'date-fns';
+import { format, getMonth, getDate, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 
@@ -39,7 +39,7 @@ export default function Aniversarios() {
     if (!error && data) {
       const grouped = data.reduce((acc: BirthdaysByMonth, profile) => {
         if (profile.birth_date) {
-          const month = getMonth(new Date(profile.birth_date));
+          const month = getMonth(parse(profile.birth_date, 'yyyy-MM-dd', new Date()));
           if (!acc[month]) {
             acc[month] = [];
           }
@@ -52,8 +52,8 @@ export default function Aniversarios() {
       Object.keys(grouped).forEach((monthKey) => {
         const month = parseInt(monthKey);
         grouped[month].sort((a, b) => {
-          const dayA = getDate(new Date(a.birth_date!));
-          const dayB = getDate(new Date(b.birth_date!));
+          const dayA = getDate(parse(a.birth_date!, 'yyyy-MM-dd', new Date()));
+          const dayB = getDate(parse(b.birth_date!, 'yyyy-MM-dd', new Date()));
           return dayA - dayB;
         });
       });
@@ -142,7 +142,7 @@ export default function Aniversarios() {
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold truncate">{profile.full_name}</p>
                             <p className="text-sm text-muted-foreground">
-                              {profile.birth_date && format(new Date(profile.birth_date), "dd 'de' MMMM", { locale: ptBR })}
+                              {profile.birth_date && format(parse(profile.birth_date, 'yyyy-MM-dd', new Date()), "dd 'de' MMMM", { locale: ptBR })}
                             </p>
                             {profile.position && (
                               <Badge variant="outline" className="mt-1 text-xs">

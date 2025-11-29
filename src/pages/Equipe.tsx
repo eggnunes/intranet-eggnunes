@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { Users, User, Briefcase, GraduationCap, Building2, UserCog, Mail, IdCard, Cake } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface TeamMember {
@@ -218,7 +218,7 @@ export default function Equipe() {
                               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <Cake className="h-3 w-3 flex-shrink-0" />
                                 <span>
-                                  {format(new Date(member.birth_date), "dd 'de' MMMM", { locale: ptBR })}
+                                  {format(parse(member.birth_date, 'yyyy-MM-dd', new Date()), "dd 'de' MMMM", { locale: ptBR })}
                                 </span>
                               </div>
                             )}
