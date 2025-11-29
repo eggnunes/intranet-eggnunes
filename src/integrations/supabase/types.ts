@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      forum_notifications: {
+        Row: {
+          created_at: string
+          id: string
+          mentioned_by: string
+          post_id: string
+          read: boolean
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mentioned_by: string
+          post_id: string
+          read?: boolean
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mentioned_by?: string
+          post_id?: string
+          read?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_notifications_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "forum_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forum_posts: {
         Row: {
           content: string
