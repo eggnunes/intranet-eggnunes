@@ -4,8 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, User, Briefcase, GraduationCap, Building2, UserCog, Mail, IdCard } from 'lucide-react';
+import { Users, User, Briefcase, GraduationCap, Building2, UserCog, Mail, IdCard, Cake } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface TeamMember {
   id: string;
@@ -15,6 +17,7 @@ interface TeamMember {
   position: string | null;
   oab_number: string | null;
   oab_state: string | null;
+  birth_date: string | null;
 }
 
 interface GroupedTeam {
@@ -42,7 +45,7 @@ export default function Equipe() {
   const fetchTeam = async () => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, email, avatar_url, position, oab_number, oab_state')
+      .select('id, full_name, email, avatar_url, position, oab_number, oab_state, birth_date')
       .eq('approval_status', 'approved')
       .order('full_name');
 
@@ -179,6 +182,14 @@ export default function Equipe() {
                               <Mail className="h-3 w-3 flex-shrink-0" />
                               <span className="truncate">{member.email}</span>
                             </div>
+                            {member.birth_date && (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Cake className="h-3 w-3 flex-shrink-0" />
+                                <span>
+                                  {format(new Date(member.birth_date), "dd 'de' MMMM", { locale: ptBR })}
+                                </span>
+                              </div>
+                            )}
                             {(member.oab_number || member.oab_state) && (
                               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <IdCard className="h-3 w-3 flex-shrink-0" />
