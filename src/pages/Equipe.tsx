@@ -40,6 +40,38 @@ export default function Equipe() {
 
   useEffect(() => {
     fetchTeam();
+
+    // Configurar real-time updates para mudanças nos perfis
+    const channel = supabase
+      .channel('team-profile-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+        },
+        () => {
+          // Quando qualquer perfil for atualizado, recarregar a equipe
+          fetchTeam();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'profiles',
+        },
+        () => {
+          fetchTeam();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchTeam = async () => {
