@@ -243,24 +243,37 @@ export default function Admin() {
   };
 
   const handleRemoveAdmin = async (userId: string) => {
-    const { error } = await supabase
-      .from('user_roles')
-      .delete()
-      .eq('user_id', userId)
-      .eq('role', 'admin');
+    try {
+      const { error } = await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId)
+        .eq('role', 'admin');
 
-    if (error) {
+      if (error) {
+        // Verificar se é o erro de proteção do Rafael
+        if (error.message.includes('criador da intranet')) {
+          toast({
+            title: 'Operação não permitida',
+            description: 'Rafael Egg Nunes não pode ter seus privilégios removidos',
+            variant: 'destructive',
+          });
+        } else {
+          throw error;
+        }
+      } else {
+        toast({
+          title: 'Admin removido',
+          description: 'Privilégios de administrador removidos',
+        });
+        fetchAdminUsers();
+      }
+    } catch (error: any) {
       toast({
         title: 'Erro',
-        description: 'Erro ao remover admin',
+        description: error.message,
         variant: 'destructive',
       });
-    } else {
-      toast({
-        title: 'Admin removido',
-        description: 'Privilégios de administrador removidos',
-      });
-      fetchAdminUsers();
     }
   };
 

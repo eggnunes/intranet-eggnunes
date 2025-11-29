@@ -12,6 +12,8 @@ export interface UserProfile {
   approved_by: string | null;
   approved_at: string | null;
   created_at: string;
+  avatar_url: string | null;
+  position: 'socio' | 'advogado' | 'estagiario' | 'comercial' | 'administrativo' | null;
 }
 
 export const useUserRole = () => {
