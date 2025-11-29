@@ -1,9 +1,80 @@
 import { Layout } from '@/components/Layout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { FileText, TrendingUp, ExternalLink } from 'lucide-react';
+import { FileText, TrendingUp, ExternalLink, Star } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 
 export default function AgentesIA() {
+  const { user } = useAuth();
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [loadingFavorites, setLoadingFavorites] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (user) {
+      loadFavorites();
+    }
+  }, [user]);
+
+  const loadFavorites = async () => {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('ai_agent_favorites')
+      .select('agent_url')
+      .eq('user_id', user.id);
+
+    if (error) {
+      console.error('Error loading favorites:', error);
+      return;
+    }
+
+    setFavorites(data.map(f => f.agent_url));
+  };
+
+  const toggleFavorite = async (agentUrl: string) => {
+    if (!user) return;
+
+    setLoadingFavorites(prev => [...prev, agentUrl]);
+
+    const isFavorite = favorites.includes(agentUrl);
+
+    if (isFavorite) {
+      const { error } = await supabase
+        .from('ai_agent_favorites')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('agent_url', agentUrl);
+
+      if (error) {
+        console.error('Error removing favorite:', error);
+        toast.error('Erro ao remover favorito');
+      } else {
+        setFavorites(prev => prev.filter(url => url !== agentUrl));
+        toast.success('Favorito removido');
+      }
+    } else {
+      const { error } = await supabase
+        .from('ai_agent_favorites')
+        .insert({ user_id: user.id, agent_url: agentUrl });
+
+      if (error) {
+        console.error('Error adding favorite:', error);
+        toast.error('Erro ao adicionar favorito');
+      } else {
+        setFavorites(prev => [...prev, agentUrl]);
+        toast.success('Adicionado aos favoritos');
+      }
+    }
+
+    setLoadingFavorites(prev => prev.filter(url => url !== agentUrl));
+  };
+
+  const isFavorite = (agentUrl: string) => favorites.includes(agentUrl);
+  const isLoading = (agentUrl: string) => loadingFavorites.includes(agentUrl);
   const aiAgentsOperacional = [
     { 
       url: 'https://chatgpt.com/g/g-68a77e96240881919f99f8ccbfa5aa8e-criador-de-peticao-inicial-de-ferias-premio', 
@@ -85,6 +156,64 @@ export default function AgentesIA() {
     return colors[category] || 'bg-gray-100 text-gray-700 border-gray-200';
   };
 
+  const allAgents = [...aiAgentsOperacional, ...aiAgentsMarketing];
+  const favoriteAgents = allAgents.filter(agent => isFavorite(agent.url));
+
+  const AgentCard = ({ agent, iconBgColor, icon: Icon, iconColor }: any) => (
+    <Card className="h-full bg-gradient-to-br hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <a
+            href={agent.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-start gap-3 flex-1 min-w-0 group"
+          >
+            <div className={`p-2 rounded-lg ${iconBgColor} transition-colors flex-shrink-0`}>
+              <Icon className={`h-5 w-5 ${iconColor}`} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="font-semibold text-base group-hover:text-purple-700 transition-colors mb-2">
+                {agent.label}
+              </h4>
+            </div>
+            <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-purple-600 transition-colors flex-shrink-0 mt-1" />
+          </a>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 flex-shrink-0"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              toggleFavorite(agent.url);
+            }}
+            disabled={isLoading(agent.url)}
+          >
+            <Star
+              className={`h-4 w-4 transition-colors ${
+                isFavorite(agent.url)
+                  ? 'fill-yellow-400 text-yellow-400'
+                  : 'text-muted-foreground hover:text-yellow-400'
+              }`}
+            />
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {agent.categories.map((category: string) => (
+            <Badge
+              key={category}
+              variant="outline"
+              className={`text-xs ${getCategoryColor(category)}`}
+            >
+              {category}
+            </Badge>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <Layout>
       <div className="space-y-8">
@@ -97,6 +226,35 @@ export default function AgentesIA() {
             Assistentes inteligentes para otimizar seu trabalho jurídico
           </p>
         </div>
+
+        {/* Favoritos */}
+        {favoriteAgents.length > 0 && (
+          <section>
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-yellow-500/20 to-yellow-600/20">
+                  <Star className="h-5 w-5 text-yellow-600 fill-yellow-600" />
+                </div>
+                Favoritos
+              </h2>
+              <p className="text-muted-foreground text-sm mt-1">Seus agentes favoritos para acesso rápido</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {favoriteAgents.map((agent) => {
+                const isOperacional = aiAgentsOperacional.some(a => a.url === agent.url);
+                return (
+                  <AgentCard
+                    key={agent.url}
+                    agent={agent}
+                    iconBgColor={isOperacional ? 'bg-purple-100 group-hover:bg-purple-200' : 'bg-pink-100 group-hover:bg-pink-200'}
+                    icon={isOperacional ? FileText : TrendingUp}
+                    iconColor={isOperacional ? 'text-purple-700' : 'text-pink-700'}
+                  />
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* Agentes de IA - Operacional */}
         <section>
@@ -111,42 +269,13 @@ export default function AgentesIA() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {aiAgentsOperacional.map((agent) => (
-              <a
+              <AgentCard
                 key={agent.url}
-                href={agent.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group"
-              >
-                <Card className="h-full bg-gradient-to-br from-purple-500/5 to-purple-600/5 hover:from-purple-500/15 hover:to-purple-600/10 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border hover:border-purple-500/30">
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <div className="p-2 rounded-lg bg-purple-100 group-hover:bg-purple-200 transition-colors flex-shrink-0">
-                          <FileText className="h-5 w-5 text-purple-700" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-base group-hover:text-purple-700 transition-colors mb-2">
-                            {agent.label}
-                          </h4>
-                        </div>
-                      </div>
-                      <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-purple-600 transition-colors flex-shrink-0 mt-1" />
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {agent.categories.map((category) => (
-                        <Badge 
-                          key={category} 
-                          variant="outline" 
-                          className={`text-xs ${getCategoryColor(category)}`}
-                        >
-                          {category}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </a>
+                agent={agent}
+                iconBgColor="bg-purple-100 group-hover:bg-purple-200"
+                icon={FileText}
+                iconColor="text-purple-700"
+              />
             ))}
           </div>
         </section>
@@ -164,42 +293,13 @@ export default function AgentesIA() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {aiAgentsMarketing.map((agent) => (
-              <a
+              <AgentCard
                 key={agent.url}
-                href={agent.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group"
-              >
-                <Card className="h-full bg-gradient-to-br from-pink-500/5 to-pink-600/5 hover:from-pink-500/15 hover:to-pink-600/10 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border hover:border-pink-500/30">
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <div className="p-2 rounded-lg bg-pink-100 group-hover:bg-pink-200 transition-colors flex-shrink-0">
-                          <TrendingUp className="h-5 w-5 text-pink-700" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-base group-hover:text-pink-700 transition-colors mb-2">
-                            {agent.label}
-                          </h4>
-                        </div>
-                      </div>
-                      <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-pink-600 transition-colors flex-shrink-0 mt-1" />
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {agent.categories.map((category) => (
-                        <Badge 
-                          key={category} 
-                          variant="outline" 
-                          className={`text-xs ${getCategoryColor(category)}`}
-                        >
-                          {category}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </a>
+                agent={agent}
+                iconBgColor="bg-pink-100 group-hover:bg-pink-200"
+                icon={TrendingUp}
+                iconColor="text-pink-700"
+              />
             ))}
           </div>
         </section>
