@@ -1,1 +1,7 @@
 project_id = "igzcajgwqfpcgybxanjo"
+
+[functions.advbox-integration]
+verify_jwt = true
+
+[functions.process-documents]
+verify_jwt = false

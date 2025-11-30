@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
-import { LogOut, Home, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera } from 'lucide-react';
+import { LogOut, Home, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
@@ -175,6 +175,46 @@ export const Layout = ({ children }: LayoutProps) => {
       >
         <UserCircle className="w-4 h-4" />
         Perfil
+      </Button>
+      <Button 
+        variant="ghost" 
+        onClick={() => { navigate('/processos'); setMobileMenuOpen(false); }}
+        className="gap-2 justify-start"
+      >
+        <Briefcase className="w-4 h-4" />
+        Processos
+      </Button>
+      <Button 
+        variant="ghost" 
+        onClick={() => { navigate('/aniversarios-clientes'); setMobileMenuOpen(false); }}
+        className="gap-2 justify-start"
+      >
+        <Cake className="w-4 h-4" />
+        Aniversários Clientes
+      </Button>
+      <Button 
+        variant="ghost" 
+        onClick={() => { navigate('/publicacoes'); setMobileMenuOpen(false); }}
+        className="gap-2 justify-start"
+      >
+        <Bell className="w-4 h-4" />
+        Publicações
+      </Button>
+      <Button 
+        variant="ghost" 
+        onClick={() => { navigate('/tarefas-advbox'); setMobileMenuOpen(false); }}
+        className="gap-2 justify-start"
+      >
+        <CheckSquare className="w-4 h-4" />
+        Tarefas
+      </Button>
+      <Button 
+        variant="ghost" 
+        onClick={() => { navigate('/relatorios-financeiros'); setMobileMenuOpen(false); }}
+        className="gap-2 justify-start"
+      >
+        <DollarSign className="w-4 h-4" />
+        Relatórios
       </Button>
       {isAdmin && (
         <Button 

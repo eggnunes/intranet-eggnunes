@@ -4,7 +4,7 @@ import { Layout } from '@/components/Layout';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, MessageSquare, History, FolderOpen, TrendingUp, User, Mail, Book, Phone, Users, Instagram, Music, Video, Building2, Home, Briefcase, Award, ExternalLink, Shield, Gavel, FileCheck, Banknote, Clock, AlertCircle, Cake } from 'lucide-react';
+import { FileText, MessageSquare, History, FolderOpen, TrendingUp, User, Mail, Book, Phone, Users, Instagram, Music, Video, Building2, Home, Briefcase, Award, ExternalLink, Shield, Gavel, FileCheck, Banknote, Clock, AlertCircle, Cake, DollarSign, Bell, CheckSquare } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -230,6 +230,14 @@ export default function Dashboard() {
     { icon: Building2, url: 'https://credlocaliza.com.br/', label: 'Credlocaliza', description: 'Consultas' },
   ];
 
+  const advboxIntegrations = [
+    { icon: Briefcase, path: '/processos', label: 'Processos', description: 'Dashboard de processos' },
+    { icon: Cake, path: '/aniversarios-clientes', label: 'Aniversários', description: 'Clientes aniversariantes' },
+    { icon: Bell, path: '/publicacoes', label: 'Publicações', description: 'Feed de publicações' },
+    { icon: CheckSquare, path: '/tarefas-advbox', label: 'Tarefas', description: 'Gestão de tarefas' },
+    { icon: DollarSign, path: '/relatorios-financeiros', label: 'Financeiro', description: 'Relatórios financeiros' },
+  ];
+
 
   const socialLinks = [
     { icon: Instagram, url: 'https://www.instagram.com/eggnunesadvogados/', label: '@eggnunesadvogados' },
@@ -408,6 +416,59 @@ export default function Dashboard() {
                 </a>
               </Card>
             ))}
+          </div>
+        </section>
+
+        <Separator className="my-8" />
+
+        {/* Integrações Advbox */}
+        <section>
+          <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20">
+              <FileText className="h-5 w-5 text-primary" />
+            </div>
+            Integrações Advbox
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {advboxIntegrations.map((tool, idx) => {
+              const colors = [
+                'from-violet-500/10 to-violet-600/5 hover:from-violet-500/20 hover:to-violet-600/10 hover:border-violet-500/40 hover:shadow-violet-500/20',
+                'from-pink-500/10 to-pink-600/5 hover:from-pink-500/20 hover:to-pink-600/10 hover:border-pink-500/40 hover:shadow-pink-500/20',
+                'from-blue-500/10 to-blue-600/5 hover:from-blue-500/20 hover:to-blue-600/10 hover:border-blue-500/40 hover:shadow-blue-500/20',
+                'from-emerald-500/10 to-emerald-600/5 hover:from-emerald-500/20 hover:to-emerald-600/10 hover:border-emerald-500/40 hover:shadow-emerald-500/20',
+                'from-amber-500/10 to-amber-600/5 hover:from-amber-500/20 hover:to-amber-600/10 hover:border-amber-500/40 hover:shadow-amber-500/20',
+              ];
+              const iconColors = [
+                'text-violet-600',
+                'text-pink-600',
+                'text-blue-600',
+                'text-emerald-600',
+                'text-amber-600',
+              ];
+              return (
+                <Card
+                  key={tool.path}
+                  className={`bg-gradient-to-br ${colors[idx]} hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border group`}
+                  onClick={() => navigate(tool.path)}
+                >
+                  <CardHeader>
+                    <div className="flex items-center gap-3">
+                      <div className={`p-3 rounded-lg bg-white/80 shadow-sm group-hover:scale-110 transition-transform duration-300`}>
+                        <tool.icon className={`h-5 w-5 ${iconColors[idx]}`} />
+                      </div>
+                      <div className="flex-1">
+                        <CardTitle className="text-lg group-hover:text-primary transition-colors">
+                          {tool.label}
+                        </CardTitle>
+                        <CardDescription className="text-xs mt-1">
+                          {tool.description}
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                </Card>
+              );
+            })}
           </div>
         </section>
 
