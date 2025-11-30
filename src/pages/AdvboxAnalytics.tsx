@@ -475,14 +475,6 @@ export default function AdvboxAnalytics() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button
-              onClick={() => fetchAllData(true)}
-              variant="outline"
-              size="sm"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Atualizar
-            </Button>
             <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="sm">

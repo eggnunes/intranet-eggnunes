@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bell, Search, Calendar, Filter, FileDown, FileText, RefreshCw } from 'lucide-react';
+import { Bell, Search, Calendar, Filter, FileDown, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, subDays, startOfDay, startOfMonth, isAfter, parseISO } from 'date-fns';
@@ -426,15 +426,6 @@ export default function PublicacoesFeed() {
               <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchRecentPublications(true)}
-            disabled={loadingRecent}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loadingRecent ? 'animate-spin' : ''}`} />
-            Atualizar Dados
-          </Button>
         </div>
 
         {metadata && <AdvboxCacheAlert metadata={metadata} />}

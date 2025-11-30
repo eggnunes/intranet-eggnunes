@@ -219,14 +219,6 @@ const App = () => (
               }
             />
             <Route
-              path="/advbox-config"
-              element={
-                <ProtectedRoute>
-                  <AdvboxConfig />
-                </ProtectedRoute>
-              }
-            />
-            <Route
               path="/advbox-analytics"
               element={
                 <ProtectedRoute>

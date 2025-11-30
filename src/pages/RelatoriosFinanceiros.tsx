@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { DollarSign, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -106,15 +106,6 @@ export default function RelatoriosFinanceiros() {
               <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchTransactions(true)}
-            disabled={loading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Atualizar Dados
-          </Button>
         </div>
 
         {metadata && <AdvboxCacheAlert metadata={metadata} />}

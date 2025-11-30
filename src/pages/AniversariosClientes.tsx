@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Cake, Calendar, Copy, Download, Ban, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { Cake, Calendar, Copy, Download, Ban, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -426,16 +426,7 @@ export default function AniversariosClientes() {
               <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchCustomerBirthdays(true)}
-            disabled={loading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Atualizar Dados
-          </Button>
-        </div>
+          </div>
 
         {metadata && <AdvboxCacheAlert metadata={metadata} />}
 
