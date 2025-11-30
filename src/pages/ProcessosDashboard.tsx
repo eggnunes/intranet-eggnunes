@@ -60,6 +60,8 @@ export default function ProcessosDashboard() {
   const [selectedMovementResponsibles, setSelectedMovementResponsibles] = useState<string[]>([]);
   const [showAllMovementResponsibles, setShowAllMovementResponsibles] = useState(true);
   const [periodFilter, setPeriodFilter] = useState<string>('all');
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [showAllStatuses, setShowAllStatuses] = useState(true);
   const [totalLawsuits, setTotalLawsuits] = useState<number | null>(null);
   const [totalMovements, setTotalMovements] = useState<number | null>(null);
   const [metadata, setMetadata] = useState<{ fromCache: boolean; rateLimited: boolean; cacheAge: number } | null>(null);
@@ -91,6 +93,11 @@ export default function ProcessosDashboard() {
     movements
       .map(m => lawsuitResponsibleMap.get(m.lawsuit_id))
       .filter(Boolean) as string[]
+  ));
+  
+  // Extrair lista única de status dos processos
+  const lawsuitStatuses = Array.from(new Set(
+    lawsuits.map(l => l.group).filter(Boolean)
   ));
   
   // Função para filtrar movimentações por período
@@ -131,6 +138,10 @@ export default function ProcessosDashboard() {
     const movementResponsible = lawsuitResponsibleMap.get(movement.lawsuit_id);
     const dateFilter = getDateFilter();
     
+    // Encontrar o processo associado à movimentação para pegar seu status
+    const associatedLawsuit = lawsuits.find(l => l.id === movement.lawsuit_id);
+    const movementStatus = associatedLawsuit?.group;
+    
     const matchesSearch = !movementSearchTerm ||
       movement.process_number.toLowerCase().includes(movementSearchTerm.toLowerCase()) ||
       movement.title.toLowerCase().includes(movementSearchTerm.toLowerCase()) ||
@@ -142,7 +153,10 @@ export default function ProcessosDashboard() {
     
     const matchesPeriod = !dateFilter || isAfter(new Date(movement.date), dateFilter);
     
-    return matchesSearch && matchesResponsible && matchesPeriod;
+    const matchesStatus = showAllStatuses || 
+      (movementStatus && selectedStatuses.includes(movementStatus));
+    
+    return matchesSearch && matchesResponsible && matchesPeriod && matchesStatus;
   });
   
   // Preparar dados para o gráfico de timeline
@@ -157,6 +171,21 @@ export default function ProcessosDashboard() {
     return Object.entries(dateCounts)
       .map(([date, count]) => ({ date, movimentações: count }))
       .slice(-30); // Últimos 30 dias
+  };
+  
+  // Preparar dados para o gráfico de tipos de ação
+  const getActionTypesData = () => {
+    const typeCounts: { [key: string]: number } = {};
+    
+    filteredLawsuits.forEach(lawsuit => {
+      const type = lawsuit.type || 'Não informado';
+      typeCounts[type] = (typeCounts[type] || 0) + 1;
+    });
+    
+    return Object.entries(typeCounts)
+      .map(([tipo, quantidade]) => ({ tipo, quantidade }))
+      .sort((a, b) => b.quantidade - a.quantidade)
+      .slice(0, 10); // Top 10 tipos
   };
 
   useEffect(() => {
@@ -488,7 +517,48 @@ export default function ProcessosDashboard() {
             </CardContent>
           </Card>
 
-          {/* Gráfico de Timeline de Movimentações */}
+          {/* Gráficos */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart className="h-5 w-5" />
+                Tipos de Ação Mais Frequentes
+              </CardTitle>
+              <CardDescription>Top 10 tipos de processos</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <RechartsBarChart data={getActionTypesData()} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis 
+                    type="number"
+                    tick={{ fontSize: 12 }}
+                    className="text-muted-foreground"
+                  />
+                  <YAxis 
+                    type="category"
+                    dataKey="tipo" 
+                    tick={{ fontSize: 10 }}
+                    className="text-muted-foreground"
+                    width={150}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }}
+                  />
+                  <Bar 
+                    dataKey="quantidade" 
+                    fill="hsl(var(--accent))"
+                    radius={[0, 8, 8, 0]}
+                  />
+                </RechartsBarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
           {filteredMovements.length > 0 && (
             <Card>
               <CardHeader>
@@ -496,7 +566,7 @@ export default function ProcessosDashboard() {
                   <BarChart className="h-5 w-5" />
                   Timeline de Movimentações
                 </CardTitle>
-                <CardDescription>Distribuição das movimentações ao longo do tempo</CardDescription>
+                <CardDescription>Distribuição ao longo do tempo</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -541,8 +611,8 @@ export default function ProcessosDashboard() {
                   <CardDescription>Últimas atualizações dos processos</CardDescription>
                 </div>
                 
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
+                <div className="flex gap-2 flex-wrap">
+                  <div className="relative flex-1 min-w-[200px]">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Buscar movimentações..."
@@ -564,6 +634,76 @@ export default function ProcessosDashboard() {
                       <SelectItem value="quarter">Últimos 3 meses</SelectItem>
                     </SelectContent>
                   </Select>
+                  
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="gap-2">
+                        <Filter className="h-4 w-4" />
+                        Status
+                        {!showAllStatuses && selectedStatuses.length > 0 && (
+                          <Badge variant="secondary" className="ml-1">{selectedStatuses.length}</Badge>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64" align="end">
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-sm">Filtrar por Status</h4>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="all-statuses"
+                            checked={showAllStatuses}
+                            onCheckedChange={(checked) => {
+                              setShowAllStatuses(!!checked);
+                              if (checked) {
+                                setSelectedStatuses([]);
+                              }
+                            }}
+                          />
+                          <label htmlFor="all-statuses" className="text-sm font-medium cursor-pointer">
+                            Todos os Status
+                          </label>
+                        </div>
+                        
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                          {lawsuitStatuses.map((status) => (
+                            <div key={status} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`status-${status}`}
+                                checked={selectedStatuses.includes(status)}
+                                disabled={showAllStatuses}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedStatuses([...selectedStatuses, status]);
+                                    setShowAllStatuses(false);
+                                  } else {
+                                    setSelectedStatuses(selectedStatuses.filter(s => s !== status));
+                                  }
+                                }}
+                              />
+                              <label htmlFor={`status-${status}`} className="text-sm cursor-pointer">
+                                {status}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {!showAllStatuses && selectedStatuses.length > 0 && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => {
+                              setSelectedStatuses([]);
+                              setShowAllStatuses(true);
+                            }}
+                            className="w-full"
+                          >
+                            Limpar Filtros
+                          </Button>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                   
                   <Popover>
                     <PopoverTrigger asChild>

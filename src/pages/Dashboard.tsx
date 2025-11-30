@@ -4,7 +4,7 @@ import { Layout } from '@/components/Layout';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, MessageSquare, History, FolderOpen, TrendingUp, User, Mail, Book, Phone, Users, Instagram, Music, Video, Building2, Home, Briefcase, Award, ExternalLink, Shield, Gavel, FileCheck, Banknote, Clock, AlertCircle, Cake, DollarSign, Bell, CheckSquare } from 'lucide-react';
+import { FileText, MessageSquare, History, FolderOpen, TrendingUp, User, Mail, Book, Phone, Users, Instagram, Music, Video, Building2, Home, Briefcase, Award, ExternalLink, Shield, Gavel, FileCheck, Banknote, Clock, AlertCircle, Cake, DollarSign, Bell, CheckSquare, Megaphone, Calendar, Trophy } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -21,14 +21,26 @@ interface BirthdayProfile {
   position: string | null;
 }
 
+interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  type: 'comunicado' | 'evento' | 'conquista';
+  is_pinned: boolean;
+  created_at: string;
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { profile, loading, isApproved } = useUserRole();
   const [monthBirthdays, setMonthBirthdays] = useState<BirthdayProfile[]>([]);
   const [loadingBirthdays, setLoadingBirthdays] = useState(true);
+  const [recentAnnouncements, setRecentAnnouncements] = useState<Announcement[]>([]);
+  const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
 
   useEffect(() => {
     fetchMonthBirthdays();
+    fetchRecentAnnouncements();
   }, []);
 
   const fetchMonthBirthdays = async () => {
@@ -60,6 +72,20 @@ export default function Dashboard() {
     setLoadingBirthdays(false);
   };
 
+  const fetchRecentAnnouncements = async () => {
+    const { data, error } = await supabase
+      .from('announcements')
+      .select('id, title, content, type, is_pinned, created_at')
+      .order('is_pinned', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(3);
+
+    if (!error && data) {
+      setRecentAnnouncements(data as Announcement[]);
+    }
+    setLoadingAnnouncements(false);
+  };
+
   const getPositionLabel = (position: string | null) => {
     if (!position) return '';
     const positions: { [key: string]: string } = {
@@ -70,6 +96,15 @@ export default function Dashboard() {
       administrativo: 'Administrativo',
     };
     return positions[position] || position;
+  };
+
+  const getAnnouncementTypeInfo = (type: Announcement['type']) => {
+    const types = {
+      comunicado: { label: 'Comunicado', icon: Megaphone, color: 'bg-blue-500' },
+      evento: { label: 'Evento', icon: Calendar, color: 'bg-green-500' },
+      conquista: { label: 'Conquista', icon: Trophy, color: 'bg-amber-500' },
+    };
+    return types[type];
   };
 
   if (loading) {
@@ -283,6 +318,57 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* Mural de Avisos - Destaques */}
+        {!loadingAnnouncements && recentAnnouncements.length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20">
+                  <Megaphone className="h-5 w-5 text-primary" />
+                </div>
+                Avisos Recentes
+              </h2>
+              <Button variant="outline" size="sm" onClick={() => navigate('/mural-avisos')}>
+                Ver todos
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {recentAnnouncements.map((announcement) => {
+                const typeInfo = getAnnouncementTypeInfo(announcement.type);
+                const TypeIcon = typeInfo.icon;
+                return (
+                  <Card 
+                    key={announcement.id}
+                    className="hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer border-l-4"
+                    style={{ borderLeftColor: `hsl(var(--primary))` }}
+                    onClick={() => navigate('/mural-avisos')}
+                  >
+                    <CardHeader>
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg ${typeInfo.color} text-white`}>
+                          <TypeIcon className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <Badge variant="secondary" className="mb-2">{typeInfo.label}</Badge>
+                          <CardTitle className="text-lg line-clamp-2">{announcement.title}</CardTitle>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground line-clamp-3">{announcement.content}</p>
+                      <p className="text-xs text-muted-foreground mt-3">
+                        {format(new Date(announcement.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        <Separator className="my-8" />
 
         {/* Sobre o Escritório */}
         <Card className="border-l-4 border-l-primary">
