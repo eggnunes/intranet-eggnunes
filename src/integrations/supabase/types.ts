@@ -695,6 +695,39 @@ export type Database = {
         }
         Relationships: []
       }
+      task_status_history: {
+        Row: {
+          changed_at: string
+          changed_by: string
+          created_at: string
+          id: string
+          new_status: string
+          notes: string | null
+          previous_status: string | null
+          task_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by: string
+          created_at?: string
+          id?: string
+          new_status: string
+          notes?: string | null
+          previous_status?: string | null
+          task_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string
+          created_at?: string
+          id?: string
+          new_status?: string
+          notes?: string | null
+          previous_status?: string | null
+          task_id?: string
+        }
+        Relationships: []
+      }
       usage_history: {
         Row: {
           action: string
