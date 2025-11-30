@@ -36,7 +36,7 @@ export default function PublicacoesFeed() {
   const fetchRecentPublications = async () => {
     setLoadingRecent(true);
     try {
-      const { data, error } = await supabase.functions.invoke('advbox-integration/all-publications');
+      const { data, error } = await supabase.functions.invoke('advbox-integration/recent-publications');
 
       if (error) throw error;
 
@@ -44,9 +44,9 @@ export default function PublicacoesFeed() {
       
       // Filtrar publicações da última semana
       const oneWeekAgo = subDays(new Date(), 7);
-      const recentPubs = allPubs.filter((pub: Publication) => {
+      const recentPubs = allPubs.filter((pub: any) => {
         try {
-          const pubDate = parseISO(pub.date);
+          const pubDate = parseISO(pub.date || pub.created_at);
           return isAfter(pubDate, oneWeekAgo);
         } catch {
           return false;
