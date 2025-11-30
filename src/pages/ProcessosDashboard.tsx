@@ -11,6 +11,7 @@ import { Briefcase, AlertCircle, TrendingUp, Search, Filter, RefreshCw, Settings
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
+import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
 import { Link } from 'react-router-dom';
 
 interface Lawsuit {
@@ -57,6 +58,7 @@ export default function ProcessosDashboard() {
   const [totalLawsuits, setTotalLawsuits] = useState<number | null>(null);
   const [totalMovements, setTotalMovements] = useState<number | null>(null);
   const [metadata, setMetadata] = useState<{ fromCache: boolean; rateLimited: boolean; cacheAge: number } | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
   const { toast } = useToast();
 
   const getCustomerName = (customers: Lawsuit['customers'] | Movement['customers']): string => {
@@ -121,6 +123,7 @@ export default function ProcessosDashboard() {
 
       setLawsuits(lawsuitsData?.data || []);
       setMovements(movementsData?.data || []);
+      setLastUpdate(new Date());
       
       // Extrair metadata
       if (lawsuitsData?.metadata) {
@@ -172,7 +175,7 @@ export default function ProcessosDashboard() {
     <Layout>
       <div className="space-y-6">
         <div>
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between">
             <div>
               <h1 className="text-3xl font-bold flex items-center gap-3">
                 <Briefcase className="h-8 w-8 text-primary" />
@@ -181,6 +184,9 @@ export default function ProcessosDashboard() {
               <p className="text-muted-foreground mt-2">
                 Acompanhe seus processos e movimentações em tempo real
               </p>
+              <div className="mt-2">
+                <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
+              </div>
             </div>
             <div className="flex gap-2">
               <Button

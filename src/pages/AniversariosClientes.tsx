@@ -8,11 +8,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Cake, Calendar, Copy, Download, Ban, Eye, EyeOff } from 'lucide-react';
+import { Cake, Calendar, Copy, Download, Ban, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
+import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
 
 interface Customer {
   id: string;
@@ -43,6 +45,8 @@ export default function AniversariosClientes() {
   const [excludeDialogOpen, setExcludeDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [exclusionReason, setExclusionReason] = useState('');
+  const [metadata, setMetadata] = useState<any>(null);
+  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -73,10 +77,13 @@ export default function AniversariosClientes() {
     }
   };
 
-  const fetchCustomerBirthdays = async () => {
+  const fetchCustomerBirthdays = async (forceRefresh = false) => {
+    setLoading(true);
     try {
       console.log('Fetching customer birthdays...');
-      const { data, error } = await supabase.functions.invoke('advbox-integration/customer-birthdays');
+      const { data, error } = await supabase.functions.invoke('advbox-integration/customer-birthdays', {
+        body: { force_refresh: forceRefresh },
+      });
 
       console.log('Customer birthdays raw response:', { data, error });
 
@@ -86,6 +93,8 @@ export default function AniversariosClientes() {
       }
 
       const rawCustomers: any[] = (data as any)?.data || (data as any) || [];
+      setMetadata((data as any)?.metadata);
+      setLastUpdate(new Date());
 
       const normalizedCustomers: Customer[] = rawCustomers
         .map((c) => {
@@ -123,6 +132,13 @@ export default function AniversariosClientes() {
 
       console.log('Normalized customers:', normalizedCustomers);
       setCustomers(normalizedCustomers);
+
+      if (forceRefresh) {
+        toast({
+          title: 'Dados atualizados',
+          description: 'Os aniversários foram recarregados.',
+        });
+      }
     } catch (error) {
       console.error('Error fetching customer birthdays:', error);
       toast({
@@ -397,15 +413,31 @@ export default function AniversariosClientes() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Cake className="h-8 w-8 text-primary" />
-            Aniversários de Clientes
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Acompanhe os aniversários dos seus clientes
-          </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <Cake className="h-8 w-8 text-primary" />
+              Aniversários de Clientes
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              Acompanhe os aniversários dos seus clientes
+            </p>
+            <div className="mt-2">
+              <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchCustomerBirthdays(true)}
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Atualizar Dados
+          </Button>
         </div>
+
+        {metadata && <AdvboxCacheAlert metadata={metadata} />}
 
         {/* Filtros e Ações */}
         <div className="flex flex-col gap-4">

@@ -8,11 +8,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { CheckSquare, Plus } from 'lucide-react';
+import { CheckSquare, Plus, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
+import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
 
 interface Task {
   id: string;
@@ -32,19 +34,33 @@ export default function TarefasAdvbox() {
     description: '',
     due_date: '',
   });
+  const [metadata, setMetadata] = useState<any>(null);
+  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchTasks();
   }, []);
 
-  const fetchTasks = async () => {
+  const fetchTasks = async (forceRefresh = false) => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('advbox-integration/tasks');
+      const { data, error } = await supabase.functions.invoke('advbox-integration/tasks', {
+        body: { force_refresh: forceRefresh },
+      });
 
       if (error) throw error;
 
-      setTasks(data || []);
+      setTasks(data?.data || data || []);
+      setMetadata(data?.metadata);
+      setLastUpdate(new Date());
+
+      if (forceRefresh) {
+        toast({
+          title: 'Dados atualizados',
+          description: 'As tarefas foram recarregadas.',
+        });
+      }
     } catch (error) {
       console.error('Error fetching tasks:', error);
       toast({
@@ -105,7 +121,7 @@ export default function TarefasAdvbox() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <CheckSquare className="h-8 w-8 text-primary" />
@@ -114,15 +130,28 @@ export default function TarefasAdvbox() {
             <p className="text-muted-foreground mt-2">
               Gerencie suas tarefas do Advbox
             </p>
+            <div className="mt-2">
+              <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
+            </div>
           </div>
           
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                Nova Tarefa
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchTasks(true)}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Nova Tarefa
+                </Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Criar Nova Tarefa</DialogTitle>
@@ -165,7 +194,10 @@ export default function TarefasAdvbox() {
               </div>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
+
+        {metadata && <AdvboxCacheAlert metadata={metadata} />}
 
         {/* Lista de Tarefas */}
         <Card>
