@@ -52,13 +52,47 @@ export default function PublicacoesFeed() {
     if (!selectedPublication) return;
 
     try {
+      // Buscar todos os processos para encontrar o ID
+      const { data: lawsuitsData, error: lawsuitsError } = await supabase.functions.invoke('advbox-integration/lawsuits');
+      
+      if (lawsuitsError) throw lawsuitsError;
+
+      const lawsuits = lawsuitsData?.data || [];
+      const processNumber = selectedPublication.process_number || selectedPublication.lawsuit_number || '';
+      
+      // Buscar o processo correspondente
+      const lawsuit = lawsuits.find((l: any) => l.process_number === processNumber);
+      
+      if (!lawsuit) {
+        toast({
+          title: 'Processo não encontrado',
+          description: 'Não foi possível localizar o processo para criar a tarefa.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Buscar o usuário atual
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast({
+          title: 'Usuário não autenticado',
+          description: 'Você precisa estar autenticado para criar tarefas.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Preparar dados no formato esperado pela API do Advbox
       const taskData = {
+        lawsuits_id: lawsuit.id,
+        start_date: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
         title: `Intimação: ${selectedPublication.title || 'Publicação'}`,
         description: selectedPublication.description || selectedPublication.header || '',
-        process_number: selectedPublication.process_number || selectedPublication.lawsuit_number || '',
-        category: 'intimacao',
-        status: 'pending',
-        notes: `Criada a partir de publicação de ${format(new Date(selectedPublication.date), 'dd/MM/yyyy')}`,
+        from: lawsuit.responsible_id, // ID do responsável pelo processo
+        tasks_id: 1, // ID padrão do tipo de tarefa
+        guests: [lawsuit.responsible_id], // Atribuir ao responsável do processo
       };
 
       const { error } = await supabase.functions.invoke('advbox-integration/create-task', {
@@ -78,7 +112,7 @@ export default function PublicacoesFeed() {
       console.error('Error creating task:', error);
       toast({
         title: 'Erro ao criar tarefa',
-        description: 'Não foi possível criar a tarefa.',
+        description: error instanceof Error ? error.message : 'Não foi possível criar a tarefa.',
         variant: 'destructive',
       });
     }
