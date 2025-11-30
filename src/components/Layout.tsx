@@ -476,7 +476,7 @@ export const Layout = ({ children }: LayoutProps) => {
                     {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                   </Button>
                 </DrawerTrigger>
-                <DrawerContent className="max-h-[90vh] flex flex-col px-4">
+                <DrawerContent className="h-[90vh] flex flex-col px-4">
                   <div className="flex items-center gap-3 py-4 border-b">
                     {profile?.avatar_url && (
                       <img
@@ -490,7 +490,7 @@ export const Layout = ({ children }: LayoutProps) => {
                       <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                     </div>
                   </div>
-                  <ScrollArea className="flex-1 -mx-6 px-6">
+                  <ScrollArea className="flex-1 overflow-y-auto">
                     <div className="flex flex-col gap-4 mt-4">
                       <NavItems />
                       <Button variant="outline" onClick={signOut} className="gap-2 mt-4">
