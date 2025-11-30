@@ -22,6 +22,8 @@ import autoTable from 'jspdf-autotable';
 import { FinancialAlerts } from '@/components/FinancialAlerts';
 import { FinancialPredictions } from '@/components/FinancialPredictions';
 import { FinancialDistribution } from '@/components/FinancialDistribution';
+import { CashFlowProjection } from '@/components/CashFlowProjection';
+import { ExecutiveDashboard } from '@/components/ExecutiveDashboard';
 
 interface Transaction {
   id: string;
@@ -438,6 +440,14 @@ export default function RelatoriosFinanceiros() {
           </CardContent>
         </Card>
 
+        {/* Dashboard Executivo com KPIs e Metas */}
+        <ExecutiveDashboard
+          totalIncome={totalIncome}
+          totalExpense={totalExpense}
+          profitMargin={profitMargin}
+          period={periodFilter}
+        />
+
         {/* Sistema de Alertas */}
         <FinancialAlerts
           totalExpense={totalExpense}
@@ -445,6 +455,9 @@ export default function RelatoriosFinanceiros() {
           growthRate={growthRate}
           period={periodFilter}
         />
+
+        {/* Fluxo de Caixa Projetado */}
+        <CashFlowProjection transactions={filteredTransactions} />
 
         {/* Análise Preditiva */}
         <FinancialPredictions transactions={filteredTransactions} />
