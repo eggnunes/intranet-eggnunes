@@ -132,13 +132,6 @@ export default function Dashboard() {
       gradient: 'from-emerald-500 to-teal-500',
     },
     {
-      title: 'Histórico',
-      description: 'Acompanhe suas atividades',
-      icon: History,
-      path: '/historico',
-      gradient: 'from-orange-500 to-red-500',
-    },
-    {
       title: 'Documentos Úteis',
       description: 'Acesse documentos importantes',
       icon: FolderOpen,
@@ -256,10 +249,10 @@ export default function Dashboard() {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,hsl(221_83%_53%/0.1),transparent_50%)]"></div>
           <div className="relative flex items-center gap-6">
             <div className="flex flex-col items-center gap-2">
-              <Avatar className="h-30 w-30 border-4 border-primary/30 shadow-lg">
+              <Avatar className="h-24 w-24 border-4 border-primary/30 shadow-lg">
                 <AvatarImage src={profile?.avatar_url} />
                 <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-2xl">
-                  <User className="h-14 w-14" />
+                  <User className="h-12 w-12" />
                 </AvatarFallback>
               </Avatar>
               <Button
@@ -350,7 +343,6 @@ export default function Dashboard() {
                 'from-purple-500/10 to-pink-500/5 hover:from-purple-500/20 hover:to-pink-500/10 hover:border-purple-500/40 hover:shadow-purple-500/20',
                 'from-blue-500/10 to-blue-600/5 hover:from-blue-500/20 hover:to-blue-600/10 hover:border-blue-500/40 hover:shadow-blue-500/20',
                 'from-emerald-500/10 to-emerald-600/5 hover:from-emerald-500/20 hover:to-emerald-600/10 hover:border-emerald-500/40 hover:shadow-emerald-500/20',
-                'from-orange-500/10 to-orange-600/5 hover:from-orange-500/20 hover:to-orange-600/10 hover:border-orange-500/40 hover:shadow-orange-500/20',
                 'from-pink-500/10 to-pink-600/5 hover:from-pink-500/20 hover:to-pink-600/10 hover:border-pink-500/40 hover:shadow-pink-500/20',
               ];
               const iconColors = [
@@ -358,7 +350,6 @@ export default function Dashboard() {
                 'text-purple-600',
                 'text-blue-600',
                 'text-emerald-600',
-                'text-orange-600',
                 'text-pink-600',
               ];
               return (
