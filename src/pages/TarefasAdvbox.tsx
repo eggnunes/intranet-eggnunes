@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User } from 'lucide-react';
+import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -25,6 +25,7 @@ interface Task {
   due_date: string;
   status: string;
   assigned_to?: string;
+  priority?: 'alta' | 'media' | 'baixa';
 }
 
 export default function TarefasAdvbox() {
@@ -40,6 +41,10 @@ export default function TarefasAdvbox() {
   const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [assignedFilter, setAssignedFilter] = useState<string>('all');
+  const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [priorityDialogOpen, setPriorityDialogOpen] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedPriority, setSelectedPriority] = useState<'alta' | 'media' | 'baixa'>('media');
   const { toast } = useToast();
   const { isAdmin } = useUserRole();
 
@@ -66,8 +71,22 @@ export default function TarefasAdvbox() {
         // Se data for um objeto, tentar extrair array de possíveis propriedades
         tasksData = data.tasks || data.items || [];
       }
+
+      // Buscar prioridades do banco
+      const { data: priorities } = await supabase
+        .from('task_priorities')
+        .select('task_id, priority');
+
+      // Mesclar prioridades com tarefas
+      const tasksWithPriorities = tasksData.map((task: Task) => {
+        const priorityData = priorities?.find((p) => p.task_id === task.id);
+        return {
+          ...task,
+          priority: priorityData?.priority as 'alta' | 'media' | 'baixa' | undefined,
+        };
+      });
       
-      setTasks(Array.isArray(tasksData) ? tasksData : []);
+      setTasks(Array.isArray(tasksWithPriorities) ? tasksWithPriorities : []);
       setMetadata(data?.metadata);
       setLastUpdate(new Date());
 
@@ -149,6 +168,45 @@ export default function TarefasAdvbox() {
     }
   };
 
+  const handleSetPriority = async () => {
+    if (!selectedTaskId) return;
+
+    try {
+      const { error } = await supabase
+        .from('task_priorities')
+        .upsert({
+          task_id: selectedTaskId,
+          priority: selectedPriority,
+          set_by: (await supabase.auth.getUser()).data.user?.id,
+        }, {
+          onConflict: 'task_id'
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Prioridade definida',
+        description: `Tarefa marcada como prioridade ${selectedPriority}.`,
+      });
+
+      setPriorityDialogOpen(false);
+      fetchTasks();
+    } catch (error) {
+      console.error('Error setting priority:', error);
+      toast({
+        title: 'Erro ao definir prioridade',
+        description: 'Não foi possível definir a prioridade da tarefa.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const openPriorityDialog = (taskId: string, currentPriority?: 'alta' | 'media' | 'baixa') => {
+    setSelectedTaskId(taskId);
+    setSelectedPriority(currentPriority || 'media');
+    setPriorityDialogOpen(true);
+  };
+
   // Extrair lista única de responsáveis
   const assignedUsers = useMemo(() => {
     const users = new Set<string>();
@@ -160,14 +218,25 @@ export default function TarefasAdvbox() {
     return Array.from(users).sort();
   }, [tasks]);
 
-  // Filtrar tarefas
+  // Filtrar e ordenar tarefas
   const filteredTasks = useMemo(() => {
-    return tasks.filter(task => {
+    let filtered = tasks.filter(task => {
       if (statusFilter !== 'all' && task.status !== statusFilter) return false;
       if (assignedFilter !== 'all' && task.assigned_to !== assignedFilter) return false;
+      if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false;
       return true;
     });
-  }, [tasks, statusFilter, assignedFilter]);
+
+    // Ordenar por prioridade (alta > média > baixa > sem prioridade)
+    const priorityOrder = { alta: 0, media: 1, baixa: 2 };
+    filtered.sort((a, b) => {
+      const aPriority = a.priority ? priorityOrder[a.priority] : 999;
+      const bPriority = b.priority ? priorityOrder[b.priority] : 999;
+      return aPriority - bPriority;
+    });
+
+    return filtered;
+  }, [tasks, statusFilter, assignedFilter, priorityFilter]);
 
   const getStatusIcon = (status: string) => {
     switch (status.toLowerCase()) {
@@ -195,6 +264,19 @@ export default function TarefasAdvbox() {
         return 'secondary';
       default:
         return 'secondary';
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'alta':
+        return 'bg-red-500 hover:bg-red-600';
+      case 'media':
+        return 'bg-yellow-500 hover:bg-yellow-600';
+      case 'baixa':
+        return 'bg-green-500 hover:bg-green-600';
+      default:
+        return 'bg-gray-500 hover:bg-gray-600';
     }
   };
 
@@ -289,7 +371,7 @@ export default function TarefasAdvbox() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="status-filter">Status</Label>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -301,6 +383,21 @@ export default function TarefasAdvbox() {
                     <SelectItem value="pending">Pendente</SelectItem>
                     <SelectItem value="in_progress">Em Andamento</SelectItem>
                     <SelectItem value="completed">Concluída</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="priority-filter">Prioridade</Label>
+                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                  <SelectTrigger id="priority-filter">
+                    <SelectValue placeholder="Filtrar por prioridade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as prioridades</SelectItem>
+                    <SelectItem value="alta">Alta</SelectItem>
+                    <SelectItem value="media">Média</SelectItem>
+                    <SelectItem value="baixa">Baixa</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -347,7 +444,14 @@ export default function TarefasAdvbox() {
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between gap-4 mb-3">
                           <div className="flex-1">
-                            <h3 className="font-semibold mb-1">{task.title}</h3>
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-semibold">{task.title}</h3>
+                              {task.priority && (
+                                <Badge className={`${getPriorityColor(task.priority)} text-white border-0`}>
+                                  {task.priority.toUpperCase()}
+                                </Badge>
+                              )}
+                            </div>
                             {task.description && (
                               <p className="text-sm text-muted-foreground">{task.description}</p>
                             )}
@@ -378,11 +482,20 @@ export default function TarefasAdvbox() {
                             <Button
                               size="sm"
                               variant="outline"
+                              onClick={() => openPriorityDialog(task.id, task.priority)}
+                              className="flex-1"
+                            >
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              {task.priority ? 'Alterar Prioridade' : 'Definir Prioridade'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
                               onClick={() => handleCompleteTask(task.id)}
                               className="flex-1"
                             >
                               <CheckCircle2 className="h-3 w-3 mr-1" />
-                              Marcar como Concluída
+                              Concluir
                             </Button>
                           </div>
                         )}
@@ -394,6 +507,51 @@ export default function TarefasAdvbox() {
             </ScrollArea>
           </CardContent>
         </Card>
+
+        {/* Dialog de Prioridade */}
+        <Dialog open={priorityDialogOpen} onOpenChange={setPriorityDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Definir Prioridade</DialogTitle>
+              <DialogDescription>
+                Escolha a prioridade para esta tarefa
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="priority">Prioridade</Label>
+                <Select value={selectedPriority} onValueChange={(value: 'alta' | 'media' | 'baixa') => setSelectedPriority(value)}>
+                  <SelectTrigger id="priority">
+                    <SelectValue placeholder="Selecione a prioridade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="alta">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-red-500" />
+                        Alta
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="media">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                        Média
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="baixa">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-green-500" />
+                        Baixa
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleSetPriority} className="w-full">
+                Salvar Prioridade
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
