@@ -60,6 +60,46 @@ async function makeAdvboxRequest({ endpoint, method = 'GET', body }: AdvboxReque
   }
 }
 
+// Função para buscar todos os dados com paginação
+async function fetchAllPaginated(endpoint: string, limit = 1000): Promise<any[]> {
+  let allData: any[] = [];
+  let page = 1;
+  let hasMore = true;
+  
+  console.log(`Starting paginated fetch for: ${endpoint}`);
+  
+  while (hasMore) {
+    const response = await makeAdvboxRequest({ 
+      endpoint: `${endpoint}${endpoint.includes('?') ? '&' : '?'}limit=${limit}&page=${page}` 
+    });
+    
+    const items = response.data || [];
+    console.log(`Page ${page}: fetched ${items.length} items`);
+    
+    if (items.length === 0) {
+      hasMore = false;
+    } else {
+      allData = allData.concat(items);
+      
+      // Se retornou menos que o limite, não há mais páginas
+      if (items.length < limit) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+    }
+    
+    // Limite de segurança: não buscar mais de 50 páginas
+    if (page > 50) {
+      console.warn('Reached maximum page limit (50)');
+      hasMore = false;
+    }
+  }
+  
+  console.log(`Total fetched: ${allData.length} items`);
+  return allData;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -74,17 +114,19 @@ Deno.serve(async (req) => {
     switch (path) {
       // Dashboard de Processos
       case 'lawsuits': {
-        const limit = url.searchParams.get('limit') || '10000'; // Aumentar limite padrão
-        const data = await makeAdvboxRequest({ endpoint: `/lawsuits?limit=${limit}` });
-        return new Response(JSON.stringify(data), {
+        console.log('Fetching all lawsuits with pagination...');
+        const allLawsuits = await fetchAllPaginated('/lawsuits', 1000);
+        
+        return new Response(JSON.stringify({ data: allLawsuits }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       case 'last-movements': {
-        const limit = url.searchParams.get('limit') || '5000'; // Aumentar limite
-        const data = await makeAdvboxRequest({ endpoint: `/last_movements?limit=${limit}` });
-        return new Response(JSON.stringify(data), {
+        console.log('Fetching all movements with pagination...');
+        const allMovements = await fetchAllPaginated('/last_movements', 1000);
+        
+        return new Response(JSON.stringify({ data: allMovements }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
