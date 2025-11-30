@@ -74,14 +74,16 @@ Deno.serve(async (req) => {
     switch (path) {
       // Dashboard de Processos
       case 'lawsuits': {
-        const data = await makeAdvboxRequest({ endpoint: '/lawsuits' });
+        const limit = url.searchParams.get('limit') || '10000'; // Aumentar limite padrão
+        const data = await makeAdvboxRequest({ endpoint: `/lawsuits?limit=${limit}` });
         return new Response(JSON.stringify(data), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       case 'last-movements': {
-        const data = await makeAdvboxRequest({ endpoint: '/last_movements' });
+        const limit = url.searchParams.get('limit') || '5000'; // Aumentar limite
+        const data = await makeAdvboxRequest({ endpoint: `/last_movements?limit=${limit}` });
         return new Response(JSON.stringify(data), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });

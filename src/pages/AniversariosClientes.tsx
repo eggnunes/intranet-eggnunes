@@ -37,11 +37,21 @@ export default function AniversariosClientes() {
 
   const fetchCustomerBirthdays = async () => {
     try {
+      console.log('Fetching customer birthdays...');
       const { data, error } = await supabase.functions.invoke('advbox-integration/customer-birthdays');
 
-      if (error) throw error;
+      console.log('Customer birthdays response:', { data, error });
 
-      setCustomers(data || []);
+      if (error) {
+        console.error('Error from edge function:', error);
+        throw error;
+      }
+
+      // A resposta pode vir em data.data ou diretamente em data
+      const customers = data?.data || data || [];
+      console.log('Parsed customers:', customers);
+      
+      setCustomers(customers);
     } catch (error) {
       console.error('Error fetching customer birthdays:', error);
       toast({
