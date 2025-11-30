@@ -608,6 +608,33 @@ export type Database = {
         }
         Relationships: []
       }
+      task_priorities: {
+        Row: {
+          created_at: string
+          id: string
+          priority: string
+          set_by: string
+          task_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          priority: string
+          set_by: string
+          task_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          priority?: string
+          set_by?: string
+          task_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       usage_history: {
         Row: {
           action: string
