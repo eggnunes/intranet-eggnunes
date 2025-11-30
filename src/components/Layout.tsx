@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
-import { LogOut, Home, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList } from 'lucide-react';
+import { LogOut, Home, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
@@ -307,6 +307,22 @@ export const Layout = ({ children }: LayoutProps) => {
       </Button>
       <Button 
         variant="ghost" 
+        onClick={() => { navigate('/ferias'); setMobileMenuOpen(false); }}
+        className="gap-2 justify-start"
+      >
+        <CalendarDays className="w-4 h-4" />
+        Férias
+      </Button>
+      <Button 
+        variant="ghost" 
+        onClick={() => { navigate('/solicitacoes-administrativas'); setMobileMenuOpen(false); }}
+        className="gap-2 justify-start"
+      >
+        <ClipboardIcon className="w-4 h-4" />
+        Solicitações
+      </Button>
+      <Button 
+        variant="ghost" 
         onClick={() => { navigate('/profile'); setMobileMenuOpen(false); }}
         className="gap-2 justify-start"
       >
@@ -443,6 +459,41 @@ export const Layout = ({ children }: LayoutProps) => {
                     <Badge variant="destructive" className="ml-2">{unreadAnnouncementsCount}</Badge>
                   )}
                 </Button>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="gap-2">
+                      <ClipboardIcon className="w-4 h-4" />
+                      RH
+                      <ChevronDown className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56 bg-card border-border z-50">
+                    <DropdownMenuLabel>Recursos Humanos</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => navigate('/ferias')}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <CalendarDays className="w-4 h-4" />
+                      <div className="flex flex-col">
+                        <span className="font-medium">Férias</span>
+                        <span className="text-xs text-muted-foreground">Gestão de férias</span>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => navigate('/solicitacoes-administrativas')}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <ClipboardIcon className="w-4 h-4" />
+                      <div className="flex flex-col">
+                        <span className="font-medium">Solicitações</span>
+                        <span className="text-xs text-muted-foreground">Pedidos administrativos</span>
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                
                 <Button 
                   variant="ghost" 
                   onClick={() => navigate('/historico')}

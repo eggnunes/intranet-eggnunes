@@ -30,6 +30,8 @@ import RelatoriosFinanceiros from "./pages/RelatoriosFinanceiros";
 import AdvboxConfig from "./pages/AdvboxConfig";
 import AdvboxAnalytics from "./pages/AdvboxAnalytics";
 import RelatoriosProdutividadeTarefas from "./pages/RelatoriosProdutividadeTarefas";
+import Ferias from "./pages/Ferias";
+import SolicitacoesAdministrativas from "./pages/SolicitacoesAdministrativas";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -232,6 +234,22 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <RelatoriosProdutividadeTarefas />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ferias"
+              element={
+                <ProtectedRoute>
+                  <Ferias />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/solicitacoes-administrativas"
+              element={
+                <ProtectedRoute>
+                  <SolicitacoesAdministrativas />
                 </ProtectedRoute>
               }
             />
