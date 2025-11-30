@@ -149,10 +149,15 @@ async function getCachedOrFetch(cacheKey: string, fetchFn: () => Promise<any>): 
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
-    // Se tomou 429 mas temos cache antigo, retornar dado em vez de quebrar
-    if (message.includes('429') && cached) {
-      console.warn(`Rate limited for ${cacheKey}. Returning stale cached data.`);
-      return cached.data;
+    if (message.includes('429')) {
+      console.warn(`Rate limited for ${cacheKey}.`);
+      if (cached) {
+        console.warn(`Returning stale cached data for ${cacheKey}.`);
+        return cached.data;
+      }
+      console.warn(`No cache available for ${cacheKey}. Returning empty result to avoid 500.`);
+      // Para todos os usos atuais, um array vazio é seguro
+      return [];
     }
 
     console.error(`Error fetching data for ${cacheKey}:`, message);
