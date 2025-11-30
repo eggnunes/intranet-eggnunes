@@ -140,12 +140,24 @@ async function getCachedOrFetch(cacheKey: string, fetchFn: () => Promise<any>): 
   
   // Caso contrário, buscar da API
   console.log(`Cache miss for: ${cacheKey}, fetching from API`);
-  const data = await fetchFn();
-  
-  // Armazenar no cache
-  cache.set(cacheKey, { data, timestamp: now });
-  
-  return data;
+
+  try {
+    const data = await fetchFn();
+    // Armazenar no cache (mesmo se vazio, para evitar chamadas repetidas)
+    cache.set(cacheKey, { data, timestamp: now });
+    return data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    // Se tomou 429 mas temos cache antigo, retornar dado em vez de quebrar
+    if (message.includes('429') && cached) {
+      console.warn(`Rate limited for ${cacheKey}. Returning stale cached data.`);
+      return cached.data;
+    }
+
+    console.error(`Error fetching data for ${cacheKey}:`, message);
+    throw error;
+  }
 }
 
 Deno.serve(async (req) => {
