@@ -13,11 +13,14 @@ import { format, subDays, isAfter, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Publication {
-  id: string;
+  id: string | number;
   date: string;
-  description: string;
-  lawsuit_number: string;
-  court: string;
+  description?: string;
+  lawsuit_number?: string;
+  court?: string;
+  process_number?: string;
+  title?: string;
+  header?: string;
 }
 
 export default function PublicacoesFeed() {
@@ -53,8 +56,16 @@ export default function PublicacoesFeed() {
         }
       });
 
-      setAllPublications(recentPubs);
-      setPublications(recentPubs);
+      const mappedPubs: Publication[] = recentPubs.map((movement: any, index: number) => ({
+        id: movement.id ?? `${movement.lawsuit_id ?? 'movement'}-${movement.date ?? movement.created_at}-${index}`,
+        date: movement.date || movement.created_at,
+        process_number: movement.process_number,
+        title: movement.title,
+        header: movement.header,
+      }));
+
+      setAllPublications(mappedPubs);
+      setPublications(mappedPubs);
       
       if (recentPubs.length === 0) {
         toast({
@@ -89,7 +100,16 @@ export default function PublicacoesFeed() {
 
       if (error) throw error;
 
-      setPublications(data || []);
+      const rawPubs = (data as any[]) || [];
+      const mappedPubs: Publication[] = rawPubs.map((pub: any) => ({
+        id: pub.id,
+        date: pub.date,
+        description: pub.description,
+        lawsuit_number: pub.lawsuit_number,
+        court: pub.court,
+      }));
+
+      setPublications(mappedPubs);
       
       if (!data || data.length === 0) {
         toast({
@@ -195,10 +215,20 @@ export default function PublicacoesFeed() {
                           <Badge variant="outline">
                             {format(new Date(publication.date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                           </Badge>
-                          <Badge>{publication.lawsuit_number}</Badge>
+                          <Badge>
+                            {publication.lawsuit_number || publication.process_number || 'Sem número'}
+                          </Badge>
                         </div>
-                        <p className="text-sm mb-2">{publication.description}</p>
-                        <p className="text-xs text-muted-foreground">{publication.court}</p>
+                        {(publication.description || publication.title || publication.header) && (
+                          <p className="text-sm mb-2">
+                            {publication.description || publication.title || publication.header}
+                          </p>
+                        )}
+                        {(publication.court || publication.header) && (
+                          <p className="text-xs text-muted-foreground">
+                            {publication.court || publication.header}
+                          </p>
+                        )}
                       </CardContent>
                     </Card>
                   ))}
