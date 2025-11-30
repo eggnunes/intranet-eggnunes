@@ -35,6 +35,107 @@ export type Database = {
         }
         Relationships: []
       }
+      announcements: {
+        Row: {
+          attachment_url: string | null
+          content: string
+          created_at: string
+          created_by: string
+          id: string
+          is_pinned: boolean
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          attachment_url?: string | null
+          content: string
+          created_at?: string
+          created_by: string
+          id?: string
+          is_pinned?: boolean
+          title: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          attachment_url?: string | null
+          content?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_pinned?: boolean
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      event_gallery: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          event_date: string
+          id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          event_date: string
+          id?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          event_date?: string
+          id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      event_photos: {
+        Row: {
+          caption: string | null
+          created_at: string
+          event_id: string
+          id: string
+          photo_url: string
+          uploaded_by: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          event_id: string
+          id?: string
+          photo_url: string
+          uploaded_by: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          event_id?: string
+          id?: string
+          photo_url?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_photos_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "event_gallery"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forum_notifications: {
         Row: {
           created_at: string
@@ -130,6 +231,42 @@ export type Database = {
           description?: string | null
           id?: string
           last_post_at?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      onboarding_materials: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string
+          description: string | null
+          file_url: string
+          id: string
+          order_index: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          file_url: string
+          id?: string
+          order_index?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          file_url?: string
+          id?: string
+          order_index?: number
           title?: string
           updated_at?: string
         }

@@ -18,6 +18,9 @@ import DocumentosUteis from "./pages/DocumentosUteis";
 import Aniversarios from "./pages/Aniversarios";
 import Profile from "./pages/Profile";
 import Equipe from "./pages/Equipe";
+import Onboarding from "./pages/Onboarding";
+import MuralAvisos from "./pages/MuralAvisos";
+import GaleriaEventos from "./pages/GaleriaEventos";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
@@ -141,6 +144,30 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Equipe />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/onboarding"
+              element={
+                <ProtectedRoute>
+                  <Onboarding />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mural-avisos"
+              element={
+                <ProtectedRoute>
+                  <MuralAvisos />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/galeria-eventos"
+              element={
+                <ProtectedRoute>
+                  <GaleriaEventos />
                 </ProtectedRoute>
               }
             />
