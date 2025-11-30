@@ -53,6 +53,8 @@ export default function ProcessosDashboard() {
   const [movementSearchTerm, setMovementSearchTerm] = useState('');
   const [selectedResponsibles, setSelectedResponsibles] = useState<string[]>([]);
   const [showAllResponsibles, setShowAllResponsibles] = useState(true);
+  const [selectedMovementResponsibles, setSelectedMovementResponsibles] = useState<string[]>([]);
+  const [showAllMovementResponsibles, setShowAllMovementResponsibles] = useState(true);
   const [totalLawsuits, setTotalLawsuits] = useState<number | null>(null);
   const [totalMovements, setTotalMovements] = useState<number | null>(null);
   const [metadata, setMetadata] = useState<{ fromCache: boolean; rateLimited: boolean; cacheAge: number } | null>(null);
@@ -70,6 +72,21 @@ export default function ProcessosDashboard() {
   
   // Extrair lista única de responsáveis
   const responsibles = Array.from(new Set(lawsuits.map(l => l.responsible).filter(Boolean)));
+  
+  // Criar um mapa de lawsuit_id para responsável
+  const lawsuitResponsibleMap = new Map<number, string>();
+  lawsuits.forEach(lawsuit => {
+    if (lawsuit.responsible) {
+      lawsuitResponsibleMap.set(lawsuit.id, lawsuit.responsible);
+    }
+  });
+  
+  // Extrair lista única de responsáveis das movimentações
+  const movementResponsibles = Array.from(new Set(
+    movements
+      .map(m => lawsuitResponsibleMap.get(m.lawsuit_id))
+      .filter(Boolean) as string[]
+  ));
   
   // Filtrar processos
   const filteredLawsuits = lawsuits.filter(lawsuit => {
@@ -91,12 +108,18 @@ export default function ProcessosDashboard() {
   // Filtrar movimentações
   const filteredMovements = movements.filter(movement => {
     const customerName = getCustomerName(movement.customers);
+    const movementResponsible = lawsuitResponsibleMap.get(movement.lawsuit_id);
     
-    return !movementSearchTerm ||
+    const matchesSearch = !movementSearchTerm ||
       movement.process_number.toLowerCase().includes(movementSearchTerm.toLowerCase()) ||
       movement.title.toLowerCase().includes(movementSearchTerm.toLowerCase()) ||
       customerName.toLowerCase().includes(movementSearchTerm.toLowerCase()) ||
       movement.header?.toLowerCase().includes(movementSearchTerm.toLowerCase());
+    
+    const matchesResponsible = showAllMovementResponsibles || 
+      (movementResponsible && selectedMovementResponsibles.includes(movementResponsible));
+    
+    return matchesSearch && matchesResponsible;
   });
 
   useEffect(() => {
@@ -440,14 +463,86 @@ export default function ProcessosDashboard() {
                   <CardDescription>Últimas atualizações dos processos</CardDescription>
                 </div>
                 
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar movimentações..."
-                    value={movementSearchTerm}
-                    onChange={(e) => setMovementSearchTerm(e.target.value)}
-                    className="pl-9"
-                  />
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar movimentações..."
+                      value={movementSearchTerm}
+                      onChange={(e) => setMovementSearchTerm(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                  
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="gap-2">
+                        <Filter className="h-4 w-4" />
+                        Responsável
+                        {!showAllMovementResponsibles && selectedMovementResponsibles.length > 0 && (
+                          <Badge variant="secondary" className="ml-1">{selectedMovementResponsibles.length}</Badge>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64" align="end">
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-sm">Filtrar por Responsável</h4>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="all-movement-responsibles"
+                            checked={showAllMovementResponsibles}
+                            onCheckedChange={(checked) => {
+                              setShowAllMovementResponsibles(!!checked);
+                              if (checked) {
+                                setSelectedMovementResponsibles([]);
+                              }
+                            }}
+                          />
+                          <label htmlFor="all-movement-responsibles" className="text-sm font-medium cursor-pointer">
+                            Todos os Responsáveis
+                          </label>
+                        </div>
+                        
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                          {movementResponsibles.map((responsible) => (
+                            <div key={responsible} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`movement-${responsible}`}
+                                checked={selectedMovementResponsibles.includes(responsible)}
+                                disabled={showAllMovementResponsibles}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedMovementResponsibles([...selectedMovementResponsibles, responsible]);
+                                    setShowAllMovementResponsibles(false);
+                                  } else {
+                                    setSelectedMovementResponsibles(selectedMovementResponsibles.filter(r => r !== responsible));
+                                  }
+                                }}
+                              />
+                              <label htmlFor={`movement-${responsible}`} className="text-sm cursor-pointer">
+                                {responsible}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {!showAllMovementResponsibles && selectedMovementResponsibles.length > 0 && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => {
+                              setSelectedMovementResponsibles([]);
+                              setShowAllMovementResponsibles(true);
+                            }}
+                            className="w-full"
+                          >
+                            Limpar Filtros
+                          </Button>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
             </CardHeader>
@@ -456,7 +551,7 @@ export default function ProcessosDashboard() {
                 <div className="space-y-3">
                   {filteredMovements.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">
-                      {movementSearchTerm ? 'Nenhuma movimentação encontrada com os filtros aplicados' : 'Nenhuma movimentação encontrada'}
+                      {movementSearchTerm || !showAllMovementResponsibles ? 'Nenhuma movimentação encontrada com os filtros aplicados' : 'Nenhuma movimentação encontrada'}
                     </p>
                   ) : (
                     filteredMovements.map((movement, index) => (
