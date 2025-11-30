@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Cake, Calendar } from 'lucide-react';
+import { Cake, Calendar, Copy } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, isToday, isThisWeek, isThisMonth } from 'date-fns';
@@ -149,6 +149,60 @@ export default function AniversariosClientes() {
     setFilteredCustomers(filtered);
   };
 
+  const copyContactsToClipboard = async () => {
+    if (filteredCustomers.length === 0) {
+      toast({
+        title: 'Nenhum contato para copiar',
+        description: 'Não há aniversariantes no período selecionado.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const filterLabel = 
+      filter === 'dia' ? 'Hoje' :
+      filter === 'semana' ? 'Esta Semana' :
+      'Este Mês';
+
+    let textToCopy = `📅 Aniversariantes - ${filterLabel}\n`;
+    textToCopy += `Total: ${filteredCustomers.length} ${filteredCustomers.length === 1 ? 'cliente' : 'clientes'}\n`;
+    textToCopy += `\n`;
+
+    filteredCustomers.forEach((customer, index) => {
+      const birthday = new Date(customer.birthday);
+      const day = birthday.getDate().toString().padStart(2, '0');
+      const month = (birthday.getMonth() + 1).toString().padStart(2, '0');
+      
+      textToCopy += `${index + 1}. ${customer.name}\n`;
+      textToCopy += `   📅 ${day}/${month}\n`;
+      
+      if (customer.phone) {
+        textToCopy += `   📱 ${customer.phone}\n`;
+      }
+      
+      if (customer.email) {
+        textToCopy += `   📧 ${customer.email}\n`;
+      }
+      
+      textToCopy += `\n`;
+    });
+
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      toast({
+        title: 'Contatos copiados!',
+        description: `${filteredCustomers.length} ${filteredCustomers.length === 1 ? 'contato foi copiado' : 'contatos foram copiados'} para a área de transferência.`,
+      });
+    } catch (error) {
+      console.error('Error copying to clipboard:', error);
+      toast({
+        title: 'Erro ao copiar',
+        description: 'Não foi possível copiar os contatos. Tente novamente.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -173,28 +227,42 @@ export default function AniversariosClientes() {
         </div>
 
         {/* Filtros */}
-        <div className="flex gap-2">
-          <Button
-            variant={filter === 'dia' ? 'default' : 'outline'}
-            onClick={() => setFilter('dia')}
-            size="sm"
-          >
-            Hoje
-          </Button>
-          <Button
-            variant={filter === 'semana' ? 'default' : 'outline'}
-            onClick={() => setFilter('semana')}
-            size="sm"
-          >
-            Esta Semana
-          </Button>
-          <Button
-            variant={filter === 'mes' ? 'default' : 'outline'}
-            onClick={() => setFilter('mes')}
-            size="sm"
-          >
-            Este Mês
-          </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-2">
+            <Button
+              variant={filter === 'dia' ? 'default' : 'outline'}
+              onClick={() => setFilter('dia')}
+              size="sm"
+            >
+              Hoje
+            </Button>
+            <Button
+              variant={filter === 'semana' ? 'default' : 'outline'}
+              onClick={() => setFilter('semana')}
+              size="sm"
+            >
+              Esta Semana
+            </Button>
+            <Button
+              variant={filter === 'mes' ? 'default' : 'outline'}
+              onClick={() => setFilter('mes')}
+              size="sm"
+            >
+              Este Mês
+            </Button>
+          </div>
+          
+          {filteredCustomers.length > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={copyContactsToClipboard}
+              className="ml-auto"
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Copiar Contatos ({filteredCustomers.length})
+            </Button>
+          )}
         </div>
 
         {/* Lista de Aniversariantes */}
