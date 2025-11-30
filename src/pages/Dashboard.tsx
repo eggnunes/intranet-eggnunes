@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { format, getMonth, getDate } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { TaskNotifications } from '@/components/TaskNotifications';
 
 interface BirthdayProfile {
   id: string;
@@ -318,6 +319,9 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* Alertas de Tarefas */}
+        <TaskNotifications />
 
         {/* Sobre o Escritório */}
         <Card className="border-l-4 border-l-primary">

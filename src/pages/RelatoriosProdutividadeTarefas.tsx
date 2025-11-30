@@ -38,9 +38,14 @@ export default function RelatoriosProdutividadeTarefas() {
   const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [compareStartDate, setCompareStartDate] = useState('');
+  const [compareEndDate, setCompareEndDate] = useState('');
   const [selectedUser, setSelectedUser] = useState<string>('all');
+  const [selectedPriority, setSelectedPriority] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [showComparison, setShowComparison] = useState(false);
   const { toast } = useToast();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, profile } = useUserRole();
 
   useEffect(() => {
     fetchTasks();
@@ -100,23 +105,56 @@ export default function RelatoriosProdutividadeTarefas() {
     }
   };
 
-  // Extrair lista de responsáveis
+  // Tarefas visíveis de acordo com o papel do usuário
+  const visibleTasks = useMemo(() => {
+    if (isAdmin) return tasks;
+
+    // Usuários comuns só veem tarefas atribuídas a eles
+    if (!profile?.full_name) return [];
+
+    const currentName = profile.full_name.toLowerCase();
+
+    return tasks.filter((task) =>
+      task.assigned_to && task.assigned_to.toLowerCase().includes(currentName)
+    );
+  }, [tasks, isAdmin, profile?.full_name]);
+
+  // Extrair lista de responsáveis (só para admin)
   const assignedUsers = useMemo(() => {
     const users = new Set<string>();
-    tasks.forEach((task) => {
+    visibleTasks.forEach((task) => {
       if (task.assigned_to) {
         users.add(task.assigned_to);
       }
     });
     return Array.from(users).sort();
-  }, [tasks]);
+  }, [visibleTasks]);
 
-  // Filtrar tarefas por período e responsável
+  // Filtrar tarefas por período, responsável, prioridade e status
   const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
-      // Filtro por responsável
-      if (selectedUser !== 'all' && task.assigned_to !== selectedUser) {
+    return visibleTasks.filter((task) => {
+      // Filtro por responsável (só para admin)
+      if (isAdmin && selectedUser !== 'all' && task.assigned_to !== selectedUser) {
         return false;
+      }
+
+      // Filtro por prioridade
+      if (selectedPriority !== 'all' && task.priority !== selectedPriority) {
+        return false;
+      }
+
+      // Filtro por status
+      if (selectedStatus !== 'all') {
+        const taskStatus = task.status?.toLowerCase();
+        if (selectedStatus === 'completed' && taskStatus !== 'completed' && taskStatus !== 'concluída') {
+          return false;
+        }
+        if (selectedStatus === 'pending' && taskStatus !== 'pending' && taskStatus !== 'pendente') {
+          return false;
+        }
+        if (selectedStatus === 'in_progress' && taskStatus !== 'in_progress' && taskStatus !== 'em andamento') {
+          return false;
+        }
       }
 
       // Filtro por período (usando due_date como referência)
@@ -136,9 +174,57 @@ export default function RelatoriosProdutividadeTarefas() {
 
       return true;
     });
-  }, [tasks, startDate, endDate, selectedUser]);
+  }, [visibleTasks, startDate, endDate, selectedUser, selectedPriority, selectedStatus, isAdmin]);
 
-  // Calcular KPIs
+  // Tarefas do período de comparação
+  const comparisonTasks = useMemo(() => {
+    if (!showComparison || !compareStartDate || !compareEndDate) return [];
+
+    return visibleTasks.filter((task) => {
+      // Filtro por responsável (só para admin)
+      if (isAdmin && selectedUser !== 'all' && task.assigned_to !== selectedUser) {
+        return false;
+      }
+
+      // Filtro por prioridade
+      if (selectedPriority !== 'all' && task.priority !== selectedPriority) {
+        return false;
+      }
+
+      // Filtro por status
+      if (selectedStatus !== 'all') {
+        const taskStatus = task.status?.toLowerCase();
+        if (selectedStatus === 'completed' && taskStatus !== 'completed' && taskStatus !== 'concluída') {
+          return false;
+        }
+        if (selectedStatus === 'pending' && taskStatus !== 'pending' && taskStatus !== 'pendente') {
+          return false;
+        }
+        if (selectedStatus === 'in_progress' && taskStatus !== 'in_progress' && taskStatus !== 'em andamento') {
+          return false;
+        }
+      }
+
+      // Filtro por período de comparação
+      if (task.due_date) {
+        try {
+          const taskDate = parseISO(task.due_date);
+          const start = parseISO(compareStartDate);
+          const end = parseISO(compareEndDate);
+          
+          if (!isWithinInterval(taskDate, { start, end })) {
+            return false;
+          }
+        } catch (e) {
+          console.error('Error parsing date:', e);
+        }
+      }
+
+      return true;
+    });
+  }, [visibleTasks, compareStartDate, compareEndDate, selectedUser, selectedPriority, selectedStatus, isAdmin, showComparison]);
+
+  // Calcular KPIs do período principal
   const kpis = useMemo(() => {
     const total = filteredTasks.length;
     const completed = filteredTasks.filter(
@@ -154,6 +240,25 @@ export default function RelatoriosProdutividadeTarefas() {
 
     return { total, completed, pending, inProgress, completionRate };
   }, [filteredTasks]);
+
+  // Calcular KPIs do período de comparação
+  const comparisonKpis = useMemo(() => {
+    if (!showComparison || comparisonTasks.length === 0) return null;
+
+    const total = comparisonTasks.length;
+    const completed = comparisonTasks.filter(
+      (t) => t.status?.toLowerCase() === 'completed' || t.status?.toLowerCase() === 'concluída'
+    ).length;
+    const pending = comparisonTasks.filter(
+      (t) => t.status?.toLowerCase() === 'pending' || t.status?.toLowerCase() === 'pendente'
+    ).length;
+    const inProgress = comparisonTasks.filter(
+      (t) => t.status?.toLowerCase() === 'in_progress' || t.status?.toLowerCase() === 'em andamento'
+    ).length;
+    const completionRate = total > 0 ? ((completed / total) * 100).toFixed(1) : '0';
+
+    return { total, completed, pending, inProgress, completionRate };
+  }, [comparisonTasks, showComparison]);
 
   // Dados para gráfico de barras - Tarefas por responsável
   const tasksByUser = useMemo(() => {
@@ -266,102 +371,199 @@ export default function RelatoriosProdutividadeTarefas() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="start-date">Data Início</Label>
-                <Input
-                  id="start-date"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="end-date">Data Fim</Label>
-                <Input
-                  id="end-date"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-              </div>
-              {isAdmin && assignedUsers.length > 0 && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
-                  <Label htmlFor="user-filter">Responsável</Label>
-                  <Select value={selectedUser} onValueChange={setSelectedUser}>
-                    <SelectTrigger id="user-filter">
-                      <SelectValue placeholder="Filtrar por responsável" />
+                  <Label htmlFor="start-date">Data Início</Label>
+                  <Input
+                    id="start-date"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="end-date">Data Fim</Label>
+                  <Input
+                    id="end-date"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="priority-filter">Prioridade</Label>
+                  <Select value={selectedPriority} onValueChange={setSelectedPriority}>
+                    <SelectTrigger id="priority-filter">
+                      <SelectValue placeholder="Todas as prioridades" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos os responsáveis</SelectItem>
-                      {assignedUsers.map((user) => (
-                        <SelectItem key={user} value={user}>
-                          {user}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="all">Todas as prioridades</SelectItem>
+                      <SelectItem value="alta">Alta</SelectItem>
+                      <SelectItem value="media">Média</SelectItem>
+                      <SelectItem value="baixa">Baixa</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-              )}
+                <div>
+                  <Label htmlFor="status-filter">Status</Label>
+                  <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                    <SelectTrigger id="status-filter">
+                      <SelectValue placeholder="Todos os status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os status</SelectItem>
+                      <SelectItem value="completed">Concluídas</SelectItem>
+                      <SelectItem value="pending">Pendentes</SelectItem>
+                      <SelectItem value="in_progress">Em Andamento</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {isAdmin && assignedUsers.length > 0 && (
+                  <div>
+                    <Label htmlFor="user-filter">Responsável</Label>
+                    <Select value={selectedUser} onValueChange={setSelectedUser}>
+                      <SelectTrigger id="user-filter">
+                        <SelectValue placeholder="Filtrar por responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os responsáveis</SelectItem>
+                        {assignedUsers.map((user) => (
+                          <SelectItem key={user} value={user}>
+                            {user}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              {/* Comparação de Períodos */}
+              <div className="pt-4 border-t">
+                <div className="flex items-center gap-2 mb-4">
+                  <input
+                    type="checkbox"
+                    id="show-comparison"
+                    checked={showComparison}
+                    onChange={(e) => setShowComparison(e.target.checked)}
+                    className="rounded"
+                  />
+                  <Label htmlFor="show-comparison" className="cursor-pointer">
+                    Comparar com outro período
+                  </Label>
+                </div>
+
+                {showComparison && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-6">
+                    <div>
+                      <Label htmlFor="compare-start-date">Data Início (Comparação)</Label>
+                      <Input
+                        id="compare-start-date"
+                        type="date"
+                        value={compareStartDate}
+                        onChange={(e) => setCompareStartDate(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="compare-end-date">Data Fim (Comparação)</Label>
+                      <Input
+                        id="compare-end-date"
+                        type="date"
+                        value={compareEndDate}
+                        onChange={(e) => setCompareEndDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
 
         {/* KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total de Tarefas</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{kpis.total}</div>
-            </CardContent>
-          </Card>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total de Tarefas</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{kpis.total}</div>
+                {comparisonKpis && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {comparisonKpis.total > kpis.total ? '↓' : '↑'} {Math.abs(kpis.total - comparisonKpis.total)} vs período anterior
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                Concluídas
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-600">{kpis.completed}</div>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  Concluídas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-green-600">{kpis.completed}</div>
+                {comparisonKpis && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {kpis.completed >= comparisonKpis.completed ? '↑' : '↓'} {Math.abs(kpis.completed - comparisonKpis.completed)} vs período anterior
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Clock className="h-4 w-4 text-yellow-500" />
-                Pendentes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-yellow-600">{kpis.pending}</div>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-yellow-500" />
+                  Pendentes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-yellow-600">{kpis.pending}</div>
+                {comparisonKpis && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {kpis.pending <= comparisonKpis.pending ? '↓' : '↑'} {Math.abs(kpis.pending - comparisonKpis.pending)} vs período anterior
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-blue-500" />
-                Em Andamento
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-blue-600">{kpis.inProgress}</div>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-blue-500" />
+                  Em Andamento
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-blue-600">{kpis.inProgress}</div>
+                {comparisonKpis && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {Math.abs(kpis.inProgress - comparisonKpis.inProgress)} vs período anterior
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Taxa de Conclusão</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{kpis.completionRate}%</div>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Taxa de Conclusão</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{kpis.completionRate}%</div>
+                {comparisonKpis && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {parseFloat(kpis.completionRate) >= parseFloat(comparisonKpis.completionRate) ? '↑' : '↓'}{' '}
+                    {Math.abs(parseFloat(kpis.completionRate) - parseFloat(comparisonKpis.completionRate)).toFixed(1)}% vs período anterior
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Gráficos */}
