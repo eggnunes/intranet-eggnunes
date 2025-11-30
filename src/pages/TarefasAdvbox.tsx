@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X } from 'lucide-react';
+import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X, Edit, History } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -22,6 +22,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { TaskComments } from '@/components/TaskComments';
 import { TaskAttachments } from '@/components/TaskAttachments';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { TaskStatusHistory } from '@/components/TaskStatusHistory';
 
 interface Task {
   id: string;
@@ -37,11 +38,16 @@ export default function TarefasAdvbox() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [newTask, setNewTask] = useState({
     title: '',
     description: '',
     due_date: '',
+    assigned_to: '',
+    status: 'pending',
   });
+  const [editTask, setEditTask] = useState<Task | null>(null);
+  const [allUsers, setAllUsers] = useState<Array<{ id: string; full_name: string }>>([]);
   const [metadata, setMetadata] = useState<any>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -58,7 +64,23 @@ export default function TarefasAdvbox() {
 
   useEffect(() => {
     fetchTasks();
+    fetchUsers();
   }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('approval_status', 'approved')
+        .order('full_name');
+
+      if (error) throw error;
+      setAllUsers(data || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
 
   const fetchTasks = async (forceRefresh = false) => {
     setLoading(true);
@@ -140,7 +162,7 @@ export default function TarefasAdvbox() {
       });
 
       setDialogOpen(false);
-      setNewTask({ title: '', description: '', due_date: '' });
+      setNewTask({ title: '', description: '', due_date: '', assigned_to: '', status: 'pending' });
       fetchTasks();
     } catch (error) {
       console.error('Error creating task:', error);
@@ -154,11 +176,26 @@ export default function TarefasAdvbox() {
 
   const handleCompleteTask = async (taskId: string) => {
     try {
+      const task = tasks.find(t => t.id === taskId);
+      const previousStatus = task?.status || 'unknown';
+
       const { error } = await supabase.functions.invoke('advbox-integration/complete-task', {
         body: { task_id: taskId },
       });
 
       if (error) throw error;
+
+      // Registrar no histórico
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('task_status_history').insert({
+          task_id: taskId,
+          previous_status: previousStatus,
+          new_status: 'completed',
+          changed_by: user.id,
+          notes: 'Tarefa marcada como concluída'
+        });
+      }
 
       toast({
         title: 'Tarefa concluída',
@@ -174,6 +211,70 @@ export default function TarefasAdvbox() {
         variant: 'destructive',
       });
     }
+  };
+
+  const handleEditTask = async () => {
+    if (!editTask || !editTask.title.trim()) {
+      toast({
+        title: 'Título obrigatório',
+        description: 'Por favor, informe o título da tarefa.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const task = tasks.find(t => t.id === editTask.id);
+      const previousStatus = task?.status;
+
+      const { data, error } = await supabase.functions.invoke('advbox-integration/update-task', {
+        body: {
+          task_id: editTask.id,
+          title: editTask.title,
+          description: editTask.description,
+          due_date: editTask.due_date,
+          assigned_to: editTask.assigned_to,
+          status: editTask.status,
+        },
+      });
+
+      if (error) throw error;
+
+      // Se o status mudou, registrar no histórico
+      if (previousStatus && previousStatus !== editTask.status) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('task_status_history').insert({
+            task_id: editTask.id,
+            previous_status: previousStatus,
+            new_status: editTask.status,
+            changed_by: user.id,
+            notes: 'Status alterado via edição'
+          });
+        }
+      }
+
+      toast({
+        title: 'Tarefa atualizada',
+        description: 'A tarefa foi atualizada com sucesso.',
+      });
+
+      setEditDialogOpen(false);
+      setEditTask(null);
+      fetchTasks();
+    } catch (error) {
+      console.error('Error updating task:', error);
+      toast({
+        title: 'Erro ao atualizar tarefa',
+        description: 'Não foi possível atualizar a tarefa.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const openEditDialog = (task: Task) => {
+    setEditTask({ ...task });
+    setEditDialogOpen(true);
   };
 
   const handleSetPriority = async () => {
@@ -372,6 +473,20 @@ export default function TarefasAdvbox() {
                   />
                 </div>
                 <div>
+                  <Label htmlFor="assigned_to">Responsável</Label>
+                  <Select value={newTask.assigned_to} onValueChange={(value) => setNewTask({ ...newTask, assigned_to: value })}>
+                    <SelectTrigger id="assigned_to">
+                      <SelectValue placeholder="Selecione o responsável" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Nenhum</SelectItem>
+                      {allUsers.map(user => (
+                        <SelectItem key={user.id} value={user.full_name}>{user.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label htmlFor="due_date">Data de Vencimento</Label>
                   <Input
                     id="due_date"
@@ -379,6 +494,19 @@ export default function TarefasAdvbox() {
                     value={newTask.due_date}
                     onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
                   />
+                </div>
+                <div>
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={newTask.status} onValueChange={(value) => setNewTask({ ...newTask, status: value })}>
+                    <SelectTrigger id="status">
+                      <SelectValue placeholder="Selecione o status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pendente</SelectItem>
+                      <SelectItem value="in_progress">Em Andamento</SelectItem>
+                      <SelectItem value="completed">Concluída</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button onClick={handleCreateTask} className="w-full">
                   Criar Tarefa
@@ -469,10 +597,10 @@ export default function TarefasAdvbox() {
               ) : (
                 <div className="space-y-3">
                   {filteredTasks.map((task) => (
-                    <Card key={task.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => openTaskDetails(task)}>
+                     <Card key={task.id} className="hover:shadow-md transition-shadow">
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between gap-4 mb-3">
-                          <div className="flex-1">
+                          <div className="flex-1 cursor-pointer" onClick={() => openTaskDetails(task)}>
                             <div className="flex items-center gap-2 mb-1">
                               <h3 className="font-semibold">{task.title}</h3>
                               {task.priority && (
@@ -485,10 +613,24 @@ export default function TarefasAdvbox() {
                               <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
                             )}
                           </div>
-                          <Badge variant={getStatusVariant(task.status)} className="flex items-center gap-1">
-                            {getStatusIcon(task.status)}
-                            {task.status}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={getStatusVariant(task.status)} className="flex items-center gap-1">
+                              {getStatusIcon(task.status)}
+                              {task.status}
+                            </Badge>
+                            {isAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditDialog(task);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
@@ -513,6 +655,91 @@ export default function TarefasAdvbox() {
             </ScrollArea>
           </CardContent>
         </Card>
+
+        {/* Dialog de Edição de Tarefa (Admin) */}
+        {editTask && (
+          <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Editar Tarefa</DialogTitle>
+                <DialogDescription>
+                  Atualize os campos da tarefa
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="edit-title">Título *</Label>
+                  <Input
+                    id="edit-title"
+                    value={editTask.title}
+                    onChange={(e) => setEditTask({ ...editTask, title: e.target.value })}
+                    placeholder="Título da tarefa"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-description">Descrição</Label>
+                  <Textarea
+                    id="edit-description"
+                    value={editTask.description || ''}
+                    onChange={(e) => setEditTask({ ...editTask, description: e.target.value })}
+                    placeholder="Descrição da tarefa"
+                    rows={4}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-assigned_to">Responsável</Label>
+                  <Select 
+                    value={editTask.assigned_to || ''} 
+                    onValueChange={(value) => setEditTask({ ...editTask, assigned_to: value })}
+                  >
+                    <SelectTrigger id="edit-assigned_to">
+                      <SelectValue placeholder="Selecione o responsável" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Nenhum</SelectItem>
+                      {allUsers.map(user => (
+                        <SelectItem key={user.id} value={user.full_name}>{user.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="edit-due_date">Data de Vencimento</Label>
+                  <Input
+                    id="edit-due_date"
+                    type="date"
+                    value={editTask.due_date || ''}
+                    onChange={(e) => setEditTask({ ...editTask, due_date: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-status">Status</Label>
+                  <Select 
+                    value={editTask.status} 
+                    onValueChange={(value) => setEditTask({ ...editTask, status: value })}
+                  >
+                    <SelectTrigger id="edit-status">
+                      <SelectValue placeholder="Selecione o status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pendente</SelectItem>
+                      <SelectItem value="in_progress">Em Andamento</SelectItem>
+                      <SelectItem value="completed">Concluída</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleEditTask} className="flex-1">
+                    Salvar Alterações
+                  </Button>
+                  <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="flex-1">
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* Dialog de Prioridade */}
         <Dialog open={priorityDialogOpen} onOpenChange={setPriorityDialogOpen}>
@@ -578,15 +805,19 @@ export default function TarefasAdvbox() {
               </DrawerHeader>
               <div className="px-4">
                 <Tabs defaultValue="comments" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
+                  <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="comments">Comentários</TabsTrigger>
                     <TabsTrigger value="attachments">Anexos</TabsTrigger>
+                    <TabsTrigger value="history">Histórico</TabsTrigger>
                   </TabsList>
                   <TabsContent value="comments" className="mt-4">
                     {selectedTask && <TaskComments taskId={selectedTask.id} />}
                   </TabsContent>
                   <TabsContent value="attachments" className="mt-4">
                     {selectedTask && <TaskAttachments taskId={selectedTask.id} />}
+                  </TabsContent>
+                  <TabsContent value="history" className="mt-4">
+                    {selectedTask && <TaskStatusHistory taskId={selectedTask.id} />}
                   </TabsContent>
                 </Tabs>
               </div>
@@ -664,15 +895,19 @@ export default function TarefasAdvbox() {
                 )}
 
                 <Tabs defaultValue="comments" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
+                  <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="comments">Comentários</TabsTrigger>
                     <TabsTrigger value="attachments">Anexos</TabsTrigger>
+                    <TabsTrigger value="history">Histórico</TabsTrigger>
                   </TabsList>
                   <TabsContent value="comments" className="mt-4">
                     {selectedTask && <TaskComments taskId={selectedTask.id} />}
                   </TabsContent>
                   <TabsContent value="attachments" className="mt-4">
                     {selectedTask && <TaskAttachments taskId={selectedTask.id} />}
+                  </TabsContent>
+                  <TabsContent value="history" className="mt-4">
+                    {selectedTask && <TaskStatusHistory taskId={selectedTask.id} />}
                   </TabsContent>
                 </Tabs>
 

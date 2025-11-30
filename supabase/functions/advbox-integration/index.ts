@@ -373,6 +373,38 @@ Deno.serve(async (req) => {
         });
       }
 
+      case 'update-task': {
+        const body = await req.json();
+        const { task_id, ...updateData } = body;
+        
+        if (!task_id) {
+          return new Response(JSON.stringify({ error: 'Task ID is required' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const data = await makeAdvboxRequest({ 
+          endpoint: `/posts/${task_id}`, 
+          method: 'PUT',
+          body: updateData 
+        });
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      case 'complete-task': {
+        const body = await req.json();
+        const data = await makeAdvboxRequest({ 
+          endpoint: `/posts/${body.task_id}/complete`, 
+          method: 'POST'
+        });
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       // Transações Financeiras
       case 'transactions': {
         const result = await getCachedOrFetch('transactions', async () => {
