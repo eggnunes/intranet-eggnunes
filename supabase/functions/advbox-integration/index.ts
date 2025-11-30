@@ -160,7 +160,7 @@ async function getCachedOrFetch(cacheKey: string, fetchFn: () => Promise<any>, f
   const now = Date.now();
   const cached = cache.get(cacheKey);
   
-  // Se forçar refresh, ignorar cache
+  // Se forçar refresh, ignorar cache fresco e tentar buscar
   if (!forceRefresh && cached && (now - cached.timestamp) < CACHE_TTL) {
     console.log(`Cache hit for: ${cacheKey}`);
     return {
@@ -168,17 +168,17 @@ async function getCachedOrFetch(cacheKey: string, fetchFn: () => Promise<any>, f
       metadata: {
         fromCache: true,
         rateLimited: false,
-        cacheAge: Math.floor((now - cached.timestamp) / 1000), // em segundos
+        cacheAge: Math.floor((now - cached.timestamp) / 1000),
       },
     };
   }
   
-  // Caso contrário, buscar da API
-  console.log(`Cache miss for: ${cacheKey}, fetching from API`);
+  // Tentar buscar da API
+  console.log(`Cache miss or stale for: ${cacheKey}, fetching from API`);
 
   try {
     const data = await fetchFn();
-    // Armazenar no cache (mesmo se vazio, para evitar chamadas repetidas)
+    // Armazenar no cache com timestamp atual
     cache.set(cacheKey, { data, timestamp: now, fromCache: false, rateLimited: false });
     return {
       data,
@@ -193,8 +193,9 @@ async function getCachedOrFetch(cacheKey: string, fetchFn: () => Promise<any>, f
 
     if (message.includes('429')) {
       console.warn(`Rate limited for ${cacheKey}.`);
+      // SEMPRE retornar cache se existir, independente da idade
       if (cached) {
-        console.warn(`Returning stale cached data for ${cacheKey}.`);
+        console.warn(`Returning cached data (age: ${Math.floor((now - cached.timestamp) / 1000)}s) for ${cacheKey} due to rate limit.`);
         return {
           data: cached.data,
           metadata: {
@@ -204,8 +205,7 @@ async function getCachedOrFetch(cacheKey: string, fetchFn: () => Promise<any>, f
           },
         };
       }
-      console.warn(`No cache available for ${cacheKey}. Returning empty result to avoid 500.`);
-      // Para todos os usos atuais, um array vazio é seguro
+      console.warn(`No cache available for ${cacheKey}. Returning empty result.`);
       return {
         data: [],
         metadata: {
@@ -217,6 +217,18 @@ async function getCachedOrFetch(cacheKey: string, fetchFn: () => Promise<any>, f
     }
 
     console.error(`Error fetching data for ${cacheKey}:`, message);
+    // Para outros erros, também retornar cache se existir
+    if (cached) {
+      console.warn(`Returning cached data due to error for ${cacheKey}.`);
+      return {
+        data: cached.data,
+        metadata: {
+          fromCache: true,
+          rateLimited: false,
+          cacheAge: Math.floor((now - cached.timestamp) / 1000),
+        },
+      };
+    }
     throw error;
   }
 }
