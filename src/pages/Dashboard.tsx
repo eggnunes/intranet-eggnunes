@@ -256,10 +256,10 @@ export default function Dashboard() {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,hsl(221_83%_53%/0.1),transparent_50%)]"></div>
           <div className="relative flex items-center gap-6">
             <div className="flex flex-col items-center gap-2">
-              <Avatar className="h-20 w-20 border-4 border-primary/30 shadow-lg">
+              <Avatar className="h-30 w-30 border-4 border-primary/30 shadow-lg">
                 <AvatarImage src={profile?.avatar_url} />
                 <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-2xl">
-                  <User className="h-10 w-10" />
+                  <User className="h-14 w-14" />
                 </AvatarFallback>
               </Avatar>
               <Button
