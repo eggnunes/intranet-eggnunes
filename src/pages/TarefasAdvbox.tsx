@@ -5,11 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -17,6 +19,9 @@ import { ptBR } from 'date-fns/locale';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
 import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
 import { useUserRole } from '@/hooks/useUserRole';
+import { TaskComments } from '@/components/TaskComments';
+import { TaskAttachments } from '@/components/TaskAttachments';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Task {
   id: string;
@@ -44,9 +49,12 @@ export default function TarefasAdvbox() {
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [priorityDialogOpen, setPriorityDialogOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedPriority, setSelectedPriority] = useState<'alta' | 'media' | 'baixa'>('media');
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const { toast } = useToast();
   const { isAdmin } = useUserRole();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     fetchTasks();
@@ -205,6 +213,11 @@ export default function TarefasAdvbox() {
     setSelectedTaskId(taskId);
     setSelectedPriority(currentPriority || 'media');
     setPriorityDialogOpen(true);
+  };
+
+  const openTaskDetails = (task: Task) => {
+    setSelectedTask(task);
+    setDetailsOpen(true);
   };
 
   // Extrair lista única de responsáveis
@@ -440,7 +453,7 @@ export default function TarefasAdvbox() {
               ) : (
                 <div className="space-y-3">
                   {filteredTasks.map((task) => (
-                    <Card key={task.id} className="hover:shadow-md transition-shadow">
+                    <Card key={task.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => openTaskDetails(task)}>
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between gap-4 mb-3">
                           <div className="flex-1">
@@ -453,7 +466,7 @@ export default function TarefasAdvbox() {
                               )}
                             </div>
                             {task.description && (
-                              <p className="text-sm text-muted-foreground">{task.description}</p>
+                              <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
                             )}
                           </div>
                           <Badge variant={getStatusVariant(task.status)} className="flex items-center gap-1">
@@ -462,11 +475,11 @@ export default function TarefasAdvbox() {
                           </Badge>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground mb-3">
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                           {task.due_date && (
                             <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
-                              Vencimento: {format(new Date(task.due_date), 'dd/MM/yyyy', { locale: ptBR })}
+                              {format(new Date(task.due_date), 'dd/MM/yyyy', { locale: ptBR })}
                             </span>
                           )}
                           {task.assigned_to && (
@@ -476,29 +489,6 @@ export default function TarefasAdvbox() {
                             </span>
                           )}
                         </div>
-
-                        {task.status !== 'completed' && task.status !== 'concluída' && (
-                          <div className="flex gap-2 pt-2 border-t">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => openPriorityDialog(task.id, task.priority)}
-                              className="flex-1"
-                            >
-                              <AlertCircle className="h-3 w-3 mr-1" />
-                              {task.priority ? 'Alterar Prioridade' : 'Definir Prioridade'}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleCompleteTask(task.id)}
-                              className="flex-1"
-                            >
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                              Concluir
-                            </Button>
-                          </div>
-                        )}
                       </CardContent>
                     </Card>
                   ))}
@@ -552,6 +542,153 @@ export default function TarefasAdvbox() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Detalhes da Tarefa com Comentários e Anexos */}
+        {isMobile ? (
+          <Drawer open={detailsOpen} onOpenChange={setDetailsOpen}>
+            <DrawerContent>
+              <DrawerHeader>
+                <DrawerTitle className="flex items-center gap-2">
+                  {selectedTask?.title}
+                  {selectedTask?.priority && (
+                    <Badge className={`${getPriorityColor(selectedTask.priority)} text-white border-0`}>
+                      {selectedTask.priority.toUpperCase()}
+                    </Badge>
+                  )}
+                </DrawerTitle>
+                <DrawerDescription>
+                  {selectedTask?.description}
+                </DrawerDescription>
+              </DrawerHeader>
+              <div className="px-4">
+                <Tabs defaultValue="comments" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="comments">Comentários</TabsTrigger>
+                    <TabsTrigger value="attachments">Anexos</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="comments" className="mt-4">
+                    {selectedTask && <TaskComments taskId={selectedTask.id} />}
+                  </TabsContent>
+                  <TabsContent value="attachments" className="mt-4">
+                    {selectedTask && <TaskAttachments taskId={selectedTask.id} />}
+                  </TabsContent>
+                </Tabs>
+              </div>
+              <DrawerFooter>
+                <div className="flex gap-2">
+                  {selectedTask?.status !== 'completed' && selectedTask?.status !== 'concluída' && (
+                    <>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setDetailsOpen(false);
+                          openPriorityDialog(selectedTask.id, selectedTask.priority);
+                        }}
+                        className="flex-1"
+                      >
+                        <AlertCircle className="h-4 w-4 mr-2" />
+                        Prioridade
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          handleCompleteTask(selectedTask.id);
+                          setDetailsOpen(false);
+                        }}
+                        className="flex-1"
+                      >
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        Concluir
+                      </Button>
+                    </>
+                  )}
+                </div>
+                <DrawerClose asChild>
+                  <Button variant="outline">Fechar</Button>
+                </DrawerClose>
+              </DrawerFooter>
+            </DrawerContent>
+          </Drawer>
+        ) : (
+          <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+            <DialogContent className="max-w-3xl max-h-[90vh]">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  {selectedTask?.title}
+                  {selectedTask?.priority && (
+                    <Badge className={`${getPriorityColor(selectedTask.priority)} text-white border-0`}>
+                      {selectedTask.priority.toUpperCase()}
+                    </Badge>
+                  )}
+                </DialogTitle>
+                <DialogDescription>
+                  {selectedTask?.description}
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4">
+                {selectedTask && (
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground pb-4 border-b">
+                    <Badge variant={getStatusVariant(selectedTask.status)} className="flex items-center gap-1">
+                      {getStatusIcon(selectedTask.status)}
+                      {selectedTask.status}
+                    </Badge>
+                    {selectedTask.due_date && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        {format(new Date(selectedTask.due_date), 'dd/MM/yyyy', { locale: ptBR })}
+                      </span>
+                    )}
+                    {selectedTask.assigned_to && (
+                      <span className="flex items-center gap-1">
+                        <User className="h-4 w-4" />
+                        {selectedTask.assigned_to}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                <Tabs defaultValue="comments" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="comments">Comentários</TabsTrigger>
+                    <TabsTrigger value="attachments">Anexos</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="comments" className="mt-4">
+                    {selectedTask && <TaskComments taskId={selectedTask.id} />}
+                  </TabsContent>
+                  <TabsContent value="attachments" className="mt-4">
+                    {selectedTask && <TaskAttachments taskId={selectedTask.id} />}
+                  </TabsContent>
+                </Tabs>
+
+                {selectedTask?.status !== 'completed' && selectedTask?.status !== 'concluída' && (
+                  <div className="flex gap-2 pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setDetailsOpen(false);
+                        openPriorityDialog(selectedTask.id, selectedTask.priority);
+                      }}
+                      className="flex-1"
+                    >
+                      <AlertCircle className="h-4 w-4 mr-2" />
+                      {selectedTask.priority ? 'Alterar Prioridade' : 'Definir Prioridade'}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        handleCompleteTask(selectedTask.id);
+                        setDetailsOpen(false);
+                      }}
+                      className="flex-1"
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Marcar como Concluída
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </Layout>
   );
