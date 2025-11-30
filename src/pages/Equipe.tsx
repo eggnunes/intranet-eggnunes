@@ -177,8 +177,8 @@ export default function Equipe() {
           return (
             <section key={position} className="space-y-4">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg bg-gradient-to-br ${positionInfo.color} bg-opacity-10`}>
-                  <Icon className="h-5 w-5 text-primary" />
+                <div className={`p-2 rounded-lg bg-gradient-to-br ${positionInfo.color}`}>
+                  <Icon className="h-5 w-5 text-white" />
                 </div>
                 <h2 className="text-2xl font-bold">{positionInfo.title}</h2>
                 <Badge variant="secondary" className="ml-2">
