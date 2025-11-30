@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Bell, Search, Calendar } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Bell, Search, Calendar, Filter } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { format, subDays, isAfter, parseISO } from 'date-fns';
+import { format, subDays, startOfDay, startOfMonth, isAfter, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Publication {
@@ -21,6 +22,7 @@ interface Publication {
   process_number?: string;
   title?: string;
   header?: string;
+  customers?: string;
 }
 
 export default function PublicacoesFeed() {
@@ -29,7 +31,14 @@ export default function PublicacoesFeed() {
   const [allPublications, setAllPublications] = useState<Publication[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingRecent, setLoadingRecent] = useState(true);
+  const [periodFilter, setPeriodFilter] = useState<string>('week');
+  const [movementTypeFilter, setMovementTypeFilter] = useState<string>('all');
   const { toast } = useToast();
+
+  // Extract unique movement types from all publications
+  const movementTypes = Array.from(
+    new Set(allPublications.map(pub => pub.title).filter(Boolean))
+  ).sort();
 
   // Buscar publicações recentes ao carregar a página
   useEffect(() => {
@@ -45,34 +54,17 @@ export default function PublicacoesFeed() {
 
       const allPubs = data?.data || [];
       
-      // Filtrar publicações da última semana
-      const oneWeekAgo = subDays(new Date(), 7);
-      const recentPubs = allPubs.filter((pub: any) => {
-        try {
-          const pubDate = parseISO(pub.date || pub.created_at);
-          return isAfter(pubDate, oneWeekAgo);
-        } catch {
-          return false;
-        }
-      });
-
-      const mappedPubs: Publication[] = recentPubs.map((movement: any, index: number) => ({
+      const mappedPubs: Publication[] = allPubs.map((movement: any, index: number) => ({
         id: movement.id ?? `${movement.lawsuit_id ?? 'movement'}-${movement.date ?? movement.created_at}-${index}`,
         date: movement.date || movement.created_at,
         process_number: movement.process_number,
         title: movement.title,
         header: movement.header,
+        customers: movement.customers,
       }));
 
       setAllPublications(mappedPubs);
-      setPublications(mappedPubs);
-      
-      if (recentPubs.length === 0) {
-        toast({
-          title: 'Nenhuma publicação recente',
-          description: 'Não há publicações nos últimos 7 dias.',
-        });
-      }
+      applyFilters(mappedPubs);
     } catch (error) {
       console.error('Error fetching recent publications:', error);
       toast({
@@ -84,6 +76,58 @@ export default function PublicacoesFeed() {
       setLoadingRecent(false);
     }
   };
+
+  const applyFilters = (pubs: Publication[]) => {
+    let filtered = [...pubs];
+
+    // Apply period filter
+    const now = new Date();
+    let startDate: Date;
+    
+    switch (periodFilter) {
+      case 'today':
+        startDate = startOfDay(now);
+        break;
+      case 'week':
+        startDate = subDays(now, 7);
+        break;
+      case 'month':
+        startDate = startOfMonth(now);
+        break;
+      default:
+        startDate = subDays(now, 7);
+    }
+
+    filtered = filtered.filter((pub) => {
+      try {
+        const pubDate = parseISO(pub.date);
+        return isAfter(pubDate, startDate);
+      } catch {
+        return false;
+      }
+    });
+
+    // Apply movement type filter
+    if (movementTypeFilter !== 'all') {
+      filtered = filtered.filter(pub => pub.title === movementTypeFilter);
+    }
+
+    setPublications(filtered);
+
+    if (filtered.length === 0) {
+      toast({
+        title: 'Nenhuma publicação encontrada',
+        description: 'Não há publicações com os filtros selecionados.',
+      });
+    }
+  };
+
+  // Re-apply filters when filter values change
+  useEffect(() => {
+    if (allPublications.length > 0) {
+      applyFilters(allPublications);
+    }
+  }, [periodFilter, movementTypeFilter]);
 
   const handleSearch = async () => {
     if (!lawsuitNumber.trim()) {
@@ -131,7 +175,7 @@ export default function PublicacoesFeed() {
 
   const handleClearSearch = () => {
     setLawsuitNumber('');
-    setPublications(allPublications);
+    applyFilters(allPublications);
   };
 
   return (
@@ -143,40 +187,88 @@ export default function PublicacoesFeed() {
             Feed de Publicações
           </h1>
           <p className="text-muted-foreground mt-2">
-            Publicações dos últimos 7 dias
+            Publicações recentes do Advbox
           </p>
         </div>
 
-        {/* Busca */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Search className="h-5 w-5" />
-              Buscar por Processo Específico
-            </CardTitle>
-            <CardDescription>
-              Deixe em branco para ver todas as publicações recentes ou informe um número de processo
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Número do processo (opcional)"
-                value={lawsuitNumber}
-                onChange={(e) => setLawsuitNumber(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              />
-              <Button onClick={handleSearch} disabled={loading}>
-                {loading ? 'Buscando...' : 'Buscar'}
-              </Button>
-              {lawsuitNumber && (
-                <Button onClick={handleClearSearch} variant="outline">
-                  Limpar
+        {/* Busca e Filtros */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Search className="h-5 w-5" />
+                Buscar por Processo Específico
+              </CardTitle>
+              <CardDescription>
+                Informe um número de processo para buscar suas publicações
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Número do processo (opcional)"
+                  value={lawsuitNumber}
+                  onChange={(e) => setLawsuitNumber(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                />
+                <Button onClick={handleSearch} disabled={loading}>
+                  {loading ? 'Buscando...' : 'Buscar'}
                 </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                {lawsuitNumber && (
+                  <Button onClick={handleClearSearch} variant="outline">
+                    Limpar
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Filtros
+              </CardTitle>
+              <CardDescription>
+                Refine as publicações por período e tipo de movimento
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Período</label>
+                  <Select value={periodFilter} onValueChange={setPeriodFilter}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="today">Hoje</SelectItem>
+                      <SelectItem value="week">Última Semana</SelectItem>
+                      <SelectItem value="month">Último Mês</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Tipo de Movimento</label>
+                  <Select value={movementTypeFilter} onValueChange={setMovementTypeFilter}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {movementTypes.map((type) => (
+                        <SelectItem key={type} value={type!}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Lista de Publicações */}
         {loadingRecent ? (
@@ -201,8 +293,7 @@ export default function PublicacoesFeed() {
                 {lawsuitNumber ? 'Publicações do Processo' : 'Publicações Recentes'}
               </CardTitle>
               <CardDescription>
-                {publications.length} {publications.length === 1 ? 'publicação' : 'publicações'}
-                {!lawsuitNumber && ' nos últimos 7 dias'}
+                {publications.length} {publications.length === 1 ? 'publicação encontrada' : 'publicações encontradas'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -220,8 +311,13 @@ export default function PublicacoesFeed() {
                           </Badge>
                         </div>
                         {(publication.description || publication.title || publication.header) && (
-                          <p className="text-sm mb-2">
+                          <p className="text-sm font-semibold mb-2">
                             {publication.description || publication.title || publication.header}
+                          </p>
+                        )}
+                        {publication.customers && (
+                          <p className="text-sm text-muted-foreground mb-2">
+                            <span className="font-medium">Cliente(s):</span> {publication.customers}
                           </p>
                         )}
                         {(publication.court || publication.header) && (
@@ -241,7 +337,7 @@ export default function PublicacoesFeed() {
             <CardContent className="p-8 text-center">
               <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">
-                Nenhuma publicação encontrada nos últimos 7 dias
+                Nenhuma publicação encontrada com os filtros selecionados
               </p>
             </CardContent>
           </Card>
