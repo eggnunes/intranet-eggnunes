@@ -40,18 +40,51 @@ export default function AniversariosClientes() {
       console.log('Fetching customer birthdays...');
       const { data, error } = await supabase.functions.invoke('advbox-integration/customer-birthdays');
 
-      console.log('Customer birthdays response:', { data, error });
+      console.log('Customer birthdays raw response:', { data, error });
 
       if (error) {
         console.error('Error from edge function:', error);
         throw error;
       }
 
-      // A resposta pode vir em data.data ou diretamente em data
-      const customers = data?.data || data || [];
-      console.log('Parsed customers:', customers);
-      
-      setCustomers(customers);
+      const rawCustomers: any[] = (data as any)?.data || (data as any) || [];
+
+      const normalizedCustomers: Customer[] = rawCustomers
+        .map((c) => {
+          // birthdate vem da API no formato dd/MM/yyyy
+          let birthdayIso = '';
+          const rawBirth = c.birthdate || c.birthday;
+
+          if (rawBirth) {
+            const parts = String(rawBirth).split(/[\/\-]/); // aceita 06/11/1933
+            if (parts.length === 3) {
+              const [day, month, year] = parts;
+              const date = new Date(Number(year), Number(month) - 1, Number(day));
+              if (!isNaN(date.getTime())) {
+                birthdayIso = date.toISOString();
+              }
+            } else {
+              const date = new Date(rawBirth);
+              if (!isNaN(date.getTime())) {
+                birthdayIso = date.toISOString();
+              }
+            }
+          }
+
+          if (!birthdayIso) return null;
+
+          return {
+            id: String(c.id ?? c.customer_id ?? ''),
+            name: c.name ?? '',
+            email: c.email ?? undefined,
+            phone: c.phone ?? c.cellphone ?? undefined,
+            birthday: birthdayIso,
+          } as Customer;
+        })
+        .filter((c): c is Customer => c !== null);
+
+      console.log('Normalized customers:', normalizedCustomers);
+      setCustomers(normalizedCustomers);
     } catch (error) {
       console.error('Error fetching customer birthdays:', error);
       toast({
