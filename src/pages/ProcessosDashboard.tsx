@@ -42,8 +42,8 @@ export default function ProcessosDashboard() {
       if (lawsuitsRes.error) throw lawsuitsRes.error;
       if (movementsRes.error) throw movementsRes.error;
 
-      setLawsuits(lawsuitsRes.data || []);
-      setMovements(movementsRes.data || []);
+      setLawsuits(lawsuitsRes.data?.data || []);
+      setMovements(movementsRes.data?.data || []);
     } catch (error) {
       console.error('Error fetching Advbox data:', error);
       toast({
