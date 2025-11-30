@@ -30,6 +30,7 @@ interface Lawsuit {
   exit_execution: string | null;
   responsible_id: number;
   responsible: string;
+  customers?: string; // Nome dos clientes
 }
 
 interface Movement {
@@ -61,6 +62,7 @@ export default function ProcessosDashboard() {
       lawsuit.process_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lawsuit.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lawsuit.group.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lawsuit.customers?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lawsuit.responsible?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesResponsible = showAllResponsibles || 
@@ -264,6 +266,11 @@ export default function ProcessosDashboard() {
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1">
                                 <p className="font-semibold text-sm mb-1">{lawsuit.process_number}</p>
+                                {lawsuit.customers && (
+                                  <p className="text-xs text-muted-foreground mb-2">
+                                    Cliente: <span className="font-medium text-foreground">{lawsuit.customers}</span>
+                                  </p>
+                                )}
                                 <div className="flex gap-2 mt-2">
                                   <Badge variant="outline" className="text-xs">
                                     {lawsuit.type}
