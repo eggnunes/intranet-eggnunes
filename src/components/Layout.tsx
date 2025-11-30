@@ -5,7 +5,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
 import { LogOut, Home, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -470,16 +470,16 @@ export const Layout = ({ children }: LayoutProps) => {
               </Button>
               
               {/* Mobile Menu */}
-              <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-                <SheetTrigger asChild className="lg:hidden">
+              <Drawer open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <DrawerTrigger asChild className="lg:hidden">
                   <Button variant="ghost" size="icon">
                     {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                   </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-[300px] flex flex-col">
-                  <div className="flex items-center gap-3 pb-4 border-b">
+                </DrawerTrigger>
+                <DrawerContent className="max-h-[90vh] flex flex-col px-4">
+                  <div className="flex items-center gap-3 py-4 border-b">
                     {profile?.avatar_url && (
-                      <img 
+                      <img
                         src={profile.avatar_url} 
                         alt={profile.full_name}
                         className="w-12 h-12 rounded-full object-cover"
@@ -499,8 +499,8 @@ export const Layout = ({ children }: LayoutProps) => {
                       </Button>
                     </div>
                   </ScrollArea>
-                </SheetContent>
-              </Sheet>
+                </DrawerContent>
+              </Drawer>
             </div>
           </div>
         </div>
