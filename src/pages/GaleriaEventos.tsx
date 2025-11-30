@@ -28,6 +28,7 @@ interface EventPhoto {
   event_id: string;
   photo_url: string;
   caption: string | null;
+  uploaded_by: string;
   created_at: string;
 }
 
@@ -39,6 +40,7 @@ const GaleriaEventos = () => {
   const [eventDialogOpen, setEventDialogOpen] = useState(false);
   const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { isAdmin } = useUserRole();
   const { toast } = useToast();
 
@@ -51,6 +53,11 @@ const GaleriaEventos = () => {
   const [photoFiles, setPhotoFiles] = useState<FileList | null>(null);
 
   useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUserId(user?.id || null);
+    };
+    getCurrentUser();
     fetchEvents();
   }, []);
 
@@ -294,8 +301,8 @@ const GaleriaEventos = () => {
               Fotos de confraternizações e eventos do escritório
             </p>
           </div>
-          {isAdmin && (
-            <div className="flex gap-2">
+          <div className="flex gap-2">
+            {isAdmin && (
               <Dialog open={eventDialogOpen} onOpenChange={setEventDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline">
@@ -351,41 +358,41 @@ const GaleriaEventos = () => {
                   </div>
                 </DialogContent>
               </Dialog>
-              {selectedEvent && (
-                <Dialog open={photoDialogOpen} onOpenChange={setPhotoDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Adicionar Fotos
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Adicionar Fotos ao Evento</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="photos">Fotos *</Label>
-                        <Input
-                          id="photos"
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          onChange={(e) => setPhotoFiles(e.target.files)}
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Você pode selecionar múltiplas fotos
-                        </p>
-                      </div>
-                      <Button onClick={handleUploadPhotos} disabled={uploading} className="w-full">
-                        {uploading ? 'Enviando...' : 'Adicionar Fotos'}
-                      </Button>
+            )}
+            {selectedEvent && (
+              <Dialog open={photoDialogOpen} onOpenChange={setPhotoDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Adicionar Fotos
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Adicionar Fotos ao Evento</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="photos">Fotos *</Label>
+                      <Input
+                        id="photos"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(e) => setPhotoFiles(e.target.files)}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Você pode selecionar múltiplas fotos
+                      </p>
                     </div>
-                  </DialogContent>
-                </Dialog>
-              )}
-            </div>
-          )}
+                    <Button onClick={handleUploadPhotos} disabled={uploading} className="w-full">
+                      {uploading ? 'Enviando...' : 'Adicionar Fotos'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -464,25 +471,29 @@ const GaleriaEventos = () => {
                   </Card>
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {photos.map((photo) => (
-                      <div key={photo.id} className="relative group">
-                        <img
-                          src={photo.photo_url}
-                          alt={photo.caption || 'Foto do evento'}
-                          className="w-full h-48 object-cover rounded-lg"
-                        />
-                        {isAdmin && (
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => handleDeletePhoto(photo.id, photo.photo_url)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    ))}
+                    {photos.map((photo) => {
+                      const canDelete = isAdmin || photo.uploaded_by === currentUserId;
+                      
+                      return (
+                        <div key={photo.id} className="relative group">
+                          <img
+                            src={photo.photo_url}
+                            alt={photo.caption || 'Foto do evento'}
+                            className="w-full h-48 object-cover rounded-lg"
+                          />
+                          {canDelete && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => handleDeletePhoto(photo.id, photo.photo_url)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
