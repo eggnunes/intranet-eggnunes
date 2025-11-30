@@ -1,5 +1,5 @@
-import { ReactNode, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { ReactNode, useEffect, useState, useLayoutEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
@@ -21,9 +21,21 @@ export const Layout = ({ children }: LayoutProps) => {
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
-  const location = window.location;
   const showBackButton = location.pathname !== '/dashboard' && location.pathname !== '/';
+  
+  // Restaurar posição do scroll ao voltar
+  useLayoutEffect(() => {
+    const scrollPosition = location.state?.scrollPosition;
+    if (scrollPosition) {
+      window.scrollTo(0, scrollPosition);
+    }
+  }, [location]);
+  
+  const handleBack = () => {
+    navigate(-1);
+  };
 
   useEffect(() => {
     if (isAdmin) {
@@ -356,7 +368,7 @@ export const Layout = ({ children }: LayoutProps) => {
         {showBackButton && (
           <Button
             variant="ghost"
-            onClick={() => navigate(-1)}
+            onClick={handleBack}
             className="gap-2 mb-4 hover:bg-primary/10"
           >
             <ArrowLeft className="w-4 h-4" />
