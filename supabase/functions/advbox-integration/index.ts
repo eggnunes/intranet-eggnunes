@@ -269,6 +269,33 @@ Deno.serve(async (req) => {
         });
       }
 
+      case 'lawsuit-by-id': {
+        let lawsuitId = url.searchParams.get('lawsuit_id') || url.searchParams.get('id');
+
+        if (!lawsuitId && req.method !== 'OPTIONS') {
+          try {
+            const body = await req.json();
+            if (body && typeof body === 'object' && 'lawsuit_id' in body) {
+              lawsuitId = String((body as any).lawsuit_id);
+            }
+          } catch (err) {
+            console.warn('Failed to parse body for lawsuit-by-id endpoint:', err);
+          }
+        }
+
+        if (!lawsuitId) {
+          return new Response(JSON.stringify({ error: 'lawsuit_id is required' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const data = await makeAdvboxRequest({ endpoint: `/lawsuits/${lawsuitId}` });
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       case 'movements': {
         const lawsuitId = url.searchParams.get('lawsuit_id');
         if (!lawsuitId) {
