@@ -49,7 +49,7 @@ export default function TarefasAdvbox() {
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [priorityDialogOpen, setPriorityDialogOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>({} as Task);
   const [selectedPriority, setSelectedPriority] = useState<'alta' | 'media' | 'baixa'>('media');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const { toast } = useToast();
