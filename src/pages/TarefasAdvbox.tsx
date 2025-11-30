@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,13 +8,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { CheckSquare, Plus } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
 import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
+import { useUserRole } from '@/hooks/useUserRole';
 
 interface Task {
   id: string;
@@ -36,7 +38,10 @@ export default function TarefasAdvbox() {
   });
   const [metadata, setMetadata] = useState<any>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [assignedFilter, setAssignedFilter] = useState<string>('all');
   const { toast } = useToast();
+  const { isAdmin } = useUserRole();
 
   useEffect(() => {
     fetchTasks();
@@ -117,6 +122,79 @@ export default function TarefasAdvbox() {
         description: 'Não foi possível criar a tarefa.',
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleCompleteTask = async (taskId: string) => {
+    try {
+      const { error } = await supabase.functions.invoke('advbox-integration/complete-task', {
+        body: { task_id: taskId },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Tarefa concluída',
+        description: 'A tarefa foi marcada como concluída.',
+      });
+
+      fetchTasks();
+    } catch (error) {
+      console.error('Error completing task:', error);
+      toast({
+        title: 'Erro ao concluir tarefa',
+        description: 'Não foi possível marcar a tarefa como concluída.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Extrair lista única de responsáveis
+  const assignedUsers = useMemo(() => {
+    const users = new Set<string>();
+    tasks.forEach(task => {
+      if (task.assigned_to) {
+        users.add(task.assigned_to);
+      }
+    });
+    return Array.from(users).sort();
+  }, [tasks]);
+
+  // Filtrar tarefas
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
+      if (statusFilter !== 'all' && task.status !== statusFilter) return false;
+      if (assignedFilter !== 'all' && task.assigned_to !== assignedFilter) return false;
+      return true;
+    });
+  }, [tasks, statusFilter, assignedFilter]);
+
+  const getStatusIcon = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'completed':
+      case 'concluída':
+        return <CheckCircle2 className="h-4 w-4" />;
+      case 'pending':
+      case 'pendente':
+        return <Clock className="h-4 w-4" />;
+      case 'in_progress':
+      case 'em andamento':
+        return <AlertCircle className="h-4 w-4" />;
+      default:
+        return <Clock className="h-4 w-4" />;
+    }
+  };
+
+  const getStatusVariant = (status: string): "default" | "secondary" | "destructive" => {
+    switch (status.toLowerCase()) {
+      case 'completed':
+      case 'concluída':
+        return 'default';
+      case 'in_progress':
+      case 'em andamento':
+        return 'secondary';
+      default:
+        return 'secondary';
     }
   };
 
@@ -202,39 +280,112 @@ export default function TarefasAdvbox() {
 
         {metadata && <AdvboxCacheAlert metadata={metadata} />}
 
+        {/* Filtros */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Filtros
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="status-filter">Status</Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger id="status-filter">
+                    <SelectValue placeholder="Filtrar por status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os status</SelectItem>
+                    <SelectItem value="pending">Pendente</SelectItem>
+                    <SelectItem value="in_progress">Em Andamento</SelectItem>
+                    <SelectItem value="completed">Concluída</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {isAdmin && assignedUsers.length > 0 && (
+                <div>
+                  <Label htmlFor="assigned-filter">Responsável</Label>
+                  <Select value={assignedFilter} onValueChange={setAssignedFilter}>
+                    <SelectTrigger id="assigned-filter">
+                      <SelectValue placeholder="Filtrar por responsável" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os responsáveis</SelectItem>
+                      {assignedUsers.map(user => (
+                        <SelectItem key={user} value={user}>{user}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Lista de Tarefas */}
         <Card>
           <CardHeader>
-            <CardTitle>Suas Tarefas</CardTitle>
+            <CardTitle>{isAdmin ? 'Todas as Tarefas' : 'Suas Tarefas'}</CardTitle>
             <CardDescription>
-              {Array.isArray(tasks) ? tasks.length : 0} {Array.isArray(tasks) && tasks.length === 1 ? 'tarefa' : 'tarefas'}
+              {filteredTasks.length} de {tasks.length} {filteredTasks.length === 1 ? 'tarefa' : 'tarefas'}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[600px]">
-              {!Array.isArray(tasks) || tasks.length === 0 ? (
+              {filteredTasks.length === 0 ? (
                 <div className="text-center py-12">
                   <CheckSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <p className="text-muted-foreground">Nenhuma tarefa encontrada</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {tasks.map((task) => (
+                  {filteredTasks.map((task) => (
                     <Card key={task.id} className="hover:shadow-md transition-shadow">
                       <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-4 mb-2">
-                          <h3 className="font-semibold">{task.title}</h3>
-                          <Badge variant={task.status === 'completed' ? 'default' : 'secondary'}>
+                        <div className="flex items-start justify-between gap-4 mb-3">
+                          <div className="flex-1">
+                            <h3 className="font-semibold mb-1">{task.title}</h3>
+                            {task.description && (
+                              <p className="text-sm text-muted-foreground">{task.description}</p>
+                            )}
+                          </div>
+                          <Badge variant={getStatusVariant(task.status)} className="flex items-center gap-1">
+                            {getStatusIcon(task.status)}
                             {task.status}
                           </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground mb-2">{task.description}</p>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground mb-3">
                           {task.due_date && (
-                            <span>Vencimento: {format(new Date(task.due_date), 'dd/MM/yyyy', { locale: ptBR })}</span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              Vencimento: {format(new Date(task.due_date), 'dd/MM/yyyy', { locale: ptBR })}
+                            </span>
                           )}
-                          {task.assigned_to && <span>Responsável: {task.assigned_to}</span>}
+                          {task.assigned_to && (
+                            <span className="flex items-center gap-1">
+                              <User className="h-3 w-3" />
+                              {task.assigned_to}
+                            </span>
+                          )}
                         </div>
+
+                        {task.status !== 'completed' && task.status !== 'concluída' && (
+                          <div className="flex gap-2 pt-2 border-t">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleCompleteTask(task.id)}
+                              className="flex-1"
+                            >
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Marcar como Concluída
+                            </Button>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   ))}
