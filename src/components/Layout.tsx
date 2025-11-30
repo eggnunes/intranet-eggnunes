@@ -21,6 +21,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const { isAdmin, profile } = useUserRole();
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
   const [unreadAnnouncementsCount, setUnreadAnnouncementsCount] = useState(0);
+  const [criticalTasksCount, setCriticalTasksCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -42,6 +43,12 @@ export const Layout = ({ children }: LayoutProps) => {
   useEffect(() => {
     if (user) {
       fetchUnreadAnnouncementsCount();
+      fetchCriticalTasksCount();
+
+      // Recarregar alertas a cada 5 minutos
+      const taskInterval = setInterval(() => {
+        fetchCriticalTasksCount();
+      }, 5 * 60 * 1000);
 
       // Escutar mudanças em tempo real nos avisos
       const announcementsChannel = supabase
@@ -106,16 +113,18 @@ export const Layout = ({ children }: LayoutProps) => {
           .subscribe();
 
         return () => {
+          clearInterval(taskInterval);
           supabase.removeChannel(announcementsChannel);
           supabase.removeChannel(profilesChannel);
         };
       }
 
       return () => {
+        clearInterval(taskInterval);
         supabase.removeChannel(announcementsChannel);
       };
     }
-  }, [isAdmin, toast, user]);
+  }, [isAdmin, toast, user, profile?.full_name]);
 
   const fetchPendingCount = async () => {
     const { count } = await supabase
@@ -124,6 +133,54 @@ export const Layout = ({ children }: LayoutProps) => {
       .eq('approval_status', 'pending');
     
     setPendingUsersCount(count || 0);
+  };
+
+  const fetchCriticalTasksCount = async () => {
+    if (!user || !profile?.full_name) return;
+
+    try {
+      const { data, error } = await supabase.functions.invoke('advbox-integration/tasks', {
+        body: { force_refresh: false },
+      });
+
+      if (error) throw error;
+
+      let tasksData = [];
+      if (data?.data && Array.isArray(data.data)) {
+        tasksData = data.data;
+      } else if (Array.isArray(data)) {
+        tasksData = data;
+      } else if (data && typeof data === 'object' && !Array.isArray(data)) {
+        tasksData = data.tasks || data.items || [];
+      }
+
+      // Filtrar tarefas do usuário
+      const currentName = profile.full_name.toLowerCase();
+      const userTasks = tasksData.filter((task: any) => {
+        const isPending = task.status?.toLowerCase() === 'pending' || task.status?.toLowerCase() === 'pendente';
+        const isInProgress = task.status?.toLowerCase() === 'in_progress' || task.status?.toLowerCase() === 'em andamento';
+        const isUserTask = task.assigned_to && task.assigned_to.toLowerCase().includes(currentName);
+        return (isPending || isInProgress) && isUserTask && task.due_date;
+      });
+
+      // Contar tarefas atrasadas ou que vencem hoje
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const criticalTasks = userTasks.filter((task: any) => {
+        try {
+          const dueDate = new Date(task.due_date);
+          dueDate.setHours(0, 0, 0, 0);
+          return dueDate <= today;
+        } catch (e) {
+          return false;
+        }
+      });
+
+      setCriticalTasksCount(criticalTasks.length);
+    } catch (error) {
+      console.error('Error fetching critical tasks:', error);
+    }
   };
 
   const fetchUnreadAnnouncementsCount = async () => {
@@ -152,7 +209,7 @@ export const Layout = ({ children }: LayoutProps) => {
     { icon: Briefcase, path: '/processos', label: 'Processos', description: 'Dashboard de processos' },
     { icon: Cake, path: '/aniversarios-clientes', label: 'Aniversários Clientes', description: 'Clientes aniversariantes' },
     { icon: Bell, path: '/publicacoes', label: 'Publicações', description: 'Feed de publicações' },
-    { icon: CheckSquare, path: '/tarefas-advbox', label: 'Tarefas', description: 'Gestão de tarefas' },
+    { icon: CheckSquare, path: '/tarefas-advbox', label: 'Tarefas', description: 'Gestão de tarefas', badgeCount: criticalTasksCount },
     { icon: ClipboardList, path: '/relatorios-produtividade-tarefas', label: 'Produtividade', description: 'Relatórios de produtividade' },
     { icon: DollarSign, path: '/relatorios-financeiros', label: 'Relatórios', description: 'Relatórios financeiros' },
     { icon: TrendingUp, path: '/advbox-analytics', label: 'Analytics', description: 'Gráficos e métricas' },
@@ -263,10 +320,13 @@ export const Layout = ({ children }: LayoutProps) => {
             key={item.path}
             variant="ghost" 
             onClick={() => { navigate(item.path); setMobileMenuOpen(false); }}
-            className="gap-2 justify-start w-full mb-1"
+            className="gap-2 justify-start w-full mb-1 relative"
           >
             <item.icon className="w-4 h-4" />
             {item.label}
+            {item.badgeCount !== undefined && item.badgeCount > 0 && (
+              <Badge variant="destructive" className="ml-auto">{item.badgeCount}</Badge>
+            )}
           </Button>
         ))}
       </div>
@@ -348,6 +408,9 @@ export const Layout = ({ children }: LayoutProps) => {
                           <span className="font-medium">{item.label}</span>
                           <span className="text-xs text-muted-foreground">{item.description}</span>
                         </div>
+                        {item.badgeCount !== undefined && item.badgeCount > 0 && (
+                          <Badge variant="destructive" className="ml-auto">{item.badgeCount}</Badge>
+                        )}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
