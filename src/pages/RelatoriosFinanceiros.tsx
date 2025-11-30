@@ -6,16 +6,19 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, Shield } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, Shield, Download, FileSpreadsheet, FileText, Percent, Receipt, Activity } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
-import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, parseISO } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, parseISO, subMonths, subQuarters, subYears } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
 import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from 'recharts';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface Transaction {
   id: string;
@@ -139,7 +142,41 @@ export default function RelatoriosFinanceiros() {
     });
   };
 
+  const getPreviousPeriodTransactions = () => {
+    if (!Array.isArray(transactions) || periodFilter === 'all') return [];
+
+    const now = new Date();
+    let startDate: Date;
+    let endDate: Date;
+
+    switch (periodFilter) {
+      case 'month':
+        const prevMonth = subMonths(now, 1);
+        startDate = startOfMonth(prevMonth);
+        endDate = endOfMonth(prevMonth);
+        break;
+      case 'quarter':
+        const prevQuarter = subQuarters(now, 1);
+        startDate = startOfQuarter(prevQuarter);
+        endDate = endOfQuarter(prevQuarter);
+        break;
+      case 'year':
+        const prevYear = subYears(now, 1);
+        startDate = startOfYear(prevYear);
+        endDate = endOfYear(prevYear);
+        break;
+      default:
+        return [];
+    }
+
+    return transactions.filter((t) => {
+      const transactionDate = parseISO(t.date);
+      return transactionDate >= startDate && transactionDate <= endDate;
+    });
+  };
+
   const filteredTransactions = getFilteredTransactions();
+  const previousPeriodTransactions = getPreviousPeriodTransactions();
 
   const totalIncome = Array.isArray(filteredTransactions)
     ? filteredTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0)
@@ -150,6 +187,18 @@ export default function RelatoriosFinanceiros() {
     : 0;
 
   const balance = totalIncome - totalExpense;
+
+  // Métricas avançadas
+  const profitMargin = totalIncome > 0 ? ((totalIncome - totalExpense) / totalIncome) * 100 : 0;
+  const averageTicket = filteredTransactions.filter((t) => t.type === 'income').length > 0 
+    ? totalIncome / filteredTransactions.filter((t) => t.type === 'income').length 
+    : 0;
+
+  // Taxa de crescimento em relação ao período anterior
+  const prevIncome = Array.isArray(previousPeriodTransactions)
+    ? previousPeriodTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0)
+    : 0;
+  const growthRate = prevIncome > 0 ? ((totalIncome - prevIncome) / prevIncome) * 100 : 0;
 
   const getChartData = () => {
     if (!Array.isArray(filteredTransactions) || filteredTransactions.length === 0) return [];
@@ -180,6 +229,113 @@ export default function RelatoriosFinanceiros() {
   };
 
   const chartData = getChartData();
+
+  const exportToExcel = () => {
+    const worksheetData = filteredTransactions.map((t) => ({
+      Data: format(parseISO(t.date), 'dd/MM/yyyy', { locale: ptBR }),
+      Descrição: t.description,
+      Categoria: t.category,
+      Tipo: t.type === 'income' ? 'Receita' : 'Despesa',
+      Valor: t.amount,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Transações');
+
+    // Adicionar resumo
+    const summaryData = [
+      { Métrica: 'Total de Receitas', Valor: totalIncome },
+      { Métrica: 'Total de Despesas', Valor: totalExpense },
+      { Métrica: 'Saldo', Valor: balance },
+      { Métrica: 'Margem de Lucro (%)', Valor: profitMargin.toFixed(2) },
+      { Métrica: 'Ticket Médio', Valor: averageTicket },
+      { Métrica: 'Taxa de Crescimento (%)', Valor: growthRate.toFixed(2) },
+    ];
+    const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumo');
+
+    const periodLabel = periodFilter === 'all' ? 'Completo' : 
+                       periodFilter === 'month' ? 'Mensal' :
+                       periodFilter === 'quarter' ? 'Trimestral' : 'Anual';
+    XLSX.writeFile(workbook, `Relatorio_Financeiro_${periodLabel}_${format(new Date(), 'ddMMyyyy')}.xlsx`);
+
+    toast({
+      title: 'Exportado com sucesso',
+      description: 'Relatório exportado para Excel.',
+    });
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    
+    // Título
+    doc.setFontSize(18);
+    doc.text('Relatório Financeiro', 14, 20);
+    
+    // Período
+    const periodLabel = periodFilter === 'all' ? 'Completo' : 
+                       periodFilter === 'month' ? 'Mês Atual' :
+                       periodFilter === 'quarter' ? 'Trimestre Atual' : 'Ano Atual';
+    doc.setFontSize(12);
+    doc.text(`Período: ${periodLabel}`, 14, 30);
+    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, 37);
+
+    // Métricas
+    doc.setFontSize(14);
+    doc.text('Resumo Executivo', 14, 50);
+    
+    const metricsData = [
+      ['Métrica', 'Valor'],
+      ['Total de Receitas', formatCurrency(totalIncome)],
+      ['Total de Despesas', formatCurrency(totalExpense)],
+      ['Saldo', formatCurrency(balance)],
+      ['Margem de Lucro', `${profitMargin.toFixed(2)}%`],
+      ['Ticket Médio', formatCurrency(averageTicket)],
+      ['Taxa de Crescimento', `${growthRate > 0 ? '+' : ''}${growthRate.toFixed(2)}%`],
+    ];
+
+    autoTable(doc, {
+      startY: 55,
+      head: [metricsData[0]],
+      body: metricsData.slice(1),
+      theme: 'grid',
+      headStyles: { fillColor: [59, 130, 246] },
+    });
+
+    // Transações
+    doc.setFontSize(14);
+    const finalY = (doc as any).lastAutoTable.finalY || 120;
+    doc.text('Transações', 14, finalY + 10);
+
+    const transactionsData = filteredTransactions.map((t) => [
+      format(parseISO(t.date), 'dd/MM/yyyy'),
+      t.description,
+      t.category,
+      t.type === 'income' ? 'Receita' : 'Despesa',
+      formatCurrency(t.amount),
+    ]);
+
+    autoTable(doc, {
+      startY: finalY + 15,
+      head: [['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor']],
+      body: transactionsData,
+      theme: 'striped',
+      headStyles: { fillColor: [59, 130, 246] },
+      styles: { fontSize: 8 },
+      columnStyles: {
+        1: { cellWidth: 60 },
+        4: { halign: 'right' },
+      },
+    });
+
+    doc.save(`Relatorio_Financeiro_${periodLabel}_${format(new Date(), 'ddMMyyyy')}.pdf`);
+
+    toast({
+      title: 'Exportado com sucesso',
+      description: 'Relatório exportado para PDF.',
+    });
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -391,6 +547,99 @@ export default function RelatoriosFinanceiros() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Dashboard de Métricas */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Indicadores de Performance</CardTitle>
+                <CardDescription>Métricas financeiras detalhadas do período selecionado</CardDescription>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={exportToExcel} variant="outline" size="sm">
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Excel
+                </Button>
+                <Button onClick={exportToPDF} variant="outline" size="sm">
+                  <FileText className="h-4 w-4 mr-2" />
+                  PDF
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Margem de Lucro */}
+              <Card className="border-2 hover:shadow-lg transition-shadow">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Percent className="h-4 w-4 text-primary" />
+                    Margem de Lucro
+                  </CardTitle>
+                  <CardDescription>Rentabilidade das operações</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-3xl font-bold ${profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {profitMargin.toFixed(2)}%
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {profitMargin >= 20 ? 'Excelente' : profitMargin >= 10 ? 'Boa' : profitMargin >= 0 ? 'Razoável' : 'Atenção necessária'}
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Ticket Médio */}
+              <Card className="border-2 hover:shadow-lg transition-shadow">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Receipt className="h-4 w-4 text-primary" />
+                    Ticket Médio
+                  </CardTitle>
+                  <CardDescription>Valor médio por receita</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-blue-600">
+                    {formatCurrency(averageTicket)}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {filteredTransactions.filter((t) => t.type === 'income').length} transações de receita
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Taxa de Crescimento */}
+              <Card className="border-2 hover:shadow-lg transition-shadow">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-primary" />
+                    Taxa de Crescimento
+                  </CardTitle>
+                  <CardDescription>
+                    {periodFilter === 'month' ? 'vs. mês anterior' :
+                     periodFilter === 'quarter' ? 'vs. trimestre anterior' :
+                     periodFilter === 'year' ? 'vs. ano anterior' : 'N/A'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-3xl font-bold flex items-center gap-2 ${
+                    growthRate > 0 ? 'text-green-600' : growthRate < 0 ? 'text-red-600' : 'text-gray-600'
+                  }`}>
+                    {growthRate > 0 && <TrendingUp className="h-6 w-6" />}
+                    {growthRate < 0 && <TrendingDown className="h-6 w-6" />}
+                    {growthRate > 0 ? '+' : ''}{growthRate.toFixed(2)}%
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {periodFilter === 'all' ? 'Selecione um período específico' :
+                     growthRate > 10 ? 'Crescimento forte' :
+                     growthRate > 0 ? 'Crescimento moderado' :
+                     growthRate === 0 ? 'Estável' : 'Declínio'}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Transações */}
         <Card>
