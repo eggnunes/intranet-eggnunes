@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Briefcase, AlertCircle, TrendingUp, Search, Filter, Calendar, BarChart } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Briefcase, AlertCircle, TrendingUp, Search, Filter, Calendar, BarChart, ListTodo } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
@@ -66,7 +67,50 @@ export default function ProcessosDashboard() {
   const [totalMovements, setTotalMovements] = useState<number | null>(null);
   const [metadata, setMetadata] = useState<{ fromCache: boolean; rateLimited: boolean; cacheAge: number } | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [selectedMovement, setSelectedMovement] = useState<Movement | null>(null);
   const { toast } = useToast();
+
+  const openTaskDialog = (movement: Movement) => {
+    setSelectedMovement(movement);
+    setTaskDialogOpen(true);
+  };
+
+  const createTaskFromMovement = async () => {
+    if (!selectedMovement) return;
+
+    try {
+      const taskData = {
+        title: `Movimentação: ${selectedMovement.title}`,
+        description: selectedMovement.header || '',
+        process_number: selectedMovement.process_number,
+        category: 'movimentacao',
+        status: 'pending',
+        notes: `Criada a partir de movimentação de ${format(new Date(selectedMovement.date), 'dd/MM/yyyy')}`,
+      };
+
+      const { error } = await supabase.functions.invoke('advbox-integration/create-task', {
+        body: taskData,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Tarefa criada',
+        description: 'Tarefa criada com sucesso a partir da movimentação.',
+      });
+
+      setTaskDialogOpen(false);
+      setSelectedMovement(null);
+    } catch (error) {
+      console.error('Error creating task:', error);
+      toast({
+        title: 'Erro ao criar tarefa',
+        description: 'Não foi possível criar a tarefa.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const getCustomerName = (customers: Lawsuit['customers'] | Movement['customers']): string => {
     if (!customers) return '';
@@ -791,6 +835,14 @@ export default function ProcessosDashboard() {
                           <Badge variant="outline" className="text-xs">
                             {new Date(movement.date).toLocaleDateString('pt-BR')}
                           </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openTaskDialog(movement)}
+                          >
+                            <ListTodo className="h-4 w-4 mr-1" />
+                            Criar Tarefa
+                          </Button>
                         </div>
                         
                         <div className="space-y-2">
@@ -820,6 +872,59 @@ export default function ProcessosDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Dialog de Criação de Tarefa */}
+        <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Criar Tarefa a partir da Movimentação</DialogTitle>
+              <DialogDescription>
+                Confirme para criar uma tarefa baseada nesta movimentação
+              </DialogDescription>
+            </DialogHeader>
+            {selectedMovement && (
+              <div className="space-y-4">
+                <div className="bg-muted/30 p-3 rounded-md text-sm space-y-2">
+                  <p>
+                    <span className="font-medium">Data:</span>{' '}
+                    {format(new Date(selectedMovement.date), "dd 'de' MMMM 'de' yyyy", {
+                      locale: ptBR,
+                    })}
+                  </p>
+                  <p>
+                    <span className="font-medium">Processo:</span> {selectedMovement.process_number}
+                  </p>
+                  <p>
+                    <span className="font-medium">Título:</span> {selectedMovement.title}
+                  </p>
+                  {selectedMovement.header && (
+                    <p>
+                      <span className="font-medium">Detalhes:</span> {selectedMovement.header}
+                    </p>
+                  )}
+                  {selectedMovement.customers && (
+                    <p>
+                      <span className="font-medium">Cliente(s):</span>{' '}
+                      {getCustomerName(selectedMovement.customers)}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={createTaskFromMovement} className="flex-1">
+                    Criar Tarefa
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setTaskDialogOpen(false)}
+                    className="flex-1"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

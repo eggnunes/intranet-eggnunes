@@ -32,6 +32,9 @@ interface Task {
   status: string;
   assigned_to?: string;
   priority?: 'alta' | 'media' | 'baixa';
+  process_number?: string;
+  category?: string;
+  notes?: string;
 }
 
 export default function TarefasAdvbox() {
@@ -45,6 +48,9 @@ export default function TarefasAdvbox() {
     due_date: '',
     assigned_to: '',
     status: 'pending',
+    process_number: '',
+    category: '',
+    notes: '',
   });
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [allUsers, setAllUsers] = useState<Array<{ id: string; full_name: string }>>([]);
@@ -162,7 +168,16 @@ export default function TarefasAdvbox() {
       });
 
       setDialogOpen(false);
-      setNewTask({ title: '', description: '', due_date: '', assigned_to: '', status: 'pending' });
+      setNewTask({ 
+        title: '', 
+        description: '', 
+        due_date: '', 
+        assigned_to: '', 
+        status: 'pending',
+        process_number: '',
+        category: '',
+        notes: '',
+      });
       fetchTasks();
     } catch (error) {
       console.error('Error creating task:', error);
@@ -472,75 +487,116 @@ export default function TarefasAdvbox() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="title">Título *</Label>
-                    <Input
-                      id="title"
-                      value={newTask.title}
-                      onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                      placeholder="Título da tarefa"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="description">Descrição</Label>
-                    <Textarea
-                      id="description"
-                      value={newTask.description}
-                      onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                      placeholder="Descrição da tarefa"
-                      rows={4}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="assigned_to">Responsável</Label>
-                    <Select
-                      value={newTask.assigned_to}
-                      onValueChange={(value) =>
-                        setNewTask({ ...newTask, assigned_to: value === 'none' ? '' : value })
-                      }
-                    >
-                      <SelectTrigger id="assigned_to">
-                        <SelectValue placeholder="Selecione o responsável" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Nenhum</SelectItem>
-                        {allUsers.map((user) => (
-                          <SelectItem key={user.id} value={user.full_name}>
-                            {user.full_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="due_date">Data de Vencimento</Label>
-                    <Input
-                      id="due_date"
-                      type="date"
-                      value={newTask.due_date}
-                      onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="status">Status</Label>
-                    <Select
-                      value={newTask.status}
-                      onValueChange={(value) => setNewTask({ ...newTask, status: value })}
-                    >
-                      <SelectTrigger id="status">
-                        <SelectValue placeholder="Selecione o status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pending">Pendente</SelectItem>
-                        <SelectItem value="in_progress">Em Andamento</SelectItem>
-                        <SelectItem value="completed">Concluída</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button onClick={handleCreateTask} className="w-full">
-                    Criar Tarefa
-                  </Button>
+                <div>
+                  <Label htmlFor="title">Título *</Label>
+                  <Input
+                    id="title"
+                    value={newTask.title}
+                    onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                    placeholder="Título da tarefa"
+                  />
                 </div>
+                <div>
+                  <Label htmlFor="description">Descrição</Label>
+                  <Textarea
+                    id="description"
+                    value={newTask.description}
+                    onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                    placeholder="Descrição da tarefa"
+                    rows={4}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="process_number">Número do Processo</Label>
+                  <Input
+                    id="process_number"
+                    value={newTask.process_number}
+                    onChange={(e) => setNewTask({ ...newTask, process_number: e.target.value })}
+                    placeholder="Ex: 1234567-89.2023.8.26.0100"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="category">Categoria</Label>
+                  <Select
+                    value={newTask.category}
+                    onValueChange={(value) => setNewTask({ ...newTask, category: value === 'none' ? '' : value })}
+                  >
+                    <SelectTrigger id="category">
+                      <SelectValue placeholder="Selecione a categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhuma</SelectItem>
+                      <SelectItem value="intimacao">Intimação</SelectItem>
+                      <SelectItem value="audiencia">Audiência</SelectItem>
+                      <SelectItem value="prazo">Prazo</SelectItem>
+                      <SelectItem value="recurso">Recurso</SelectItem>
+                      <SelectItem value="sentenca">Sentença</SelectItem>
+                      <SelectItem value="despacho">Despacho</SelectItem>
+                      <SelectItem value="peticao">Petição</SelectItem>
+                      <SelectItem value="outro">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="assigned_to">Responsável</Label>
+                  <Select
+                    value={newTask.assigned_to}
+                    onValueChange={(value) =>
+                      setNewTask({ ...newTask, assigned_to: value === 'none' ? '' : value })
+                    }
+                  >
+                    <SelectTrigger id="assigned_to">
+                      <SelectValue placeholder="Selecione o responsável" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {allUsers.map((user) => (
+                        <SelectItem key={user.id} value={user.full_name}>
+                          {user.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="due_date">Data de Vencimento</Label>
+                  <Input
+                    id="due_date"
+                    type="date"
+                    value={newTask.due_date}
+                    onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="status">Status</Label>
+                  <Select
+                    value={newTask.status}
+                    onValueChange={(value) => setNewTask({ ...newTask, status: value })}
+                  >
+                    <SelectTrigger id="status">
+                      <SelectValue placeholder="Selecione o status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pendente</SelectItem>
+                      <SelectItem value="in_progress">Em Andamento</SelectItem>
+                      <SelectItem value="completed">Concluída</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="notes">Observações</Label>
+                  <Textarea
+                    id="notes"
+                    value={newTask.notes}
+                    onChange={(e) => setNewTask({ ...newTask, notes: e.target.value })}
+                    placeholder="Observações adicionais"
+                    rows={3}
+                  />
+                </div>
+                <Button onClick={handleCreateTask} className="w-full">
+                  Criar Tarefa
+                </Button>
+              </div>
               </DialogContent>
             </Dialog>
           </div>
@@ -727,6 +783,39 @@ export default function TarefasAdvbox() {
                   />
                 </div>
                 <div>
+                  <Label htmlFor="edit-process_number">Número do Processo</Label>
+                  <Input
+                    id="edit-process_number"
+                    value={editTask.process_number || ''}
+                    onChange={(e) => setEditTask({ ...editTask, process_number: e.target.value })}
+                    placeholder="Ex: 1234567-89.2023.8.26.0100"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-category">Categoria</Label>
+                  <Select
+                    value={editTask.category || 'none'}
+                    onValueChange={(value) =>
+                      setEditTask({ ...editTask, category: value === 'none' ? '' : value })
+                    }
+                  >
+                    <SelectTrigger id="edit-category">
+                      <SelectValue placeholder="Selecione a categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhuma</SelectItem>
+                      <SelectItem value="intimacao">Intimação</SelectItem>
+                      <SelectItem value="audiencia">Audiência</SelectItem>
+                      <SelectItem value="prazo">Prazo</SelectItem>
+                      <SelectItem value="recurso">Recurso</SelectItem>
+                      <SelectItem value="sentenca">Sentença</SelectItem>
+                      <SelectItem value="despacho">Despacho</SelectItem>
+                      <SelectItem value="peticao">Petição</SelectItem>
+                      <SelectItem value="outro">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label htmlFor="edit-assigned_to">Responsável</Label>
                   <Select
                     value={editTask.assigned_to || 'none'}
@@ -774,6 +863,16 @@ export default function TarefasAdvbox() {
                       <SelectItem value="completed">Concluída</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div>
+                  <Label htmlFor="edit-notes">Observações</Label>
+                  <Textarea
+                    id="edit-notes"
+                    value={editTask.notes || ''}
+                    onChange={(e) => setEditTask({ ...editTask, notes: e.target.value })}
+                    placeholder="Observações adicionais"
+                    rows={3}
+                  />
                 </div>
                 <div className="flex gap-2">
                   <Button onClick={handleEditTask} className="flex-1">

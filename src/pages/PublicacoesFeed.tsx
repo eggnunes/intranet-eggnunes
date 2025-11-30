@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bell, Search, Calendar, Filter, FileDown, FileText } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Bell, Search, Calendar, Filter, FileDown, FileText, ListTodo } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, subDays, startOfDay, startOfMonth, isAfter, parseISO } from 'date-fns';
@@ -38,7 +39,50 @@ export default function PublicacoesFeed() {
   const [movementTypeFilter, setMovementTypeFilter] = useState<string>('all');
   const [metadata, setMetadata] = useState<any>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [selectedPublication, setSelectedPublication] = useState<Publication | null>(null);
   const { toast } = useToast();
+
+  const openTaskDialog = (publication: Publication) => {
+    setSelectedPublication(publication);
+    setTaskDialogOpen(true);
+  };
+
+  const createTaskFromPublication = async () => {
+    if (!selectedPublication) return;
+
+    try {
+      const taskData = {
+        title: `Intimação: ${selectedPublication.title || 'Publicação'}`,
+        description: selectedPublication.description || selectedPublication.header || '',
+        process_number: selectedPublication.process_number || selectedPublication.lawsuit_number || '',
+        category: 'intimacao',
+        status: 'pending',
+        notes: `Criada a partir de publicação de ${format(new Date(selectedPublication.date), 'dd/MM/yyyy')}`,
+      };
+
+      const { error } = await supabase.functions.invoke('advbox-integration/create-task', {
+        body: taskData,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Tarefa criada',
+        description: 'Tarefa criada com sucesso a partir da publicação.',
+      });
+
+      setTaskDialogOpen(false);
+      setSelectedPublication(null);
+    } catch (error) {
+      console.error('Error creating task:', error);
+      toast({
+        title: 'Erro ao criar tarefa',
+        description: 'Não foi possível criar a tarefa.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   // Extract unique movement types from all publications
   const movementTypes = Array.from(
@@ -556,12 +600,24 @@ export default function PublicacoesFeed() {
                     <Card key={publication.id} className="hover:shadow-md transition-shadow">
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between gap-4 mb-3">
-                          <Badge variant="outline">
-                            {format(new Date(publication.date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                          </Badge>
-                          <Badge>
-                            {publication.lawsuit_number || publication.process_number || 'Sem número'}
-                          </Badge>
+                          <div className="flex-1">
+                            <Badge variant="outline">
+                              {format(new Date(publication.date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge>
+                              {publication.lawsuit_number || publication.process_number || 'Sem número'}
+                            </Badge>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openTaskDialog(publication)}
+                            >
+                              <ListTodo className="h-4 w-4 mr-2" />
+                              Criar Tarefa
+                            </Button>
+                          </div>
                         </div>
                         {(publication.description || publication.title || publication.header) && (
                           <p className="text-sm font-semibold mb-2">
@@ -595,7 +651,57 @@ export default function PublicacoesFeed() {
             </CardContent>
           </Card>
         )}
+
+        {/* Dialog de Criação de Tarefa */}
+        <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Criar Tarefa a partir da Publicação</DialogTitle>
+              <DialogDescription>
+                Confirme para criar uma tarefa baseada nesta publicação
+              </DialogDescription>
+            </DialogHeader>
+            {selectedPublication && (
+              <div className="space-y-4">
+                <div className="bg-muted/30 p-3 rounded-md text-sm space-y-2">
+                  <p>
+                    <span className="font-medium">Data:</span>{' '}
+                    {format(new Date(selectedPublication.date), "dd 'de' MMMM 'de' yyyy", {
+                      locale: ptBR,
+                    })}
+                  </p>
+                  <p>
+                    <span className="font-medium">Processo:</span>{' '}
+                    {selectedPublication.process_number || selectedPublication.lawsuit_number || 'Sem número'}
+                  </p>
+                  <p>
+                    <span className="font-medium">Título:</span>{' '}
+                    {selectedPublication.title || selectedPublication.description || 'Sem título'}
+                  </p>
+                  {selectedPublication.customers && (
+                    <p>
+                      <span className="font-medium">Cliente(s):</span> {selectedPublication.customers}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={createTaskFromPublication} className="flex-1">
+                    Criar Tarefa
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setTaskDialogOpen(false)}
+                    className="flex-1"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
 }
+
