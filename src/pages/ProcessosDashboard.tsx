@@ -8,18 +8,34 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface Lawsuit {
-  id: string;
-  number: string;
-  parties: string;
-  court: string;
-  status: string;
+  id: number;
+  process_number: string;
+  protocol_number: string | null;
+  folder: string | null;
+  process_date: string | null;
+  fees_expec: number | null;
+  fees_money: number | null;
+  contingency: number | null;
+  type_lawsuit_id: number;
+  type: string;
+  group_id: number;
+  group: string;
+  created_at: string;
+  status_closure: string | null;
+  exit_production: string | null;
+  exit_execution: string | null;
+  responsible_id: number;
+  responsible: string;
 }
 
 interface Movement {
-  id: string;
+  lawsuit_id: number;
   date: string;
-  description: string;
-  lawsuit_number: string;
+  title: string;
+  header: string;
+  process_number: string;
+  protocol_number: string | null;
+  customers: string;
 }
 
 export default function ProcessosDashboard() {
@@ -122,7 +138,7 @@ export default function ProcessosDashboard() {
             <CardContent>
               <ScrollArea className="h-[400px]">
                 <div className="space-y-3">
-                  {lawsuits.length === 0 ? (
+                   {lawsuits.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">
                       Nenhum processo encontrado
                     </p>
@@ -130,15 +146,90 @@ export default function ProcessosDashboard() {
                     lawsuits.map((lawsuit) => (
                       <Card key={lawsuit.id} className="hover:shadow-md transition-shadow">
                         <CardContent className="p-4">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
-                              <p className="font-semibold text-sm mb-1">{lawsuit.number}</p>
-                              <p className="text-xs text-muted-foreground mb-2">{lawsuit.parties}</p>
-                              <p className="text-xs text-muted-foreground">{lawsuit.court}</p>
+                          <div className="space-y-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <p className="font-semibold text-sm mb-1">{lawsuit.process_number}</p>
+                                <div className="flex gap-2 mt-2">
+                                  <Badge variant="outline" className="text-xs">
+                                    {lawsuit.type}
+                                  </Badge>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {lawsuit.group}
+                                  </Badge>
+                                </div>
+                              </div>
                             </div>
-                            <Badge variant="outline" className="text-xs">
-                              {lawsuit.status}
-                            </Badge>
+                            
+                            {lawsuit.responsible && (
+                              <div className="text-xs">
+                                <span className="text-muted-foreground">Responsável: </span>
+                                <span className="font-medium">{lawsuit.responsible}</span>
+                              </div>
+                            )}
+                            
+                            {lawsuit.folder && (
+                              <div className="text-xs">
+                                <span className="text-muted-foreground">Pasta: </span>
+                                <span>{lawsuit.folder}</span>
+                              </div>
+                            )}
+                            
+                            <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t">
+                              {lawsuit.created_at && (
+                                <div>
+                                  <span className="text-muted-foreground">Criado: </span>
+                                  <span>{new Date(lawsuit.created_at).toLocaleDateString('pt-BR')}</span>
+                                </div>
+                              )}
+                              {lawsuit.status_closure && (
+                                <div>
+                                  <span className="text-muted-foreground">Encerrado: </span>
+                                  <span>{new Date(lawsuit.status_closure).toLocaleDateString('pt-BR')}</span>
+                                </div>
+                              )}
+                              {lawsuit.exit_production && (
+                                <div>
+                                  <span className="text-muted-foreground">Saída produção: </span>
+                                  <span>{new Date(lawsuit.exit_production).toLocaleDateString('pt-BR')}</span>
+                                </div>
+                              )}
+                              {lawsuit.process_date && (
+                                <div>
+                                  <span className="text-muted-foreground">Data processo: </span>
+                                  <span>{new Date(lawsuit.process_date).toLocaleDateString('pt-BR')}</span>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {(lawsuit.fees_expec || lawsuit.fees_money || lawsuit.contingency) && (
+                              <div className="grid grid-cols-3 gap-2 text-xs pt-2 border-t">
+                                {lawsuit.fees_expec && (
+                                  <div>
+                                    <span className="text-muted-foreground">Honorários Esperados: </span>
+                                    <span className="font-medium">
+                                      {lawsuit.fees_expec.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    </span>
+                                  </div>
+                                )}
+                                {lawsuit.fees_money && (
+                                  <div>
+                                    <span className="text-muted-foreground">Honorários: </span>
+                                    <span className="font-medium">
+                                      {lawsuit.fees_money.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    </span>
+                                  </div>
+                                )}
+                                {lawsuit.contingency && (
+                                  <div>
+                                    <span className="text-muted-foreground">Contingência: </span>
+                                    <span className="font-medium">
+                                      {lawsuit.contingency.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -166,15 +257,33 @@ export default function ProcessosDashboard() {
                       Nenhuma movimentação encontrada
                     </p>
                   ) : (
-                    movements.map((movement) => (
-                      <div key={movement.id} className="border-l-2 border-primary/30 pl-3 pb-3">
-                        <div className="flex items-start justify-between gap-2 mb-1">
+                    movements.map((movement, index) => (
+                      <div key={`${movement.lawsuit_id}-${index}`} className="border-l-2 border-primary/30 pl-3 pb-4 mb-3">
+                        <div className="flex items-start justify-between gap-2 mb-2">
                           <Badge variant="outline" className="text-xs">
                             {new Date(movement.date).toLocaleDateString('pt-BR')}
                           </Badge>
                         </div>
-                        <p className="text-xs text-muted-foreground mb-1">{movement.lawsuit_number}</p>
-                        <p className="text-sm">{movement.description}</p>
+                        
+                        <div className="space-y-2">
+                          <div>
+                            <p className="text-xs font-semibold text-primary mb-1">
+                              {movement.process_number}
+                            </p>
+                            {movement.customers && (
+                              <p className="text-xs text-muted-foreground">
+                                Cliente: {movement.customers}
+                              </p>
+                            )}
+                          </div>
+                          
+                          <div className="bg-muted/30 p-2 rounded">
+                            <p className="text-xs font-medium mb-1">{movement.title}</p>
+                            {movement.header && (
+                              <p className="text-xs text-muted-foreground">{movement.header}</p>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     ))
                   )}
