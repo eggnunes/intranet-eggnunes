@@ -7,9 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Briefcase, AlertCircle, TrendingUp, Search, Filter } from 'lucide-react';
+import { Briefcase, AlertCircle, TrendingUp, Search, Filter, RefreshCw, Settings } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
+import { Link } from 'react-router-dom';
 
 interface Lawsuit {
   id: number;
@@ -47,12 +49,14 @@ export default function ProcessosDashboard() {
   const [lawsuits, setLawsuits] = useState<Lawsuit[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [movementSearchTerm, setMovementSearchTerm] = useState('');
   const [selectedResponsibles, setSelectedResponsibles] = useState<string[]>([]);
   const [showAllResponsibles, setShowAllResponsibles] = useState(true);
   const [totalLawsuits, setTotalLawsuits] = useState<number | null>(null);
   const [totalMovements, setTotalMovements] = useState<number | null>(null);
+  const [metadata, setMetadata] = useState<{ fromCache: boolean; rateLimited: boolean; cacheAge: number } | null>(null);
   const { toast } = useToast();
 
   const getCustomerName = (customers: Lawsuit['customers'] | Movement['customers']): string => {
@@ -99,11 +103,14 @@ export default function ProcessosDashboard() {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = async (forceRefresh = false) => {
     try {
+      setRefreshing(forceRefresh);
+      const refreshParam = forceRefresh ? '?force_refresh=true' : '';
+      
       const [lawsuitsRes, movementsRes] = await Promise.all([
-        supabase.functions.invoke('advbox-integration/lawsuits'),
-        supabase.functions.invoke('advbox-integration/last-movements'),
+        supabase.functions.invoke(`advbox-integration/lawsuits${refreshParam}`),
+        supabase.functions.invoke(`advbox-integration/last-movements${refreshParam}`),
       ]);
 
       if (lawsuitsRes.error) throw lawsuitsRes.error;
@@ -114,6 +121,11 @@ export default function ProcessosDashboard() {
 
       setLawsuits(lawsuitsData?.data || []);
       setMovements(movementsData?.data || []);
+      
+      // Extrair metadata
+      if (lawsuitsData?.metadata) {
+        setMetadata(lawsuitsData.metadata);
+      }
 
       const lawsuitsTotal = typeof lawsuitsData?.totalCount === 'number'
         ? lawsuitsData.totalCount
@@ -142,6 +154,7 @@ export default function ProcessosDashboard() {
       });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -159,14 +172,36 @@ export default function ProcessosDashboard() {
     <Layout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Briefcase className="h-8 w-8 text-primary" />
-            Dashboard de Processos
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Acompanhe seus processos e movimentações em tempo real
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold flex items-center gap-3">
+                <Briefcase className="h-8 w-8 text-primary" />
+                Dashboard de Processos
+              </h1>
+              <p className="text-muted-foreground mt-2">
+                Acompanhe seus processos e movimentações em tempo real
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => fetchData(true)}
+                disabled={refreshing}
+                variant="outline"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                Atualizar Dados
+              </Button>
+              <Link to="/advbox-config">
+                <Button variant="outline">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Configurações
+                </Button>
+              </Link>
+            </div>
+          </div>
         </div>
+
+        <AdvboxCacheAlert metadata={metadata} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Estatísticas */}
