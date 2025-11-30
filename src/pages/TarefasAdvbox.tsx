@@ -479,13 +479,14 @@ export default function TarefasAdvbox() {
                   Nova Tarefa
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-h-[85vh] flex flex-col">
                 <DialogHeader>
                   <DialogTitle>Criar Nova Tarefa</DialogTitle>
                   <DialogDescription>
                     Preencha os campos abaixo para criar uma nova tarefa no Advbox
                   </DialogDescription>
                 </DialogHeader>
+                <ScrollArea className="flex-1 overflow-y-auto pr-4">
                 <div className="space-y-4">
                 <div>
                   <Label htmlFor="title">Título *</Label>
@@ -597,6 +598,7 @@ export default function TarefasAdvbox() {
                   Criar Tarefa
                 </Button>
               </div>
+              </ScrollArea>
               </DialogContent>
             </Dialog>
           </div>
@@ -757,11 +759,12 @@ export default function TarefasAdvbox() {
         {/* Dialog de Edição de Tarefa (Admin) */}
         {isAdmin && editTask && (
           <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
               <DialogHeader>
                 <DialogTitle>Editar Tarefa</DialogTitle>
                 <DialogDescription>Atualize os campos da tarefa</DialogDescription>
               </DialogHeader>
+              <ScrollArea className="flex-1 overflow-y-auto pr-4">
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="edit-title">Título *</Label>
@@ -887,6 +890,7 @@ export default function TarefasAdvbox() {
                   </Button>
                 </div>
               </div>
+              </ScrollArea>
             </DialogContent>
           </Dialog>
         )}
@@ -1008,7 +1012,7 @@ export default function TarefasAdvbox() {
           </Drawer>
         ) : (
           <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-            <DialogContent className="max-w-3xl max-h-[90vh]">
+            <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   {selectedTask?.title}
@@ -1021,6 +1025,7 @@ export default function TarefasAdvbox() {
                 <DialogDescription>{selectedTask?.description}</DialogDescription>
               </DialogHeader>
 
+              <ScrollArea className="flex-1 overflow-y-auto pr-4">
               <div className="space-y-4">
                 {selectedTask && (
                   <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground pb-4 border-b">
@@ -1095,6 +1100,7 @@ export default function TarefasAdvbox() {
                     </div>
                   )}
               </div>
+              </ScrollArea>
             </DialogContent>
           </Dialog>
         )}
