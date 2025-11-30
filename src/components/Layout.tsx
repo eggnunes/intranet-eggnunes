@@ -20,6 +20,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const { signOut, user } = useAuth();
   const { isAdmin, profile } = useUserRole();
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
+  const [unreadAnnouncementsCount, setUnreadAnnouncementsCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -39,46 +40,82 @@ export const Layout = ({ children }: LayoutProps) => {
   };
 
   useEffect(() => {
-    if (isAdmin) {
-      fetchPendingCount();
+    if (user) {
+      fetchUnreadAnnouncementsCount();
 
-      // Escutar mudanças em tempo real
-      const channel = supabase
-        .channel('profile-changes')
+      // Escutar mudanças em tempo real nos avisos
+      const announcementsChannel = supabase
+        .channel('announcements-changes')
         .on(
           'postgres_changes',
           {
-            event: 'INSERT',
+            event: '*',
             schema: 'public',
-            table: 'profiles',
-            filter: 'approval_status=eq.pending',
+            table: 'announcements',
           },
-          (payload) => {
-            setPendingUsersCount((prev) => prev + 1);
-            toast({
-              title: 'Novo usuário cadastrado',
-              description: `${payload.new.full_name} aguarda aprovação`,
-            });
+          () => {
+            fetchUnreadAnnouncementsCount();
           }
         )
         .on(
           'postgres_changes',
           {
-            event: 'UPDATE',
+            event: '*',
             schema: 'public',
-            table: 'profiles',
+            table: 'announcement_reads',
           },
           () => {
-            fetchPendingCount();
+            fetchUnreadAnnouncementsCount();
           }
         )
         .subscribe();
 
+      if (isAdmin) {
+        fetchPendingCount();
+
+        // Escutar mudanças em tempo real
+        const profilesChannel = supabase
+          .channel('profile-changes')
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'profiles',
+              filter: 'approval_status=eq.pending',
+            },
+            (payload) => {
+              setPendingUsersCount((prev) => prev + 1);
+              toast({
+                title: 'Novo usuário cadastrado',
+                description: `${payload.new.full_name} aguarda aprovação`,
+              });
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'profiles',
+            },
+            () => {
+              fetchPendingCount();
+            }
+          )
+          .subscribe();
+
+        return () => {
+          supabase.removeChannel(announcementsChannel);
+          supabase.removeChannel(profilesChannel);
+        };
+      }
+
       return () => {
-        supabase.removeChannel(channel);
+        supabase.removeChannel(announcementsChannel);
       };
     }
-  }, [isAdmin, toast]);
+  }, [isAdmin, toast, user]);
 
   const fetchPendingCount = async () => {
     const { count } = await supabase
@@ -87,6 +124,28 @@ export const Layout = ({ children }: LayoutProps) => {
       .eq('approval_status', 'pending');
     
     setPendingUsersCount(count || 0);
+  };
+
+  const fetchUnreadAnnouncementsCount = async () => {
+    if (!user) return;
+
+    // Buscar todos os avisos
+    const { data: announcements } = await supabase
+      .from('announcements')
+      .select('id');
+
+    if (!announcements) return;
+
+    // Buscar avisos lidos pelo usuário
+    const { data: readAnnouncements } = await supabase
+      .from('announcement_reads')
+      .select('announcement_id')
+      .eq('user_id', user.id);
+
+    const readIds = new Set(readAnnouncements?.map(r => r.announcement_id) || []);
+    const unreadCount = announcements.filter(a => !readIds.has(a.id)).length;
+
+    setUnreadAnnouncementsCount(unreadCount);
   };
 
   const advboxMenuItems = [
@@ -172,10 +231,13 @@ export const Layout = ({ children }: LayoutProps) => {
       <Button 
         variant="ghost" 
         onClick={() => { navigate('/mural-avisos'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
+        className="gap-2 justify-start relative"
       >
         <Megaphone className="w-4 h-4" />
         Mural de Avisos
+        {unreadAnnouncementsCount > 0 && (
+          <Badge variant="destructive" className="ml-2">{unreadAnnouncementsCount}</Badge>
+        )}
       </Button>
       <Button 
         variant="ghost" 
@@ -305,6 +367,17 @@ export const Layout = ({ children }: LayoutProps) => {
                 >
                   <Lightbulb className="w-4 h-4" />
                   Sugestões
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => navigate('/mural-avisos')}
+                  className="gap-2 relative"
+                >
+                  <Megaphone className="w-4 h-4" />
+                  Avisos
+                  {unreadAnnouncementsCount > 0 && (
+                    <Badge variant="destructive" className="ml-2">{unreadAnnouncementsCount}</Badge>
+                  )}
                 </Button>
                 <Button 
                   variant="ghost" 
