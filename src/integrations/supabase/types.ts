@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      advbox_report_schedules: {
+        Row: {
+          created_at: string | null
+          email_recipients: string[] | null
+          export_format: string
+          id: string
+          include_financial: boolean | null
+          include_lawsuits: boolean | null
+          include_publications: boolean | null
+          include_tasks: boolean | null
+          is_active: boolean | null
+          last_run_at: string | null
+          next_run_at: string | null
+          report_type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email_recipients?: string[] | null
+          export_format: string
+          id?: string
+          include_financial?: boolean | null
+          include_lawsuits?: boolean | null
+          include_publications?: boolean | null
+          include_tasks?: boolean | null
+          is_active?: boolean | null
+          last_run_at?: string | null
+          next_run_at?: string | null
+          report_type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email_recipients?: string[] | null
+          export_format?: string
+          id?: string
+          include_financial?: boolean | null
+          include_lawsuits?: boolean | null
+          include_publications?: boolean | null
+          include_tasks?: boolean | null
+          is_active?: boolean | null
+          last_run_at?: string | null
+          next_run_at?: string | null
+          report_type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       advbox_settings: {
         Row: {
           cache_ttl_minutes: number
