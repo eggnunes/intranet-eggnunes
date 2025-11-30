@@ -30,6 +30,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -596,7 +597,7 @@ export default function Sugestoes() {
           open={!!selectedSuggestion}
           onOpenChange={() => setSelectedSuggestion(null)}
         >
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>
                 {allSuggestions?.find((s: any) => s.id === selectedSuggestion)?.title}
@@ -605,9 +606,11 @@ export default function Sugestoes() {
                 {allSuggestions?.find((s: any) => s.id === selectedSuggestion)?.description}
               </DialogDescription>
             </DialogHeader>
+            <ScrollArea className="flex-1 overflow-y-auto pr-4">
             {selectedSuggestion && (
               <SuggestionComments suggestionId={selectedSuggestion} />
             )}
+            </ScrollArea>
           </DialogContent>
         </Dialog>
       </div>
