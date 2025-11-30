@@ -40,7 +40,7 @@ interface Movement {
   header: string;
   process_number: string;
   protocol_number: string | null;
-  customers: string;
+  customers: string | { name: string; customer_id?: number; identification?: string; origin?: string } | { name: string; customer_id?: number; identification?: string; origin?: string }[];
 }
 
 export default function ProcessosDashboard() {
@@ -51,14 +51,10 @@ export default function ProcessosDashboard() {
   const [movementSearchTerm, setMovementSearchTerm] = useState('');
   const [selectedResponsibles, setSelectedResponsibles] = useState<string[]>([]);
   const [showAllResponsibles, setShowAllResponsibles] = useState(true);
-  const [activeUsers, setActiveUsers] = useState<string[]>([]);
   const { toast } = useToast();
   
-  // Extrair lista única de responsáveis e filtrar apenas os ativos
-  const allResponsibles = Array.from(new Set(lawsuits.map(l => l.responsible).filter(Boolean)));
-  const responsibles = allResponsibles.filter(name => 
-    activeUsers.length === 0 || activeUsers.includes(name)
-  );
+  // Extrair lista única de responsáveis
+  const responsibles = Array.from(new Set(lawsuits.map(l => l.responsible).filter(Boolean)));
   
   // Filtrar processos
   const filteredLawsuits = lawsuits.filter(lawsuit => {
@@ -77,10 +73,16 @@ export default function ProcessosDashboard() {
   
   // Filtrar movimentações
   const filteredMovements = movements.filter(movement => {
+    const customerName = typeof movement.customers === 'string' 
+      ? movement.customers 
+      : Array.isArray(movement.customers)
+        ? movement.customers.map(c => c.name).join(', ')
+        : movement.customers?.name || '';
+    
     return !movementSearchTerm ||
       movement.process_number.toLowerCase().includes(movementSearchTerm.toLowerCase()) ||
       movement.title.toLowerCase().includes(movementSearchTerm.toLowerCase()) ||
-      movement.customers?.toLowerCase().includes(movementSearchTerm.toLowerCase()) ||
+      customerName.toLowerCase().includes(movementSearchTerm.toLowerCase()) ||
       movement.header?.toLowerCase().includes(movementSearchTerm.toLowerCase());
   });
 
@@ -90,10 +92,9 @@ export default function ProcessosDashboard() {
 
   const fetchData = async () => {
     try {
-      const [lawsuitsRes, movementsRes, usersRes] = await Promise.all([
+      const [lawsuitsRes, movementsRes] = await Promise.all([
         supabase.functions.invoke('advbox-integration/lawsuits'),
         supabase.functions.invoke('advbox-integration/last-movements'),
-        supabase.functions.invoke('advbox-integration/users?active=true'),
       ]);
 
       if (lawsuitsRes.error) throw lawsuitsRes.error;
@@ -101,13 +102,6 @@ export default function ProcessosDashboard() {
 
       setLawsuits(lawsuitsRes.data?.data || []);
       setMovements(movementsRes.data?.data || []);
-      
-      // Extrair nomes dos usuários ativos
-      if (usersRes.data?.data) {
-        const activeUserNames = usersRes.data.data.map((user: any) => user.name).filter(Boolean);
-        setActiveUsers(activeUserNames);
-        console.log('Active users loaded:', activeUserNames);
-      }
     } catch (error) {
       console.error('Error fetching Advbox data:', error);
       toast({
@@ -419,7 +413,13 @@ export default function ProcessosDashboard() {
                             </p>
                             {movement.customers && (
                               <p className="text-xs text-muted-foreground">
-                                Cliente: {movement.customers}
+                                Cliente: {
+                                  typeof movement.customers === 'string' 
+                                    ? movement.customers 
+                                    : Array.isArray(movement.customers)
+                                      ? movement.customers.map(c => c.name).join(', ')
+                                      : movement.customers.name
+                                }
                               </p>
                             )}
                           </div>
