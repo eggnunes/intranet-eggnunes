@@ -3,7 +3,11 @@ import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Briefcase, AlertCircle, TrendingUp } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Briefcase, AlertCircle, TrendingUp, Search, Filter } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -42,7 +46,37 @@ export default function ProcessosDashboard() {
   const [lawsuits, setLawsuits] = useState<Lawsuit[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [movementSearchTerm, setMovementSearchTerm] = useState('');
+  const [selectedResponsibles, setSelectedResponsibles] = useState<string[]>([]);
+  const [showAllResponsibles, setShowAllResponsibles] = useState(true);
   const { toast } = useToast();
+  
+  // Extrair lista única de responsáveis
+  const responsibles = Array.from(new Set(lawsuits.map(l => l.responsible).filter(Boolean)));
+  
+  // Filtrar processos
+  const filteredLawsuits = lawsuits.filter(lawsuit => {
+    const matchesSearch = !searchTerm || 
+      lawsuit.process_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lawsuit.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lawsuit.group.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lawsuit.responsible?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesResponsible = showAllResponsibles || 
+      selectedResponsibles.includes(lawsuit.responsible);
+    
+    return matchesSearch && matchesResponsible;
+  });
+  
+  // Filtrar movimentações
+  const filteredMovements = movements.filter(movement => {
+    return !movementSearchTerm ||
+      movement.process_number.toLowerCase().includes(movementSearchTerm.toLowerCase()) ||
+      movement.title.toLowerCase().includes(movementSearchTerm.toLowerCase()) ||
+      movement.customers?.toLowerCase().includes(movementSearchTerm.toLowerCase()) ||
+      movement.header?.toLowerCase().includes(movementSearchTerm.toLowerCase());
+  });
 
   useEffect(() => {
     fetchData();
@@ -107,16 +141,16 @@ export default function ProcessosDashboard() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="text-center p-4 bg-primary/5 rounded-lg">
-                  <div className="text-3xl font-bold text-primary">{lawsuits.length}</div>
-                  <div className="text-sm text-muted-foreground mt-1">Processos Ativos</div>
+                  <div className="text-3xl font-bold text-primary">{filteredLawsuits.length}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Processos {searchTerm || !showAllResponsibles ? 'Filtrados' : 'Ativos'}</div>
                 </div>
                 <div className="text-center p-4 bg-blue-500/5 rounded-lg">
-                  <div className="text-3xl font-bold text-blue-600">{movements.length}</div>
-                  <div className="text-sm text-muted-foreground mt-1">Movimentações Recentes</div>
+                  <div className="text-3xl font-bold text-blue-600">{filteredMovements.length}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Movimentações {movementSearchTerm ? 'Filtradas' : 'Recentes'}</div>
                 </div>
                 <div className="text-center p-4 bg-orange-500/5 rounded-lg">
                   <div className="text-3xl font-bold text-orange-600">
-                    {movements.filter(m => {
+                    {filteredMovements.filter(m => {
                       const date = new Date(m.date);
                       const today = new Date();
                       const diffDays = Math.floor((today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
@@ -132,18 +166,98 @@ export default function ProcessosDashboard() {
           {/* Processos Ativos */}
           <Card className="lg:col-span-2">
             <CardHeader>
-              <CardTitle>Processos Ativos</CardTitle>
-              <CardDescription>Seus processos em andamento</CardDescription>
+              <div className="flex flex-col gap-3">
+                <div>
+                  <CardTitle>Processos Ativos</CardTitle>
+                  <CardDescription>Seus processos em andamento</CardDescription>
+                </div>
+                
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar processos..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                  
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="icon">
+                        <Filter className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80">
+                      <div className="space-y-4">
+                        <h4 className="font-medium">Filtrar por Responsável</h4>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="all-responsibles"
+                            checked={showAllResponsibles}
+                            onCheckedChange={(checked) => {
+                              setShowAllResponsibles(checked as boolean);
+                              if (checked) setSelectedResponsibles([]);
+                            }}
+                          />
+                          <label htmlFor="all-responsibles" className="text-sm font-medium cursor-pointer">
+                            Todos os responsáveis
+                          </label>
+                        </div>
+                        
+                        <div className="border-t pt-2 space-y-2 max-h-60 overflow-y-auto">
+                          {responsibles.map((responsible) => (
+                            <div key={responsible} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={responsible}
+                                checked={selectedResponsibles.includes(responsible)}
+                                disabled={showAllResponsibles}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedResponsibles([...selectedResponsibles, responsible]);
+                                    setShowAllResponsibles(false);
+                                  } else {
+                                    setSelectedResponsibles(selectedResponsibles.filter(r => r !== responsible));
+                                  }
+                                }}
+                              />
+                              <label htmlFor={responsible} className="text-sm cursor-pointer">
+                                {responsible}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {!showAllResponsibles && selectedResponsibles.length > 0 && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => {
+                              setSelectedResponsibles([]);
+                              setShowAllResponsibles(true);
+                            }}
+                            className="w-full"
+                          >
+                            Limpar Filtros
+                          </Button>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[400px]">
                 <div className="space-y-3">
-                   {lawsuits.length === 0 ? (
+                   {filteredLawsuits.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">
-                      Nenhum processo encontrado
+                      {searchTerm || !showAllResponsibles ? 'Nenhum processo encontrado com os filtros aplicados' : 'Nenhum processo encontrado'}
                     </p>
                   ) : (
-                    lawsuits.map((lawsuit) => (
+                    filteredLawsuits.map((lawsuit) => (
                       <Card key={lawsuit.id} className="hover:shadow-md transition-shadow">
                         <CardContent className="p-4">
                           <div className="space-y-3">
@@ -243,21 +357,35 @@ export default function ProcessosDashboard() {
           {/* Movimentações Recentes */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5" />
-                Movimentações Recentes
-              </CardTitle>
-              <CardDescription>Últimas atualizações dos processos</CardDescription>
+              <div className="flex flex-col gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5" />
+                    Movimentações Recentes
+                  </CardTitle>
+                  <CardDescription>Últimas atualizações dos processos</CardDescription>
+                </div>
+                
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar movimentações..."
+                    value={movementSearchTerm}
+                    onChange={(e) => setMovementSearchTerm(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[400px]">
                 <div className="space-y-3">
-                  {movements.length === 0 ? (
+                  {filteredMovements.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">
-                      Nenhuma movimentação encontrada
+                      {movementSearchTerm ? 'Nenhuma movimentação encontrada com os filtros aplicados' : 'Nenhuma movimentação encontrada'}
                     </p>
                   ) : (
-                    movements.map((movement, index) => (
+                    filteredMovements.map((movement, index) => (
                       <div key={`${movement.lawsuit_id}-${index}`} className="border-l-2 border-primary/30 pl-3 pb-4 mb-3">
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <Badge variant="outline" className="text-xs">

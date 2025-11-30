@@ -10,10 +10,20 @@ interface NavLinkCompatProps extends Omit<NavLinkProps, "className"> {
 
 const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
   ({ className, activeClassName, pendingClassName, to, ...props }, ref) => {
+    const handleClick = () => {
+      // Salvar posição do scroll para preservar ao voltar
+      const scrollPosition = window.scrollY;
+      window.history.replaceState(
+        { ...window.history.state, scrollPosition },
+        ''
+      );
+    };
+    
     return (
       <RouterNavLink
         ref={ref}
         to={to}
+        onClick={handleClick}
         className={({ isActive, isPending }) =>
           cn(className, isActive && activeClassName, isPending && pendingClassName)
         }
