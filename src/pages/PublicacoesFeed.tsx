@@ -36,7 +36,7 @@ export default function PublicacoesFeed() {
   const fetchRecentPublications = async () => {
     setLoadingRecent(true);
     try {
-      const { data, error } = await supabase.functions.invoke('advbox-integration/recent-publications');
+      const { data, error } = await supabase.functions.invoke('advbox-integration/last-movements');
 
       if (error) throw error;
 
