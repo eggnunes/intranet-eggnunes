@@ -51,10 +51,14 @@ export default function ProcessosDashboard() {
   const [movementSearchTerm, setMovementSearchTerm] = useState('');
   const [selectedResponsibles, setSelectedResponsibles] = useState<string[]>([]);
   const [showAllResponsibles, setShowAllResponsibles] = useState(true);
+  const [activeUsers, setActiveUsers] = useState<string[]>([]);
   const { toast } = useToast();
   
-  // Extrair lista única de responsáveis
-  const responsibles = Array.from(new Set(lawsuits.map(l => l.responsible).filter(Boolean)));
+  // Extrair lista única de responsáveis e filtrar apenas os ativos
+  const allResponsibles = Array.from(new Set(lawsuits.map(l => l.responsible).filter(Boolean)));
+  const responsibles = allResponsibles.filter(name => 
+    activeUsers.length === 0 || activeUsers.includes(name)
+  );
   
   // Filtrar processos
   const filteredLawsuits = lawsuits.filter(lawsuit => {
@@ -86,9 +90,10 @@ export default function ProcessosDashboard() {
 
   const fetchData = async () => {
     try {
-      const [lawsuitsRes, movementsRes] = await Promise.all([
+      const [lawsuitsRes, movementsRes, usersRes] = await Promise.all([
         supabase.functions.invoke('advbox-integration/lawsuits'),
         supabase.functions.invoke('advbox-integration/last-movements'),
+        supabase.functions.invoke('advbox-integration/users?active=true'),
       ]);
 
       if (lawsuitsRes.error) throw lawsuitsRes.error;
@@ -96,6 +101,13 @@ export default function ProcessosDashboard() {
 
       setLawsuits(lawsuitsRes.data?.data || []);
       setMovements(movementsRes.data?.data || []);
+      
+      // Extrair nomes dos usuários ativos
+      if (usersRes.data?.data) {
+        const activeUserNames = usersRes.data.data.map((user: any) => user.name).filter(Boolean);
+        setActiveUsers(activeUserNames);
+        console.log('Active users loaded:', activeUserNames);
+      }
     } catch (error) {
       console.error('Error fetching Advbox data:', error);
       toast({

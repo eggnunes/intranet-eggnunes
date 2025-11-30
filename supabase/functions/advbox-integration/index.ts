@@ -103,6 +103,16 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Usuários/Colaboradores
+      case 'users': {
+        const active = url.searchParams.get('active');
+        const endpoint = active === 'true' ? '/users?active=true' : '/users';
+        const data = await makeAdvboxRequest({ endpoint });
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       // Clientes e Aniversários
       case 'customers': {
         const data = await makeAdvboxRequest({ endpoint: '/customers' });
