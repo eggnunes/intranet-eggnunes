@@ -28,6 +28,7 @@ import PublicacoesFeed from "./pages/PublicacoesFeed";
 import TarefasAdvbox from "./pages/TarefasAdvbox";
 import RelatoriosFinanceiros from "./pages/RelatoriosFinanceiros";
 import AdvboxConfig from "./pages/AdvboxConfig";
+import AdvboxAnalytics from "./pages/AdvboxAnalytics";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -222,6 +223,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <AdvboxConfig />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/advbox-analytics"
+              element={
+                <ProtectedRoute>
+                  <AdvboxAnalytics />
                 </ProtectedRoute>
               }
             />
