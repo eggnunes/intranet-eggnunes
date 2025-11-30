@@ -123,14 +123,6 @@ export const Layout = ({ children }: LayoutProps) => {
       )}
       <Button 
         variant="ghost" 
-        onClick={() => { navigate('/historico'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <History className="w-4 h-4" />
-        Histórico
-      </Button>
-      <Button 
-        variant="ghost" 
         onClick={() => { navigate('/forum'); setMobileMenuOpen(false); }}
         className="gap-2 justify-start"
       >
@@ -225,6 +217,14 @@ export const Layout = ({ children }: LayoutProps) => {
           Estatísticas
         </Button>
       )}
+      <Button 
+        variant="ghost" 
+        onClick={() => { navigate('/historico'); setMobileMenuOpen(false); }}
+        className="gap-2 justify-start"
+      >
+        <History className="w-4 h-4" />
+        Histórico
+      </Button>
     </>
   );
 
@@ -271,7 +271,7 @@ export const Layout = ({ children }: LayoutProps) => {
                       <ChevronDown className="w-3 h-3" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuContent align="start" className="w-56 bg-card border-border z-50">
                     <DropdownMenuLabel>Integrações Advbox</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     {advboxMenuItems.map((item) => (
@@ -292,14 +292,6 @@ export const Layout = ({ children }: LayoutProps) => {
 
                 <Button 
                   variant="ghost" 
-                  onClick={() => navigate('/historico')}
-                  className="gap-2"
-                >
-                  <History className="w-4 h-4" />
-                  Histórico
-                </Button>
-                <Button 
-                  variant="ghost" 
                   onClick={() => navigate('/forum')}
                   className="gap-2"
                 >
@@ -313,6 +305,14 @@ export const Layout = ({ children }: LayoutProps) => {
                 >
                   <Lightbulb className="w-4 h-4" />
                   Sugestões
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => navigate('/historico')}
+                  className="gap-2"
+                >
+                  <History className="w-4 h-4" />
+                  Histórico
                 </Button>
               </nav>
             </div>

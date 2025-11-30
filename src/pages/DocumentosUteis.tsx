@@ -44,7 +44,7 @@ export default function DocumentosUteis() {
       .from('useful_documents')
       .select(`
         *,
-        profiles!uploaded_by(full_name)
+        profiles:uploaded_by(full_name)
       `)
       .order('created_at', { ascending: false });
 
