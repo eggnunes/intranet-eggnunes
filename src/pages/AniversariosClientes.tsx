@@ -4,10 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Cake, Calendar, Copy } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Cake, Calendar, Copy, Download, Ban, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { format, isToday, isThisWeek, isThisMonth } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Customer {
@@ -18,22 +22,56 @@ interface Customer {
   birthday: string;
 }
 
+interface CustomerExclusion {
+  id: string;
+  customer_id: string;
+  customer_name: string;
+  reason: string | null;
+  excluded_by: string;
+  created_at: string;
+}
+
 type FilterType = 'dia' | 'semana' | 'mes';
 
 export default function AniversariosClientes() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
+  const [exclusions, setExclusions] = useState<CustomerExclusion[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('mes');
+  const [showExcluded, setShowExcluded] = useState(false);
+  const [excludeDialogOpen, setExcludeDialogOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [exclusionReason, setExclusionReason] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchCustomerBirthdays();
+    fetchData();
   }, []);
 
   useEffect(() => {
     filterCustomers();
-  }, [filter, customers]);
+  }, [filter, customers, exclusions, showExcluded]);
+
+  const fetchData = async () => {
+    await Promise.all([
+      fetchCustomerBirthdays(),
+      fetchExclusions(),
+    ]);
+  };
+
+  const fetchExclusions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('customer_birthday_exclusions')
+        .select('*');
+
+      if (error) throw error;
+      setExclusions(data || []);
+    } catch (error) {
+      console.error('Error fetching exclusions:', error);
+    }
+  };
 
   const fetchCustomerBirthdays = async () => {
     try {
@@ -108,30 +146,30 @@ export default function AniversariosClientes() {
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
-    const filtered = customers.filter((customer) => {
+    const excludedIds = new Set(exclusions.map(e => e.customer_id));
+
+    let filtered = customers.filter((customer) => {
+      // Filtro de exclusão
+      const isExcluded = excludedIds.has(customer.id);
+      if (!showExcluded && isExcluded) return false;
+
       const birthday = new Date(customer.birthday);
       const birthDay = birthday.getDate();
       const birthMonth = birthday.getMonth();
       
       switch (filter) {
         case 'dia':
-          // Aniversário hoje: mesmo dia e mês
           return birthDay === currentDay && birthMonth === currentMonth;
         
         case 'semana':
-          // Aniversário nesta semana: dentro dos próximos 7 dias (considerando apenas mês/dia)
           const weekEnd = new Date(currentYear, currentMonth, currentDay + 7);
           const birthThisYear = new Date(currentYear, birthMonth, birthDay);
-          
-          // Se o aniversário já passou este ano, considera para o ano que vem
           const birthToCompare = birthThisYear < now 
             ? new Date(currentYear + 1, birthMonth, birthDay)
             : birthThisYear;
-          
           return birthToCompare >= now && birthToCompare <= weekEnd;
         
         case 'mes':
-          // Aniversário neste mês: mesmo mês (independente do ano)
           return birthMonth === currentMonth;
         
         default:
@@ -139,7 +177,6 @@ export default function AniversariosClientes() {
       }
     });
 
-    // Ordenar por dia do mês
     filtered.sort((a, b) => {
       const dateA = new Date(a.birthday);
       const dateB = new Date(b.birthday);
@@ -159,16 +196,28 @@ export default function AniversariosClientes() {
       return;
     }
 
+    const excludedIds = new Set(exclusions.map(e => e.customer_id));
+    const contactsToCopy = filteredCustomers.filter(c => !excludedIds.has(c.id));
+
+    if (contactsToCopy.length === 0) {
+      toast({
+        title: 'Nenhum contato para copiar',
+        description: 'Todos os clientes deste período estão marcados como "não enviar".',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const filterLabel = 
       filter === 'dia' ? 'Hoje' :
       filter === 'semana' ? 'Esta Semana' :
       'Este Mês';
 
     let textToCopy = `📅 Aniversariantes - ${filterLabel}\n`;
-    textToCopy += `Total: ${filteredCustomers.length} ${filteredCustomers.length === 1 ? 'cliente' : 'clientes'}\n`;
+    textToCopy += `Total: ${contactsToCopy.length} ${contactsToCopy.length === 1 ? 'cliente' : 'clientes'}\n`;
     textToCopy += `\n`;
 
-    filteredCustomers.forEach((customer, index) => {
+    contactsToCopy.forEach((customer, index) => {
       const birthday = new Date(customer.birthday);
       const day = birthday.getDate().toString().padStart(2, '0');
       const month = (birthday.getMonth() + 1).toString().padStart(2, '0');
@@ -191,7 +240,7 @@ export default function AniversariosClientes() {
       await navigator.clipboard.writeText(textToCopy);
       toast({
         title: 'Contatos copiados!',
-        description: `${filteredCustomers.length} ${filteredCustomers.length === 1 ? 'contato foi copiado' : 'contatos foram copiados'} para a área de transferência.`,
+        description: `${contactsToCopy.length} ${contactsToCopy.length === 1 ? 'contato foi copiado' : 'contatos foram copiados'} para a área de transferência.`,
       });
     } catch (error) {
       console.error('Error copying to clipboard:', error);
@@ -201,6 +250,138 @@ export default function AniversariosClientes() {
         variant: 'destructive',
       });
     }
+  };
+
+  const exportToCSV = () => {
+    if (filteredCustomers.length === 0) {
+      toast({
+        title: 'Nenhum contato para exportar',
+        description: 'Não há aniversariantes no período selecionado.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const excludedIds = new Set(exclusions.map(e => e.customer_id));
+    const contactsToExport = filteredCustomers.filter(c => !excludedIds.has(c.id));
+
+    if (contactsToExport.length === 0) {
+      toast({
+        title: 'Nenhum contato para exportar',
+        description: 'Todos os clientes deste período estão marcados como "não enviar".',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const headers = ['Nome', 'Data Aniversário', 'Telefone', 'Email'];
+    const rows = contactsToExport.map(customer => {
+      const birthday = new Date(customer.birthday);
+      const day = birthday.getDate().toString().padStart(2, '0');
+      const month = (birthday.getMonth() + 1).toString().padStart(2, '0');
+      
+      return [
+        customer.name,
+        `${day}/${month}`,
+        customer.phone || '',
+        customer.email || '',
+      ];
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    const filterLabel = 
+      filter === 'dia' ? 'hoje' :
+      filter === 'semana' ? 'semana' :
+      'mes';
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `aniversariantes_${filterLabel}_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: 'CSV exportado!',
+      description: `${contactsToExport.length} ${contactsToExport.length === 1 ? 'contato foi exportado' : 'contatos foram exportados'}.`,
+    });
+  };
+
+  const handleExcludeCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setExclusionReason('');
+    setExcludeDialogOpen(true);
+  };
+
+  const confirmExclusion = async () => {
+    if (!selectedCustomer) return;
+
+    try {
+      const { error } = await supabase
+        .from('customer_birthday_exclusions')
+        .insert({
+          customer_id: selectedCustomer.id,
+          customer_name: selectedCustomer.name,
+          reason: exclusionReason || null,
+          excluded_by: (await supabase.auth.getUser()).data.user?.id,
+        });
+
+      if (error) throw error;
+
+      await fetchExclusions();
+      setExcludeDialogOpen(false);
+      setSelectedCustomer(null);
+      setExclusionReason('');
+
+      toast({
+        title: 'Cliente marcado',
+        description: `${selectedCustomer.name} não receberá mensagens de aniversário.`,
+      });
+    } catch (error: any) {
+      console.error('Error excluding customer:', error);
+      toast({
+        title: 'Erro ao marcar cliente',
+        description: error.message || 'Não foi possível marcar o cliente.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleUnexcludeCustomer = async (customerId: string, customerName: string) => {
+    try {
+      const { error } = await supabase
+        .from('customer_birthday_exclusions')
+        .delete()
+        .eq('customer_id', customerId);
+
+      if (error) throw error;
+
+      await fetchExclusions();
+
+      toast({
+        title: 'Marca removida',
+        description: `${customerName} voltará a receber mensagens de aniversário.`,
+      });
+    } catch (error: any) {
+      console.error('Error unexcluding customer:', error);
+      toast({
+        title: 'Erro ao desmarcar cliente',
+        description: error.message || 'Não foi possível desmarcar o cliente.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const isCustomerExcluded = (customerId: string) => {
+    return exclusions.some(e => e.customer_id === customerId);
   };
 
   if (loading) {
@@ -226,42 +407,64 @@ export default function AniversariosClientes() {
           </p>
         </div>
 
-        {/* Filtros */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex gap-2">
-            <Button
-              variant={filter === 'dia' ? 'default' : 'outline'}
-              onClick={() => setFilter('dia')}
-              size="sm"
-            >
-              Hoje
-            </Button>
-            <Button
-              variant={filter === 'semana' ? 'default' : 'outline'}
-              onClick={() => setFilter('semana')}
-              size="sm"
-            >
-              Esta Semana
-            </Button>
-            <Button
-              variant={filter === 'mes' ? 'default' : 'outline'}
-              onClick={() => setFilter('mes')}
-              size="sm"
-            >
-              Este Mês
-            </Button>
+        {/* Filtros e Ações */}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-2">
+              <Button
+                variant={filter === 'dia' ? 'default' : 'outline'}
+                onClick={() => setFilter('dia')}
+                size="sm"
+              >
+                Hoje
+              </Button>
+              <Button
+                variant={filter === 'semana' ? 'default' : 'outline'}
+                onClick={() => setFilter('semana')}
+                size="sm"
+              >
+                Esta Semana
+              </Button>
+              <Button
+                variant={filter === 'mes' ? 'default' : 'outline'}
+                onClick={() => setFilter('mes')}
+                size="sm"
+              >
+                Este Mês
+              </Button>
+            </div>
+            
+            <div className="ml-auto flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowExcluded(!showExcluded)}
+              >
+                {showExcluded ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
+                {showExcluded ? 'Ocultar Excluídos' : 'Mostrar Excluídos'}
+              </Button>
+            </div>
           </div>
-          
+
           {filteredCustomers.length > 0 && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={copyContactsToClipboard}
-              className="ml-auto"
-            >
-              <Copy className="h-4 w-4 mr-2" />
-              Copiar Contatos ({filteredCustomers.length})
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={copyContactsToClipboard}
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                Copiar Contatos
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={exportToCSV}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Exportar CSV
+              </Button>
+            </div>
           )}
         </div>
 
@@ -290,37 +493,103 @@ export default function AniversariosClientes() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {filteredCustomers.map((customer) => (
-                    <Card key={customer.id} className="hover:shadow-md transition-shadow">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <p className="font-semibold mb-1">{customer.name}</p>
-                            {customer.email && (
-                              <p className="text-sm text-muted-foreground">{customer.email}</p>
-                            )}
-                            {customer.phone && (
-                              <p className="text-sm text-muted-foreground">{customer.phone}</p>
-                            )}
+                  {filteredCustomers.map((customer) => {
+                    const excluded = isCustomerExcluded(customer.id);
+                    return (
+                      <Card key={customer.id} className={`hover:shadow-md transition-shadow ${excluded ? 'opacity-60 border-destructive/50' : ''}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="font-semibold text-sm">{customer.name}</p>
+                                {excluded && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    <Ban className="h-3 w-3 mr-1" />
+                                    Não enviar
+                                  </Badge>
+                                )}
+                              </div>
+                              {customer.email && (
+                                <p className="text-sm text-muted-foreground">{customer.email}</p>
+                              )}
+                              {customer.phone && (
+                                <p className="text-sm text-muted-foreground">{customer.phone}</p>
+                              )}
+                              {excluded && (
+                                <p className="text-xs text-muted-foreground mt-1 italic">
+                                  {exclusions.find(e => e.customer_id === customer.id)?.reason || 'Cliente excluído das mensagens de aniversário'}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex flex-col items-end gap-2">
+                              <Badge className="mb-1">
+                                {format(new Date(customer.birthday), 'dd/MM', { locale: ptBR })}
+                              </Badge>
+                              {excluded ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleUnexcludeCustomer(customer.id, customer.name)}
+                                  className="h-8 text-xs"
+                                >
+                                  Desmarcar
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleExcludeCustomer(customer)}
+                                  className="h-8 text-xs text-destructive hover:text-destructive"
+                                >
+                                  <Ban className="h-3 w-3 mr-1" />
+                                  Não enviar
+                                </Button>
+                              )}
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <Badge className="mb-1">
-                              {format(new Date(customer.birthday), 'dd/MM', { locale: ptBR })}
-                            </Badge>
-                            {isToday(new Date(customer.birthday)) && (
-                              <div className="text-xs text-primary font-semibold mt-1">Hoje!</div>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
             </ScrollArea>
           </CardContent>
         </Card>
       </div>
+
+      {/* Dialog de Exclusão */}
+      <Dialog open={excludeDialogOpen} onOpenChange={setExcludeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Marcar cliente como "não enviar"</DialogTitle>
+            <DialogDescription>
+              {selectedCustomer?.name} não receberá mensagens de aniversário. Esta marcação é permanente até ser removida.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="reason">Motivo (opcional)</Label>
+              <Textarea
+                id="reason"
+                placeholder="Ex: Cliente solicitou não receber mensagens, problemas anteriores com o escritório, etc."
+                value={exclusionReason}
+                onChange={(e) => setExclusionReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExcludeDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={confirmExclusion}>
+              <Ban className="h-4 w-4 mr-2" />
+              Confirmar Exclusão
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }

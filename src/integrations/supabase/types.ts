@@ -71,6 +71,36 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_birthday_exclusions: {
+        Row: {
+          created_at: string
+          customer_id: string
+          customer_name: string
+          excluded_by: string
+          id: string
+          reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          customer_name: string
+          excluded_by: string
+          id?: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          customer_name?: string
+          excluded_by?: string
+          id?: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       event_gallery: {
         Row: {
           created_at: string
