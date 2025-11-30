@@ -7,11 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Briefcase, AlertCircle, TrendingUp, Search, Filter } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Briefcase, AlertCircle, TrendingUp, Search, Filter, Calendar, BarChart } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
 import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
+import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { format, subDays, subMonths, isAfter } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface Lawsuit {
   id: number;
@@ -55,6 +59,7 @@ export default function ProcessosDashboard() {
   const [showAllResponsibles, setShowAllResponsibles] = useState(true);
   const [selectedMovementResponsibles, setSelectedMovementResponsibles] = useState<string[]>([]);
   const [showAllMovementResponsibles, setShowAllMovementResponsibles] = useState(true);
+  const [periodFilter, setPeriodFilter] = useState<string>('all');
   const [totalLawsuits, setTotalLawsuits] = useState<number | null>(null);
   const [totalMovements, setTotalMovements] = useState<number | null>(null);
   const [metadata, setMetadata] = useState<{ fromCache: boolean; rateLimited: boolean; cacheAge: number } | null>(null);
@@ -88,6 +93,21 @@ export default function ProcessosDashboard() {
       .filter(Boolean) as string[]
   ));
   
+  // Função para filtrar movimentações por período
+  const getDateFilter = () => {
+    const now = new Date();
+    switch (periodFilter) {
+      case 'week':
+        return subDays(now, 7);
+      case 'month':
+        return subMonths(now, 1);
+      case 'quarter':
+        return subMonths(now, 3);
+      default:
+        return null;
+    }
+  };
+  
   // Filtrar processos
   const filteredLawsuits = lawsuits.filter(lawsuit => {
     const customerName = getCustomerName(lawsuit.customers as Lawsuit['customers']);
@@ -109,6 +129,7 @@ export default function ProcessosDashboard() {
   const filteredMovements = movements.filter(movement => {
     const customerName = getCustomerName(movement.customers);
     const movementResponsible = lawsuitResponsibleMap.get(movement.lawsuit_id);
+    const dateFilter = getDateFilter();
     
     const matchesSearch = !movementSearchTerm ||
       movement.process_number.toLowerCase().includes(movementSearchTerm.toLowerCase()) ||
@@ -119,8 +140,24 @@ export default function ProcessosDashboard() {
     const matchesResponsible = showAllMovementResponsibles || 
       (movementResponsible && selectedMovementResponsibles.includes(movementResponsible));
     
-    return matchesSearch && matchesResponsible;
+    const matchesPeriod = !dateFilter || isAfter(new Date(movement.date), dateFilter);
+    
+    return matchesSearch && matchesResponsible && matchesPeriod;
   });
+  
+  // Preparar dados para o gráfico de timeline
+  const getTimelineData = () => {
+    const dateCounts: { [key: string]: number } = {};
+    
+    filteredMovements.forEach(movement => {
+      const dateKey = format(new Date(movement.date), 'dd/MM', { locale: ptBR });
+      dateCounts[dateKey] = (dateCounts[dateKey] || 0) + 1;
+    });
+    
+    return Object.entries(dateCounts)
+      .map(([date, count]) => ({ date, movimentações: count }))
+      .slice(-30); // Últimos 30 dias
+  };
 
   useEffect(() => {
     fetchData();
@@ -451,6 +488,47 @@ export default function ProcessosDashboard() {
             </CardContent>
           </Card>
 
+          {/* Gráfico de Timeline de Movimentações */}
+          {filteredMovements.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart className="h-5 w-5" />
+                  Timeline de Movimentações
+                </CardTitle>
+                <CardDescription>Distribuição das movimentações ao longo do tempo</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <RechartsBarChart data={getTimelineData()}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fontSize: 12 }}
+                      className="text-muted-foreground"
+                    />
+                    <YAxis 
+                      tick={{ fontSize: 12 }}
+                      className="text-muted-foreground"
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Bar 
+                      dataKey="movimentações" 
+                      fill="hsl(var(--primary))"
+                      radius={[8, 8, 0, 0]}
+                    />
+                  </RechartsBarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Movimentações Recentes */}
           <Card>
             <CardHeader>
@@ -473,6 +551,19 @@ export default function ProcessosDashboard() {
                       className="pl-9"
                     />
                   </div>
+                  
+                  <Select value={periodFilter} onValueChange={setPeriodFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <Calendar className="w-4 h-4 mr-2" />
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os períodos</SelectItem>
+                      <SelectItem value="week">Última semana</SelectItem>
+                      <SelectItem value="month">Último mês</SelectItem>
+                      <SelectItem value="quarter">Últimos 3 meses</SelectItem>
+                    </SelectContent>
+                  </Select>
                   
                   <Popover>
                     <PopoverTrigger asChild>
