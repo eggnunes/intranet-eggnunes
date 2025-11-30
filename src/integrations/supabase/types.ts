@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      advbox_settings: {
+        Row: {
+          cache_ttl_minutes: number
+          delay_between_requests_ms: number
+          id: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          cache_ttl_minutes?: number
+          delay_between_requests_ms?: number
+          id?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          cache_ttl_minutes?: number
+          delay_between_requests_ms?: number
+          id?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       ai_agent_favorites: {
         Row: {
           agent_url: string

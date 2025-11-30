@@ -7,13 +7,41 @@ const corsHeaders = {
 
 const ADVBOX_API_BASE = 'https://app.advbox.com.br/api/v1';
 const ADVBOX_TOKEN = Deno.env.get('ADVBOX_API_TOKEN');
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 
 // Cache simples em memória (válido durante a vida da instância)
-const cache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+const cache = new Map<string, { data: any; timestamp: number; fromCache?: boolean; rateLimited?: boolean }>();
 
-// Delay entre requisições para evitar rate limit
-const DELAY_BETWEEN_REQUESTS = 500; // 500ms entre cada request
+// Valores padrão caso não consiga buscar do banco
+let CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+let DELAY_BETWEEN_REQUESTS = 500; // 500ms entre cada request
+
+// Buscar configurações do banco
+async function loadSettings() {
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/advbox_settings?select=*&limit=1`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY!,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.length > 0) {
+        CACHE_TTL = data[0].cache_ttl_minutes * 60 * 1000;
+        DELAY_BETWEEN_REQUESTS = data[0].delay_between_requests_ms;
+        console.log(`Settings loaded: cache_ttl=${CACHE_TTL}ms, delay=${DELAY_BETWEEN_REQUESTS}ms`);
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to load settings, using defaults:', error);
+  }
+}
+
+// Carregar configurações ao iniciar
+loadSettings();
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -128,14 +156,21 @@ async function fetchAllPaginated(endpoint: string, limit = 1000): Promise<any[]>
 }
 
 // Função para obter dados do cache ou buscar da API
-async function getCachedOrFetch(cacheKey: string, fetchFn: () => Promise<any>): Promise<any> {
+async function getCachedOrFetch(cacheKey: string, fetchFn: () => Promise<any>, forceRefresh = false): Promise<{ data: any; metadata: { fromCache: boolean; rateLimited: boolean; cacheAge: number } }> {
   const now = Date.now();
   const cached = cache.get(cacheKey);
   
-  // Se existe no cache e ainda é válido, retornar do cache
-  if (cached && (now - cached.timestamp) < CACHE_TTL) {
+  // Se forçar refresh, ignorar cache
+  if (!forceRefresh && cached && (now - cached.timestamp) < CACHE_TTL) {
     console.log(`Cache hit for: ${cacheKey}`);
-    return cached.data;
+    return {
+      data: cached.data,
+      metadata: {
+        fromCache: true,
+        rateLimited: false,
+        cacheAge: Math.floor((now - cached.timestamp) / 1000), // em segundos
+      },
+    };
   }
   
   // Caso contrário, buscar da API
@@ -144,8 +179,15 @@ async function getCachedOrFetch(cacheKey: string, fetchFn: () => Promise<any>): 
   try {
     const data = await fetchFn();
     // Armazenar no cache (mesmo se vazio, para evitar chamadas repetidas)
-    cache.set(cacheKey, { data, timestamp: now });
-    return data;
+    cache.set(cacheKey, { data, timestamp: now, fromCache: false, rateLimited: false });
+    return {
+      data,
+      metadata: {
+        fromCache: false,
+        rateLimited: false,
+        cacheAge: 0,
+      },
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -153,11 +195,25 @@ async function getCachedOrFetch(cacheKey: string, fetchFn: () => Promise<any>): 
       console.warn(`Rate limited for ${cacheKey}.`);
       if (cached) {
         console.warn(`Returning stale cached data for ${cacheKey}.`);
-        return cached.data;
+        return {
+          data: cached.data,
+          metadata: {
+            fromCache: true,
+            rateLimited: true,
+            cacheAge: Math.floor((now - cached.timestamp) / 1000),
+          },
+        };
       }
       console.warn(`No cache available for ${cacheKey}. Returning empty result to avoid 500.`);
       // Para todos os usos atuais, um array vazio é seguro
-      return [];
+      return {
+        data: [],
+        metadata: {
+          fromCache: false,
+          rateLimited: true,
+          cacheAge: 0,
+        },
+      };
     }
 
     console.error(`Error fetching data for ${cacheKey}:`, message);
@@ -173,29 +229,30 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const path = url.pathname.split('/').pop();
+    const forceRefresh = url.searchParams.get('force_refresh') === 'true';
 
-    console.log('Advbox integration called:', path);
+    console.log('Advbox integration called:', path, 'force_refresh:', forceRefresh);
 
     switch (path) {
       // Dashboard de Processos
       case 'lawsuits': {
         console.log('Fetching all lawsuits with pagination...');
-        const allLawsuits = await getCachedOrFetch('lawsuits', async () => {
+        const result = await getCachedOrFetch('lawsuits', async () => {
           return await fetchAllPaginated('/lawsuits', 1000);
-        });
+        }, forceRefresh);
         
-        return new Response(JSON.stringify({ data: allLawsuits }), {
+        return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       case 'last-movements': {
         console.log('Fetching all movements with pagination...');
-        const allMovements = await getCachedOrFetch('last-movements', async () => {
+        const result = await getCachedOrFetch('last-movements', async () => {
           return await fetchAllPaginated('/last_movements', 1000);
-        });
+        }, forceRefresh);
         
-        return new Response(JSON.stringify({ data: allMovements }), {
+        return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
@@ -216,19 +273,19 @@ Deno.serve(async (req) => {
 
       // Clientes e Aniversários
       case 'customers': {
-        const data = await getCachedOrFetch('customers', async () => {
+        const result = await getCachedOrFetch('customers', async () => {
           return await makeAdvboxRequest({ endpoint: '/customers' });
-        });
-        return new Response(JSON.stringify(data), {
+        }, forceRefresh);
+        return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
       case 'customer-birthdays': {
-        const data = await getCachedOrFetch('customer-birthdays', async () => {
+        const result = await getCachedOrFetch('customer-birthdays', async () => {
           return await makeAdvboxRequest({ endpoint: '/customers/birthdays' });
-        });
-        return new Response(JSON.stringify(data), {
+        }, forceRefresh);
+        return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
@@ -236,18 +293,21 @@ Deno.serve(async (req) => {
       // Publicações
       case 'recent-publications': {
         console.log('Fetching recent publications from movements...');
-        const allMovements = await getCachedOrFetch('last-movements', async () => {
+        const result = await getCachedOrFetch('last-movements', async () => {
           return await fetchAllPaginated('/last_movements', 1000);
-        });
+        }, forceRefresh);
         
         // Filtrar apenas movimentações do tipo publicação
-        const publications = allMovements.filter((movement: any) => 
+        const publications = result.data.filter((movement: any) => 
           movement.type === 'publication' || 
           movement.description?.toLowerCase().includes('publicação') ||
           movement.description?.toLowerCase().includes('publicacao')
         );
         
-        return new Response(JSON.stringify({ data: publications }), {
+        return new Response(JSON.stringify({ 
+          data: publications, 
+          metadata: result.metadata 
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
@@ -281,10 +341,10 @@ Deno.serve(async (req) => {
 
       // Tarefas (Posts)
       case 'tasks': {
-        const data = await getCachedOrFetch('tasks', async () => {
+        const result = await getCachedOrFetch('tasks', async () => {
           return await makeAdvboxRequest({ endpoint: '/posts' });
-        });
-        return new Response(JSON.stringify(data), {
+        }, forceRefresh);
+        return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
@@ -303,10 +363,10 @@ Deno.serve(async (req) => {
 
       // Transações Financeiras
       case 'transactions': {
-        const data = await getCachedOrFetch('transactions', async () => {
+        const result = await getCachedOrFetch('transactions', async () => {
           return await makeAdvboxRequest({ endpoint: '/transactions' });
-        });
-        return new Response(JSON.stringify(data), {
+        }, forceRefresh);
+        return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }

@@ -27,6 +27,7 @@ import AniversariosClientes from "./pages/AniversariosClientes";
 import PublicacoesFeed from "./pages/PublicacoesFeed";
 import TarefasAdvbox from "./pages/TarefasAdvbox";
 import RelatoriosFinanceiros from "./pages/RelatoriosFinanceiros";
+import AdvboxConfig from "./pages/AdvboxConfig";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -213,6 +214,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <RelatoriosFinanceiros />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/advbox-config"
+              element={
+                <ProtectedRoute>
+                  <AdvboxConfig />
                 </ProtectedRoute>
               }
             />
