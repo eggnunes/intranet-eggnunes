@@ -576,7 +576,7 @@ export default function TarefasAdvbox() {
               </div>
               <DrawerFooter>
                 <div className="flex gap-2">
-                  {selectedTask?.status !== 'completed' && selectedTask?.status !== 'concluída' && (
+                  {selectedTask && selectedTask.status !== 'completed' && selectedTask.status !== 'concluída' && (
                     <>
                       <Button
                         variant="outline"
