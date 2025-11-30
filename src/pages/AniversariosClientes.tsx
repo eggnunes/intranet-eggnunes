@@ -103,22 +103,43 @@ export default function AniversariosClientes() {
       return;
     }
 
+    const now = new Date();
+    const currentDay = now.getDate();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
     const filtered = customers.filter((customer) => {
       const birthday = new Date(customer.birthday);
+      const birthDay = birthday.getDate();
+      const birthMonth = birthday.getMonth();
       
       switch (filter) {
         case 'dia':
-          return isToday(birthday);
+          // Aniversário hoje: mesmo dia e mês
+          return birthDay === currentDay && birthMonth === currentMonth;
+        
         case 'semana':
-          return isThisWeek(birthday, { weekStartsOn: 0 });
+          // Aniversário nesta semana: dentro dos próximos 7 dias (considerando apenas mês/dia)
+          const weekEnd = new Date(currentYear, currentMonth, currentDay + 7);
+          const birthThisYear = new Date(currentYear, birthMonth, birthDay);
+          
+          // Se o aniversário já passou este ano, considera para o ano que vem
+          const birthToCompare = birthThisYear < now 
+            ? new Date(currentYear + 1, birthMonth, birthDay)
+            : birthThisYear;
+          
+          return birthToCompare >= now && birthToCompare <= weekEnd;
+        
         case 'mes':
-          return isThisMonth(birthday);
+          // Aniversário neste mês: mesmo mês (independente do ano)
+          return birthMonth === currentMonth;
+        
         default:
           return true;
       }
     });
 
-    // Ordenar por data de aniversário
+    // Ordenar por dia do mês
     filtered.sort((a, b) => {
       const dateA = new Date(a.birthday);
       const dateB = new Date(b.birthday);
