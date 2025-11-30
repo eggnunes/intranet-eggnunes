@@ -7,11 +7,12 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bell, Search, Calendar, Filter } from 'lucide-react';
+import { Bell, Search, Calendar, Filter, FileDown, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, subDays, startOfDay, startOfMonth, isAfter, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
 interface Publication {
   id: string | number;
@@ -178,6 +179,222 @@ export default function PublicacoesFeed() {
     applyFilters(allPublications);
   };
 
+  const exportToCSV = () => {
+    if (publications.length === 0) {
+      toast({
+        title: 'Nenhuma publicação para exportar',
+        description: 'Não há publicações com os filtros selecionados.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const headers = ['Data', 'Número do Processo', 'Título/Descrição', 'Cliente(s)', 'Tribunal'];
+    const rows = publications.map(pub => [
+      format(new Date(pub.date), 'dd/MM/yyyy', { locale: ptBR }),
+      pub.lawsuit_number || pub.process_number || 'Sem número',
+      pub.description || pub.title || pub.header || '',
+      pub.customers || '',
+      pub.court || pub.header || '',
+    ]);
+
+    const csvContent = [
+      headers.join(';'),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(';'))
+    ].join('\n');
+
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `publicacoes_${format(new Date(), 'dd-MM-yyyy_HH-mm')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: 'Exportação concluída',
+      description: `${publications.length} publicações exportadas para CSV.`,
+    });
+  };
+
+  const exportToPDF = async () => {
+    if (publications.length === 0) {
+      toast({
+        title: 'Nenhuma publicação para exportar',
+        description: 'Não há publicações com os filtros selecionados.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const pdfDoc = await PDFDocument.create();
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      
+      let page = pdfDoc.addPage([595, 842]); // A4 size
+      const { width, height } = page.getSize();
+      const margin = 50;
+      let yPosition = height - margin;
+
+      // Title
+      page.drawText('Feed de Publicações', {
+        x: margin,
+        y: yPosition,
+        size: 20,
+        font: fontBold,
+        color: rgb(0, 0, 0),
+      });
+      yPosition -= 30;
+
+      // Subtitle
+      const periodText = periodFilter === 'today' ? 'Hoje' : 
+                        periodFilter === 'week' ? 'Última Semana' : 'Último Mês';
+      page.drawText(`Período: ${periodText} | Total: ${publications.length} publicações`, {
+        x: margin,
+        y: yPosition,
+        size: 12,
+        font: font,
+        color: rgb(0.3, 0.3, 0.3),
+      });
+      yPosition -= 30;
+
+      // Publications
+      for (const pub of publications) {
+        // Check if we need a new page
+        if (yPosition < 100) {
+          page = pdfDoc.addPage([595, 842]);
+          yPosition = height - margin;
+        }
+
+        // Date
+        const dateText = format(new Date(pub.date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+        page.drawText(dateText, {
+          x: margin,
+          y: yPosition,
+          size: 10,
+          font: fontBold,
+          color: rgb(0, 0, 0),
+        });
+        yPosition -= 15;
+
+        // Process number
+        const processNumber = pub.lawsuit_number || pub.process_number || 'Sem número';
+        page.drawText(`Processo: ${processNumber}`, {
+          x: margin,
+          y: yPosition,
+          size: 10,
+          font: font,
+          color: rgb(0, 0, 0),
+        });
+        yPosition -= 15;
+
+        // Title/Description
+        if (pub.description || pub.title || pub.header) {
+          const titleText = pub.description || pub.title || pub.header || '';
+          const maxWidth = width - (margin * 2);
+          const words = titleText.split(' ');
+          let line = '';
+          
+          for (const word of words) {
+            const testLine = line + word + ' ';
+            const testWidth = font.widthOfTextAtSize(testLine, 9);
+            
+            if (testWidth > maxWidth && line.length > 0) {
+              page.drawText(line.trim(), {
+                x: margin,
+                y: yPosition,
+                size: 9,
+                font: font,
+                color: rgb(0, 0, 0),
+              });
+              line = word + ' ';
+              yPosition -= 12;
+              
+              if (yPosition < 100) {
+                page = pdfDoc.addPage([595, 842]);
+                yPosition = height - margin;
+              }
+            } else {
+              line = testLine;
+            }
+          }
+          
+          if (line.trim().length > 0) {
+            page.drawText(line.trim(), {
+              x: margin,
+              y: yPosition,
+              size: 9,
+              font: font,
+              color: rgb(0, 0, 0),
+            });
+            yPosition -= 15;
+          }
+        }
+
+        // Clients
+        if (pub.customers) {
+          page.drawText(`Cliente(s): ${pub.customers}`, {
+            x: margin,
+            y: yPosition,
+            size: 9,
+            font: font,
+            color: rgb(0.4, 0.4, 0.4),
+          });
+          yPosition -= 12;
+        }
+
+        // Court
+        if (pub.court || pub.header) {
+          page.drawText(pub.court || pub.header || '', {
+            x: margin,
+            y: yPosition,
+            size: 8,
+            font: font,
+            color: rgb(0.5, 0.5, 0.5),
+          });
+          yPosition -= 20;
+        } else {
+          yPosition -= 10;
+        }
+
+        // Separator line
+        page.drawLine({
+          start: { x: margin, y: yPosition },
+          end: { x: width - margin, y: yPosition },
+          thickness: 0.5,
+          color: rgb(0.8, 0.8, 0.8),
+        });
+        yPosition -= 15;
+      }
+
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `publicacoes_${format(new Date(), 'dd-MM-yyyy_HH-mm')}.pdf`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({
+        title: 'Exportação concluída',
+        description: `${publications.length} publicações exportadas para PDF.`,
+      });
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      toast({
+        title: 'Erro ao exportar',
+        description: 'Não foi possível gerar o PDF.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -288,13 +505,27 @@ export default function PublicacoesFeed() {
         ) : publications.length > 0 ? (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                {lawsuitNumber ? 'Publicações do Processo' : 'Publicações Recentes'}
-              </CardTitle>
-              <CardDescription>
-                {publications.length} {publications.length === 1 ? 'publicação encontrada' : 'publicações encontradas'}
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5" />
+                    {lawsuitNumber ? 'Publicações do Processo' : 'Publicações Recentes'}
+                  </CardTitle>
+                  <CardDescription>
+                    {publications.length} {publications.length === 1 ? 'publicação encontrada' : 'publicações encontradas'}
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={exportToCSV} variant="outline" size="sm">
+                    <FileText className="h-4 w-4 mr-2" />
+                    Exportar CSV
+                  </Button>
+                  <Button onClick={exportToPDF} variant="outline" size="sm">
+                    <FileDown className="h-4 w-4 mr-2" />
+                    Exportar PDF
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[600px]">
