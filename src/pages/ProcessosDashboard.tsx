@@ -51,6 +51,8 @@ export default function ProcessosDashboard() {
   const [movementSearchTerm, setMovementSearchTerm] = useState('');
   const [selectedResponsibles, setSelectedResponsibles] = useState<string[]>([]);
   const [showAllResponsibles, setShowAllResponsibles] = useState(true);
+  const [totalLawsuits, setTotalLawsuits] = useState<number | null>(null);
+  const [totalMovements, setTotalMovements] = useState<number | null>(null);
   const { toast } = useToast();
 
   const getCustomerName = (customers: Lawsuit['customers'] | Movement['customers']): string => {
@@ -107,8 +109,30 @@ export default function ProcessosDashboard() {
       if (lawsuitsRes.error) throw lawsuitsRes.error;
       if (movementsRes.error) throw movementsRes.error;
 
-      setLawsuits(lawsuitsRes.data?.data || []);
-      setMovements(movementsRes.data?.data || []);
+      const lawsuitsData: any = lawsuitsRes.data;
+      const movementsData: any = movementsRes.data;
+
+      setLawsuits(lawsuitsData?.data || []);
+      setMovements(movementsData?.data || []);
+
+      const lawsuitsTotal = typeof lawsuitsData?.totalCount === 'number'
+        ? lawsuitsData.totalCount
+        : Array.isArray(lawsuitsData?.data)
+          ? lawsuitsData.data.length
+          : Array.isArray(lawsuitsData)
+            ? lawsuitsData.length
+            : 0;
+
+      const movementsTotal = typeof movementsData?.totalCount === 'number'
+        ? movementsData.totalCount
+        : Array.isArray(movementsData?.data)
+          ? movementsData.data.length
+          : Array.isArray(movementsData)
+            ? movementsData.length
+            : 0;
+
+      setTotalLawsuits(lawsuitsTotal);
+      setTotalMovements(movementsTotal);
     } catch (error) {
       console.error('Error fetching Advbox data:', error);
       toast({
@@ -156,11 +180,19 @@ export default function ProcessosDashboard() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="text-center p-4 bg-primary/5 rounded-lg">
-                  <div className="text-3xl font-bold text-primary">{filteredLawsuits.length}</div>
+                  <div className="text-3xl font-bold text-primary">
+                    {searchTerm || !showAllResponsibles
+                      ? filteredLawsuits.length
+                      : (totalLawsuits ?? filteredLawsuits.length)}
+                  </div>
                   <div className="text-sm text-muted-foreground mt-1">Processos {searchTerm || !showAllResponsibles ? 'Filtrados' : 'Ativos'}</div>
                 </div>
                 <div className="text-center p-4 bg-blue-500/5 rounded-lg">
-                  <div className="text-3xl font-bold text-blue-600">{filteredMovements.length}</div>
+                  <div className="text-3xl font-bold text-blue-600">
+                    {movementSearchTerm
+                      ? filteredMovements.length
+                      : (totalMovements ?? filteredMovements.length)}
+                  </div>
                   <div className="text-sm text-muted-foreground mt-1">Movimentações {movementSearchTerm ? 'Filtradas' : 'Recentes'}</div>
                 </div>
                 <div className="text-center p-4 bg-orange-500/5 rounded-lg">
