@@ -211,7 +211,7 @@ export const Layout = ({ children }: LayoutProps) => {
     { icon: Bell, path: '/publicacoes', label: 'Publicações', description: 'Feed de publicações' },
     { icon: CheckSquare, path: '/tarefas-advbox', label: 'Tarefas', description: 'Gestão de tarefas', badgeCount: criticalTasksCount },
     { icon: ClipboardList, path: '/relatorios-produtividade-tarefas', label: 'Produtividade', description: 'Relatórios de produtividade' },
-    { icon: DollarSign, path: '/relatorios-financeiros', label: 'Relatórios', description: 'Relatórios financeiros' },
+    { icon: DollarSign, path: '/relatorios-financeiros', label: 'Financeiro', description: 'Relatórios financeiros' },
     { icon: TrendingUp, path: '/advbox-analytics', label: 'Analytics', description: 'Gráficos e métricas' },
   ];
 
