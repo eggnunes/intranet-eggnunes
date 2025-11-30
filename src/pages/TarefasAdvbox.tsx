@@ -415,7 +415,7 @@ export default function TarefasAdvbox() {
                 </Select>
               </div>
 
-              {isAdmin && assignedUsers.length > 0 && (
+              {assignedUsers.length > 0 && (
                 <div>
                   <Label htmlFor="assigned-filter">Responsável</Label>
                   <Select value={assignedFilter} onValueChange={setAssignedFilter}>
