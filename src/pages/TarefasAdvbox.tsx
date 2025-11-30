@@ -49,7 +49,7 @@ export default function TarefasAdvbox() {
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [priorityDialogOpen, setPriorityDialogOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [selectedTask, setSelectedTask] = useState<Task | null>({} as Task);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedPriority, setSelectedPriority] = useState<'alta' | 'media' | 'baixa'>('media');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const { toast } = useToast();
@@ -660,7 +660,7 @@ export default function TarefasAdvbox() {
                   </TabsContent>
                 </Tabs>
 
-                {selectedTask?.status !== 'completed' && selectedTask?.status !== 'concluída' && (
+                {selectedTask && selectedTask.status !== 'completed' && selectedTask.status !== 'concluída' && (
                   <div className="flex gap-2 pt-4 border-t">
                     <Button
                       variant="outline"
