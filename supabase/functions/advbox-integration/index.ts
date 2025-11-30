@@ -18,12 +18,14 @@ async function makeAdvboxRequest({ endpoint, method = 'GET', body }: AdvboxReque
   const url = `${ADVBOX_API_BASE}${endpoint}`;
   
   console.log(`Making ${method} request to Advbox:`, url);
+  console.log('Using token:', ADVBOX_TOKEN ? 'Token configured' : 'NO TOKEN');
   
   const options: RequestInit = {
     method,
     headers: {
       'Authorization': `Bearer ${ADVBOX_TOKEN}`,
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
     },
   };
 
@@ -33,13 +35,29 @@ async function makeAdvboxRequest({ endpoint, method = 'GET', body }: AdvboxReque
 
   const response = await fetch(url, options);
   
+  console.log('Response status:', response.status);
+  console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+  
+  const responseText = await response.text();
+  console.log('Response body (first 500 chars):', responseText.substring(0, 500));
+  
   if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Advbox API error:', response.status, errorText);
-    throw new Error(`Advbox API error: ${response.status} - ${errorText}`);
+    console.error('Advbox API error:', response.status, responseText);
+    throw new Error(`Advbox API error: ${response.status} - ${responseText.substring(0, 200)}`);
   }
 
-  return await response.json();
+  // Verificar se a resposta é JSON válido
+  if (!responseText.trim().startsWith('{') && !responseText.trim().startsWith('[')) {
+    console.error('Response is not JSON:', responseText.substring(0, 200));
+    throw new Error(`API retornou HTML em vez de JSON. Verifique o endpoint e o token de autenticação.`);
+  }
+
+  try {
+    return JSON.parse(responseText);
+  } catch (e) {
+    console.error('Failed to parse JSON:', e);
+    throw new Error(`Falha ao fazer parse da resposta: ${responseText.substring(0, 200)}`);
+  }
 }
 
 Deno.serve(async (req) => {
