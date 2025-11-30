@@ -80,13 +80,55 @@ export default function ProcessosDashboard() {
     if (!selectedMovement) return;
 
     try {
+      // Buscar o ID do processo a partir do número
+      const lawsuit = lawsuits.find(l => l.process_number === selectedMovement.process_number);
+      
+      if (!lawsuit) {
+        toast({
+          title: 'Processo não encontrado',
+          description: 'Não foi possível localizar o processo para criar a tarefa.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Buscar o usuário atual
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast({
+          title: 'Usuário não autenticado',
+          description: 'Você precisa estar autenticado para criar tarefas.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Buscar o perfil do usuário para pegar o ID correto
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile) {
+        toast({
+          title: 'Perfil não encontrado',
+          description: 'Não foi possível localizar seu perfil.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Preparar dados no formato esperado pela API do Advbox
       const taskData = {
+        lawsuits_id: lawsuit.id,
+        start_date: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
         title: `Movimentação: ${selectedMovement.title}`,
-        description: selectedMovement.header || '',
-        process_number: selectedMovement.process_number,
-        category: 'movimentacao',
-        status: 'pending',
-        notes: `Criada a partir de movimentação de ${format(new Date(selectedMovement.date), 'dd/MM/yyyy')}`,
+        description: selectedMovement.header || selectedMovement.title,
+        from: lawsuit.responsible_id, // ID do responsável pelo processo
+        tasks_id: 1, // ID padrão do tipo de tarefa (ajustar conforme necessário)
+        guests: [lawsuit.responsible_id], // Atribuir ao responsável do processo
       };
 
       const { error } = await supabase.functions.invoke('advbox-integration/create-task', {
@@ -106,7 +148,7 @@ export default function ProcessosDashboard() {
       console.error('Error creating task:', error);
       toast({
         title: 'Erro ao criar tarefa',
-        description: 'Não foi possível criar a tarefa.',
+        description: error instanceof Error ? error.message : 'Não foi possível criar a tarefa.',
         variant: 'destructive',
       });
     }
