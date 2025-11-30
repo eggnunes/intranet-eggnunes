@@ -53,7 +53,7 @@ export default function TarefasAdvbox() {
   const [selectedPriority, setSelectedPriority] = useState<'alta' | 'media' | 'baixa'>('media');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const { toast } = useToast();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, profile, loading: roleLoading } = useUserRole();
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -220,20 +220,34 @@ export default function TarefasAdvbox() {
     setDetailsOpen(true);
   };
 
-  // Extrair lista única de responsáveis
+  // Tarefas visíveis de acordo com o papel do usuário
+  const visibleTasks = useMemo(() => {
+    if (isAdmin) return tasks;
+
+    // Usuários comuns só veem tarefas atribuídas a eles
+    if (!profile?.full_name) return [];
+
+    const currentName = profile.full_name.toLowerCase();
+
+    return tasks.filter((task) =>
+      task.assigned_to && task.assigned_to.toLowerCase().includes(currentName)
+    );
+  }, [tasks, isAdmin, profile?.full_name]);
+
+  // Extrair lista única de responsáveis (usado apenas por admins)
   const assignedUsers = useMemo(() => {
     const users = new Set<string>();
-    tasks.forEach(task => {
+    visibleTasks.forEach((task) => {
       if (task.assigned_to) {
         users.add(task.assigned_to);
       }
     });
     return Array.from(users).sort();
-  }, [tasks]);
+  }, [visibleTasks]);
 
   // Filtrar e ordenar tarefas
   const filteredTasks = useMemo(() => {
-    let filtered = tasks.filter(task => {
+    let filtered = visibleTasks.filter((task) => {
       if (statusFilter !== 'all' && task.status !== statusFilter) return false;
       if (assignedFilter !== 'all' && task.assigned_to !== assignedFilter) return false;
       if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false;
@@ -249,10 +263,11 @@ export default function TarefasAdvbox() {
     });
 
     return filtered;
-  }, [tasks, statusFilter, assignedFilter, priorityFilter]);
+  }, [visibleTasks, statusFilter, assignedFilter, priorityFilter]);
 
-  const getStatusIcon = (status: string) => {
-    switch (status.toLowerCase()) {
+  const getStatusIcon = (status?: string) => {
+    const normalized = status?.toLowerCase() ?? '';
+    switch (normalized) {
       case 'completed':
       case 'concluída':
         return <CheckCircle2 className="h-4 w-4" />;
@@ -267,8 +282,9 @@ export default function TarefasAdvbox() {
     }
   };
 
-  const getStatusVariant = (status: string): "default" | "secondary" | "destructive" => {
-    switch (status.toLowerCase()) {
+  const getStatusVariant = (status?: string): "default" | "secondary" | "destructive" => {
+    const normalized = status?.toLowerCase() ?? '';
+    switch (normalized) {
       case 'completed':
       case 'concluída':
         return 'default';
@@ -293,7 +309,7 @@ export default function TarefasAdvbox() {
     }
   };
 
-  if (loading) {
+  if (loading || roleLoading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[400px]">
@@ -415,7 +431,7 @@ export default function TarefasAdvbox() {
                 </Select>
               </div>
 
-              {assignedUsers.length > 0 && (
+              {isAdmin && (
                 <div>
                   <Label htmlFor="assigned-filter">Responsável</Label>
                   <Select value={assignedFilter} onValueChange={setAssignedFilter}>
@@ -440,7 +456,7 @@ export default function TarefasAdvbox() {
           <CardHeader>
             <CardTitle>{isAdmin ? 'Todas as Tarefas' : 'Suas Tarefas'}</CardTitle>
             <CardDescription>
-              {filteredTasks.length} de {tasks.length} {filteredTasks.length === 1 ? 'tarefa' : 'tarefas'}
+              {filteredTasks.length} de {visibleTasks.length} {filteredTasks.length === 1 ? 'tarefa' : 'tarefas'}
             </CardDescription>
           </CardHeader>
           <CardContent>
