@@ -76,25 +76,60 @@ export default function ProcessosDashboard() {
     setTaskDialogOpen(true);
   };
 
+  const normalizeProcessNumber = (value?: string | null) =>
+    (value || '').replace(/[^0-9]/g, '');
+
   const createTaskFromMovement = async () => {
     if (!selectedMovement) return;
 
     try {
-      // Buscar o ID do processo a partir do número
-      const lawsuit = lawsuits.find(l => l.process_number === selectedMovement.process_number);
-      
+      console.log('createTaskFromMovement - selectedMovement', selectedMovement);
+      console.log('createTaskFromMovement - lawsuits length', lawsuits.length);
+
+      // Tentar localizar o processo pelo ID ou pelo número (ignorando formatação)
+      let lawsuit = lawsuits.find(
+        (l) =>
+          l.id === selectedMovement.lawsuit_id ||
+          normalizeProcessNumber(l.process_number) ===
+            normalizeProcessNumber(selectedMovement.process_number)
+      );
+
+      // Se não encontrar, tenta recarregar a lista de processos uma vez
+      if (!lawsuit) {
+        console.warn('Lawsuit not found locally, refetching from Advbox...');
+        const { data: lawsuitsData, error: lawsuitsError } = await supabase.functions.invoke(
+          'advbox-integration/lawsuits'
+        );
+
+        if (!lawsuitsError) {
+          const refreshed = (lawsuitsData as any)?.data || lawsuitsData || [];
+          setLawsuits(refreshed);
+          lawsuit = (refreshed as any[]).find(
+            (l: any) =>
+              l.id === selectedMovement.lawsuit_id ||
+              normalizeProcessNumber(l.process_number) ===
+                normalizeProcessNumber(selectedMovement.process_number)
+          );
+        } else {
+          console.error('Error refetching lawsuits for task creation', lawsuitsError);
+        }
+      }
+
       if (!lawsuit) {
         toast({
           title: 'Processo não encontrado',
-          description: 'Não foi possível localizar o processo para criar a tarefa.',
+          description:
+            'Não foi possível localizar o processo no Advbox para criar a tarefa. Tente novamente em alguns minutos.',
           variant: 'destructive',
         });
         return;
       }
 
-      // Buscar o usuário atual
-      const { data: { user } } = await supabase.auth.getUser();
-      
+      // Buscar o usuário atual (mantido para futura expansão, se precisarmos vincular no banco interno)
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       if (!user) {
         toast({
           title: 'Usuário não autenticado',
@@ -104,29 +139,13 @@ export default function ProcessosDashboard() {
         return;
       }
 
-      // Buscar o perfil do usuário para pegar o ID correto
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .eq('id', user.id)
-        .single();
-
-      if (!profile) {
-        toast({
-          title: 'Perfil não encontrado',
-          description: 'Não foi possível localizar seu perfil.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
       // Preparar dados no formato esperado pela API do Advbox
       const taskData = {
-        lawsuits_id: lawsuit.id,
+        lawsuits_id: selectedMovement.lawsuit_id || lawsuit.id,
         start_date: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
         title: `Movimentação: ${selectedMovement.title}`,
         description: selectedMovement.header || selectedMovement.title,
-        from: lawsuit.responsible_id, // ID do responsável pelo processo
+        from: lawsuit.responsible_id, // ID do responsável pelo processo no Advbox
         tasks_id: 1, // ID padrão do tipo de tarefa (ajustar conforme necessário)
         guests: [lawsuit.responsible_id], // Atribuir ao responsável do processo
       };
@@ -148,12 +167,12 @@ export default function ProcessosDashboard() {
       console.error('Error creating task:', error);
       toast({
         title: 'Erro ao criar tarefa',
-        description: error instanceof Error ? error.message : 'Não foi possível criar a tarefa.',
+        description:
+          error instanceof Error ? error.message : 'Não foi possível criar a tarefa.',
         variant: 'destructive',
       });
     }
   };
-
   const getCustomerName = (customers: Lawsuit['customers'] | Movement['customers']): string => {
     if (!customers) return '';
     if (typeof customers === 'string') return customers;
