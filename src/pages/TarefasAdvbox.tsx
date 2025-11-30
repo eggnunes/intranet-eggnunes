@@ -420,10 +420,21 @@ export default function TarefasAdvbox() {
     );
   }
 
+  if (loading || roleLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-muted-foreground">Carregando tarefas...</div>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="space-y-6">
-        <div className="flex items-start justify-between">
+        {/* Cabeçalho */}
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <CheckSquare className="h-8 w-8 text-primary" />
@@ -436,8 +447,16 @@ export default function TarefasAdvbox() {
               <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
             </div>
           </div>
-          
+
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => fetchTasks(true)}
+            >
+              <Flag className="h-4 w-4 mr-2" />
+              Atualizar dados
+            </Button>
+
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="gap-2">
@@ -445,75 +464,85 @@ export default function TarefasAdvbox() {
                   Nova Tarefa
                 </Button>
               </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Criar Nova Tarefa</DialogTitle>
-                <DialogDescription>
-                  Preencha os campos abaixo para criar uma nova tarefa no Advbox
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="title">Título *</Label>
-                  <Input
-                    id="title"
-                    value={newTask.title}
-                    onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                    placeholder="Título da tarefa"
-                  />
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Criar Nova Tarefa</DialogTitle>
+                  <DialogDescription>
+                    Preencha os campos abaixo para criar uma nova tarefa no Advbox
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="title">Título *</Label>
+                    <Input
+                      id="title"
+                      value={newTask.title}
+                      onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                      placeholder="Título da tarefa"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="description">Descrição</Label>
+                    <Textarea
+                      id="description"
+                      value={newTask.description}
+                      onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                      placeholder="Descrição da tarefa"
+                      rows={4}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="assigned_to">Responsável</Label>
+                    <Select
+                      value={newTask.assigned_to}
+                      onValueChange={(value) =>
+                        setNewTask({ ...newTask, assigned_to: value === 'none' ? '' : value })
+                      }
+                    >
+                      <SelectTrigger id="assigned_to">
+                        <SelectValue placeholder="Selecione o responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        {allUsers.map((user) => (
+                          <SelectItem key={user.id} value={user.full_name}>
+                            {user.full_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="due_date">Data de Vencimento</Label>
+                    <Input
+                      id="due_date"
+                      type="date"
+                      value={newTask.due_date}
+                      onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="status">Status</Label>
+                    <Select
+                      value={newTask.status}
+                      onValueChange={(value) => setNewTask({ ...newTask, status: value })}
+                    >
+                      <SelectTrigger id="status">
+                        <SelectValue placeholder="Selecione o status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pendente</SelectItem>
+                        <SelectItem value="in_progress">Em Andamento</SelectItem>
+                        <SelectItem value="completed">Concluída</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button onClick={handleCreateTask} className="w-full">
+                    Criar Tarefa
+                  </Button>
                 </div>
-                <div>
-                  <Label htmlFor="description">Descrição</Label>
-                  <Textarea
-                    id="description"
-                    value={newTask.description}
-                    onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                    placeholder="Descrição da tarefa"
-                    rows={4}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="assigned_to">Responsável</Label>
-                  <Select value={newTask.assigned_to} onValueChange={(value) => setNewTask({ ...newTask, assigned_to: value })}>
-                    <SelectTrigger id="assigned_to">
-                      <SelectValue placeholder="Selecione o responsável" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">Nenhum</SelectItem>
-                      {allUsers.map(user => (
-                        <SelectItem key={user.id} value={user.full_name}>{user.full_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="due_date">Data de Vencimento</Label>
-                  <Input
-                    id="due_date"
-                    type="date"
-                    value={newTask.due_date}
-                    onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <Select value={newTask.status} onValueChange={(value) => setNewTask({ ...newTask, status: value })}>
-                    <SelectTrigger id="status">
-                      <SelectValue placeholder="Selecione o status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pendente</SelectItem>
-                      <SelectItem value="in_progress">Em Andamento</SelectItem>
-                      <SelectItem value="completed">Concluída</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button onClick={handleCreateTask} className="w-full">
-                  Criar Tarefa
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
@@ -568,8 +597,10 @@ export default function TarefasAdvbox() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos os responsáveis</SelectItem>
-                      {assignedUsers.map(user => (
-                        <SelectItem key={user} value={user}>{user}</SelectItem>
+                      {assignedUsers.map((user) => (
+                        <SelectItem key={user} value={user}>
+                          {user}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -584,7 +615,8 @@ export default function TarefasAdvbox() {
           <CardHeader>
             <CardTitle>{isAdmin ? 'Todas as Tarefas' : 'Suas Tarefas'}</CardTitle>
             <CardDescription>
-              {filteredTasks.length} de {visibleTasks.length} {filteredTasks.length === 1 ? 'tarefa' : 'tarefas'}
+              {filteredTasks.length} de {visibleTasks.length}{' '}
+              {filteredTasks.length === 1 ? 'tarefa' : 'tarefas'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -597,10 +629,13 @@ export default function TarefasAdvbox() {
               ) : (
                 <div className="space-y-3">
                   {filteredTasks.map((task) => (
-                     <Card key={task.id} className="hover:shadow-md transition-shadow">
+                    <Card key={task.id} className="hover:shadow-md transition-shadow">
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between gap-4 mb-3">
-                          <div className="flex-1 cursor-pointer" onClick={() => openTaskDetails(task)}>
+                          <div
+                            className="flex-1 cursor-pointer"
+                            onClick={() => openTaskDetails(task)}
+                          >
                             <div className="flex items-center gap-2 mb-1">
                               <h3 className="font-semibold">{task.title}</h3>
                               {task.priority && (
@@ -610,11 +645,16 @@ export default function TarefasAdvbox() {
                               )}
                             </div>
                             {task.description && (
-                              <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
+                              <p className="text-sm text-muted-foreground line-clamp-2">
+                                {task.description}
+                              </p>
                             )}
                           </div>
                           <div className="flex items-center gap-2">
-                            <Badge variant={getStatusVariant(task.status)} className="flex items-center gap-1">
+                            <Badge
+                              variant={getStatusVariant(task.status)}
+                              className="flex items-center gap-1"
+                            >
                               {getStatusIcon(task.status)}
                               {task.status}
                             </Badge>
@@ -637,7 +677,9 @@ export default function TarefasAdvbox() {
                           {task.due_date && (
                             <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
-                              {format(new Date(task.due_date), 'dd/MM/yyyy', { locale: ptBR })}
+                              {format(new Date(task.due_date), 'dd/MM/yyyy', {
+                                locale: ptBR,
+                              })}
                             </span>
                           )}
                           {task.assigned_to && (
@@ -657,14 +699,12 @@ export default function TarefasAdvbox() {
         </Card>
 
         {/* Dialog de Edição de Tarefa (Admin) */}
-        {editTask && (
+        {isAdmin && editTask && (
           <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Editar Tarefa</DialogTitle>
-                <DialogDescription>
-                  Atualize os campos da tarefa
-                </DialogDescription>
+                <DialogDescription>Atualize os campos da tarefa</DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
@@ -688,17 +728,24 @@ export default function TarefasAdvbox() {
                 </div>
                 <div>
                   <Label htmlFor="edit-assigned_to">Responsável</Label>
-                  <Select 
-                    value={editTask.assigned_to || ''} 
-                    onValueChange={(value) => setEditTask({ ...editTask, assigned_to: value })}
+                  <Select
+                    value={editTask.assigned_to || 'none'}
+                    onValueChange={(value) =>
+                      setEditTask({
+                        ...editTask,
+                        assigned_to: value === 'none' ? undefined : value,
+                      })
+                    }
                   >
                     <SelectTrigger id="edit-assigned_to">
                       <SelectValue placeholder="Selecione o responsável" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nenhum</SelectItem>
-                      {allUsers.map(user => (
-                        <SelectItem key={user.id} value={user.full_name}>{user.full_name}</SelectItem>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {allUsers.map((user) => (
+                        <SelectItem key={user.id} value={user.full_name}>
+                          {user.full_name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -714,8 +761,8 @@ export default function TarefasAdvbox() {
                 </div>
                 <div>
                   <Label htmlFor="edit-status">Status</Label>
-                  <Select 
-                    value={editTask.status} 
+                  <Select
+                    value={editTask.status}
                     onValueChange={(value) => setEditTask({ ...editTask, status: value })}
                   >
                     <SelectTrigger id="edit-status">
@@ -732,7 +779,11 @@ export default function TarefasAdvbox() {
                   <Button onClick={handleEditTask} className="flex-1">
                     Salvar Alterações
                   </Button>
-                  <Button variant="outline" onClick={() => setEditDialogOpen(false)} className="flex-1">
+                  <Button
+                    variant="outline"
+                    onClick={() => setEditDialogOpen(false)}
+                    className="flex-1"
+                  >
                     Cancelar
                   </Button>
                 </div>
@@ -746,14 +797,15 @@ export default function TarefasAdvbox() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Definir Prioridade</DialogTitle>
-              <DialogDescription>
-                Escolha a prioridade para esta tarefa
-              </DialogDescription>
+              <DialogDescription>Escolha a prioridade para esta tarefa</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
                 <Label htmlFor="priority">Prioridade</Label>
-                <Select value={selectedPriority} onValueChange={(value: 'alta' | 'media' | 'baixa') => setSelectedPriority(value)}>
+                <Select
+                  value={selectedPriority}
+                  onValueChange={(value: 'alta' | 'media' | 'baixa') => setSelectedPriority(value)}
+                >
                   <SelectTrigger id="priority">
                     <SelectValue placeholder="Selecione a prioridade" />
                   </SelectTrigger>
@@ -786,7 +838,7 @@ export default function TarefasAdvbox() {
           </DialogContent>
         </Dialog>
 
-        {/* Detalhes da Tarefa com Comentários e Anexos */}
+        {/* Detalhes da Tarefa com Comentários, Anexos e Histórico */}
         {isMobile ? (
           <Drawer open={detailsOpen} onOpenChange={setDetailsOpen}>
             <DrawerContent>
@@ -799,9 +851,7 @@ export default function TarefasAdvbox() {
                     </Badge>
                   )}
                 </DrawerTitle>
-                <DrawerDescription>
-                  {selectedTask?.description}
-                </DrawerDescription>
+                <DrawerDescription>{selectedTask?.description}</DrawerDescription>
               </DrawerHeader>
               <div className="px-4">
                 <Tabs defaultValue="comments" className="w-full">
@@ -823,31 +873,33 @@ export default function TarefasAdvbox() {
               </div>
               <DrawerFooter>
                 <div className="flex gap-2">
-                  {selectedTask && selectedTask.status !== 'completed' && selectedTask.status !== 'concluída' && (
-                    <>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setDetailsOpen(false);
-                          openPriorityDialog(selectedTask.id, selectedTask.priority);
-                        }}
-                        className="flex-1"
-                      >
-                        <AlertCircle className="h-4 w-4 mr-2" />
-                        Prioridade
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          handleCompleteTask(selectedTask.id);
-                          setDetailsOpen(false);
-                        }}
-                        className="flex-1"
-                      >
-                        <CheckCircle2 className="h-4 w-4 mr-2" />
-                        Concluir
-                      </Button>
-                    </>
-                  )}
+                  {selectedTask &&
+                    selectedTask.status !== 'completed' &&
+                    selectedTask.status !== 'concluída' && (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setDetailsOpen(false);
+                            openPriorityDialog(selectedTask.id, selectedTask.priority);
+                          }}
+                          className="flex-1"
+                        >
+                          <AlertCircle className="h-4 w-4 mr-2" />
+                          Prioridade
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            handleCompleteTask(selectedTask.id);
+                            setDetailsOpen(false);
+                          }}
+                          className="flex-1"
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          Concluir
+                        </Button>
+                      </>
+                    )}
                 </div>
                 <DrawerClose asChild>
                   <Button variant="outline">Fechar</Button>
@@ -867,22 +919,25 @@ export default function TarefasAdvbox() {
                     </Badge>
                   )}
                 </DialogTitle>
-                <DialogDescription>
-                  {selectedTask?.description}
-                </DialogDescription>
+                <DialogDescription>{selectedTask?.description}</DialogDescription>
               </DialogHeader>
-              
+
               <div className="space-y-4">
                 {selectedTask && (
                   <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground pb-4 border-b">
-                    <Badge variant={getStatusVariant(selectedTask.status)} className="flex items-center gap-1">
+                    <Badge
+                      variant={getStatusVariant(selectedTask.status)}
+                      className="flex items-center gap-1"
+                    >
                       {getStatusIcon(selectedTask.status)}
                       {selectedTask.status}
                     </Badge>
                     {selectedTask.due_date && (
                       <span className="flex items-center gap-1">
                         <Clock className="h-4 w-4" />
-                        {format(new Date(selectedTask.due_date), 'dd/MM/yyyy', { locale: ptBR })}
+                        {format(new Date(selectedTask.due_date), 'dd/MM/yyyy', {
+                          locale: ptBR,
+                        })}
                       </span>
                     )}
                     {selectedTask.assigned_to && (
@@ -911,31 +966,35 @@ export default function TarefasAdvbox() {
                   </TabsContent>
                 </Tabs>
 
-                {selectedTask && selectedTask.status !== 'completed' && selectedTask.status !== 'concluída' && (
-                  <div className="flex gap-2 pt-4 border-t">
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setDetailsOpen(false);
-                        openPriorityDialog(selectedTask.id, selectedTask.priority);
-                      }}
-                      className="flex-1"
-                    >
-                      <AlertCircle className="h-4 w-4 mr-2" />
-                      {selectedTask.priority ? 'Alterar Prioridade' : 'Definir Prioridade'}
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        handleCompleteTask(selectedTask.id);
-                        setDetailsOpen(false);
-                      }}
-                      className="flex-1"
-                    >
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Marcar como Concluída
-                    </Button>
-                  </div>
-                )}
+                {selectedTask &&
+                  selectedTask.status !== 'completed' &&
+                  selectedTask.status !== 'concluída' && (
+                    <div className="flex gap-2 pt-4 border-t">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setDetailsOpen(false);
+                          openPriorityDialog(selectedTask.id, selectedTask.priority);
+                        }}
+                        className="flex-1"
+                      >
+                        <AlertCircle className="h-4 w-4 mr-2" />
+                        {selectedTask.priority
+                          ? 'Alterar Prioridade'
+                          : 'Definir Prioridade'}
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          handleCompleteTask(selectedTask.id);
+                          setDetailsOpen(false);
+                        }}
+                        className="flex-1"
+                      >
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        Marcar como Concluída
+                      </Button>
+                    </div>
+                  )}
               </div>
             </DialogContent>
           </Dialog>
@@ -944,3 +1003,4 @@ export default function TarefasAdvbox() {
     </Layout>
   );
 }
+
