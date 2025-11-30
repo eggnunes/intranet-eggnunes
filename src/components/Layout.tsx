@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
-import { LogOut, Home, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare } from 'lucide-react';
+import { LogOut, Home, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,6 +22,8 @@ export const Layout = ({ children }: LayoutProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const location = window.location;
+  const showBackButton = location.pathname !== '/dashboard' && location.pathname !== '/';
 
   useEffect(() => {
     if (isAdmin) {
@@ -72,6 +75,14 @@ export const Layout = ({ children }: LayoutProps) => {
     
     setPendingUsersCount(count || 0);
   };
+
+  const advboxMenuItems = [
+    { icon: Briefcase, path: '/processos', label: 'Processos', description: 'Dashboard de processos' },
+    { icon: Cake, path: '/aniversarios-clientes', label: 'Aniversários Clientes', description: 'Clientes aniversariantes' },
+    { icon: Bell, path: '/publicacoes', label: 'Publicações', description: 'Feed de publicações' },
+    { icon: CheckSquare, path: '/tarefas-advbox', label: 'Tarefas', description: 'Gestão de tarefas' },
+    { icon: DollarSign, path: '/relatorios-financeiros', label: 'Relatórios', description: 'Relatórios financeiros' },
+  ];
 
   const NavItems = () => (
     <>
@@ -176,46 +187,20 @@ export const Layout = ({ children }: LayoutProps) => {
         <UserCircle className="w-4 h-4" />
         Perfil
       </Button>
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/processos'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <Briefcase className="w-4 h-4" />
-        Processos
-      </Button>
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/aniversarios-clientes'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <Cake className="w-4 h-4" />
-        Aniversários Clientes
-      </Button>
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/publicacoes'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <Bell className="w-4 h-4" />
-        Publicações
-      </Button>
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/tarefas-advbox'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <CheckSquare className="w-4 h-4" />
-        Tarefas
-      </Button>
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/relatorios-financeiros'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <DollarSign className="w-4 h-4" />
-        Relatórios
-      </Button>
+      <div className="px-2 py-2">
+        <p className="text-xs font-semibold text-muted-foreground mb-2">ADVBOX</p>
+        {advboxMenuItems.map((item) => (
+          <Button 
+            key={item.path}
+            variant="ghost" 
+            onClick={() => { navigate(item.path); setMobileMenuOpen(false); }}
+            className="gap-2 justify-start w-full mb-1"
+          >
+            <item.icon className="w-4 h-4" />
+            {item.label}
+          </Button>
+        ))}
+      </div>
       {isAdmin && (
         <Button 
           variant="ghost" 
@@ -242,7 +227,79 @@ export const Layout = ({ children }: LayoutProps) => {
                 onClick={() => navigate('/dashboard')}
               />
               <nav className="hidden lg:flex items-center gap-2">
-                <NavItems />
+                <Button 
+                  variant="ghost" 
+                  onClick={() => navigate('/dashboard')}
+                  className="gap-2"
+                >
+                  <Home className="w-4 h-4" />
+                  Dashboard
+                </Button>
+                {isAdmin && (
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => navigate('/admin')}
+                    className="gap-2 relative"
+                  >
+                    <Shield className="w-4 h-4" />
+                    Admin
+                    {pendingUsersCount > 0 && (
+                      <Badge variant="destructive" className="ml-2">{pendingUsersCount}</Badge>
+                    )}
+                  </Button>
+                )}
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="gap-2">
+                      <Briefcase className="w-4 h-4" />
+                      Advbox
+                      <ChevronDown className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56">
+                    <DropdownMenuLabel>Integrações Advbox</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {advboxMenuItems.map((item) => (
+                      <DropdownMenuItem 
+                        key={item.path}
+                        onClick={() => navigate(item.path)}
+                        className="gap-2 cursor-pointer"
+                      >
+                        <item.icon className="w-4 h-4" />
+                        <div className="flex flex-col">
+                          <span className="font-medium">{item.label}</span>
+                          <span className="text-xs text-muted-foreground">{item.description}</span>
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button 
+                  variant="ghost" 
+                  onClick={() => navigate('/historico')}
+                  className="gap-2"
+                >
+                  <History className="w-4 h-4" />
+                  Histórico
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => navigate('/forum')}
+                  className="gap-2"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Fórum
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => navigate('/sugestoes')}
+                  className="gap-2"
+                >
+                  <Lightbulb className="w-4 h-4" />
+                  Sugestões
+                </Button>
               </nav>
             </div>
             <div className="flex items-center gap-4">
@@ -296,6 +353,16 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
       </header>
       <main className="container mx-auto px-4 py-8">
+        {showBackButton && (
+          <Button
+            variant="ghost"
+            onClick={() => navigate(-1)}
+            className="gap-2 mb-4 hover:bg-primary/10"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Voltar
+          </Button>
+        )}
         {children}
       </main>
     </div>
