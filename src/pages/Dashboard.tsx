@@ -319,57 +319,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Mural de Avisos - Destaques */}
-        {!loadingAnnouncements && recentAnnouncements.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20">
-                  <Megaphone className="h-5 w-5 text-primary" />
-                </div>
-                Avisos Recentes
-              </h2>
-              <Button variant="outline" size="sm" onClick={() => navigate('/mural-avisos')}>
-                Ver todos
-              </Button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {recentAnnouncements.map((announcement) => {
-                const typeInfo = getAnnouncementTypeInfo(announcement.type);
-                const TypeIcon = typeInfo.icon;
-                return (
-                  <Card 
-                    key={announcement.id}
-                    className="hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer border-l-4"
-                    style={{ borderLeftColor: `hsl(var(--primary))` }}
-                    onClick={() => navigate('/mural-avisos')}
-                  >
-                    <CardHeader>
-                      <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-lg ${typeInfo.color} text-white`}>
-                          <TypeIcon className="h-4 w-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <Badge variant="secondary" className="mb-2">{typeInfo.label}</Badge>
-                          <CardTitle className="text-lg line-clamp-2">{announcement.title}</CardTitle>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground line-clamp-3">{announcement.content}</p>
-                      <p className="text-xs text-muted-foreground mt-3">
-                        {format(new Date(announcement.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                      </p>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        <Separator className="my-8" />
-
         {/* Sobre o Escritório */}
         <Card className="border-l-4 border-l-primary">
           <CardHeader>
@@ -413,6 +362,56 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Mural de Avisos - Destaques */}
+        {!loadingAnnouncements && recentAnnouncements.length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20">
+                  <Megaphone className="h-5 w-5 text-amber-600" />
+                </div>
+                Avisos Recentes
+              </h2>
+              <Button variant="outline" size="sm" onClick={() => navigate('/mural-avisos')}>
+                Ver todos
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {recentAnnouncements.map((announcement) => {
+                const typeInfo = getAnnouncementTypeInfo(announcement.type);
+                const TypeIcon = typeInfo.icon;
+                return (
+                  <Card 
+                    key={announcement.id}
+                    className="hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer border-l-4 border-l-amber-500"
+                    onClick={() => navigate('/mural-avisos')}
+                  >
+                    <CardHeader>
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg ${typeInfo.color} text-white`}>
+                          <TypeIcon className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <Badge variant="secondary" className="mb-2">{typeInfo.label}</Badge>
+                          <CardTitle className="text-lg line-clamp-2">{announcement.title}</CardTitle>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground line-clamp-3">{announcement.content}</p>
+                      <p className="text-xs text-muted-foreground mt-3">
+                        {format(new Date(announcement.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        <Separator className="my-8" />
 
         {/* Ferramentas */}
         <section>
