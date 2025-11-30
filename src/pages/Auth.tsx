@@ -90,20 +90,7 @@ export default function Auth() {
         });
         navigate('/dashboard');
       } else {
-        // Upload de avatar primeiro
         let avatarUrl = '';
-        if (avatarFile) {
-          const fileExt = avatarFile.name.split('.').pop();
-          const fileName = `${Math.random()}.${fileExt}`;
-          const { error: uploadError } = await supabase.storage
-            .from('avatars')
-            .upload(fileName, avatarFile);
-
-          if (!uploadError) {
-            const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
-            avatarUrl = data.publicUrl;
-          }
-        }
 
         const { error, data } = await supabase.auth.signUp({
           email,
@@ -113,7 +100,6 @@ export default function Auth() {
             data: {
               full_name: fullName,
               position: position,
-              avatar_url: avatarUrl,
               birth_date: birthDate ? format(birthDate, 'yyyy-MM-dd') : null,
             },
           },
@@ -121,13 +107,27 @@ export default function Auth() {
 
         if (error) throw error;
 
+        // Após criar o usuário, fazer upload do avatar usando o id do usuário
+        if (data.user && avatarFile) {
+          const fileExt = avatarFile.name.split('.').pop();
+          const fileName = `${data.user.id}/${Date.now()}.${fileExt}`;
+          const { error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(fileName, avatarFile, { upsert: true });
+
+          if (!uploadError) {
+            const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(fileName);
+            avatarUrl = publicData.publicUrl;
+          }
+        }
+
         // Atualizar profile com cargo, avatar e data de nascimento
         if (data.user) {
           await supabase
             .from('profiles')
             .update({
               position: position as any,
-              avatar_url: avatarUrl,
+              avatar_url: avatarUrl || null,
               birth_date: birthDate ? format(birthDate, 'yyyy-MM-dd') : null,
             })
             .eq('id', data.user.id);
