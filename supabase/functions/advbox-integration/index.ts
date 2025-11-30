@@ -161,10 +161,19 @@ Deno.serve(async (req) => {
       }
 
       // Publicações
-      case 'all-publications': {
-        console.log('Fetching all publications...');
-        const data = await makeAdvboxRequest({ endpoint: '/publications' });
-        return new Response(JSON.stringify(data), {
+      case 'recent-publications': {
+        console.log('Fetching recent publications from movements...');
+        // Buscar movimentações recentes que incluem publicações
+        const allMovements = await fetchAllPaginated('/last_movements', 1000);
+        
+        // Filtrar apenas movimentações do tipo publicação
+        const publications = allMovements.filter((movement: any) => 
+          movement.type === 'publication' || 
+          movement.description?.toLowerCase().includes('publicação') ||
+          movement.description?.toLowerCase().includes('publicacao')
+        );
+        
+        return new Response(JSON.stringify({ data: publications }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
