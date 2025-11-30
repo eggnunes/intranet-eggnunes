@@ -51,7 +51,18 @@ export default function TarefasAdvbox() {
 
       if (error) throw error;
 
-      setTasks(data?.data || data || []);
+      // Garantir que tasks seja sempre um array
+      let tasksData = [];
+      if (data?.data && Array.isArray(data.data)) {
+        tasksData = data.data;
+      } else if (Array.isArray(data)) {
+        tasksData = data;
+      } else if (data && typeof data === 'object' && !Array.isArray(data)) {
+        // Se data for um objeto, tentar extrair array de possíveis propriedades
+        tasksData = data.tasks || data.items || [];
+      }
+      
+      setTasks(Array.isArray(tasksData) ? tasksData : []);
       setMetadata(data?.metadata);
       setLastUpdate(new Date());
 
@@ -63,6 +74,7 @@ export default function TarefasAdvbox() {
       }
     } catch (error) {
       console.error('Error fetching tasks:', error);
+      setTasks([]); // Garantir que tasks seja array mesmo em caso de erro
       toast({
         title: 'Erro ao carregar tarefas',
         description: 'Não foi possível carregar as tarefas do Advbox.',
@@ -195,12 +207,12 @@ export default function TarefasAdvbox() {
           <CardHeader>
             <CardTitle>Suas Tarefas</CardTitle>
             <CardDescription>
-              {tasks.length} {tasks.length === 1 ? 'tarefa' : 'tarefas'}
+              {Array.isArray(tasks) ? tasks.length : 0} {Array.isArray(tasks) && tasks.length === 1 ? 'tarefa' : 'tarefas'}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[600px]">
-              {tasks.length === 0 ? (
+              {!Array.isArray(tasks) || tasks.length === 0 ? (
                 <div className="text-center py-12">
                   <CheckSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <p className="text-muted-foreground">Nenhuma tarefa encontrada</p>
