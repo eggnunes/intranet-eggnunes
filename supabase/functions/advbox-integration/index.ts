@@ -161,6 +161,14 @@ Deno.serve(async (req) => {
       }
 
       // Publicações
+      case 'all-publications': {
+        console.log('Fetching all publications...');
+        const data = await makeAdvboxRequest({ endpoint: '/publications' });
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       case 'publications': {
         const lawsuitId = url.searchParams.get('lawsuit_id');
         if (!lawsuitId) {
