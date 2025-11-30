@@ -4,7 +4,7 @@ import { Layout } from '@/components/Layout';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, MessageSquare, History, FolderOpen, TrendingUp, User, Mail, Book, Phone, Users, Instagram, Music, Video, Building2, Home, Briefcase, Award, ExternalLink, Shield, Gavel, FileCheck, Banknote, Clock, AlertCircle, Cake, DollarSign, Bell, CheckSquare, Megaphone, Calendar, Trophy } from 'lucide-react';
+import { FileText, MessageSquare, History, FolderOpen, TrendingUp, User, Mail, Book, Phone, Users, Instagram, Music, Video, Building2, Home, Briefcase, Award, ExternalLink, Shield, Gavel, FileCheck, Banknote, Clock, AlertCircle, Cake, DollarSign, Bell, CheckSquare, Megaphone, Calendar, Trophy, Pin } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -364,19 +364,30 @@ export default function Dashboard() {
         </Card>
 
         {/* Mural de Avisos - Destaques */}
-        {!loadingAnnouncements && recentAnnouncements.length > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20">
-                  <Megaphone className="h-5 w-5 text-amber-600" />
-                </div>
-                Avisos Recentes
-              </h2>
-              <Button variant="outline" size="sm" onClick={() => navigate('/mural-avisos')}>
-                Ver todos
-              </Button>
+        <section>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20">
+                <Megaphone className="h-5 w-5 text-amber-600" />
+              </div>
+              Avisos Recentes
+            </h2>
+            <Button variant="outline" size="sm" onClick={() => navigate('/mural-avisos')}>
+              Ver todos
+            </Button>
+          </div>
+          {loadingAnnouncements ? (
+            <div className="flex items-center justify-center py-12">
+              <p className="text-muted-foreground">Carregando avisos...</p>
             </div>
+          ) : recentAnnouncements.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Megaphone className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">Nenhum aviso cadastrado ainda.</p>
+              </CardContent>
+            </Card>
+          ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {recentAnnouncements.map((announcement) => {
                 const typeInfo = getAnnouncementTypeInfo(announcement.type);
@@ -393,7 +404,15 @@ export default function Dashboard() {
                           <TypeIcon className="h-4 w-4" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <Badge variant="secondary" className="mb-2">{typeInfo.label}</Badge>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge variant="secondary">{typeInfo.label}</Badge>
+                            {announcement.is_pinned && (
+                              <Badge variant="outline" className="gap-1">
+                                <Pin className="h-3 w-3" />
+                                Fixado
+                              </Badge>
+                            )}
+                          </div>
                           <CardTitle className="text-lg line-clamp-2">{announcement.title}</CardTitle>
                         </div>
                       </div>
@@ -408,8 +427,8 @@ export default function Dashboard() {
                 );
               })}
             </div>
-          </section>
-        )}
+          )}
+        </section>
 
         <Separator className="my-8" />
 

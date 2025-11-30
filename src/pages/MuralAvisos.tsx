@@ -176,6 +176,30 @@ const MuralAvisos = () => {
     }
   };
 
+  const handleTogglePin = async (id: string, isPinned: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('announcements')
+        .update({ is_pinned: isPinned })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Sucesso',
+        description: isPinned ? 'Aviso fixado no topo!' : 'Aviso desfixado!'
+      });
+
+      fetchAnnouncements();
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  };
+
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'comunicado':
@@ -325,13 +349,29 @@ const MuralAvisos = () => {
                       </div>
                     </div>
                     {isAdmin && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDelete(announcement.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTogglePin(announcement.id, !announcement.is_pinned);
+                          }}
+                          title={announcement.is_pinned ? "Desafixar" : "Fixar no topo"}
+                        >
+                          <Pin className={`h-4 w-4 ${announcement.is_pinned ? 'text-primary fill-primary' : 'text-muted-foreground'}`} />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(announcement.id);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </CardHeader>
