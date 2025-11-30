@@ -303,6 +303,45 @@ export type Database = {
         }
         Relationships: []
       }
+      financial_goals: {
+        Row: {
+          created_at: string | null
+          goal_type: string
+          id: string
+          is_active: boolean | null
+          month: number | null
+          quarter: number | null
+          target_value: number
+          updated_at: string | null
+          user_id: string
+          year: number
+        }
+        Insert: {
+          created_at?: string | null
+          goal_type: string
+          id?: string
+          is_active?: boolean | null
+          month?: number | null
+          quarter?: number | null
+          target_value: number
+          updated_at?: string | null
+          user_id: string
+          year: number
+        }
+        Update: {
+          created_at?: string | null
+          goal_type?: string
+          id?: string
+          is_active?: boolean | null
+          month?: number | null
+          quarter?: number | null
+          target_value?: number
+          updated_at?: string | null
+          user_id?: string
+          year?: number
+        }
+        Relationships: []
+      }
       forum_notifications: {
         Row: {
           created_at: string
