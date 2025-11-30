@@ -30,7 +30,7 @@ interface Lawsuit {
   exit_execution: string | null;
   responsible_id: number;
   responsible: string;
-  customers?: string; // Nome dos clientes
+  customers?: string | { name: string; customer_id?: number; identification?: string; origin?: string } | { name: string; customer_id?: number; identification?: string; origin?: string }[];
 }
 
 interface Movement {
@@ -52,17 +52,28 @@ export default function ProcessosDashboard() {
   const [selectedResponsibles, setSelectedResponsibles] = useState<string[]>([]);
   const [showAllResponsibles, setShowAllResponsibles] = useState(true);
   const { toast } = useToast();
+
+  const getCustomerName = (customers: Lawsuit['customers'] | Movement['customers']): string => {
+    if (!customers) return '';
+    if (typeof customers === 'string') return customers;
+    if (Array.isArray(customers)) {
+      return customers.map((c) => c.name).join(', ');
+    }
+    return customers.name ?? '';
+  };
   
   // Extrair lista única de responsáveis
   const responsibles = Array.from(new Set(lawsuits.map(l => l.responsible).filter(Boolean)));
   
   // Filtrar processos
   const filteredLawsuits = lawsuits.filter(lawsuit => {
+    const customerName = getCustomerName(lawsuit.customers as Lawsuit['customers']);
+
     const matchesSearch = !searchTerm || 
       lawsuit.process_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lawsuit.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lawsuit.group.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lawsuit.customers?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lawsuit.responsible?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesResponsible = showAllResponsibles || 
@@ -73,11 +84,7 @@ export default function ProcessosDashboard() {
   
   // Filtrar movimentações
   const filteredMovements = movements.filter(movement => {
-    const customerName = typeof movement.customers === 'string' 
-      ? movement.customers 
-      : Array.isArray(movement.customers)
-        ? movement.customers.map(c => c.name).join(', ')
-        : movement.customers?.name || '';
+    const customerName = getCustomerName(movement.customers);
     
     return !movementSearchTerm ||
       movement.process_number.toLowerCase().includes(movementSearchTerm.toLowerCase()) ||
@@ -274,7 +281,7 @@ export default function ProcessosDashboard() {
                                 <p className="font-semibold text-sm mb-1">{lawsuit.process_number}</p>
                                 {lawsuit.customers && (
                                   <p className="text-xs text-muted-foreground mb-2">
-                                    Cliente: <span className="font-medium text-foreground">{lawsuit.customers}</span>
+                                    Cliente: <span className="font-medium text-foreground">{getCustomerName(lawsuit.customers as Lawsuit['customers'])}</span>
                                   </p>
                                 )}
                                 <div className="flex gap-2 mt-2">
@@ -413,13 +420,7 @@ export default function ProcessosDashboard() {
                             </p>
                             {movement.customers && (
                               <p className="text-xs text-muted-foreground">
-                                Cliente: {
-                                  typeof movement.customers === 'string' 
-                                    ? movement.customers 
-                                    : Array.isArray(movement.customers)
-                                      ? movement.customers.map(c => c.name).join(', ')
-                                      : movement.customers.name
-                                }
+                                Cliente: {getCustomerName(movement.customers)}
                               </p>
                             )}
                           </div>
