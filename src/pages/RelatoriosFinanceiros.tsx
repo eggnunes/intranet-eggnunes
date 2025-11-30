@@ -41,7 +41,9 @@ export default function RelatoriosFinanceiros() {
 
       if (error) throw error;
 
-      setTransactions(data?.data || data || []);
+      // Ensure we always have an array
+      const transactionsData = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+      setTransactions(transactionsData);
       setMetadata(data?.metadata);
       setLastUpdate(new Date());
 
@@ -63,13 +65,13 @@ export default function RelatoriosFinanceiros() {
     }
   };
 
-  const totalIncome = transactions
-    .filter((t) => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0);
+  const totalIncome = Array.isArray(transactions)
+    ? transactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0)
+    : 0;
 
-  const totalExpense = transactions
-    .filter((t) => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0);
+  const totalExpense = Array.isArray(transactions)
+    ? transactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0)
+    : 0;
 
   const balance = totalIncome - totalExpense;
 
