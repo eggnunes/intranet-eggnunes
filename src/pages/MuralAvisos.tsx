@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useAuth } from '@/hooks/useAuth';
 import { Megaphone, Plus, Trash2, Pin, Calendar, Trophy } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +34,7 @@ const MuralAvisos = () => {
   const [uploading, setUploading] = useState(false);
   const { isAdmin } = useUserRole();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [formData, setFormData] = useState({
     title: '',
@@ -44,6 +46,13 @@ const MuralAvisos = () => {
   useEffect(() => {
     fetchAnnouncements();
   }, []);
+
+  useEffect(() => {
+    // Marcar avisos como lidos quando a página é carregada
+    if (user && announcements.length > 0) {
+      markAnnouncementsAsRead();
+    }
+  }, [user, announcements.length]);
 
   const fetchAnnouncements = async () => {
     setLoading(true);
@@ -63,6 +72,35 @@ const MuralAvisos = () => {
       setAnnouncements((data as Announcement[]) || []);
     }
     setLoading(false);
+  };
+
+  const markAnnouncementsAsRead = async () => {
+    if (!user) return;
+
+    try {
+      // Buscar avisos que o usuário ainda não leu
+      const { data: readAnnouncements } = await supabase
+        .from('announcement_reads')
+        .select('announcement_id')
+        .eq('user_id', user.id);
+
+      const readIds = new Set(readAnnouncements?.map(r => r.announcement_id) || []);
+      const unreadAnnouncements = announcements.filter(a => !readIds.has(a.id));
+
+      if (unreadAnnouncements.length > 0) {
+        // Marcar todos como lidos
+        const reads = unreadAnnouncements.map(a => ({
+          announcement_id: a.id,
+          user_id: user.id
+        }));
+
+        await supabase
+          .from('announcement_reads')
+          .insert(reads);
+      }
+    } catch (error) {
+      console.error('Erro ao marcar avisos como lidos:', error);
+    }
   };
 
   const handleCreate = async () => {
