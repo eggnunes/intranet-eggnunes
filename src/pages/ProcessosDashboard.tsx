@@ -7,12 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Briefcase, AlertCircle, TrendingUp, Search, Filter, RefreshCw, Settings } from 'lucide-react';
+import { Briefcase, AlertCircle, TrendingUp, Search, Filter } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
 import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
-import { Link } from 'react-router-dom';
 
 interface Lawsuit {
   id: number;
@@ -50,7 +49,6 @@ export default function ProcessosDashboard() {
   const [lawsuits, setLawsuits] = useState<Lawsuit[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [movementSearchTerm, setMovementSearchTerm] = useState('');
   const [selectedResponsibles, setSelectedResponsibles] = useState<string[]>([]);
@@ -107,7 +105,6 @@ export default function ProcessosDashboard() {
 
   const fetchData = async (forceRefresh = false) => {
     try {
-      setRefreshing(forceRefresh);
       const refreshParam = forceRefresh ? '?force_refresh=true' : '';
       
       const [lawsuitsRes, movementsRes] = await Promise.all([
@@ -157,7 +154,6 @@ export default function ProcessosDashboard() {
       });
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
@@ -188,22 +184,7 @@ export default function ProcessosDashboard() {
                 <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => fetchData(true)}
-                disabled={refreshing}
-                variant="outline"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                Atualizar Dados
-              </Button>
-              <Link to="/advbox-config">
-                <Button variant="outline">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Configurações
-                </Button>
-              </Link>
-            </div>
+            
           </div>
         </div>
 
