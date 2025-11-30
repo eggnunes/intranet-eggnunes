@@ -155,9 +155,56 @@ export default function TarefasAdvbox() {
       return;
     }
 
+    if (!newTask.process_number.trim()) {
+      toast({
+        title: 'Número do processo obrigatório',
+        description: 'Informe o número do processo para criar a tarefa no Advbox.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
-      const { data, error } = await supabase.functions.invoke('advbox-integration/create-task', {
-        body: newTask,
+      // Buscar o processo correspondente no Advbox para obter os IDs necessários
+      const { data: lawsuitsData, error: lawsuitsError } = await supabase.functions.invoke(
+        'advbox-integration/lawsuits'
+      );
+
+      if (lawsuitsError) throw lawsuitsError;
+
+      const lawsuits = (lawsuitsData as any)?.data || lawsuitsData || [];
+      const processNumber = newTask.process_number.trim();
+
+      const lawsuit = (lawsuits as any[]).find(
+        (l: any) => l.process_number === processNumber
+      );
+
+      if (!lawsuit) {
+        toast({
+          title: 'Processo não encontrado',
+          description: 'Não foi possível localizar o processo para criar a tarefa.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const taskData = {
+        lawsuits_id: lawsuit.id,
+        start_date: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
+        title: newTask.title,
+        description:
+          newTask.description ||
+          newTask.notes ||
+          `Tarefa criada pela intranet para o processo ${processNumber}`,
+        from: lawsuit.responsible_id,
+        tasks_id: 1,
+        guests: [lawsuit.responsible_id],
+        status: newTask.status,
+        due_date: newTask.due_date || undefined,
+      };
+
+      const { error } = await supabase.functions.invoke('advbox-integration/create-task', {
+        body: taskData,
       });
 
       if (error) throw error;
@@ -168,11 +215,11 @@ export default function TarefasAdvbox() {
       });
 
       setDialogOpen(false);
-      setNewTask({ 
-        title: '', 
-        description: '', 
-        due_date: '', 
-        assigned_to: '', 
+      setNewTask({
+        title: '',
+        description: '',
+        due_date: '',
+        assigned_to: '',
         status: 'pending',
         process_number: '',
         category: '',
@@ -183,7 +230,8 @@ export default function TarefasAdvbox() {
       console.error('Error creating task:', error);
       toast({
         title: 'Erro ao criar tarefa',
-        description: 'Não foi possível criar a tarefa.',
+        description:
+          error instanceof Error ? error.message : 'Não foi possível criar a tarefa.',
         variant: 'destructive',
       });
     }
