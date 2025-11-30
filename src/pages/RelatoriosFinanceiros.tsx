@@ -19,6 +19,9 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContain
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { FinancialAlerts } from '@/components/FinancialAlerts';
+import { FinancialPredictions } from '@/components/FinancialPredictions';
+import { FinancialDistribution } from '@/components/FinancialDistribution';
 
 interface Transaction {
   id: string;
@@ -434,6 +437,20 @@ export default function RelatoriosFinanceiros() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Sistema de Alertas */}
+        <FinancialAlerts
+          totalExpense={totalExpense}
+          profitMargin={profitMargin}
+          growthRate={growthRate}
+          period={periodFilter}
+        />
+
+        {/* Análise Preditiva */}
+        <FinancialPredictions transactions={filteredTransactions} />
+
+        {/* Gráficos de Distribuição por Categoria */}
+        <FinancialDistribution transactions={filteredTransactions} />
 
         {/* Gráfico de Evolução */}
         {chartData.length > 0 && (
