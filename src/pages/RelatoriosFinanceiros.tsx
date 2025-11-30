@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { DollarSign, TrendingUp, TrendingDown } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
+import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
 
 interface Transaction {
   id: string;
@@ -21,19 +24,33 @@ interface Transaction {
 export default function RelatoriosFinanceiros() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [metadata, setMetadata] = useState<any>(null);
+  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchTransactions();
   }, []);
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = async (forceRefresh = false) => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('advbox-integration/transactions');
+      const { data, error } = await supabase.functions.invoke('advbox-integration/transactions', {
+        body: { force_refresh: forceRefresh },
+      });
 
       if (error) throw error;
 
-      setTransactions(data || []);
+      setTransactions(data?.data || data || []);
+      setMetadata(data?.metadata);
+      setLastUpdate(new Date());
+
+      if (forceRefresh) {
+        toast({
+          title: 'Dados atualizados',
+          description: 'Os relatórios foram recarregados.',
+        });
+      }
     } catch (error) {
       console.error('Error fetching transactions:', error);
       toast({
@@ -76,15 +93,31 @@ export default function RelatoriosFinanceiros() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <DollarSign className="h-8 w-8 text-primary" />
-            Relatórios Financeiros
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Acompanhe suas transações e relatórios financeiros
-          </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <DollarSign className="h-8 w-8 text-primary" />
+              Relatórios Financeiros
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              Acompanhe suas transações e relatórios financeiros
+            </p>
+            <div className="mt-2">
+              <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchTransactions(true)}
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Atualizar Dados
+          </Button>
         </div>
+
+        {metadata && <AdvboxCacheAlert metadata={metadata} />}
 
         {/* Resumo Financeiro */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

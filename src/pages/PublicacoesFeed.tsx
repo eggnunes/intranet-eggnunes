@@ -7,12 +7,14 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bell, Search, Calendar, Filter, FileDown, FileText } from 'lucide-react';
+import { Bell, Search, Calendar, Filter, FileDown, FileText, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, subDays, startOfDay, startOfMonth, isAfter, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
+import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
 
 interface Publication {
   id: string | number;
@@ -34,6 +36,8 @@ export default function PublicacoesFeed() {
   const [loadingRecent, setLoadingRecent] = useState(true);
   const [periodFilter, setPeriodFilter] = useState<string>('week');
   const [movementTypeFilter, setMovementTypeFilter] = useState<string>('all');
+  const [metadata, setMetadata] = useState<any>(null);
+  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
   const { toast } = useToast();
 
   // Extract unique movement types from all publications
@@ -46,14 +50,18 @@ export default function PublicacoesFeed() {
     fetchRecentPublications();
   }, []);
 
-  const fetchRecentPublications = async () => {
+  const fetchRecentPublications = async (forceRefresh = false) => {
     setLoadingRecent(true);
     try {
-      const { data, error } = await supabase.functions.invoke('advbox-integration/last-movements');
+      const { data, error } = await supabase.functions.invoke('advbox-integration/last-movements', {
+        body: { force_refresh: forceRefresh },
+      });
 
       if (error) throw error;
 
       const allPubs = data?.data || [];
+      setMetadata(data?.metadata);
+      setLastUpdate(new Date());
       
       const mappedPubs: Publication[] = allPubs.map((movement: any, index: number) => ({
         id: movement.id ?? `${movement.lawsuit_id ?? 'movement'}-${movement.date ?? movement.created_at}-${index}`,
@@ -66,6 +74,13 @@ export default function PublicacoesFeed() {
 
       setAllPublications(mappedPubs);
       applyFilters(mappedPubs);
+
+      if (forceRefresh) {
+        toast({
+          title: 'Dados atualizados',
+          description: 'As publicações foram recarregadas.',
+        });
+      }
     } catch (error) {
       console.error('Error fetching recent publications:', error);
       toast({
@@ -398,15 +413,31 @@ export default function PublicacoesFeed() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Bell className="h-8 w-8 text-primary" />
-            Feed de Publicações
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Publicações recentes do Advbox
-          </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <Bell className="h-8 w-8 text-primary" />
+              Feed de Publicações
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              Publicações recentes do Advbox
+            </p>
+            <div className="mt-2">
+              <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchRecentPublications(true)}
+            disabled={loadingRecent}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loadingRecent ? 'animate-spin' : ''}`} />
+            Atualizar Dados
+          </Button>
         </div>
+
+        {metadata && <AdvboxCacheAlert metadata={metadata} />}
 
         {/* Busca e Filtros */}
         <div className="grid gap-4 md:grid-cols-2">
