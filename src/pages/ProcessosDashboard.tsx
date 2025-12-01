@@ -87,7 +87,7 @@ export default function ProcessosDashboard() {
   const [periodFilter, setPeriodFilter] = useState<string>('all');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [showAllStatuses, setShowAllStatuses] = useState(true);
-  const [evolutionPeriod, setEvolutionPeriod] = useState<string>('30'); // dias: 7, 30, 90, all
+  const [evolutionPeriod, setEvolutionPeriod] = useState<string>('all'); // dias: 7, 30, 90, all - padrão "all" para mostrar dados
   const [totalLawsuits, setTotalLawsuits] = useState<number | null>(cachedData?.totalLawsuits || null);
   const [totalMovements, setTotalMovements] = useState<number | null>(cachedData?.totalMovements || null);
   const [metadata, setMetadata] = useState<{ fromCache: boolean; rateLimited: boolean; cacheAge: number } | null>(cachedData?.metadata || null);
@@ -490,17 +490,25 @@ export default function ProcessosDashboard() {
     }
 
     // Contar processos novos usando data de criação ou data do processo
+    // Também considerar processos que não têm status_closure/exit_production/exit_execution como "novos" dentro do período
     const newProcesses = filteredForEvolution.filter((lawsuit) => {
       const createdDate = getCreatedOrProcessDate(lawsuit);
       if (!createdDate) return false;
-      return !startDate || isAfter(createdDate, startDate);
+      
+      // Se não tem startDate (todos os períodos), contar tudo com data válida
+      if (!startDate) return true;
+      
+      return isAfter(createdDate, startDate);
     }).length;
 
     // Contar processos arquivados usando a melhor data disponível de arquivamento/saída
     const archivedProcesses = filteredForEvolution.filter((lawsuit) => {
       const archiveDate = getArchiveDate(lawsuit);
       if (!archiveDate) return false;
-      return !startDate || isAfter(archiveDate, startDate);
+      
+      if (!startDate) return true;
+      
+      return isAfter(archiveDate, startDate);
     }).length;
 
     // Quebra por área (group)
