@@ -343,24 +343,22 @@ export default function ProcessosDashboard() {
       console.log('Lawsuits parsed:', lawsuitsArray.length, 'items');
       console.log('Movements parsed:', movementsArray.length, 'items');
 
-      const isRateLimitedEmptyLawsuits =
-        !!lawsuitsApiResponse?.metadata?.rateLimited && lawsuitsArray.length === 0;
-
-      // Se a API estiver rate limited e não retornou nenhum processo,
-      // mantemos os dados existentes (estado atual ou cache) para evitar zerar a tela
-      if (!isRateLimitedEmptyLawsuits || lawsuits.length === 0) {
-        setLawsuits(lawsuitsArray);
+      // Se a API retornar vazio mas já temos processos em memória,
+      // mantemos o estado atual para evitar zerar a página
+      if (lawsuitsArray.length === 0 && lawsuits.length > 0) {
+        console.warn('API retornou 0 processos, mantendo lista atual em memória.');
       } else {
-        console.warn('Rate limited em processos, mantendo dados existentes.');
+        setLawsuits(lawsuitsArray);
       }
 
       setMovements(movementsArray);
       const updateTime = new Date();
       setLastUpdate(updateTime);
       
-      // Extrair metadata
-      if (lawsuitsApiResponse?.metadata) {
-        setMetadata(lawsuitsApiResponse.metadata);
+      // Extrair metadata do nível raiz da resposta
+      const rootMetadata = (lawsuitsRes.data as any)?.metadata;
+      if (rootMetadata) {
+        setMetadata(rootMetadata);
       }
 
       const lawsuitsTotal = lawsuitsApiResponse?.totalCount || lawsuitsArray.length;
@@ -369,18 +367,22 @@ export default function ProcessosDashboard() {
       setTotalLawsuits(lawsuitsTotal);
       setTotalMovements(movementsTotal);
 
-      // Salvar dados no cache somente se não estivermos em rate limit com lista vazia
+      // Atualizar cache apenas quando tivermos dados de processos
       try {
-        if (!isRateLimitedEmptyLawsuits || !cachedData?.lawsuits?.length) {
+        if (lawsuitsArray.length > 0) {
           const cacheData = {
             lawsuits: lawsuitsArray,
             movements: movementsArray,
             totalLawsuits: lawsuitsTotal,
             totalMovements: movementsTotal,
-            metadata: lawsuitsApiResponse?.metadata || null,
+            metadata: rootMetadata || null,
           };
           localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
           localStorage.setItem(CACHE_TIMESTAMP_KEY, updateTime.toISOString());
+        } else if (!cachedData?.lawsuits?.length && lawsuits.length === 0) {
+          // Primeira vez sem dados nenhum: limpar cache para refletir estado vazio real
+          localStorage.removeItem(CACHE_KEY);
+          localStorage.removeItem(CACHE_TIMESTAMP_KEY);
         }
       } catch (cacheError) {
         console.error('Error saving to cache:', cacheError);
