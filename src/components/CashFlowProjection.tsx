@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowDownToLine, ArrowUpFromLine, TrendingUp, Wallet } from 'lucide-react';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { format, addMonths, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { format, addMonths, startOfMonth, endOfMonth, parseISO, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Transaction {
@@ -18,7 +18,20 @@ interface CashFlowProjectionProps {
 
 export function CashFlowProjection({ transactions }: CashFlowProjectionProps) {
   const getCashFlowData = () => {
-    if (transactions.length < 2) return null;
+    if (!transactions || transactions.length < 2) return null;
+
+    // Filtrar apenas transações com datas válidas
+    const validTransactions = transactions.filter((t) => {
+      if (!t.date) return false;
+      try {
+        const d = parseISO(t.date);
+        return !isNaN(d.getTime());
+      } catch {
+        return false;
+      }
+    });
+
+    if (validTransactions.length < 2) return null;
 
     // Agrupar dados históricos por mês
     const monthlyData: Record<
@@ -26,7 +39,7 @@ export function CashFlowProjection({ transactions }: CashFlowProjectionProps) {
       { income: number; expense: number; balance: number; date: Date }
     > = {};
 
-    transactions.forEach((t) => {
+    validTransactions.forEach((t) => {
       const date = parseISO(t.date);
       const monthKey = format(date, 'MM/yyyy');
 
@@ -124,11 +137,11 @@ export function CashFlowProjection({ transactions }: CashFlowProjectionProps) {
             <Wallet className="h-5 w-5" />
             Fluxo de Caixa Projetado
           </CardTitle>
-          <CardDescription>Dados insuficientes para projeção</CardDescription>
+          <CardDescription>Dados insuficientes ou inválidos para projeção</CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Requer pelo menos 2 meses de histórico para projetar fluxo de caixa.
+            Requer pelo menos 2 meses de histórico com datas válidas para projetar fluxo de caixa.
           </p>
         </CardContent>
       </Card>
