@@ -1027,7 +1027,20 @@ export default function ProcessosDashboard() {
               </CardTitle>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Período de Evolução:</span>
-                <Select value={evolutionPeriod} onValueChange={setEvolutionPeriod}>
+                <Select 
+                  value={evolutionPeriod} 
+                  onValueChange={(value) => {
+                    setEvolutionPeriod(value);
+                    // Quando muda o período, buscar processos recentes via API (exceto "all")
+                    if (value !== 'all') {
+                      loadRecentLawsuits(parseInt(value));
+                    } else {
+                      // Limpar filtro de recentes quando volta para "todos"
+                      setRecentLawsuits([]);
+                      setRecentLawsuitsStartDate(null);
+                    }
+                  }}
+                >
                   <SelectTrigger className="w-[180px]">
                     <SelectValue />
                   </SelectTrigger>
@@ -1038,6 +1051,9 @@ export default function ProcessosDashboard() {
                     <SelectItem value="all">Todos os períodos</SelectItem>
                   </SelectContent>
                 </Select>
+                {isLoadingRecent && (
+                  <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                )}
               </div>
             </CardHeader>
             <CardContent>
@@ -1048,6 +1064,7 @@ export default function ProcessosDashboard() {
                       <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
                       <p className="text-xs text-amber-700">
                         Dados parciais: {lawsuits.length.toLocaleString()} de {totalLawsuits?.toLocaleString() || '?'} processos carregados.
+                        <span className="block mt-1">Use o filtro de período acima para buscar processos novos diretamente pela API.</span>
                       </p>
                     </div>
                     <Button
@@ -1061,43 +1078,24 @@ export default function ProcessosDashboard() {
                     </Button>
                   </div>
                   
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs text-amber-700">Buscar processos recentes (usa filtro de data da API):</span>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => loadRecentLawsuits(7)}
-                        disabled={isLoadingRecent}
-                        className="text-xs h-7 px-2"
-                      >
-                        {isLoadingRecent ? '...' : '7 dias'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => loadRecentLawsuits(30)}
-                        disabled={isLoadingRecent}
-                        className="text-xs h-7 px-2"
-                      >
-                        {isLoadingRecent ? '...' : '30 dias'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => loadRecentLawsuits(90)}
-                        disabled={isLoadingRecent}
-                        className="text-xs h-7 px-2"
-                      >
-                        {isLoadingRecent ? '...' : '90 dias'}
-                      </Button>
-                    </div>
-                  </div>
-                  
                   {recentLawsuits.length > 0 && recentLawsuitsStartDate && (
-                    <div className="text-xs text-green-700 bg-green-500/10 p-2 rounded">
-                      Processos recentes (desde {format(new Date(recentLawsuitsStartDate), 'dd/MM/yyyy')}): 
-                      <strong> {recentLawsuits.length}</strong> encontrados
+                    <div className="text-xs text-green-700 bg-green-500/10 p-2 rounded flex items-center justify-between">
+                      <span>
+                        Processos novos (desde {format(new Date(recentLawsuitsStartDate), 'dd/MM/yyyy')}): 
+                        <strong> {recentLawsuits.length}</strong> encontrados via API
+                      </span>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-6 text-xs text-green-600"
+                        onClick={() => {
+                          setRecentLawsuits([]);
+                          setRecentLawsuitsStartDate(null);
+                          setEvolutionPeriod('all');
+                        }}
+                      >
+                        Limpar
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -1119,6 +1117,7 @@ export default function ProcessosDashboard() {
                       : (totalLawsuits ?? filteredLawsuits.length)}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">Processos {searchTerm || !showAllResponsibles ? 'Filtrados' : 'Ativos'}</div>
+                  <div className="text-xs text-muted-foreground/60 mt-0.5">Total no Advbox</div>
                 </div>
                 <div className="text-center p-4 bg-blue-500/5 rounded-lg">
                   <div className="text-3xl font-bold text-blue-600">
@@ -1135,33 +1134,30 @@ export default function ProcessosDashboard() {
                     </div>
                   )}
                 </div>
-                <div className="text-center p-4 bg-green-500/5 rounded-lg">
+                <div className="text-center p-4 bg-green-500/5 rounded-lg border-2 border-green-500/20">
                   <div className="text-3xl font-bold text-green-600">
-                    {recentLawsuits.length > 0 ? recentLawsuits.length : evolutionMetrics.newProcesses}
+                    {isLoadingRecent ? (
+                      <RefreshCw className="h-6 w-6 animate-spin mx-auto" />
+                    ) : recentLawsuits.length > 0 ? (
+                      recentLawsuits.length
+                    ) : evolutionPeriod === 'all' ? (
+                      hasCompleteData ? evolutionMetrics.newProcesses : '—'
+                    ) : (
+                      '—'
+                    )}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
                     Processos Novos
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
-                    {recentLawsuits.length > 0 && recentLawsuitsStartDate
-                      ? `Via API (desde ${format(new Date(recentLawsuitsStartDate), 'dd/MM')})`
-                      : evolutionPeriod === 'all' 
-                        ? (hasCompleteData ? 'Total geral' : 'Na amostra carregada') 
-                        : `Últimos ${evolutionPeriod} dias`}
+                    {isLoadingRecent 
+                      ? 'Buscando na API...'
+                      : recentLawsuits.length > 0 && recentLawsuitsStartDate
+                        ? `Via API (desde ${format(new Date(recentLawsuitsStartDate), 'dd/MM')})`
+                        : evolutionPeriod === 'all' 
+                          ? (hasCompleteData ? 'Total geral' : 'Selecione um período') 
+                          : `Últimos ${evolutionPeriod} dias`}
                   </div>
-                  {recentLawsuits.length > 0 && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="mt-1 h-6 text-xs text-green-600"
-                      onClick={() => {
-                        setRecentLawsuits([]);
-                        setRecentLawsuitsStartDate(null);
-                      }}
-                    >
-                      Limpar filtro
-                    </Button>
-                  )}
                 </div>
                 <div className="text-center p-4 bg-purple-500/5 rounded-lg">
                   <div className="text-3xl font-bold text-purple-600">
@@ -1176,10 +1172,18 @@ export default function ProcessosDashboard() {
                       : `Últimos ${evolutionPeriod} dias`}
                   </div>
                 </div>
-                <div className={`text-center p-4 rounded-lg ${netGrowth >= 0 ? 'bg-emerald-500/5' : 'bg-red-500/5'}`}>
-                  <div className={`text-3xl font-bold ${netGrowth >= 0 ? 'text-emerald-600' : 'text-red-600'} flex items-center justify-center gap-1`}>
-                    {netGrowth >= 0 ? '+' : ''}{netGrowth}
-                    {netGrowth >= 0 ? (
+                <div className={`text-center p-4 rounded-lg ${recentLawsuits.length > 0 ? (recentLawsuits.length - evolutionMetrics.archivedProcesses >= 0 ? 'bg-emerald-500/5' : 'bg-red-500/5') : (netGrowth >= 0 ? 'bg-emerald-500/5' : 'bg-red-500/5')}`}>
+                  <div className={`text-3xl font-bold ${recentLawsuits.length > 0 ? (recentLawsuits.length - evolutionMetrics.archivedProcesses >= 0 ? 'text-emerald-600' : 'text-red-600') : (netGrowth >= 0 ? 'text-emerald-600' : 'text-red-600')} flex items-center justify-center gap-1`}>
+                    {recentLawsuits.length > 0 ? (
+                      <>
+                        {recentLawsuits.length - evolutionMetrics.archivedProcesses >= 0 ? '+' : ''}{recentLawsuits.length - evolutionMetrics.archivedProcesses}
+                      </>
+                    ) : (
+                      <>
+                        {netGrowth >= 0 ? '+' : ''}{netGrowth}
+                      </>
+                    )}
+                    {(recentLawsuits.length > 0 ? (recentLawsuits.length - evolutionMetrics.archivedProcesses >= 0) : (netGrowth >= 0)) ? (
                       <TrendingUp className="h-5 w-5" />
                     ) : (
                       <TrendingUp className="h-5 w-5 rotate-180" />
