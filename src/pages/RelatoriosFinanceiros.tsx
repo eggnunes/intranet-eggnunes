@@ -71,8 +71,9 @@ export default function RelatoriosFinanceiros() {
 
       if (error) throw error;
 
-      // Ensure we always have an array
-      const transactionsData = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+      // A resposta vem como: { data: { data: { data: [...], offset, limit, totalCount } } }
+      const apiResponse = data?.data || data;
+      const transactionsData = apiResponse?.data || [];
       
       // Check if we got rate limited but have cached data
       if (data?.metadata?.rateLimited && transactionsData.length === 0) {

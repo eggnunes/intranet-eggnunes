@@ -97,23 +97,15 @@ export default function TarefasAdvbox() {
 
       if (error) throw error;
 
-      // Garantir que tasks seja sempre um array
-      let tasksData = [];
-      if (data?.data && Array.isArray(data.data)) {
-        tasksData = data.data;
-      } else if (Array.isArray(data)) {
-        tasksData = data;
-      } else if (data && typeof data === 'object' && !Array.isArray(data)) {
-        // Se data for um objeto, tentar extrair array de possíveis propriedades
-        tasksData = data.tasks || data.items || [];
-      }
+      // A resposta vem como: { data: { data: { data: [...], offset, limit, totalCount } } }
+      const apiResponse = data?.data || data;
+      const tasksData = apiResponse?.data || [];
 
       // Buscar prioridades do banco
       const { data: priorities } = await supabase
         .from('task_priorities')
         .select('task_id, priority');
 
-      // Mesclar prioridades com tarefas
       const tasksWithPriorities = tasksData.map((task: Task) => {
         const priorityData = priorities?.find((p) => p.task_id === task.id);
         return {

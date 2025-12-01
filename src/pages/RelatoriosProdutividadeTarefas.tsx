@@ -60,14 +60,9 @@ export default function RelatoriosProdutividadeTarefas() {
 
       if (error) throw error;
 
-      let tasksData = [];
-      if (data?.data && Array.isArray(data.data)) {
-        tasksData = data.data;
-      } else if (Array.isArray(data)) {
-        tasksData = data;
-      } else if (data && typeof data === 'object' && !Array.isArray(data)) {
-        tasksData = data.tasks || data.items || [];
-      }
+      // A resposta vem como: { data: { data: { data: [...], offset, limit, totalCount } } }
+      const apiResponse = data?.data || data;
+      const tasksData = apiResponse?.data || [];
 
       // Buscar prioridades do banco
       const { data: priorities } = await supabase
