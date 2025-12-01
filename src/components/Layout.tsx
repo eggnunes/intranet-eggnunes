@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
-import { LogOut, Home, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle } from 'lucide-react';
+import { LogOut, Home, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, MoreHorizontal } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
@@ -216,6 +216,24 @@ export const Layout = ({ children }: LayoutProps) => {
     { icon: TrendingUp, path: '/advbox-analytics', label: 'Analytics', description: 'Gráficos e métricas' },
   ];
 
+  const rhMenuItems = [
+    { icon: Cake, path: '/aniversarios', label: 'Aniversários', description: 'Aniversários da equipe' },
+    { icon: Users, path: '/equipe', label: 'Equipe', description: 'Membros da equipe' },
+    { icon: CalendarDays, path: '/ferias', label: 'Férias', description: 'Gestão de férias' },
+    { icon: BookOpen, path: '/onboarding', label: 'Onboarding', description: 'Materiais de integração' },
+  ];
+
+  const maisMenuItems = [
+    { icon: MessageSquare, path: '/forum', label: 'Fórum', description: 'Discussões da equipe' },
+    { icon: FileStack, path: '/documentos-uteis', label: 'Documentos', description: 'Documentos úteis' },
+    { icon: Lightbulb, path: '/sugestoes', label: 'Sugestões', description: 'Envie suas ideias' },
+    { icon: Camera, path: '/galeria-eventos', label: 'Galeria de Eventos', description: 'Fotos dos eventos' },
+    { icon: ClipboardIcon, path: '/solicitacoes-administrativas', label: 'Solicitações', description: 'Pedidos administrativos' },
+    { icon: UserCircle, path: '/profile', label: 'Perfil', description: 'Editar perfil' },
+    ...(isAdmin ? [{ icon: BarChart3, path: '/dashboard-sugestoes', label: 'Estatísticas', description: 'Dashboard de sugestões' }] : []),
+    { icon: History, path: '/historico', label: 'Histórico', description: 'Histórico de uso' },
+  ];
+
   const NavItems = () => (
     <>
       <Button 
@@ -241,54 +259,6 @@ export const Layout = ({ children }: LayoutProps) => {
       )}
       <Button 
         variant="ghost" 
-        onClick={() => { navigate('/forum'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <MessageSquare className="w-4 h-4" />
-        Fórum
-      </Button>
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/documentos-uteis'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <FileStack className="w-4 h-4" />
-        Documentos
-      </Button>
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/sugestoes'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <Lightbulb className="w-4 h-4" />
-        Sugestões
-      </Button>
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/aniversarios'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <Cake className="w-4 h-4" />
-        Aniversários
-      </Button>
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/equipe'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <Users className="w-4 h-4" />
-        Equipe
-      </Button>
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/onboarding'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <BookOpen className="w-4 h-4" />
-        Onboarding
-      </Button>
-      <Button 
-        variant="ghost" 
         onClick={() => { navigate('/mural-avisos'); setMobileMenuOpen(false); }}
         className="gap-2 justify-start relative"
       >
@@ -297,38 +267,6 @@ export const Layout = ({ children }: LayoutProps) => {
         {unreadAnnouncementsCount > 0 && (
           <Badge variant="destructive" className="ml-2">{unreadAnnouncementsCount}</Badge>
         )}
-      </Button>
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/galeria-eventos'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <Camera className="w-4 h-4" />
-        Galeria de Eventos
-      </Button>
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/ferias'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <CalendarDays className="w-4 h-4" />
-        Férias
-      </Button>
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/solicitacoes-administrativas'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <ClipboardIcon className="w-4 h-4" />
-        Solicitações
-      </Button>
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/profile'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <UserCircle className="w-4 h-4" />
-        Perfil
       </Button>
       <div className="px-2 py-2">
         <p className="text-xs font-semibold text-muted-foreground mb-2">ADVBOX</p>
@@ -347,24 +285,34 @@ export const Layout = ({ children }: LayoutProps) => {
           </Button>
         ))}
       </div>
-      {isAdmin && (
-        <Button 
-          variant="ghost" 
-          onClick={() => { navigate('/dashboard-sugestoes'); setMobileMenuOpen(false); }}
-          className="gap-2 justify-start"
-        >
-          <BarChart3 className="w-4 h-4" />
-          Estatísticas
-        </Button>
-      )}
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/historico'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <History className="w-4 h-4" />
-        Histórico
-      </Button>
+      <div className="px-2 py-2">
+        <p className="text-xs font-semibold text-muted-foreground mb-2">RH</p>
+        {rhMenuItems.map((item) => (
+          <Button 
+            key={item.path}
+            variant="ghost" 
+            onClick={() => { navigate(item.path); setMobileMenuOpen(false); }}
+            className="gap-2 justify-start w-full mb-1"
+          >
+            <item.icon className="w-4 h-4" />
+            {item.label}
+          </Button>
+        ))}
+      </div>
+      <div className="px-2 py-2">
+        <p className="text-xs font-semibold text-muted-foreground mb-2">MAIS</p>
+        {maisMenuItems.map((item) => (
+          <Button 
+            key={item.path}
+            variant="ghost" 
+            onClick={() => { navigate(item.path); setMobileMenuOpen(false); }}
+            className="gap-2 justify-start w-full mb-1"
+          >
+            <item.icon className="w-4 h-4" />
+            {item.label}
+          </Button>
+        ))}
+      </div>
     </>
   );
 
@@ -435,22 +383,6 @@ export const Layout = ({ children }: LayoutProps) => {
 
                 <Button 
                   variant="ghost" 
-                  onClick={() => navigate('/forum')}
-                  className="gap-2"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  Fórum
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  onClick={() => navigate('/sugestoes')}
-                  className="gap-2"
-                >
-                  <Lightbulb className="w-4 h-4" />
-                  Sugestões
-                </Button>
-                <Button 
-                  variant="ghost" 
                   onClick={() => navigate('/mural-avisos')}
                   className="gap-2 relative"
                 >
@@ -464,7 +396,7 @@ export const Layout = ({ children }: LayoutProps) => {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="gap-2">
-                      <ClipboardIcon className="w-4 h-4" />
+                      <Users className="w-4 h-4" />
                       RH
                       <ChevronDown className="w-3 h-3" />
                     </Button>
@@ -472,37 +404,47 @@ export const Layout = ({ children }: LayoutProps) => {
                   <DropdownMenuContent align="start" className="w-56 bg-card border-border z-50">
                     <DropdownMenuLabel>Recursos Humanos</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      onClick={() => navigate('/ferias')}
-                      className="gap-2 cursor-pointer"
-                    >
-                      <CalendarDays className="w-4 h-4" />
-                      <div className="flex flex-col">
-                        <span className="font-medium">Férias</span>
-                        <span className="text-xs text-muted-foreground">Gestão de férias</span>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={() => navigate('/solicitacoes-administrativas')}
-                      className="gap-2 cursor-pointer"
-                    >
-                      <ClipboardIcon className="w-4 h-4" />
-                      <div className="flex flex-col">
-                        <span className="font-medium">Solicitações</span>
-                        <span className="text-xs text-muted-foreground">Pedidos administrativos</span>
-                      </div>
-                    </DropdownMenuItem>
+                    {rhMenuItems.map((item) => (
+                      <DropdownMenuItem 
+                        key={item.path}
+                        onClick={() => navigate(item.path)}
+                        className="gap-2 cursor-pointer"
+                      >
+                        <item.icon className="w-4 h-4" />
+                        <div className="flex flex-col">
+                          <span className="font-medium">{item.label}</span>
+                          <span className="text-xs text-muted-foreground">{item.description}</span>
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
                 
-                <Button 
-                  variant="ghost" 
-                  onClick={() => navigate('/historico')}
-                  className="gap-2"
-                >
-                  <History className="w-4 h-4" />
-                  Histórico
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="gap-2">
+                      <MoreHorizontal className="w-4 h-4" />
+                      Mais
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56 bg-card border-border z-50">
+                    <DropdownMenuLabel>Outras Opções</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {maisMenuItems.map((item) => (
+                      <DropdownMenuItem 
+                        key={item.path}
+                        onClick={() => navigate(item.path)}
+                        className="gap-2 cursor-pointer"
+                      >
+                        <item.icon className="w-4 h-4" />
+                        <div className="flex flex-col">
+                          <span className="font-medium">{item.label}</span>
+                          <span className="text-xs text-muted-foreground">{item.description}</span>
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </nav>
             </div>
             <div className="flex items-center gap-4">
