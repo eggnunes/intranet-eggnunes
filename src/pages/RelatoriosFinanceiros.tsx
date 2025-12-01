@@ -24,6 +24,7 @@ import { FinancialPredictions } from '@/components/FinancialPredictions';
 import { FinancialDistribution } from '@/components/FinancialDistribution';
 import { CashFlowProjection } from '@/components/CashFlowProjection';
 import { ExecutiveDashboard } from '@/components/ExecutiveDashboard';
+import { FinancialDefaulters } from '@/components/FinancialDefaulters';
 
 interface Transaction {
   id: string;
@@ -420,7 +421,7 @@ export default function RelatoriosFinanceiros() {
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <DollarSign className="h-8 w-8 text-primary" />
-              Relatórios Financeiros
+              Financeiro
             </h1>
             <p className="text-muted-foreground mt-2">
               Acompanhe suas transações e relatórios financeiros
@@ -493,6 +494,9 @@ export default function RelatoriosFinanceiros() {
           growthRate={growthRate}
           period={periodFilter}
         />
+
+        {/* Inadimplentes */}
+        <FinancialDefaulters transactions={filteredTransactions} />
 
         {/* Fluxo de Caixa Projetado */}
         <CashFlowProjection transactions={filteredTransactions} />
