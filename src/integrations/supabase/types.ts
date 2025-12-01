@@ -220,6 +220,45 @@ export type Database = {
         }
         Relationships: []
       }
+      chatguru_birthday_messages_log: {
+        Row: {
+          chatguru_message_id: string | null
+          created_at: string | null
+          customer_id: string
+          customer_name: string
+          customer_phone: string
+          error_message: string | null
+          id: string
+          message_text: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          chatguru_message_id?: string | null
+          created_at?: string | null
+          customer_id: string
+          customer_name: string
+          customer_phone: string
+          error_message?: string | null
+          id?: string
+          message_text: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          chatguru_message_id?: string | null
+          created_at?: string | null
+          customer_id?: string
+          customer_name?: string
+          customer_phone?: string
+          error_message?: string | null
+          id?: string
+          message_text?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       customer_birthday_exclusions: {
         Row: {
           created_at: string
