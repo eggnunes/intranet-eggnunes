@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, Shield, Download, FileSpreadsheet, FileText, Percent, Receipt, Activity } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, Shield, Download, FileSpreadsheet, FileText, Percent, Receipt, Activity, ArrowRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -25,6 +25,7 @@ import { FinancialDistribution } from '@/components/FinancialDistribution';
 import { CashFlowProjection } from '@/components/CashFlowProjection';
 import { ExecutiveDashboard } from '@/components/ExecutiveDashboard';
 import { FinancialDefaulters } from '@/components/FinancialDefaulters';
+import { Link } from 'react-router-dom';
 
 interface Transaction {
   id: string;
@@ -497,6 +498,26 @@ export default function RelatoriosFinanceiros() {
 
         {/* Inadimplentes */}
         <FinancialDefaulters transactions={filteredTransactions} />
+
+        {/* Link para Gestão de Cobranças */}
+        <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              Sistema de Gestão de Cobranças
+            </CardTitle>
+            <CardDescription>
+              Acesse o dashboard completo de cobranças automáticas, histórico de mensagens e configuração de regras
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link to="/gestao-cobrancas">
+              <Button className="w-full sm:w-auto">
+                Acessar Gestão de Cobranças
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
 
         {/* Fluxo de Caixa Projetado */}
         <CashFlowProjection transactions={filteredTransactions} />
