@@ -48,23 +48,38 @@ export default function RelatoriosFinanceiros() {
   const { toast } = useToast();
   const { isAdmin, loading: roleLoading } = useUserRole();
 
-  useEffect(() => {
-    // Load cached transactions first
-    const cached = localStorage.getItem(STORAGE_KEY);
-    if (cached) {
-      try {
+  // Carregar cache imediatamente antes do componente montar
+  const loadFromCache = () => {
+    try {
+      const cached = localStorage.getItem(STORAGE_KEY);
+      if (cached) {
         const { transactions: cachedTransactions, timestamp } = JSON.parse(cached);
-        setTransactions(cachedTransactions);
-        setLastUpdate(new Date(timestamp));
-      } catch (error) {
-        console.error('Error loading cached transactions:', error);
+        return { transactions: cachedTransactions, timestamp: new Date(timestamp) };
       }
+    } catch (error) {
+      console.error('Error loading cached transactions:', error);
     }
+    return null;
+  };
+
+  const cachedData = loadFromCache();
+
+  useEffect(() => {
+    // Aplicar cache imediatamente se existir
+    if (cachedData && transactions.length === 0) {
+      setTransactions(cachedData.transactions);
+      setLastUpdate(cachedData.timestamp);
+      setLoading(false);
+    }
+    // Buscar dados atualizados em background
     fetchTransactions();
   }, []);
 
   const fetchTransactions = async (forceRefresh = false) => {
-    setLoading(true);
+    // Só mostrar loading se não tem dados em cache
+    if (transactions.length === 0) {
+      setLoading(true);
+    }
     setRateLimitError(false);
     try {
       const { data, error } = await supabase.functions.invoke('advbox-integration/transactions', {

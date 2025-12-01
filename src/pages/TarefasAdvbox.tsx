@@ -37,9 +37,30 @@ interface Task {
   notes?: string;
 }
 
+const CACHE_KEY = 'advbox-tarefas-cache';
+const CACHE_TIMESTAMP_KEY = 'advbox-tarefas-cache-timestamp';
+
+const loadFromCache = () => {
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    const timestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+    if (cached && timestamp) {
+      const data = JSON.parse(cached);
+      return {
+        tasks: data,
+        lastUpdate: new Date(timestamp)
+      };
+    }
+  } catch (error) {
+    console.error('Error loading tasks from cache:', error);
+  }
+  return null;
+};
+
 export default function TarefasAdvbox() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cachedData = loadFromCache();
+  const [tasks, setTasks] = useState<Task[]>(cachedData?.tasks || []);
+  const [loading, setLoading] = useState(!cachedData);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [newTask, setNewTask] = useState({
@@ -55,7 +76,7 @@ export default function TarefasAdvbox() {
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [allUsers, setAllUsers] = useState<Array<{ id: string; full_name: string }>>([]);
   const [metadata, setMetadata] = useState<any>(null);
-  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
+  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(cachedData?.lastUpdate);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [assignedFilter, setAssignedFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
@@ -89,7 +110,11 @@ export default function TarefasAdvbox() {
   };
 
   const fetchTasks = async (forceRefresh = false) => {
-    setLoading(true);
+    // Só mostrar loading se não tiver cache
+    if (!cachedData) {
+      setLoading(true);
+    }
+    
     try {
       const { data, error } = await supabase.functions.invoke('advbox-integration/tasks', {
         body: { force_refresh: forceRefresh },
@@ -100,6 +125,14 @@ export default function TarefasAdvbox() {
       // A resposta vem como: { data: { data: { data: [...], offset, limit, totalCount } } }
       const apiResponse = data?.data || data;
       const tasksData = apiResponse?.data || [];
+
+      // Se não recebeu dados válidos mas tinha cache, manter o cache
+      if (tasksData.length === 0 && tasks.length > 0 && !forceRefresh) {
+        console.log('No new data received, keeping cached tasks');
+        setMetadata(data?.metadata);
+        setLoading(false);
+        return;
+      }
 
       // Buscar prioridades do banco
       const { data: priorities } = await supabase
@@ -114,7 +147,13 @@ export default function TarefasAdvbox() {
         };
       });
       
-      setTasks(Array.isArray(tasksWithPriorities) ? tasksWithPriorities : []);
+      if (tasksWithPriorities.length > 0) {
+        setTasks(tasksWithPriorities);
+        // Salvar no cache
+        localStorage.setItem(CACHE_KEY, JSON.stringify(tasksWithPriorities));
+        localStorage.setItem(CACHE_TIMESTAMP_KEY, new Date().toISOString());
+      }
+      
       setMetadata(data?.metadata);
       setLastUpdate(new Date());
 
@@ -126,12 +165,19 @@ export default function TarefasAdvbox() {
       }
     } catch (error) {
       console.error('Error fetching tasks:', error);
-      setTasks([]); // Garantir que tasks seja array mesmo em caso de erro
-      toast({
-        title: 'Erro ao carregar tarefas',
-        description: 'Não foi possível carregar as tarefas do Advbox.',
-        variant: 'destructive',
-      });
+      // Manter dados em cache em caso de erro
+      if (tasks.length === 0) {
+        toast({
+          title: 'Erro ao carregar tarefas',
+          description: 'Não foi possível carregar as tarefas do Advbox.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Usando dados em cache',
+          description: 'Não foi possível atualizar. Mostrando dados salvos anteriormente.',
+        });
+      }
     } finally {
       setLoading(false);
     }
