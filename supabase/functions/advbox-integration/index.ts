@@ -1,4 +1,4 @@
-// Advbox Integration Edge Function
+// Advbox Integration Edge Function - Complete Data Fetch
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,9 +13,12 @@ const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 // Cache simples em memória (válido durante a vida da instância)
 const cache = new Map<string, { data: any; timestamp: number; fromCache?: boolean; rateLimited?: boolean }>();
 
+// Status de operações em andamento
+const fetchStatus = new Map<string, { inProgress: boolean; startedAt: number; progress: string; error?: string }>();
+
 // Valores padrão caso não consiga buscar do banco
 let CACHE_TTL = 5 * 60 * 1000; // 5 minutos
-let DELAY_BETWEEN_REQUESTS = 500; // 500ms entre cada request
+let DELAY_BETWEEN_REQUESTS = 1500; // 1.5s entre cada request para evitar rate limit
 
 // Buscar configurações do banco
 async function loadSettings() {
@@ -31,7 +34,7 @@ async function loadSettings() {
       const data = await response.json();
       if (data && data.length > 0) {
         CACHE_TTL = data[0].cache_ttl_minutes * 60 * 1000;
-        DELAY_BETWEEN_REQUESTS = data[0].delay_between_requests_ms;
+        DELAY_BETWEEN_REQUESTS = Math.max(data[0].delay_between_requests_ms, 1000); // Mínimo 1s
         console.log(`Settings loaded: cache_ttl=${CACHE_TTL}ms, delay=${DELAY_BETWEEN_REQUESTS}ms`);
       }
     }
@@ -55,10 +58,9 @@ interface AdvboxRequestOptions {
 
 async function makeAdvboxRequest({ endpoint, method = 'GET', body }: AdvboxRequestOptions, retryCount = 0): Promise<any> {
   const url = `${ADVBOX_API_BASE}${endpoint}`;
-  const maxRetries = 3;
+  const maxRetries = 5;
   
   console.log(`Making ${method} request to Advbox:`, url);
-  console.log('Using token:', ADVBOX_TOKEN ? 'Token configured' : 'NO TOKEN');
   
   const options: RequestInit = {
     method,
@@ -80,17 +82,16 @@ async function makeAdvboxRequest({ endpoint, method = 'GET', body }: AdvboxReque
     
     // Se recebeu 429 (Too Many Requests), aguardar e tentar novamente
     if (response.status === 429 && retryCount < maxRetries) {
-      const waitTime = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s
+      const waitTime = Math.pow(2, retryCount) * 2000; // Exponential backoff: 2s, 4s, 8s, 16s, 32s
       console.log(`Rate limited. Waiting ${waitTime}ms before retry ${retryCount + 1}/${maxRetries}`);
       await sleep(waitTime);
       return makeAdvboxRequest({ endpoint, method, body }, retryCount + 1);
     }
     
     const responseText = await response.text();
-    console.log('Response body (first 500 chars):', responseText.substring(0, 500));
     
     if (!response.ok) {
-      console.error('Advbox API error:', response.status, responseText);
+      console.error('Advbox API error:', response.status, responseText.substring(0, 200));
       throw new Error(`Advbox API error: ${response.status} - ${responseText.substring(0, 200)}`);
     }
 
@@ -110,53 +111,84 @@ async function makeAdvboxRequest({ endpoint, method = 'GET', body }: AdvboxReque
   }
 }
 
-// Função para buscar todos os dados com paginação (com throttling)
-async function fetchAllPaginated(endpoint: string, limit = 1000): Promise<any[]> {
+// Função para buscar todos os dados com paginação COMPLETA
+async function fetchAllPaginatedComplete(
+  endpoint: string, 
+  cacheKey: string,
+  limit = 1000, 
+  maxPages = 100
+): Promise<{ items: any[]; totalCount: number; pagesLoaded: number }> {
   let allData: any[] = [];
   let page = 1;
   let hasMore = true;
+  let totalCount = 0;
   
-  console.log(`Starting paginated fetch for: ${endpoint}`);
+  console.log(`Starting COMPLETE paginated fetch for: ${endpoint}`);
+  fetchStatus.set(cacheKey, { inProgress: true, startedAt: Date.now(), progress: 'Iniciando...' });
   
-  while (hasMore) {
-    // Aguardar antes de cada request para evitar rate limit
-    if (page > 1) {
-      await sleep(DELAY_BETWEEN_REQUESTS);
-    }
-    
-    const response = await makeAdvboxRequest({ 
-      endpoint: `${endpoint}${endpoint.includes('?') ? '&' : '?'}limit=${limit}&page=${page}` 
-    });
-    
-    const items = response.data || [];
-    console.log(`Page ${page}: fetched ${items.length} items`);
-    
-    if (items.length === 0) {
-      hasMore = false;
-    } else {
-      allData = allData.concat(items);
+  try {
+    while (hasMore && page <= maxPages) {
+      // Aguardar antes de cada request para evitar rate limit
+      if (page > 1) {
+        await sleep(DELAY_BETWEEN_REQUESTS);
+      }
       
-      // Se retornou menos que o limite, não há mais páginas
-      if (items.length < limit) {
+      fetchStatus.set(cacheKey, { 
+        inProgress: true, 
+        startedAt: fetchStatus.get(cacheKey)?.startedAt || Date.now(), 
+        progress: `Buscando página ${page}... (${allData.length} itens carregados)` 
+      });
+      
+      const response = await makeAdvboxRequest({ 
+        endpoint: `${endpoint}${endpoint.includes('?') ? '&' : '?'}limit=${limit}&page=${page}` 
+      });
+      
+      const items = response.data || [];
+      totalCount = response.totalCount || totalCount || items.length;
+      
+      console.log(`Page ${page}: fetched ${items.length} items (total so far: ${allData.length + items.length}/${totalCount})`);
+      
+      if (items.length === 0) {
         hasMore = false;
       } else {
-        page++;
+        allData = allData.concat(items);
+        
+        // Se retornou menos que o limite ou já temos todos, não há mais páginas
+        if (items.length < limit || allData.length >= totalCount) {
+          hasMore = false;
+        } else {
+          page++;
+        }
       }
     }
     
-    // Limite de segurança: não buscar mais de 50 páginas
-    if (page > 50) {
-      console.warn('Reached maximum page limit (50)');
-      hasMore = false;
-    }
+    console.log(`COMPLETE fetch finished: ${allData.length} items in ${page} pages`);
+    fetchStatus.set(cacheKey, { 
+      inProgress: false, 
+      startedAt: fetchStatus.get(cacheKey)?.startedAt || Date.now(), 
+      progress: `Completo: ${allData.length} itens carregados` 
+    });
+    
+    return { items: allData, totalCount, pagesLoaded: page };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`Error during paginated fetch for ${cacheKey}:`, errorMsg);
+    fetchStatus.set(cacheKey, { 
+      inProgress: false, 
+      startedAt: fetchStatus.get(cacheKey)?.startedAt || Date.now(), 
+      progress: `Erro: ${errorMsg.substring(0, 100)}`,
+      error: errorMsg
+    });
+    throw error;
   }
-  
-  console.log(`Total fetched: ${allData.length} items`);
-  return allData;
 }
 
 // Função para obter dados do cache ou buscar da API
-async function getCachedOrFetch(cacheKey: string, fetchFn: () => Promise<any>, forceRefresh = false): Promise<{ data: any; metadata: { fromCache: boolean; rateLimited: boolean; cacheAge: number } }> {
+async function getCachedOrFetch(
+  cacheKey: string, 
+  fetchFn: () => Promise<any>, 
+  forceRefresh = false
+): Promise<{ data: any; metadata: { fromCache: boolean; rateLimited: boolean; cacheAge: number } }> {
   const now = Date.now();
   const cached = cache.get(cacheKey);
   
@@ -242,6 +274,20 @@ async function getCachedOrFetch(cacheKey: string, fetchFn: () => Promise<any>, f
   }
 }
 
+// Helper para extrair items de diferentes formatos de cache
+function extractItems(cachedData: any): any[] {
+  if (Array.isArray(cachedData)) return cachedData;
+  if (Array.isArray(cachedData?.items)) return cachedData.items;
+  if (Array.isArray(cachedData?.data)) return cachedData.data;
+  return [];
+}
+
+// Helper para extrair totalCount de diferentes formatos
+function extractTotalCount(cachedData: any, fallback: number): number {
+  if (!cachedData) return fallback;
+  return cachedData.totalCount ?? cachedData.total ?? cachedData.count ?? fallback;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -255,7 +301,83 @@ Deno.serve(async (req) => {
     console.log('Advbox integration called:', path, 'force_refresh:', forceRefresh);
 
     switch (path) {
-      // Dashboard de Processos
+      // ========== PROCESSOS (LAWSUITS) ==========
+      
+      // Endpoint COMPLETO - busca TODOS os processos com paginação
+      case 'lawsuits-full': {
+        console.log('Fetching ALL lawsuits with complete pagination...');
+        const cacheKey = 'lawsuits-full';
+        
+        // Verificar se já temos dados completos em cache
+        const cached = cache.get(cacheKey);
+        const now = Date.now();
+        
+        if (!forceRefresh && cached && (now - cached.timestamp) < CACHE_TTL) {
+          const items = extractItems(cached.data);
+          const totalCount = extractTotalCount(cached.data, items.length);
+          console.log(`Cache hit for lawsuits-full: ${items.length} items`);
+          
+          return new Response(JSON.stringify({
+            data: items,
+            totalCount,
+            isComplete: items.length >= totalCount,
+            metadata: {
+              fromCache: true,
+              rateLimited: false,
+              cacheAge: Math.floor((now - cached.timestamp) / 1000),
+            },
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        // Buscar todos os processos com paginação completa
+        try {
+          const result = await fetchAllPaginatedComplete('/lawsuits', cacheKey, 1000, 50);
+          
+          // Salvar no cache
+          cache.set(cacheKey, { 
+            data: { items: result.items, totalCount: result.totalCount },
+            timestamp: now,
+          });
+          
+          return new Response(JSON.stringify({
+            data: result.items,
+            totalCount: result.totalCount,
+            pagesLoaded: result.pagesLoaded,
+            isComplete: result.items.length >= result.totalCount,
+            metadata: {
+              fromCache: false,
+              rateLimited: false,
+              cacheAge: 0,
+            },
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          // Se falhar, retornar cache existente se disponível
+          if (cached) {
+            const items = extractItems(cached.data);
+            const totalCount = extractTotalCount(cached.data, items.length);
+            return new Response(JSON.stringify({
+              data: items,
+              totalCount,
+              isComplete: items.length >= totalCount,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              metadata: {
+                fromCache: true,
+                rateLimited: true,
+                cacheAge: Math.floor((now - cached.timestamp) / 1000),
+              },
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          throw error;
+        }
+      }
+
+      // Endpoint rápido - busca apenas primeira página (para carregamento inicial)
       case 'lawsuits': {
         console.log('Fetching lawsuits first page with totalCount...');
         const rawResult = await getCachedOrFetch(
@@ -263,38 +385,27 @@ Deno.serve(async (req) => {
           async () => {
             const response = await makeAdvboxRequest({ endpoint: '/lawsuits?limit=1000&page=1' });
             const items = Array.isArray(response.data) ? response.data : [];
-            const totalCount =
-              typeof response.totalCount === 'number' ? response.totalCount : items.length;
+            const totalCount = typeof response.totalCount === 'number' ? response.totalCount : items.length;
             return { items, totalCount };
           },
           forceRefresh
         );
 
-        // Suporta formatos antigos de cache em que "data" era apenas um array
-        const cachedData: any = rawResult.data;
-        const items: any[] = Array.isArray(cachedData)
-          ? cachedData
-          : Array.isArray(cachedData?.items)
-          ? cachedData.items
-          : Array.isArray(cachedData?.data)
-          ? cachedData.data
-          : [];
+        const items = extractItems(rawResult.data);
+        const totalCount = extractTotalCount(rawResult.data, items.length);
 
-        const totalCount =
-          (cachedData && (cachedData.totalCount ?? cachedData.total ?? cachedData.count)) ??
-          items.length;
-
-        const responseBody = {
+        return new Response(JSON.stringify({
           data: items,
           metadata: rawResult.metadata,
           totalCount,
-        };
-
-        return new Response(JSON.stringify(responseBody), {
+          isPartial: items.length < totalCount,
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
+      // ========== MOVIMENTAÇÕES ==========
+      
       case 'last-movements': {
         console.log('Fetching movements first page with totalCount...');
         const rawResult = await getCachedOrFetch(
@@ -302,33 +413,20 @@ Deno.serve(async (req) => {
           async () => {
             const response = await makeAdvboxRequest({ endpoint: '/last_movements?limit=1000&page=1' });
             const items = Array.isArray(response.data) ? response.data : [];
-            const totalCount =
-              typeof response.totalCount === 'number' ? response.totalCount : items.length;
+            const totalCount = typeof response.totalCount === 'number' ? response.totalCount : items.length;
             return { items, totalCount };
           },
           forceRefresh
         );
 
-        const cachedData: any = rawResult.data;
-        const items: any[] = Array.isArray(cachedData)
-          ? cachedData
-          : Array.isArray(cachedData?.items)
-          ? cachedData.items
-          : Array.isArray(cachedData?.data)
-          ? cachedData.data
-          : [];
+        const items = extractItems(rawResult.data);
+        const totalCount = extractTotalCount(rawResult.data, items.length);
 
-        const totalCount =
-          (cachedData && (cachedData.totalCount ?? cachedData.total ?? cachedData.count)) ??
-          items.length;
-
-        const responseBody = {
+        return new Response(JSON.stringify({
           data: items,
           metadata: rawResult.metadata,
           totalCount,
-        };
-
-        return new Response(JSON.stringify(responseBody), {
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
@@ -374,7 +472,8 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Clientes e Aniversários
+      // ========== CLIENTES E ANIVERSÁRIOS ==========
+      
       case 'customers': {
         const result = await getCachedOrFetch('customers', async () => {
           return await makeAdvboxRequest({ endpoint: '/customers' });
@@ -393,15 +492,19 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Publicações
+      // ========== PUBLICAÇÕES ==========
+      
       case 'recent-publications': {
         console.log('Fetching recent publications from movements...');
         const result = await getCachedOrFetch('last-movements', async () => {
-          return await fetchAllPaginated('/last_movements', 1000);
+          // Buscar com paginação para ter mais publicações
+          const response = await makeAdvboxRequest({ endpoint: '/last_movements?limit=1000&page=1' });
+          return response.data || [];
         }, forceRefresh);
         
         // Filtrar apenas movimentações do tipo publicação
-        const publications = result.data.filter((movement: any) => 
+        const allData = extractItems(result.data);
+        const publications = allData.filter((movement: any) => 
           movement.type === 'publication' || 
           movement.description?.toLowerCase().includes('publicação') ||
           movement.description?.toLowerCase().includes('publicacao')
@@ -442,7 +545,8 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Tarefas (Posts)
+      // ========== TAREFAS (POSTS) ==========
+      
       case 'tasks': {
         const result = await getCachedOrFetch('tasks', async () => {
           return await makeAdvboxRequest({ endpoint: '/posts' });
@@ -496,12 +600,26 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Transações Financeiras
+      // ========== TRANSAÇÕES FINANCEIRAS ==========
+      
       case 'transactions': {
         const result = await getCachedOrFetch('transactions', async () => {
           return await makeAdvboxRequest({ endpoint: '/transactions' });
         }, forceRefresh);
         return new Response(JSON.stringify(result), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // ========== STATUS E CONTROLE ==========
+      
+      case 'fetch-status': {
+        const statusKey = url.searchParams.get('key') || 'lawsuits-full';
+        const status = fetchStatus.get(statusKey);
+        return new Response(JSON.stringify({
+          key: statusKey,
+          status: status || { inProgress: false, progress: 'Nenhuma operação em andamento' },
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
