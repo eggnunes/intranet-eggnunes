@@ -6,40 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Template de mensagens por faixa de dias em atraso
-const getMessageTemplate = (daysOverdue: number, customerName: string, amount: number): { templateName: string, text: string } => {
-  const formattedAmount = new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(amount);
-
-  if (daysOverdue <= 3) {
-    return {
-      templateName: 'inadimplencia_2_dias',
-      text: `Olá ${customerName}, notamos que seu pagamento de ${formattedAmount} está com ${daysOverdue} dia(s) de atraso. Por favor, regularize sua situação o quanto antes. Caso já tenha efetuado o pagamento, desconsidere esta mensagem.`
-    };
-  } else if (daysOverdue <= 10) {
-    return {
-      templateName: 'inadimplencia_7_dias',
-      text: `Prezado(a) ${customerName}, seu pagamento de ${formattedAmount} está com ${daysOverdue} dias de atraso. É importante regularizar essa pendência para evitar juros e multas adicionais. Entre em contato conosco caso tenha alguma dúvida.`
-    };
-  } else if (daysOverdue <= 20) {
-    return {
-      templateName: 'inadimplencia_15_dias',
-      text: `Atenção ${customerName}! Seu débito de ${formattedAmount} está com ${daysOverdue} dias de atraso. Estamos à disposição para negociar formas de pagamento. Entre em contato urgentemente.`
-    };
-  } else if (daysOverdue <= 35) {
-    return {
-      templateName: 'inadimplencia_25_dias',
-      text: `URGENTE - ${customerName}, sua dívida de ${formattedAmount} está ${daysOverdue} dias atrasada. Para evitar medidas judiciais, entre em contato imediatamente para negociação.`
-    };
-  } else {
-    return {
-      templateName: 'inadimplencia_40_dias',
-      text: `ÚLTIMA NOTIFICAÇÃO - ${customerName}, seu débito de ${formattedAmount} está com ${daysOverdue} dias de atraso. Sem a regularização imediata, tomaremos medidas cabíveis. Contate-nos com urgência.`
-    };
-  }
-};
+// Template aprovado pela Meta para cobrança
+const TEMPLATE_NAME = 'boletoematraso';
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -86,12 +54,9 @@ serve(async (req) => {
       throw new Error('Número de telefone inválido');
     }
 
-    // Obter template de mensagem baseado nos dias de atraso
-    const { templateName, text } = getMessageTemplate(daysOverdue, customerName, amount);
+    console.log('Sending collection message using template:', TEMPLATE_NAME);
 
-    console.log('Using template:', templateName);
-
-    // Enviar mensagem via ChatGuru
+    // Enviar mensagem via ChatGuru usando template aprovado
     const chatguruResponse = await fetch('https://api.chatguru.app/api/v1/messages', {
       method: 'POST',
       headers: {
@@ -102,9 +67,23 @@ serve(async (req) => {
         account_id: Deno.env.get('CHATGURU_ACCOUNT_ID'),
         phone_id: Deno.env.get('CHATGURU_PHONE_ID'),
         to: `55${normalizedPhone}`, // Adiciona código do Brasil
-        type: 'text',
-        text: {
-          body: text
+        type: 'template',
+        template: {
+          name: TEMPLATE_NAME,
+          language: {
+            code: 'pt_BR'
+          },
+          components: [
+            {
+              type: 'body',
+              parameters: [
+                {
+                  type: 'text',
+                  text: customerName
+                }
+              ]
+            }
+          ]
         }
       }),
     });
@@ -135,8 +114,8 @@ serve(async (req) => {
         customer_name: customerName,
         customer_phone: normalizedPhone,
         days_overdue: daysOverdue,
-        message_template: templateName,
-        message_text: text,
+        message_template: TEMPLATE_NAME,
+        message_text: `Template: ${TEMPLATE_NAME} | Cliente: ${customerName}`,
         status: 'sent',
         chatguru_message_id: chatguruData.id || null,
         sent_at: new Date().toISOString(),
@@ -151,7 +130,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         messageId: chatguruData.id,
-        template: templateName 
+        template: TEMPLATE_NAME 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
