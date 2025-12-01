@@ -94,10 +94,13 @@ export default function AniversariosClientes() {
         throw error;
       }
 
-      const responseData = (data as any)?.data || data;
-      const rawCustomers: any[] = Array.isArray(responseData) ? responseData : [];
+      // A resposta vem como: { data: { data: { data: [...], offset, limit, totalCount } } }
+      const apiResponse = (data as any)?.data || data;
+      const rawCustomers: any[] = apiResponse?.data || [];
       setMetadata((data as any)?.metadata);
       setLastUpdate(new Date());
+
+      console.log('Parsed customers array:', rawCustomers);
 
       const normalizedCustomers: Customer[] = rawCustomers
         .map((c) => {

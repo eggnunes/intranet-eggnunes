@@ -57,7 +57,8 @@ export default function PublicacoesFeed() {
       
       if (lawsuitsError) throw lawsuitsError;
 
-      const lawsuits = lawsuitsData?.data || [];
+      const apiResponse = lawsuitsData?.data || lawsuitsData;
+      const lawsuits = apiResponse?.data || [];
       const processNumber = selectedPublication.process_number || selectedPublication.lawsuit_number || '';
       
       // Buscar o processo correspondente
@@ -137,8 +138,9 @@ export default function PublicacoesFeed() {
 
       if (error) throw error;
 
-      const allPubs = data?.data || [];
-      setMetadata(data?.metadata);
+      const apiResponse = data?.data || data;
+      const allPubs = apiResponse?.data || [];
+      setMetadata(data?.metadata || apiResponse?.metadata);
       setLastUpdate(new Date());
       
       const mappedPubs: Publication[] = allPubs.map((movement: any, index: number) => ({

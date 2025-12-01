@@ -101,8 +101,9 @@ export default function ProcessosDashboard() {
           'advbox-integration/lawsuits'
         );
 
-        if (!lawsuitsError) {
-          const refreshed = (lawsuitsData as any)?.data || lawsuitsData || [];
+        if (!lawsuitsError && lawsuitsData) {
+          const apiResponse = lawsuitsData?.data || lawsuitsData;
+          const refreshed = apiResponse?.data || [];
           setLawsuits(refreshed);
           lawsuit = (refreshed as any[]).find(
             (l: any) =>
@@ -309,33 +310,27 @@ export default function ProcessosDashboard() {
       if (lawsuitsRes.error) throw lawsuitsRes.error;
       if (movementsRes.error) throw movementsRes.error;
 
-      const lawsuitsData: any = lawsuitsRes.data;
-      const movementsData: any = movementsRes.data;
+      // A resposta vem como: { data: { data: { data: [...], offset, limit, totalCount } } }
+      const lawsuitsApiResponse = lawsuitsRes.data?.data || lawsuitsRes.data;
+      const movementsApiResponse = movementsRes.data?.data || movementsRes.data;
 
-      setLawsuits(lawsuitsData?.data || []);
-      setMovements(movementsData?.data || []);
+      const lawsuitsArray = lawsuitsApiResponse?.data || [];
+      const movementsArray = movementsApiResponse?.data || [];
+
+      console.log('Lawsuits parsed:', lawsuitsArray.length, 'items');
+      console.log('Movements parsed:', movementsArray.length, 'items');
+
+      setLawsuits(lawsuitsArray);
+      setMovements(movementsArray);
       setLastUpdate(new Date());
       
       // Extrair metadata
-      if (lawsuitsData?.metadata) {
-        setMetadata(lawsuitsData.metadata);
+      if (lawsuitsApiResponse?.metadata) {
+        setMetadata(lawsuitsApiResponse.metadata);
       }
 
-      const lawsuitsTotal = typeof lawsuitsData?.totalCount === 'number'
-        ? lawsuitsData.totalCount
-        : Array.isArray(lawsuitsData?.data)
-          ? lawsuitsData.data.length
-          : Array.isArray(lawsuitsData)
-            ? lawsuitsData.length
-            : 0;
-
-      const movementsTotal = typeof movementsData?.totalCount === 'number'
-        ? movementsData.totalCount
-        : Array.isArray(movementsData?.data)
-          ? movementsData.data.length
-          : Array.isArray(movementsData)
-            ? movementsData.length
-            : 0;
+      const lawsuitsTotal = lawsuitsApiResponse?.totalCount || lawsuitsArray.length;
+      const movementsTotal = movementsApiResponse?.totalCount || movementsArray.length;
 
       setTotalLawsuits(lawsuitsTotal);
       setTotalMovements(movementsTotal);

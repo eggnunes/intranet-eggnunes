@@ -66,10 +66,16 @@ export default function AdvboxAnalytics() {
         supabase.functions.invoke(`advbox-integration/transactions${refreshParam}`),
       ]);
 
-      setLawsuits(lawsuitsRes.data?.data || []);
-      setPublications(publicationsRes.data?.data || []);
-      setTasks(tasksRes.data?.data || tasksRes.data || []);
-      setTransactions(transactionsRes.data?.data || transactionsRes.data || []);
+      // Parse responses properly
+      const lawsuitsApiResponse = lawsuitsRes.data?.data || lawsuitsRes.data;
+      const publicationsApiResponse = publicationsRes.data?.data || publicationsRes.data;
+      const tasksApiResponse = tasksRes.data?.data || tasksRes.data;
+      const transactionsApiResponse = transactionsRes.data?.data || transactionsRes.data;
+
+      setLawsuits(lawsuitsApiResponse?.data || []);
+      setPublications(publicationsApiResponse?.data || []);
+      setTasks(tasksApiResponse?.data || []);
+      setTransactions(transactionsApiResponse?.data || []);
       setMetadata(lawsuitsRes.data?.metadata);
       setLastUpdate(new Date());
 
