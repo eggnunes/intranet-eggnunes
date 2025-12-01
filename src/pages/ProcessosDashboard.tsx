@@ -333,10 +333,19 @@ export default function ProcessosDashboard() {
       if (lawsuitsRes.error) throw lawsuitsRes.error;
       if (movementsRes.error) throw movementsRes.error;
 
-      // A resposta vem como: { data: [...], metadata: {...} }
-      // para ambos endpoints (lawsuits e last-movements)
-      const lawsuitsArray: Lawsuit[] = (lawsuitsRes.data as any)?.data || [];
-      const movementsArray: Movement[] = (movementsRes.data as any)?.data || [];
+      // A resposta pode vir como:
+      // 1) { data: [...], metadata: {...} }
+      // 2) [...]
+      const rawLawsuits = lawsuitsRes.data as any;
+      const rawMovements = movementsRes.data as any;
+
+      const lawsuitsArray: Lawsuit[] = Array.isArray(rawLawsuits)
+        ? rawLawsuits
+        : (rawLawsuits?.data as Lawsuit[]) || [];
+
+      const movementsArray: Movement[] = Array.isArray(rawMovements)
+        ? rawMovements
+        : (rawMovements?.data as Movement[]) || [];
 
       console.log('Lawsuits parsed:', lawsuitsArray.length, 'items');
       console.log('Movements parsed:', movementsArray.length, 'items');
@@ -353,8 +362,8 @@ export default function ProcessosDashboard() {
       const updateTime = new Date();
       setLastUpdate(updateTime);
       
-      // Extrair metadata do nível raiz da resposta
-      const rootMetadata = (lawsuitsRes.data as any)?.metadata;
+      // Extrair metadata do nível raiz da resposta, se existir
+      const rootMetadata = !Array.isArray(rawLawsuits) ? rawLawsuits?.metadata : undefined;
       if (rootMetadata) {
         setMetadata(rootMetadata);
       }
