@@ -334,18 +334,21 @@ export default function ProcessosDashboard() {
       if (movementsRes.error) throw movementsRes.error;
 
       // A resposta pode vir como:
-      // 1) { data: [...], metadata: {...} }
+      // 1) { data: [...], metadata: {...}, totalCount?: number }
       // 2) [...]
       const rawLawsuits = lawsuitsRes.data as any;
       const rawMovements = movementsRes.data as any;
 
-      const lawsuitsArray: Lawsuit[] = Array.isArray(rawLawsuits)
-        ? rawLawsuits
-        : (rawLawsuits?.data as Lawsuit[]) || [];
+      const lawsuitsPayload = Array.isArray(rawLawsuits)
+        ? { data: rawLawsuits }
+        : (rawLawsuits || {});
 
-      const movementsArray: Movement[] = Array.isArray(rawMovements)
-        ? rawMovements
-        : (rawMovements?.data as Movement[]) || [];
+      const movementsPayload = Array.isArray(rawMovements)
+        ? { data: rawMovements }
+        : (rawMovements || {});
+
+      const lawsuitsArray: Lawsuit[] = (lawsuitsPayload.data as Lawsuit[]) || [];
+      const movementsArray: Movement[] = (movementsPayload.data as Movement[]) || [];
 
       console.log('Lawsuits parsed:', lawsuitsArray.length, 'items');
       console.log('Movements parsed:', movementsArray.length, 'items');
@@ -370,7 +373,14 @@ export default function ProcessosDashboard() {
         setMetadata(rootMetadata);
       }
 
-      const lawsuitsTotal = finalLawsuits.length;
+      const lawsuitsTotalFromApi =
+        typeof (rawLawsuits as any)?.totalCount === 'number'
+          ? (rawLawsuits as any).totalCount
+          : typeof (lawsuitsPayload as any)?.totalCount === 'number'
+          ? (lawsuitsPayload as any).totalCount
+          : undefined;
+
+      const lawsuitsTotal = lawsuitsTotalFromApi ?? finalLawsuits.length;
       const movementsTotal = finalMovements.length;
 
       setTotalLawsuits(lawsuitsTotal);
