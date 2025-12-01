@@ -519,14 +519,14 @@ export default function ProcessosDashboard() {
                         
                         <div className="flex items-center space-x-2">
                           <Checkbox
-                            id="all-responsibles"
+                            id="all-process-responsibles"
                             checked={showAllResponsibles}
                             onCheckedChange={(checked) => {
                               setShowAllResponsibles(checked as boolean);
                               if (checked) setSelectedResponsibles([]);
                             }}
                           />
-                          <label htmlFor="all-responsibles" className="text-sm font-medium cursor-pointer">
+                          <label htmlFor="all-process-responsibles" className="text-sm font-medium cursor-pointer">
                             Todos os responsáveis
                           </label>
                         </div>
@@ -535,7 +535,7 @@ export default function ProcessosDashboard() {
                           {responsibles.map((responsible) => (
                             <div key={responsible} className="flex items-center space-x-2">
                               <Checkbox
-                                id={responsible}
+                                id={`process-${responsible}`}
                                 checked={selectedResponsibles.includes(responsible)}
                                 disabled={showAllResponsibles}
                                 onCheckedChange={(checked) => {
@@ -547,7 +547,7 @@ export default function ProcessosDashboard() {
                                   }
                                 }}
                               />
-                              <label htmlFor={responsible} className="text-sm cursor-pointer">
+                              <label htmlFor={`process-${responsible}`} className="text-sm cursor-pointer">
                                 {responsible}
                               </label>
                             </div>
