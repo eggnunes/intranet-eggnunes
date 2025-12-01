@@ -248,12 +248,40 @@ Deno.serve(async (req) => {
     switch (path) {
       // Dashboard de Processos
       case 'lawsuits': {
-        console.log('Fetching all lawsuits with pagination...');
-        const result = await getCachedOrFetch('lawsuits', async () => {
-          return await fetchAllPaginated('/lawsuits', 1000);
-        }, forceRefresh);
-        
-        return new Response(JSON.stringify(result), {
+        console.log('Fetching lawsuits first page with totalCount...');
+        const rawResult = await getCachedOrFetch(
+          'lawsuits-first-page',
+          async () => {
+            const response = await makeAdvboxRequest({ endpoint: '/lawsuits?limit=1000&page=1' });
+            const items = Array.isArray(response.data) ? response.data : [];
+            const totalCount =
+              typeof response.totalCount === 'number' ? response.totalCount : items.length;
+            return { items, totalCount };
+          },
+          forceRefresh
+        );
+
+        // Suporta formatos antigos de cache em que "data" era apenas um array
+        const cachedData: any = rawResult.data;
+        const items: any[] = Array.isArray(cachedData)
+          ? cachedData
+          : Array.isArray(cachedData?.items)
+          ? cachedData.items
+          : Array.isArray(cachedData?.data)
+          ? cachedData.data
+          : [];
+
+        const totalCount =
+          (cachedData && (cachedData.totalCount ?? cachedData.total ?? cachedData.count)) ??
+          items.length;
+
+        const responseBody = {
+          data: items,
+          metadata: rawResult.metadata,
+          totalCount,
+        };
+
+        return new Response(JSON.stringify(responseBody), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
