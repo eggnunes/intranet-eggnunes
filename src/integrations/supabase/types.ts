@@ -289,6 +289,84 @@ export type Database = {
         }
         Relationships: []
       }
+      defaulter_exclusions: {
+        Row: {
+          created_at: string | null
+          customer_id: string
+          customer_name: string
+          excluded_by: string
+          id: string
+          reason: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          customer_id: string
+          customer_name: string
+          excluded_by: string
+          id?: string
+          reason?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          customer_id?: string
+          customer_name?: string
+          excluded_by?: string
+          id?: string
+          reason?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      defaulter_messages_log: {
+        Row: {
+          chatguru_message_id: string | null
+          created_at: string | null
+          customer_id: string
+          customer_name: string
+          customer_phone: string
+          days_overdue: number
+          error_message: string | null
+          id: string
+          message_template: string
+          message_text: string
+          sent_at: string | null
+          sent_by: string
+          status: string | null
+        }
+        Insert: {
+          chatguru_message_id?: string | null
+          created_at?: string | null
+          customer_id: string
+          customer_name: string
+          customer_phone: string
+          days_overdue: number
+          error_message?: string | null
+          id?: string
+          message_template: string
+          message_text: string
+          sent_at?: string | null
+          sent_by: string
+          status?: string | null
+        }
+        Update: {
+          chatguru_message_id?: string | null
+          created_at?: string | null
+          customer_id?: string
+          customer_name?: string
+          customer_phone?: string
+          days_overdue?: number
+          error_message?: string | null
+          id?: string
+          message_template?: string
+          message_text?: string
+          sent_at?: string | null
+          sent_by?: string
+          status?: string | null
+        }
+        Relationships: []
+      }
       event_gallery: {
         Row: {
           created_at: string
