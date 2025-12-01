@@ -384,12 +384,29 @@ export default function ProcessosDashboard() {
         startDate = null; // all time
     }
 
-    // Debug: Verificar estrutura dos dados
+    // Debug: Verificar estrutura dos dados e contagem
     if (lawsuits.length > 0) {
-      console.log('Sample lawsuit data:', lawsuits[0]);
-      console.log('Has created_at:', !!lawsuits[0].created_at);
-      console.log('Has status_closure:', !!lawsuits[0].status_closure);
-      console.log('Has exit_production:', !!lawsuits[0].exit_production);
+      console.log('=== DEBUG EVOLUÇÃO ===');
+      console.log('Período selecionado:', evolutionPeriod);
+      console.log('Data de corte (startDate):', startDate?.toISOString());
+      console.log('Total de processos:', lawsuits.length);
+      console.log('Sample lawsuit:', lawsuits[0]);
+      
+      // Contar processos novos para debug
+      const newCount = lawsuits.filter(l => {
+        if (!l.created_at) return false;
+        const createdDate = new Date(l.created_at);
+        return !startDate || isAfter(createdDate, startDate);
+      }).length;
+      console.log('Processos novos encontrados:', newCount);
+      
+      // Mostrar alguns exemplos de datas
+      const sampleDates = lawsuits.slice(0, 5).map(l => ({
+        created: l.created_at,
+        closure: l.status_closure,
+        exit: l.exit_production
+      }));
+      console.log('Sample dates:', sampleDates);
     }
 
     // Contar processos novos pelo created_at
@@ -425,6 +442,9 @@ export default function ProcessosDashboard() {
       }
     });
 
+    console.log('Processos novos FINAL:', newProcesses);
+    console.log('Processos arquivados FINAL:', archivedProcesses);
+
     return { 
       newProcesses, 
       archivedProcesses,
@@ -436,6 +456,20 @@ export default function ProcessosDashboard() {
 
   const evolutionMetrics = getEvolutionMetrics();
   const netGrowth = evolutionMetrics.newProcesses - evolutionMetrics.archivedProcesses;
+
+  // Calcular processos ativos por área (group)
+  const getActiveByAreaData = () => {
+    const areaCounts: { [key: string]: number } = {};
+    
+    filteredLawsuits.forEach(lawsuit => {
+      const area = lawsuit.group || 'Não informado';
+      areaCounts[area] = (areaCounts[area] || 0) + 1;
+    });
+    
+    return Object.entries(areaCounts)
+      .map(([área, quantidade]) => ({ área, quantidade }))
+      .sort((a, b) => b.quantidade - a.quantidade);
+  };
 
   useEffect(() => {
     fetchData();
@@ -921,6 +955,48 @@ export default function ProcessosDashboard() {
                   )}
                 </div>
               </ScrollArea>
+            </CardContent>
+          </Card>
+
+          {/* Processos Ativos por Área */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart className="h-5 w-5" />
+                Processos Ativos por Área de Atuação
+              </CardTitle>
+              <CardDescription>Distribuição dos {filteredLawsuits.length} processos em andamento por área jurídica</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={400}>
+                <RechartsBarChart data={getActiveByAreaData()} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis 
+                    type="number"
+                    tick={{ fontSize: 12 }}
+                    className="text-muted-foreground"
+                  />
+                  <YAxis 
+                    type="category"
+                    dataKey="área" 
+                    tick={{ fontSize: 11 }}
+                    className="text-muted-foreground"
+                    width={180}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }}
+                  />
+                  <Bar 
+                    dataKey="quantidade" 
+                    fill="#10b981"
+                    radius={[0, 8, 8, 0]}
+                  />
+                </RechartsBarChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
 
