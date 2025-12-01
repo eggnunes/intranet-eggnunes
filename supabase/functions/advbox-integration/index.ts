@@ -391,8 +391,8 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Endpoint para buscar processos recentes por data de início
-      // Usa os parâmetros corretos da API: process_date_start, process_date_end
+      // Endpoint para buscar processos recentes por data
+      // NOTA: A API Advbox NÃO suporta filtro por data, então buscamos todos e filtramos manualmente
       case 'lawsuits-recent': {
         const startDate = url.searchParams.get('start_date'); // formato: YYYY-MM-DD
         const endDate = url.searchParams.get('end_date'); // formato: YYYY-MM-DD (opcional)
@@ -408,134 +408,99 @@ Deno.serve(async (req) => {
           });
         }
 
-        const cacheKey = `lawsuits-recent-${startDate}-${endDate || 'now'}`;
-        const cached = cache.get(cacheKey);
         const now = Date.now();
+        const startDateObj = new Date(startDate + 'T00:00:00Z');
+        const endDateObj = endDate ? new Date(endDate + 'T23:59:59Z') : new Date();
         
-        if (!forceRefresh && cached && (now - cached.timestamp) < CACHE_TTL) {
-          const items = extractItems(cached.data);
-          const totalCount = extractTotalCount(cached.data, items.length);
-          console.log(`Cache hit for lawsuits-recent: ${items.length} items`);
-          
-          return new Response(JSON.stringify({
-            data: items,
-            totalCount,
-            startDate,
-            endDate,
-            metadata: {
-              fromCache: true,
-              rateLimited: false,
-              cacheAge: Math.floor((now - cached.timestamp) / 1000),
-            },
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
+        // Usar o cache de lawsuits-full se disponível, senão buscar
+        const fullCacheKey = 'lawsuits-full';
+        let allLawsuits: any[] = [];
+        let apiTotalCount = 0;
+        let fromCache = false;
+        let cacheAge = 0;
+        
+        const fullCached = cache.get(fullCacheKey);
+        
+        if (fullCached && (now - fullCached.timestamp) < CACHE_TTL) {
+          // Usar dados do cache completo
+          allLawsuits = extractItems(fullCached.data);
+          apiTotalCount = extractTotalCount(fullCached.data, allLawsuits.length);
+          fromCache = true;
+          cacheAge = Math.floor((now - fullCached.timestamp) / 1000);
+          console.log(`Using cached lawsuits-full: ${allLawsuits.length} items`);
+        } else {
+          // Buscar primeira página com totalCount para ter dados básicos
+          try {
+            const response = await makeAdvboxRequest({ endpoint: '/lawsuits?limit=1000&offset=0' });
+            allLawsuits = Array.isArray(response.data) ? response.data : [];
+            apiTotalCount = typeof response.totalCount === 'number' ? response.totalCount : allLawsuits.length;
+            console.log(`Fetched ${allLawsuits.length} lawsuits (API total: ${apiTotalCount})`);
+          } catch (error) {
+            console.error('Error fetching lawsuits:', error);
+            // Tentar usar cache mesmo expirado
+            if (fullCached) {
+              allLawsuits = extractItems(fullCached.data);
+              apiTotalCount = extractTotalCount(fullCached.data, allLawsuits.length);
+              fromCache = true;
+              cacheAge = Math.floor((now - fullCached.timestamp) / 1000);
+            }
+          }
         }
-
-        try {
-          // Buscar todos os processos recentes com paginação usando os parâmetros corretos da API
-          // IMPORTANTE: A API usa process_date_start (não data_processo_inicio)
-          // IMPORTANTE: A API usa limit=100 máximo e offset para paginação (não page)
-          let allItems: any[] = [];
-          let offset = 0;
-          const limit = 100; // Máximo permitido pela API
-          let hasMore = true;
-          let apiTotalCount = 0;
+        
+        // FILTRAR MANUALMENTE os processos pela data
+        // Usar process_date se disponível, senão usar created_at
+        const filteredLawsuits = allLawsuits.filter((lawsuit: any) => {
+          // Determinar a data do processo
+          let processDate: Date | null = null;
           
-          while (hasMore) {
-            // Aguardar entre requests para evitar rate limit
-            if (offset > 0) {
-              await sleep(DELAY_BETWEEN_REQUESTS);
-            }
-            
-            let endpoint = `/lawsuits?limit=${limit}&offset=${offset}&process_date_start=${startDate}`;
-            if (endDate) {
-              endpoint += `&process_date_end=${endDate}`;
-            }
-            
-            console.log(`Fetching lawsuits-recent page (offset=${offset}): ${endpoint}`);
-            const response = await makeAdvboxRequest({ endpoint });
-            
-            const items = Array.isArray(response.data) ? response.data : [];
-            apiTotalCount = typeof response.totalCount === 'number' ? response.totalCount : items.length;
-            
-            console.log(`Got ${items.length} items (offset=${offset}, totalCount=${apiTotalCount})`);
-            
-            if (items.length === 0) {
-              hasMore = false;
-            } else {
-              allItems = allItems.concat(items);
-              offset += items.length;
-              
-              // Se retornou menos que o limite ou já temos todos, parar
-              if (items.length < limit || allItems.length >= apiTotalCount) {
-                hasMore = false;
-              }
-            }
-            
-            // Limitar a 10 páginas (1000 items) por segurança
-            if (offset >= 1000) {
-              console.log('Reached max pagination limit (1000 items)');
-              hasMore = false;
-            }
+          // Tentar process_date primeiro (data real do processo)
+          if (lawsuit.process_date) {
+            processDate = new Date(lawsuit.process_date);
+          }
+          // Fallback para created_at (data de cadastro no sistema)
+          else if (lawsuit.created_at) {
+            processDate = new Date(lawsuit.created_at);
           }
           
-          console.log(`Found ${allItems.length} lawsuits with process_date >= ${startDate} (API total: ${apiTotalCount})`);
-          
-          // Log sample of returned items to verify date filtering
-          if (allItems.length > 0) {
-            const sample = allItems.slice(0, 3).map((item: any) => ({
-              id: item.id,
-              process_date: item.process_date,
-              created_at: item.created_at,
-              process_number: item.process_number,
-            }));
-            console.log('[DEBUG] Sample recent lawsuits:', JSON.stringify(sample));
+          if (!processDate || isNaN(processDate.getTime())) {
+            return false;
           }
-
-          // Salvar no cache
-          cache.set(cacheKey, { 
-            data: { items: allItems, totalCount: apiTotalCount },
-            timestamp: now,
-          });
           
-          return new Response(JSON.stringify({
-            data: allItems,
-            totalCount: apiTotalCount,
-            startDate,
-            endDate,
-            metadata: {
-              fromCache: false,
-              rateLimited: false,
-              cacheAge: 0,
-            },
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        } catch (error) {
-          console.error('Error fetching recent lawsuits:', error);
+          // Verificar se está dentro do período
+          const isAfterStart = processDate >= startDateObj;
+          const isBeforeEnd = processDate <= endDateObj;
           
-          // Retornar cache existente se disponível
-          if (cached) {
-            const items = extractItems(cached.data);
-            const totalCount = extractTotalCount(cached.data, items.length);
-            return new Response(JSON.stringify({
-              data: items,
-              totalCount,
-              startDate,
-              endDate,
-              error: error instanceof Error ? error.message : 'Unknown error',
-              metadata: {
-                fromCache: true,
-                rateLimited: true,
-                cacheAge: Math.floor((now - cached.timestamp) / 1000),
-              },
-            }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          }
-          throw error;
+          return isAfterStart && isBeforeEnd;
+        });
+        
+        console.log(`Filtered ${filteredLawsuits.length} lawsuits from ${startDate} to ${endDate || 'now'} (from ${allLawsuits.length} total)`);
+        
+        // Log sample para debug
+        if (filteredLawsuits.length > 0) {
+          const sample = filteredLawsuits.slice(0, 5).map((item: any) => ({
+            id: item.id,
+            process_date: item.process_date,
+            created_at: item.created_at,
+            process_number: item.process_number,
+          }));
+          console.log('[DEBUG] Sample filtered lawsuits:', JSON.stringify(sample));
         }
+        
+        return new Response(JSON.stringify({
+          data: filteredLawsuits,
+          totalCount: filteredLawsuits.length,
+          apiTotalCount,
+          startDate,
+          endDate,
+          metadata: {
+            fromCache,
+            rateLimited: false,
+            cacheAge,
+            filteredFromTotal: allLawsuits.length,
+          },
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
 
       // Endpoint rápido - busca apenas primeira página (para carregamento inicial)
