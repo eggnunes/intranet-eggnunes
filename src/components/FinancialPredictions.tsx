@@ -34,12 +34,22 @@ export function FinancialPredictions({ transactions }: FinancialPredictionsProps
   };
 
   const getPredictions = () => {
-    if (transactions.length < 2) return null;
+    const baseTransactions = Array.isArray(transactions) ? transactions : [];
+    if (baseTransactions.length < 2) return null;
+
+    // Filtrar apenas transações com datas válidas
+    const validTransactions = baseTransactions.filter((t) => {
+      if (!t.date) return false;
+      const d = new Date(t.date);
+      return !isNaN(d.getTime());
+    });
+
+    if (validTransactions.length < 2) return null;
 
     // Agregar dados mensais
     const monthlyData: Record<string, { income: number; expense: number; date: Date }> = {};
 
-    transactions.forEach((t) => {
+    validTransactions.forEach((t) => {
       const date = new Date(t.date);
       const monthKey = format(date, 'MM/yyyy');
 
