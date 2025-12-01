@@ -94,6 +94,8 @@ export default function ProcessosDashboard() {
   const [lastUpdate, setLastUpdate] = useState<Date | undefined>(cachedData?.lastUpdate);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [selectedMovement, setSelectedMovement] = useState<Movement | null>(null);
+  const [isLoadingFullData, setIsLoadingFullData] = useState(false);
+  const [hasCompleteData, setHasCompleteData] = useState(cachedData?.isComplete || false);
   
   // Filtros para gráficos de evolução
   const [selectedEvolutionTypes, setSelectedEvolutionTypes] = useState<string[]>([]);
@@ -604,12 +606,17 @@ export default function ProcessosDashboard() {
     fetchData();
   }, []);
 
-  const fetchData = async (forceRefresh = false) => {
+  const fetchData = async (forceRefresh = false, loadFullData = false) => {
     try {
       const refreshParam = forceRefresh ? '?force_refresh=true' : '';
       
+      // Se solicitado, buscar dados completos com paginação
+      const lawsuitsEndpoint = loadFullData 
+        ? `advbox-integration/lawsuits-full${refreshParam}`
+        : `advbox-integration/lawsuits${refreshParam}`;
+      
       const [lawsuitsRes, movementsRes] = await Promise.all([
-        supabase.functions.invoke(`advbox-integration/lawsuits${refreshParam}`),
+        supabase.functions.invoke(lawsuitsEndpoint),
         supabase.functions.invoke(`advbox-integration/last-movements${refreshParam}`),
       ]);
 
@@ -675,6 +682,14 @@ export default function ProcessosDashboard() {
 
       setTotalLawsuits(lawsuitsTotal);
       setTotalMovements(movementsTotal);
+      
+      // Verificar se temos dados completos
+      const isComplete = (rawLawsuits as any)?.isComplete === true || finalLawsuits.length >= lawsuitsTotal;
+      setHasCompleteData(isComplete);
+      
+      if (isComplete) {
+        console.log('Complete data loaded:', finalLawsuits.length, 'of', lawsuitsTotal);
+      }
 
       // Atualizar cache apenas quando tivermos dados de processos
       try {
@@ -685,6 +700,7 @@ export default function ProcessosDashboard() {
             totalLawsuits: lawsuitsTotal,
             totalMovements: movementsTotal,
             metadata: rootMetadata || null,
+            isComplete,
           };
           localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
           localStorage.setItem(CACHE_TIMESTAMP_KEY, updateTime.toISOString());
@@ -709,7 +725,22 @@ export default function ProcessosDashboard() {
       }
     } finally {
       setLoading(false);
+      setIsLoadingFullData(false);
     }
+  };
+  
+  // Função para carregar todos os processos
+  const loadFullData = async () => {
+    setIsLoadingFullData(true);
+    toast({
+      title: 'Carregando todos os processos',
+      description: 'Isso pode levar alguns minutos devido às limitações da API do Advbox...',
+    });
+    await fetchData(true, true);
+    toast({
+      title: hasCompleteData ? 'Dados completos carregados!' : 'Carregamento concluído',
+      description: `${lawsuits.length.toLocaleString()} processos carregados.`,
+    });
   };
 
   if (loading) {
@@ -769,15 +800,35 @@ export default function ProcessosDashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-2 mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-                <p className="text-xs text-amber-700">
-                  {evolutionPeriod === 'all' 
-                    ? `Dados baseados em uma amostra de ${lawsuits.length.toLocaleString()} processos. O Advbox possui ${totalLawsuits?.toLocaleString() || 'mais'} processos no total. A API retorna os processos mais antigos primeiro, então os contadores de "Processos Novos" podem não refletir a realidade recente.`
-                    : `A API do Advbox retorna os processos mais antigos primeiro. Os ${lawsuits.length.toLocaleString()} processos carregados podem não conter processos criados nos últimos ${evolutionPeriod} dias. Total no Advbox: ${totalLawsuits?.toLocaleString() || 'N/A'} processos.`
-                  }
-                </p>
-              </div>
+              {!hasCompleteData && (
+                <div className="flex items-center justify-between gap-2 mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                    <p className="text-xs text-amber-700">
+                      Dados parciais: {lawsuits.length.toLocaleString()} de {totalLawsuits?.toLocaleString() || '?'} processos carregados. 
+                      Para calcular corretamente os "Processos Novos", carregue todos os dados.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={loadFullData}
+                    disabled={isLoadingFullData}
+                    className="shrink-0 text-xs"
+                  >
+                    {isLoadingFullData ? 'Carregando...' : 'Carregar Todos'}
+                  </Button>
+                </div>
+              )}
+              {hasCompleteData && (
+                <div className="flex items-center gap-2 mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                  <Briefcase className="h-4 w-4 text-green-600 shrink-0" />
+                  <p className="text-xs text-green-700">
+                    Dados completos: {lawsuits.length.toLocaleString()} processos carregados. 
+                    Os contadores de "Processos Novos" refletem dados reais.
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="text-center p-4 bg-primary/5 rounded-lg">
                   <div className="text-3xl font-bold text-primary">
