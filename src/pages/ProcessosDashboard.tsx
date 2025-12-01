@@ -694,16 +694,61 @@ export default function ProcessosDashboard() {
       // Atualizar cache apenas quando tivermos dados de processos
       try {
         if (finalLawsuits.length > 0) {
+          // Para dados completos (>5000), armazenar apenas campos essenciais para evitar quota exceeded
+          const lawsuitsToCache = finalLawsuits.length > 5000
+            ? finalLawsuits.map(l => ({
+                id: l.id,
+                created_at: l.created_at,
+                status_closure: l.status_closure,
+                group: l.group,
+                type: l.type,
+                process_number: l.process_number,
+                responsible: l.responsible,
+              }))
+            : finalLawsuits;
+          
           const cacheData = {
-            lawsuits: finalLawsuits,
+            lawsuits: lawsuitsToCache,
             movements: finalMovements,
             totalLawsuits: lawsuitsTotal,
             totalMovements: movementsTotal,
             metadata: rootMetadata || null,
             isComplete,
+            isMinimalCache: finalLawsuits.length > 5000,
           };
-          localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
-          localStorage.setItem(CACHE_TIMESTAMP_KEY, updateTime.toISOString());
+          
+          try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+            localStorage.setItem(CACHE_TIMESTAMP_KEY, updateTime.toISOString());
+          } catch (storageError) {
+            // Se ainda exceder, limpar cache antigo e tentar novamente com dados mínimos
+            console.warn('Cache storage exceeded, using minimal data...');
+            localStorage.removeItem(CACHE_KEY);
+            
+            const minimalCache = {
+              lawsuits: finalLawsuits.map(l => ({
+                id: l.id,
+                created_at: l.created_at,
+                status_closure: l.status_closure,
+                group: l.group,
+                type: l.type,
+              })),
+              movements: [],
+              totalLawsuits: lawsuitsTotal,
+              totalMovements: movementsTotal,
+              metadata: null,
+              isComplete,
+              isMinimalCache: true,
+            };
+            
+            try {
+              localStorage.setItem(CACHE_KEY, JSON.stringify(minimalCache));
+              localStorage.setItem(CACHE_TIMESTAMP_KEY, updateTime.toISOString());
+            } catch {
+              // Se ainda falhar, apenas mantenha os dados em memória
+              console.warn('Unable to cache data, keeping in memory only');
+            }
+          }
         } else if (!cachedData?.lawsuits?.length && finalLawsuits.length === 0) {
           // Primeira vez sem dados nenhum: limpar cache para refletir estado vazio real
           localStorage.removeItem(CACHE_KEY);
