@@ -683,26 +683,75 @@ export default function ProcessosDashboard() {
       
       // Debug: Verificar TODOS os campos disponíveis no processo
       if (lawsuitsArray.length > 0) {
-        // Log ALL field names from the first lawsuit
         const firstLawsuit = lawsuitsArray[0] as any;
         console.log('[Debug] ALL FIELDS in first lawsuit:', Object.keys(firstLawsuit));
         
-        // Log all date-like fields from the first lawsuit
-        const dateFields = Object.entries(firstLawsuit).filter(([key, value]) => {
+        // Log ALL date-like fields (expanded search)
+        const dateFields: Record<string, any> = {};
+        Object.entries(firstLawsuit).forEach(([key, value]) => {
           const keyLower = key.toLowerCase();
-          return keyLower.includes('date') || keyLower.includes('data') || keyLower.includes('inicio') || 
-                 keyLower.includes('created') || keyLower.includes('updated') || keyLower.includes('start') ||
-                 keyLower.includes('distribution') || keyLower.includes('distribuicao');
+          if (keyLower.includes('date') || keyLower.includes('data') || 
+              keyLower.includes('inicio') || keyLower.includes('início') ||
+              keyLower.includes('created') || keyLower.includes('updated') ||
+              keyLower.includes('start') || keyLower.includes('distribution') ||
+              keyLower.includes('distribuicao') || keyLower.includes('distribuição') ||
+              keyLower.includes('process') || keyLower.includes('entrada') ||
+              keyLower.includes('cadastro') || keyLower.includes('abertura') ||
+              keyLower.includes('closure') || keyLower.includes('exit') ||
+              keyLower.includes('saida') || keyLower.includes('saída') ||
+              (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value))) {
+            dateFields[key] = value;
+          }
         });
-        console.log('[Debug] DATE-LIKE FIELDS in first lawsuit:', Object.fromEntries(dateFields));
-        
-        // Log full first lawsuit object for complete visibility
+        console.log('[Debug] DATE-LIKE FIELDS in first lawsuit:', dateFields);
         console.log('[Debug] FULL FIRST LAWSUIT:', JSON.stringify(firstLawsuit, null, 2));
         
-        const withProcessDate = lawsuitsArray.filter(l => l.process_date).length;
-        const withCreatedAt = lawsuitsArray.filter(l => l.created_at).length;
-        console.log('[Debug] Lawsuits with process_date:', withProcessDate, 'of', lawsuitsArray.length);
-        console.log('[Debug] Lawsuits with created_at:', withCreatedAt, 'of', lawsuitsArray.length);
+        // Count lawsuits with various date fields
+        const withProcessDate = lawsuitsArray.filter((l: any) => l.process_date).length;
+        const withCreatedAt = lawsuitsArray.filter((l: any) => l.created_at).length;
+        const withStatusClosure = lawsuitsArray.filter((l: any) => l.status_closure).length;
+        const withExitProduction = lawsuitsArray.filter((l: any) => l.exit_production).length;
+        console.log(`[Debug] Lawsuits with process_date: ${withProcessDate} of ${lawsuitsArray.length}`);
+        console.log(`[Debug] Lawsuits with created_at: ${withCreatedAt} of ${lawsuitsArray.length}`);
+        console.log(`[Debug] Lawsuits with status_closure: ${withStatusClosure} of ${lawsuitsArray.length}`);
+        console.log(`[Debug] Lawsuits with exit_production: ${withExitProduction} of ${lawsuitsArray.length}`);
+        
+        // Analyze date distribution - find most recent dates for each field
+        const getMaxDate = (field: string) => {
+          const dates = lawsuitsArray
+            .map((l: any) => l[field])
+            .filter((d: any) => d)
+            .map((d: string) => new Date(d.replace(' ', 'T')))
+            .filter((d: Date) => !isNaN(d.getTime()));
+          if (dates.length === 0) return null;
+          return new Date(Math.max(...dates.map((d: Date) => d.getTime())));
+        };
+        
+        console.log('[Debug] MOST RECENT DATES:');
+        console.log('  - process_date:', getMaxDate('process_date')?.toISOString() || 'N/A');
+        console.log('  - created_at:', getMaxDate('created_at')?.toISOString() || 'N/A');
+        console.log('  - status_closure:', getMaxDate('status_closure')?.toISOString() || 'N/A');
+        console.log('  - exit_production:', getMaxDate('exit_production')?.toISOString() || 'N/A');
+        
+        // Check for 2024/2025 processes
+        const recentYearProcesses = lawsuitsArray.filter((l: any) => {
+          const date = l.process_date || l.created_at;
+          if (!date) return false;
+          const year = new Date(date.replace(' ', 'T')).getFullYear();
+          return year >= 2024;
+        });
+        console.log(`[Debug] Processes from 2024/2025: ${recentYearProcesses.length} of ${lawsuitsArray.length}`);
+        
+        // Year distribution
+        const yearDistribution: Record<number, number> = {};
+        lawsuitsArray.forEach((l: any) => {
+          const date = l.process_date || l.created_at;
+          if (date) {
+            const year = new Date(date.replace(' ', 'T')).getFullYear();
+            yearDistribution[year] = (yearDistribution[year] || 0) + 1;
+          }
+        });
+        console.log('[Debug] YEAR DISTRIBUTION:', yearDistribution);
       }
 
       // Definir qual lista realmente será usada na tela:
