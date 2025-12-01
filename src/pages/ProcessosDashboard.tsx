@@ -86,6 +86,7 @@ export default function ProcessosDashboard() {
   const [periodFilter, setPeriodFilter] = useState<string>('all');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [showAllStatuses, setShowAllStatuses] = useState(true);
+  const [evolutionPeriod, setEvolutionPeriod] = useState<string>('30'); // dias: 7, 30, 90, all
   const [totalLawsuits, setTotalLawsuits] = useState<number | null>(cachedData?.totalLawsuits || null);
   const [totalMovements, setTotalMovements] = useState<number | null>(cachedData?.totalMovements || null);
   const [metadata, setMetadata] = useState<{ fromCache: boolean; rateLimited: boolean; cacheAge: number } | null>(cachedData?.metadata || null);
@@ -317,6 +318,42 @@ export default function ProcessosDashboard() {
       .slice(0, 10); // Top 10 tipos
   };
 
+  // Calcular processos novos e arquivados no período selecionado
+  const getEvolutionMetrics = () => {
+    const now = new Date();
+    let startDate: Date | null = null;
+    
+    switch (evolutionPeriod) {
+      case '7':
+        startDate = subDays(now, 7);
+        break;
+      case '30':
+        startDate = subDays(now, 30);
+        break;
+      case '90':
+        startDate = subDays(now, 90);
+        break;
+      default:
+        startDate = null; // all time
+    }
+
+    const newProcesses = lawsuits.filter(lawsuit => {
+      if (!lawsuit.created_at) return false;
+      const createdDate = new Date(lawsuit.created_at);
+      return !startDate || isAfter(createdDate, startDate);
+    }).length;
+
+    const archivedProcesses = lawsuits.filter(lawsuit => {
+      if (!lawsuit.status_closure) return false;
+      const closureDate = new Date(lawsuit.status_closure);
+      return !startDate || isAfter(closureDate, startDate);
+    }).length;
+
+    return { newProcesses, archivedProcesses };
+  };
+
+  const evolutionMetrics = getEvolutionMetrics();
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -465,14 +502,28 @@ export default function ProcessosDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Estatísticas */}
           <Card className="lg:col-span-3">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
                 Visão Geral
               </CardTitle>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Período de Evolução:</span>
+                <Select value={evolutionPeriod} onValueChange={setEvolutionPeriod}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="7">Últimos 7 dias</SelectItem>
+                    <SelectItem value="30">Últimos 30 dias</SelectItem>
+                    <SelectItem value="90">Últimos 90 dias</SelectItem>
+                    <SelectItem value="all">Todos os períodos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="text-center p-4 bg-primary/5 rounded-lg">
                   <div className="text-3xl font-bold text-primary">
                     {searchTerm || !showAllResponsibles
@@ -489,20 +540,26 @@ export default function ProcessosDashboard() {
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">Movimentações {movementSearchTerm ? 'Filtradas' : 'Recentes'}</div>
                 </div>
-                <div className="text-center p-4 bg-orange-500/5 rounded-lg">
-                  <div className="text-3xl font-bold text-orange-600">
-                    {filteredMovements.filter(m => {
-                      const date = new Date(m.date);
-                      const today = new Date();
-                      const diffDays = Math.floor((today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-                      return diffDays <= 7;
-                    }).length}
+                <div className="text-center p-4 bg-green-500/5 rounded-lg">
+                  <div className="text-3xl font-bold text-green-600">
+                    {evolutionMetrics.newProcesses}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
-                    Alertas Recentes (7 dias)
+                    Processos Novos
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
-                    Baseado em {movements.length} movimentações
+                    {evolutionPeriod === 'all' ? 'Total' : `Últimos ${evolutionPeriod} dias`}
+                  </div>
+                </div>
+                <div className="text-center p-4 bg-purple-500/5 rounded-lg">
+                  <div className="text-3xl font-bold text-purple-600">
+                    {evolutionMetrics.archivedProcesses}
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Processos Arquivados
+                  </div>
+                  <div className="text-xs text-muted-foreground/60 mt-0.5">
+                    {evolutionPeriod === 'all' ? 'Total' : `Últimos ${evolutionPeriod} dias`}
                   </div>
                 </div>
               </div>
