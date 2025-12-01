@@ -51,9 +51,32 @@ interface Movement {
 }
 
 export default function ProcessosDashboard() {
-  const [lawsuits, setLawsuits] = useState<Lawsuit[]>([]);
-  const [movements, setMovements] = useState<Movement[]>([]);
-  const [loading, setLoading] = useState(true);
+  const CACHE_KEY = 'advbox-processos-cache';
+  const CACHE_TIMESTAMP_KEY = 'advbox-processos-cache-timestamp';
+  
+  // Carregar dados do cache imediatamente
+  const loadFromCache = () => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      const timestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+      if (cached && timestamp) {
+        const data = JSON.parse(cached);
+        return {
+          ...data,
+          lastUpdate: new Date(timestamp)
+        };
+      }
+    } catch (error) {
+      console.error('Error loading from cache:', error);
+    }
+    return null;
+  };
+
+  const cachedData = loadFromCache();
+  
+  const [lawsuits, setLawsuits] = useState<Lawsuit[]>(cachedData?.lawsuits || []);
+  const [movements, setMovements] = useState<Movement[]>(cachedData?.movements || []);
+  const [loading, setLoading] = useState(!cachedData); // Não mostra loading se tem cache
   const [searchTerm, setSearchTerm] = useState('');
   const [movementSearchTerm, setMovementSearchTerm] = useState('');
   const [selectedResponsibles, setSelectedResponsibles] = useState<string[]>([]);
@@ -63,10 +86,10 @@ export default function ProcessosDashboard() {
   const [periodFilter, setPeriodFilter] = useState<string>('all');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [showAllStatuses, setShowAllStatuses] = useState(true);
-  const [totalLawsuits, setTotalLawsuits] = useState<number | null>(null);
-  const [totalMovements, setTotalMovements] = useState<number | null>(null);
-  const [metadata, setMetadata] = useState<{ fromCache: boolean; rateLimited: boolean; cacheAge: number } | null>(null);
-  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
+  const [totalLawsuits, setTotalLawsuits] = useState<number | null>(cachedData?.totalLawsuits || null);
+  const [totalMovements, setTotalMovements] = useState<number | null>(cachedData?.totalMovements || null);
+  const [metadata, setMetadata] = useState<{ fromCache: boolean; rateLimited: boolean; cacheAge: number } | null>(cachedData?.metadata || null);
+  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(cachedData?.lastUpdate);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [selectedMovement, setSelectedMovement] = useState<Movement | null>(null);
   const { toast } = useToast();
@@ -322,7 +345,8 @@ export default function ProcessosDashboard() {
 
       setLawsuits(lawsuitsArray);
       setMovements(movementsArray);
-      setLastUpdate(new Date());
+      const updateTime = new Date();
+      setLastUpdate(updateTime);
       
       // Extrair metadata
       if (lawsuitsApiResponse?.metadata) {
@@ -334,13 +358,32 @@ export default function ProcessosDashboard() {
 
       setTotalLawsuits(lawsuitsTotal);
       setTotalMovements(movementsTotal);
+
+      // Salvar dados no cache
+      try {
+        const cacheData = {
+          lawsuits: lawsuitsArray,
+          movements: movementsArray,
+          totalLawsuits: lawsuitsTotal,
+          totalMovements: movementsTotal,
+          metadata: lawsuitsApiResponse?.metadata || null,
+        };
+        localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+        localStorage.setItem(CACHE_TIMESTAMP_KEY, updateTime.toISOString());
+      } catch (cacheError) {
+        console.error('Error saving to cache:', cacheError);
+      }
     } catch (error) {
       console.error('Error fetching Advbox data:', error);
-      toast({
-        title: 'Erro ao carregar dados',
-        description: 'Não foi possível carregar os dados do Advbox.',
-        variant: 'destructive',
-      });
+      
+      // Se falhou e não tem cache, mostra erro
+      if (!cachedData) {
+        toast({
+          title: 'Erro ao carregar dados',
+          description: 'Não foi possível carregar os dados do Advbox.',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setLoading(false);
     }
