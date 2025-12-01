@@ -17,7 +17,7 @@ import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
 import { format, subDays, subMonths, isAfter, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Briefcase, TrendingUp, BarChart, Search, Filter, AlertCircle, Calendar, ListTodo } from 'lucide-react';
+import { Briefcase, TrendingUp, BarChart, Search, Filter, AlertCircle, Calendar, ListTodo, RefreshCw } from 'lucide-react';
 
 interface Lawsuit {
   id: number;
@@ -339,15 +339,18 @@ export default function ProcessosDashboard() {
   };
 
   // Helpers para calcular datas de criação e arquivamento
+  // IMPORTANTE: process_date é a data real do processo, created_at é a data do registro no sistema
   const getCreatedOrProcessDate = (lawsuit: Lawsuit): Date | null => {
-    if (lawsuit.created_at) {
-      const created = new Date(lawsuit.created_at);
-      if (!isNaN(created.getTime())) return created;
-    }
-
+    // Priorizar process_date que é a data real de distribuição/criação do processo
     if (lawsuit.process_date) {
       const process = new Date(lawsuit.process_date);
       if (!isNaN(process.getTime())) return process;
+    }
+
+    // Fallback para created_at apenas se process_date não estiver disponível
+    if (lawsuit.created_at) {
+      const created = new Date(lawsuit.created_at);
+      if (!isNaN(created.getTime())) return created;
     }
 
     return null;
@@ -478,17 +481,23 @@ export default function ProcessosDashboard() {
 
     // Debug: Log para identificar problemas de data (apenas uma vez por período)
     if (startDate && lawsuits.length > 0) {
-      // Encontrar as 10 datas mais recentes
+      // Encontrar as 10 datas mais recentes usando process_date (data real do processo)
       const recentDates = lawsuits
-        .map(l => ({ id: l.id, date: getCreatedOrProcessDate(l), created_at: l.created_at }))
+        .map(l => ({ 
+          id: l.id, 
+          date: getCreatedOrProcessDate(l), 
+          process_date: l.process_date,
+          created_at: l.created_at 
+        }))
         .filter(l => l.date !== null)
         .sort((a, b) => (b.date as Date).getTime() - (a.date as Date).getTime())
         .slice(0, 10);
       
       console.log('[Debug] Period:', evolutionPeriod, 'days, Start date:', startDate.toISOString());
       console.log('[Debug] Total lawsuits:', lawsuits.length);
-      console.log('[Debug] 10 most recent created_at dates:', recentDates.map(l => ({
+      console.log('[Debug] 10 most recent process_date (data real):', recentDates.map(l => ({
         id: l.id,
+        process_date: l.process_date,
         created_at: l.created_at,
         parsed: l.date?.toISOString()
       })));
@@ -671,6 +680,22 @@ export default function ProcessosDashboard() {
 
       console.log('Lawsuits parsed:', lawsuitsArray.length, 'items');
       console.log('Movements parsed:', movementsArray.length, 'items');
+      
+      // Debug: Verificar se process_date está disponível nos dados
+      if (lawsuitsArray.length > 0) {
+        const withProcessDate = lawsuitsArray.filter(l => l.process_date).length;
+        const withCreatedAt = lawsuitsArray.filter(l => l.created_at).length;
+        console.log('[Debug] Lawsuits with process_date:', withProcessDate, 'of', lawsuitsArray.length);
+        console.log('[Debug] Lawsuits with created_at:', withCreatedAt, 'of', lawsuitsArray.length);
+        
+        // Mostrar exemplos de datas
+        const samples = lawsuitsArray.slice(0, 3).map(l => ({
+          id: l.id,
+          process_date: l.process_date,
+          created_at: l.created_at
+        }));
+        console.log('[Debug] Sample lawsuits dates:', samples);
+      }
 
       // Definir qual lista realmente será usada na tela:
       // - Se a API voltou vazia mas já temos processos em memória (cache do navegador),
@@ -728,7 +753,10 @@ export default function ProcessosDashboard() {
             ? finalLawsuits.map(l => ({
                 id: l.id,
                 created_at: l.created_at,
+                process_date: l.process_date, // Data real do processo - CRÍTICO para métricas
                 status_closure: l.status_closure,
+                exit_production: l.exit_production,
+                exit_execution: l.exit_execution,
                 group: l.group,
                 type: l.type,
                 process_number: l.process_number,
@@ -758,7 +786,10 @@ export default function ProcessosDashboard() {
               lawsuits: finalLawsuits.map(l => ({
                 id: l.id,
                 created_at: l.created_at,
+                process_date: l.process_date, // Data real do processo - CRÍTICO
                 status_closure: l.status_closure,
+                exit_production: l.exit_production,
+                exit_execution: l.exit_execution,
                 group: l.group,
                 type: l.type,
               })),
@@ -817,6 +848,21 @@ export default function ProcessosDashboard() {
     });
   };
 
+  // Função para limpar cache e forçar recarregamento completo
+  const clearCacheAndReload = async () => {
+    localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(CACHE_TIMESTAMP_KEY);
+    setLawsuits([]);
+    setMovements([]);
+    setHasCompleteData(false);
+    toast({
+      title: 'Cache limpo',
+      description: 'Recarregando dados do Advbox...',
+    });
+    setLoading(true);
+    await fetchData(false, false);
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -844,7 +890,16 @@ export default function ProcessosDashboard() {
                 <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
               </div>
             </div>
-            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearCacheAndReload}
+              className="gap-2"
+              title="Limpar cache e recarregar dados"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Atualizar Dados
+            </Button>
           </div>
         </div>
 
@@ -914,11 +969,18 @@ export default function ProcessosDashboard() {
                 </div>
                 <div className="text-center p-4 bg-blue-500/5 rounded-lg">
                   <div className="text-3xl font-bold text-blue-600">
-                    {movementSearchTerm
+                    {movementSearchTerm || periodFilter !== 'all' || !showAllMovementResponsibles || !showAllStatuses
                       ? filteredMovements.length
                        : (totalMovements ?? filteredMovements.length)}
                   </div>
-                  <div className="text-sm text-muted-foreground mt-1">Movimentações {movementSearchTerm ? 'Filtradas' : 'Recentes'}</div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Movimentações {(movementSearchTerm || periodFilter !== 'all' || !showAllMovementResponsibles || !showAllStatuses) ? 'Filtradas' : 'Recentes'}
+                  </div>
+                  {periodFilter !== 'all' && (
+                    <div className="text-xs text-muted-foreground/60 mt-0.5">
+                      {periodFilter === 'week' ? 'Última semana' : periodFilter === 'month' ? 'Último mês' : 'Últimos 3 meses'}
+                    </div>
+                  )}
                 </div>
                 <div className="text-center p-4 bg-green-500/5 rounded-lg">
                   <div className="text-3xl font-bold text-green-600">
