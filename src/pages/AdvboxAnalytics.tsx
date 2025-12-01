@@ -66,17 +66,17 @@ export default function AdvboxAnalytics() {
         supabase.functions.invoke(`advbox-integration/transactions${refreshParam}`),
       ]);
 
-      // Parse responses properly
-      const lawsuitsApiResponse = lawsuitsRes.data?.data || lawsuitsRes.data;
-      const publicationsApiResponse = publicationsRes.data?.data || publicationsRes.data;
-      const tasksApiResponse = tasksRes.data?.data || tasksRes.data;
-      const transactionsApiResponse = transactionsRes.data?.data || transactionsRes.data;
+      // Resposta da edge function vem como { data: [...], metadata: {...} }
+      const lawsuitsArray = (lawsuitsRes.data as any)?.data || [];
+      const publicationsArray = (publicationsRes.data as any)?.data || [];
+      const tasksArray = (tasksRes.data as any)?.data || [];
+      const transactionsArray = (transactionsRes.data as any)?.data || [];
 
-      setLawsuits(lawsuitsApiResponse?.data || []);
-      setPublications(publicationsApiResponse?.data || []);
-      setTasks(tasksApiResponse?.data || []);
-      setTransactions(transactionsApiResponse?.data || []);
-      setMetadata(lawsuitsRes.data?.metadata);
+      setLawsuits(lawsuitsArray);
+      setPublications(publicationsArray);
+      setTasks(tasksArray);
+      setTransactions(transactionsArray);
+      setMetadata((lawsuitsRes.data as any)?.metadata);
       setLastUpdate(new Date());
 
       if (forceRefresh) {

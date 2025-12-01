@@ -333,12 +333,10 @@ export default function ProcessosDashboard() {
       if (lawsuitsRes.error) throw lawsuitsRes.error;
       if (movementsRes.error) throw movementsRes.error;
 
-      // A resposta vem como: { data: { data: { data: [...], offset, limit, totalCount } } }
-      const lawsuitsApiResponse = lawsuitsRes.data?.data || lawsuitsRes.data;
-      const movementsApiResponse = movementsRes.data?.data || movementsRes.data;
-
-      const lawsuitsArray = lawsuitsApiResponse?.data || [];
-      const movementsArray = movementsApiResponse?.data || [];
+      // A resposta vem como: { data: [...], metadata: {...} }
+      // para ambos endpoints (lawsuits e last-movements)
+      const lawsuitsArray: Lawsuit[] = (lawsuitsRes.data as any)?.data || [];
+      const movementsArray: Movement[] = (movementsRes.data as any)?.data || [];
 
       console.log('Lawsuits parsed:', lawsuitsArray.length, 'items');
       console.log('Movements parsed:', movementsArray.length, 'items');
@@ -361,8 +359,8 @@ export default function ProcessosDashboard() {
         setMetadata(rootMetadata);
       }
 
-      const lawsuitsTotal = lawsuitsApiResponse?.totalCount || lawsuitsArray.length;
-      const movementsTotal = movementsApiResponse?.totalCount || movementsArray.length;
+      const lawsuitsTotal = lawsuitsArray.length;
+      const movementsTotal = movementsArray.length;
 
       setTotalLawsuits(lawsuitsTotal);
       setTotalMovements(movementsTotal);
