@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { format, getMonth, getDate } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { TaskNotifications } from '@/components/TaskNotifications';
+import { BirthdayMessageFailuresAlert } from '@/components/BirthdayMessageFailuresAlert';
 
 interface BirthdayProfile {
   id: string;
@@ -322,6 +323,9 @@ export default function Dashboard() {
 
         {/* Alertas de Tarefas */}
         <TaskNotifications />
+
+        {/* Alertas de Falhas de Mensagens de Aniversário */}
+        <BirthdayMessageFailuresAlert />
 
         {/* Sobre o Escritório */}
         <Card className="border-l-4 border-l-primary">
