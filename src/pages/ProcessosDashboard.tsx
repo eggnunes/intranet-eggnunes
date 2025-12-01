@@ -14,7 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
 import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
-import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
 import { format, subDays, subMonths, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -318,6 +318,53 @@ export default function ProcessosDashboard() {
       .slice(0, 10); // Top 10 tipos
   };
 
+  // Preparar dados para gráfico de evolução temporal (últimos 12 meses)
+  const getEvolutionTimelineData = () => {
+    const monthsData: { [key: string]: { novos: number; arquivados: number } } = {};
+    
+    // Criar últimos 12 meses
+    for (let i = 11; i >= 0; i--) {
+      const date = subMonths(new Date(), i);
+      const monthKey = format(date, 'MMM/yy', { locale: ptBR });
+      monthsData[monthKey] = { novos: 0, arquivados: 0 };
+    }
+
+    // Contar processos novos por mês
+    lawsuits.forEach(lawsuit => {
+      if (lawsuit.created_at) {
+        const createdDate = new Date(lawsuit.created_at);
+        const monthKey = format(createdDate, 'MMM/yy', { locale: ptBR });
+        if (monthsData[monthKey]) {
+          monthsData[monthKey].novos++;
+        }
+      }
+    });
+
+    // Contar processos arquivados por mês
+    lawsuits.forEach(lawsuit => {
+      const closureDate = lawsuit.status_closure ? new Date(lawsuit.status_closure) : null;
+      const exitDate = lawsuit.exit_production ? new Date(lawsuit.exit_production) : null;
+      const mostRecentDate = closureDate && exitDate 
+        ? (closureDate > exitDate ? closureDate : exitDate)
+        : (closureDate || exitDate);
+      
+      if (mostRecentDate) {
+        const monthKey = format(mostRecentDate, 'MMM/yy', { locale: ptBR });
+        if (monthsData[monthKey]) {
+          monthsData[monthKey].arquivados++;
+        }
+      }
+    });
+
+    return Object.entries(monthsData).map(([mês, data]) => ({
+      mês,
+      novos: data.novos,
+      arquivados: data.arquivados
+    }));
+  };
+
+  const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#6366f1', '#ec4899', '#14b8a6'];
+
   // Calcular processos novos e arquivados no período selecionado
   const getEvolutionMetrics = () => {
     const now = new Date();
@@ -337,22 +384,58 @@ export default function ProcessosDashboard() {
         startDate = null; // all time
     }
 
+    // Debug: Verificar estrutura dos dados
+    if (lawsuits.length > 0) {
+      console.log('Sample lawsuit data:', lawsuits[0]);
+      console.log('Has created_at:', !!lawsuits[0].created_at);
+      console.log('Has status_closure:', !!lawsuits[0].status_closure);
+      console.log('Has exit_production:', !!lawsuits[0].exit_production);
+    }
+
+    // Contar processos novos pelo created_at
     const newProcesses = lawsuits.filter(lawsuit => {
       if (!lawsuit.created_at) return false;
       const createdDate = new Date(lawsuit.created_at);
       return !startDate || isAfter(createdDate, startDate);
     }).length;
 
+    // Contar processos arquivados: status_closure OU exit_production
     const archivedProcesses = lawsuits.filter(lawsuit => {
-      if (!lawsuit.status_closure) return false;
-      const closureDate = new Date(lawsuit.status_closure);
-      return !startDate || isAfter(closureDate, startDate);
+      const closureDate = lawsuit.status_closure ? new Date(lawsuit.status_closure) : null;
+      const exitDate = lawsuit.exit_production ? new Date(lawsuit.exit_production) : null;
+      
+      if (!closureDate && !exitDate) return false;
+      
+      // Usar a data mais recente entre status_closure e exit_production
+      const mostRecentDate = closureDate && exitDate 
+        ? (closureDate > exitDate ? closureDate : exitDate)
+        : (closureDate || exitDate);
+      
+      return !startDate || (mostRecentDate && isAfter(mostRecentDate, startDate));
     }).length;
 
-    return { newProcesses, archivedProcesses };
+    // Calcular breakdown por área (group)
+    const newByArea: { [key: string]: number } = {};
+    lawsuits.forEach(lawsuit => {
+      if (!lawsuit.created_at) return;
+      const createdDate = new Date(lawsuit.created_at);
+      if (!startDate || isAfter(createdDate, startDate)) {
+        const area = lawsuit.group || 'Não informado';
+        newByArea[area] = (newByArea[area] || 0) + 1;
+      }
+    });
+
+    return { 
+      newProcesses, 
+      archivedProcesses,
+      newByArea: Object.entries(newByArea)
+        .map(([area, count]) => ({ area, count }))
+        .sort((a, b) => b.count - a.count)
+    };
   };
 
   const evolutionMetrics = getEvolutionMetrics();
+  const netGrowth = evolutionMetrics.newProcesses - evolutionMetrics.archivedProcesses;
 
   useEffect(() => {
     fetchData();
@@ -523,7 +606,7 @@ export default function ProcessosDashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="text-center p-4 bg-primary/5 rounded-lg">
                   <div className="text-3xl font-bold text-primary">
                     {searchTerm || !showAllResponsibles
@@ -562,7 +645,86 @@ export default function ProcessosDashboard() {
                     {evolutionPeriod === 'all' ? 'Total' : `Últimos ${evolutionPeriod} dias`}
                   </div>
                 </div>
+                <div className={`text-center p-4 rounded-lg ${netGrowth >= 0 ? 'bg-emerald-500/5' : 'bg-red-500/5'}`}>
+                  <div className={`text-3xl font-bold ${netGrowth >= 0 ? 'text-emerald-600' : 'text-red-600'} flex items-center justify-center gap-1`}>
+                    {netGrowth >= 0 ? '+' : ''}{netGrowth}
+                    {netGrowth >= 0 ? (
+                      <TrendingUp className="h-5 w-5" />
+                    ) : (
+                      <TrendingUp className="h-5 w-5 rotate-180" />
+                    )}
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Crescimento Líquido
+                  </div>
+                  <div className="text-xs text-muted-foreground/60 mt-0.5">
+                    {evolutionPeriod === 'all' ? 'Total' : `Últimos ${evolutionPeriod} dias`}
+                  </div>
+                </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Evolução Temporal */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Evolução de Processos (Últimos 12 Meses)
+              </CardTitle>
+              <CardDescription>Comparação entre processos novos e arquivados</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={getEvolutionTimelineData()}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="mês" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="novos" stroke="#10b981" name="Processos Novos" strokeWidth={2} />
+                  <Line type="monotone" dataKey="arquivados" stroke="#8b5cf6" name="Processos Arquivados" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Processos Novos por Área */}
+          <Card className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart className="h-5 w-5" />
+                Processos Novos por Área
+              </CardTitle>
+              <CardDescription>
+                {evolutionPeriod === 'all' ? 'Total geral' : `Últimos ${evolutionPeriod} dias`}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {evolutionMetrics.newByArea.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={evolutionMetrics.newByArea}
+                      dataKey="count"
+                      nameKey="area"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      label={(entry) => `${entry.area}: ${entry.count}`}
+                    >
+                      {evolutionMetrics.newByArea.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                  Nenhum processo novo no período selecionado
+                </div>
+              )}
             </CardContent>
           </Card>
 
