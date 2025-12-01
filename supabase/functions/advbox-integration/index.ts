@@ -112,81 +112,78 @@ async function makeAdvboxRequest({ endpoint, method = 'GET', body }: AdvboxReque
 }
 
 // Função para buscar todos os dados com paginação COMPLETA
+// Função para buscar todos os dados com paginação COMPLETA
+// IMPORTANTE: A API Advbox usa limit=100 máximo e offset para paginação (não page)
 async function fetchAllPaginatedComplete(
   endpoint: string, 
   cacheKey: string,
-  limit = 1000, 
-  maxPages = 100
+  limit = 100, // API aceita máximo de 100
+  maxIterations = 100
 ): Promise<{ items: any[]; totalCount: number; pagesLoaded: number }> {
   let allData: any[] = [];
-  let page = 1;
+  let offset = 0;
   let hasMore = true;
   let totalCount = 0;
+  let iterations = 0;
   
   console.log(`Starting COMPLETE paginated fetch for: ${endpoint}`);
   fetchStatus.set(cacheKey, { inProgress: true, startedAt: Date.now(), progress: 'Iniciando...' });
   
   try {
-    while (hasMore && page <= maxPages) {
+    while (hasMore && iterations < maxIterations) {
       // Aguardar antes de cada request para evitar rate limit
-      if (page > 1) {
+      if (iterations > 0) {
         await sleep(DELAY_BETWEEN_REQUESTS);
       }
       
       fetchStatus.set(cacheKey, { 
         inProgress: true, 
         startedAt: fetchStatus.get(cacheKey)?.startedAt || Date.now(), 
-        progress: `Buscando página ${page}... (${allData.length} itens carregados)` 
+        progress: `Buscando (offset=${offset})... (${allData.length} itens carregados)` 
       });
       
       const response = await makeAdvboxRequest({ 
-        endpoint: `${endpoint}${endpoint.includes('?') ? '&' : '?'}limit=${limit}&page=${page}` 
+        endpoint: `${endpoint}${endpoint.includes('?') ? '&' : '?'}limit=${limit}&offset=${offset}` 
       });
       
       const items = response.data || [];
       totalCount = response.totalCount || totalCount || items.length;
       
       // Log all field names from first item to debug date fields
-      if (page === 1 && items.length > 0) {
+      if (iterations === 0 && items.length > 0) {
         console.log(`[DEBUG] Sample item fields:`, Object.keys(items[0]));
         console.log(`[DEBUG] Sample item date fields:`, JSON.stringify({
           process_date: items[0].process_date,
           created_at: items[0].created_at,
-          data_processo_inicio: items[0].data_processo_inicio,
-          data_inicio: items[0].data_inicio,
-          start_date: items[0].start_date,
-          date: items[0].date,
-          distribution_date: items[0].distribution_date,
-          data_distribuicao: items[0].data_distribuicao,
         }));
         // Log full first item to see all available fields
         console.log(`[DEBUG] Full first item:`, JSON.stringify(items[0]).substring(0, 2000));
       }
       
-      console.log(`Page ${page}: fetched ${items.length} items (total so far: ${allData.length + items.length}/${totalCount})`);
+      console.log(`Iteration ${iterations + 1} (offset=${offset}): fetched ${items.length} items (total so far: ${allData.length + items.length}/${totalCount})`);
       
       if (items.length === 0) {
         hasMore = false;
       } else {
         allData = allData.concat(items);
+        offset += items.length;
+        iterations++;
         
         // Se retornou menos que o limite ou já temos todos, não há mais páginas
         if (items.length < limit || allData.length >= totalCount) {
           hasMore = false;
-        } else {
-          page++;
         }
       }
     }
     
-    console.log(`COMPLETE fetch finished: ${allData.length} items in ${page} pages`);
+    console.log(`COMPLETE fetch finished: ${allData.length} items in ${iterations} iterations`);
     fetchStatus.set(cacheKey, { 
       inProgress: false, 
       startedAt: fetchStatus.get(cacheKey)?.startedAt || Date.now(), 
       progress: `Completo: ${allData.length} itens carregados` 
     });
     
-    return { items: allData, totalCount, pagesLoaded: page };
+    return { items: allData, totalCount, pagesLoaded: iterations };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error(`Error during paginated fetch for ${cacheKey}:`, errorMsg);
@@ -395,6 +392,7 @@ Deno.serve(async (req) => {
       }
 
       // Endpoint para buscar processos recentes por data de início
+      // Usa os parâmetros corretos da API: process_date_start, process_date_end
       case 'lawsuits-recent': {
         const startDate = url.searchParams.get('start_date'); // formato: YYYY-MM-DD
         const endDate = url.searchParams.get('end_date'); // formato: YYYY-MM-DD (opcional)
@@ -435,41 +433,75 @@ Deno.serve(async (req) => {
         }
 
         try {
-          // Usar o parâmetro data_processo_inicio da API do Advbox
-          let endpoint = `/lawsuits?limit=1000&page=1&data_processo_inicio=${startDate}`;
-          if (endDate) {
-            endpoint += `&data_processo_fim=${endDate}`;
+          // Buscar todos os processos recentes com paginação usando os parâmetros corretos da API
+          // IMPORTANTE: A API usa process_date_start (não data_processo_inicio)
+          // IMPORTANTE: A API usa limit=100 máximo e offset para paginação (não page)
+          let allItems: any[] = [];
+          let offset = 0;
+          const limit = 100; // Máximo permitido pela API
+          let hasMore = true;
+          let apiTotalCount = 0;
+          
+          while (hasMore) {
+            // Aguardar entre requests para evitar rate limit
+            if (offset > 0) {
+              await sleep(DELAY_BETWEEN_REQUESTS);
+            }
+            
+            let endpoint = `/lawsuits?limit=${limit}&offset=${offset}&process_date_start=${startDate}`;
+            if (endDate) {
+              endpoint += `&process_date_end=${endDate}`;
+            }
+            
+            console.log(`Fetching lawsuits-recent page (offset=${offset}): ${endpoint}`);
+            const response = await makeAdvboxRequest({ endpoint });
+            
+            const items = Array.isArray(response.data) ? response.data : [];
+            apiTotalCount = typeof response.totalCount === 'number' ? response.totalCount : items.length;
+            
+            console.log(`Got ${items.length} items (offset=${offset}, totalCount=${apiTotalCount})`);
+            
+            if (items.length === 0) {
+              hasMore = false;
+            } else {
+              allItems = allItems.concat(items);
+              offset += items.length;
+              
+              // Se retornou menos que o limite ou já temos todos, parar
+              if (items.length < limit || allItems.length >= apiTotalCount) {
+                hasMore = false;
+              }
+            }
+            
+            // Limitar a 10 páginas (1000 items) por segurança
+            if (offset >= 1000) {
+              console.log('Reached max pagination limit (1000 items)');
+              hasMore = false;
+            }
           }
           
-          console.log(`Making request with date filter: ${endpoint}`);
-          const response = await makeAdvboxRequest({ endpoint });
-          
-          const items = Array.isArray(response.data) ? response.data : [];
-          const totalCount = typeof response.totalCount === 'number' ? response.totalCount : items.length;
-          
-          console.log(`Found ${items.length} lawsuits with start date >= ${startDate}`);
+          console.log(`Found ${allItems.length} lawsuits with process_date >= ${startDate} (API total: ${apiTotalCount})`);
           
           // Log sample of returned items to verify date filtering
-          if (items.length > 0) {
-            const sample = items.slice(0, 3).map((item: any) => ({
+          if (allItems.length > 0) {
+            const sample = allItems.slice(0, 3).map((item: any) => ({
               id: item.id,
               process_date: item.process_date,
               created_at: item.created_at,
-              data_processo_inicio: item.data_processo_inicio,
-              distribution_date: item.distribution_date,
+              process_number: item.process_number,
             }));
             console.log('[DEBUG] Sample recent lawsuits:', JSON.stringify(sample));
           }
 
           // Salvar no cache
           cache.set(cacheKey, { 
-            data: { items, totalCount },
+            data: { items: allItems, totalCount: apiTotalCount },
             timestamp: now,
           });
           
           return new Response(JSON.stringify({
-            data: items,
-            totalCount,
+            data: allItems,
+            totalCount: apiTotalCount,
             startDate,
             endDate,
             metadata: {
@@ -507,12 +539,14 @@ Deno.serve(async (req) => {
       }
 
       // Endpoint rápido - busca apenas primeira página (para carregamento inicial)
+      // NOTA: A API tem limit máximo de 100, usamos offset para paginação
       case 'lawsuits': {
         console.log('Fetching lawsuits first page with totalCount...');
         const rawResult = await getCachedOrFetch(
           'lawsuits-first-page',
           async () => {
-            const response = await makeAdvboxRequest({ endpoint: '/lawsuits?limit=1000&page=1' });
+            // Buscar primeira página (limit=100 é o máximo da API)
+            const response = await makeAdvboxRequest({ endpoint: '/lawsuits?limit=100&offset=0' });
             const items = Array.isArray(response.data) ? response.data : [];
             const totalCount = typeof response.totalCount === 'number' ? response.totalCount : items.length;
             return { items, totalCount };
@@ -540,7 +574,8 @@ Deno.serve(async (req) => {
         const rawResult = await getCachedOrFetch(
           'last-movements-first-page',
           async () => {
-            const response = await makeAdvboxRequest({ endpoint: '/last_movements?limit=1000&page=1' });
+            // Buscar primeira página (limit=100 é o máximo da API)
+            const response = await makeAdvboxRequest({ endpoint: '/last_movements?limit=100&offset=0' });
             const items = Array.isArray(response.data) ? response.data : [];
             const totalCount = typeof response.totalCount === 'number' ? response.totalCount : items.length;
             return { items, totalCount };
