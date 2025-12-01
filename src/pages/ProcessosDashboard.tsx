@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
 import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
-import { format, subDays, subMonths, isAfter } from 'date-fns';
+import { format, subDays, subMonths, isAfter, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Briefcase, TrendingUp, BarChart, Search, Filter, AlertCircle, Calendar, ListTodo } from 'lucide-react';
 
@@ -255,11 +255,11 @@ export default function ProcessosDashboard() {
     const now = new Date();
     switch (periodFilter) {
       case 'week':
-        return subDays(now, 7);
+        return startOfDay(subDays(now, 7));
       case 'month':
-        return subMonths(now, 1);
+        return startOfDay(subMonths(now, 1));
       case 'quarter':
-        return subMonths(now, 3);
+        return startOfDay(subMonths(now, 3));
       default:
         return null;
     }
@@ -301,7 +301,7 @@ export default function ProcessosDashboard() {
     const matchesResponsible = showAllMovementResponsibles || 
       (movementResponsible && selectedMovementResponsibles.includes(movementResponsible));
     
-    const matchesPeriod = !dateFilter || isAfter(new Date(movement.date), dateFilter);
+    const matchesPeriod = !dateFilter || !isBefore(new Date(movement.date), dateFilter);
     
     const matchesStatus = showAllStatuses || 
       (movementStatus && selectedStatuses.includes(movementStatus));
@@ -464,16 +464,42 @@ export default function ProcessosDashboard() {
 
     switch (evolutionPeriod) {
       case '7':
-        startDate = subDays(now, 7);
+        startDate = startOfDay(subDays(now, 7));
         break;
       case '30':
-        startDate = subDays(now, 30);
+        startDate = startOfDay(subDays(now, 30));
         break;
       case '90':
-        startDate = subDays(now, 90);
+        startDate = startOfDay(subDays(now, 90));
         break;
       default:
         startDate = null; // todos os períodos
+    }
+
+    // Debug: Log para identificar problemas de data (apenas uma vez por período)
+    if (startDate && lawsuits.length > 0) {
+      // Encontrar as 10 datas mais recentes
+      const recentDates = lawsuits
+        .map(l => ({ id: l.id, date: getCreatedOrProcessDate(l), created_at: l.created_at }))
+        .filter(l => l.date !== null)
+        .sort((a, b) => (b.date as Date).getTime() - (a.date as Date).getTime())
+        .slice(0, 10);
+      
+      console.log('[Debug] Period:', evolutionPeriod, 'days, Start date:', startDate.toISOString());
+      console.log('[Debug] Total lawsuits:', lawsuits.length);
+      console.log('[Debug] 10 most recent created_at dates:', recentDates.map(l => ({
+        id: l.id,
+        created_at: l.created_at,
+        parsed: l.date?.toISOString()
+      })));
+      
+      // Contar processos após startDate usando !isBefore (inclui a data de início)
+      const afterStartDate = lawsuits.filter(l => {
+        const createdDate = getCreatedOrProcessDate(l);
+        if (!createdDate) return false;
+        return !isBefore(createdDate, startDate!);
+      }).length;
+      console.log('[Debug] Lawsuits on or after startDate:', afterStartDate);
     }
 
     // Filtrar lawsuits por tipo e área se filtros estiverem ativos
@@ -502,12 +528,12 @@ export default function ProcessosDashboard() {
       return !getArchiveDate(lawsuit);
     }).length;
 
-    // Contar processos arquivados nos dados carregados
+    // Contar processos arquivados nos dados carregados (usando !isBefore para incluir a data de início)
     const archivedInLoaded = filteredForEvolution.filter((lawsuit) => {
       const archiveDate = getArchiveDate(lawsuit);
       if (!archiveDate) return false;
       if (!startDate) return true;
-      return isAfter(archiveDate, startDate);
+      return !isBefore(archiveDate, startDate);
     }).length;
 
     // Para "processos novos":
@@ -521,11 +547,11 @@ export default function ProcessosDashboard() {
       // "Todos" com filtros - contar nos dados carregados
       newProcesses = filteredForEvolution.length;
     } else {
-      // Período específico - contar processos criados no período
+      // Período específico - contar processos criados no período (usando !isBefore para incluir a data de início)
       newProcesses = filteredForEvolution.filter((lawsuit) => {
         const createdDate = getCreatedOrProcessDate(lawsuit);
         if (!createdDate) return false;
-        return isAfter(createdDate, startDate);
+        return !isBefore(createdDate, startDate);
       }).length;
     }
 
@@ -534,7 +560,7 @@ export default function ProcessosDashboard() {
     filteredForEvolution.forEach((lawsuit) => {
       const createdDate = getCreatedOrProcessDate(lawsuit);
       if (!createdDate) return;
-      if (!startDate || isAfter(createdDate, startDate)) {
+      if (!startDate || !isBefore(createdDate, startDate)) {
         const area = lawsuit.group || 'Não informado';
         newByArea[area] = (newByArea[area] || 0) + 1;
       }
