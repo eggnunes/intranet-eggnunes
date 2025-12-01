@@ -343,7 +343,17 @@ export default function ProcessosDashboard() {
       console.log('Lawsuits parsed:', lawsuitsArray.length, 'items');
       console.log('Movements parsed:', movementsArray.length, 'items');
 
-      setLawsuits(lawsuitsArray);
+      const isRateLimitedEmptyLawsuits =
+        !!lawsuitsApiResponse?.metadata?.rateLimited && lawsuitsArray.length === 0;
+
+      // Se a API estiver rate limited e não retornou nenhum processo,
+      // mantemos os dados existentes (estado atual ou cache) para evitar zerar a tela
+      if (!isRateLimitedEmptyLawsuits || lawsuits.length === 0) {
+        setLawsuits(lawsuitsArray);
+      } else {
+        console.warn('Rate limited em processos, mantendo dados existentes.');
+      }
+
       setMovements(movementsArray);
       const updateTime = new Date();
       setLastUpdate(updateTime);
@@ -359,17 +369,19 @@ export default function ProcessosDashboard() {
       setTotalLawsuits(lawsuitsTotal);
       setTotalMovements(movementsTotal);
 
-      // Salvar dados no cache
+      // Salvar dados no cache somente se não estivermos em rate limit com lista vazia
       try {
-        const cacheData = {
-          lawsuits: lawsuitsArray,
-          movements: movementsArray,
-          totalLawsuits: lawsuitsTotal,
-          totalMovements: movementsTotal,
-          metadata: lawsuitsApiResponse?.metadata || null,
-        };
-        localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
-        localStorage.setItem(CACHE_TIMESTAMP_KEY, updateTime.toISOString());
+        if (!isRateLimitedEmptyLawsuits || !cachedData?.lawsuits?.length) {
+          const cacheData = {
+            lawsuits: lawsuitsArray,
+            movements: movementsArray,
+            totalLawsuits: lawsuitsTotal,
+            totalMovements: movementsTotal,
+            metadata: lawsuitsApiResponse?.metadata || null,
+          };
+          localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+          localStorage.setItem(CACHE_TIMESTAMP_KEY, updateTime.toISOString());
+        }
       } catch (cacheError) {
         console.error('Error saving to cache:', cacheError);
       }
