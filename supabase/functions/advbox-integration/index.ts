@@ -394,6 +394,118 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Endpoint para buscar processos recentes por data de início
+      case 'lawsuits-recent': {
+        const startDate = url.searchParams.get('start_date'); // formato: YYYY-MM-DD
+        const endDate = url.searchParams.get('end_date'); // formato: YYYY-MM-DD (opcional)
+        
+        console.log(`Fetching RECENT lawsuits from ${startDate} to ${endDate || 'now'}...`);
+        
+        if (!startDate) {
+          return new Response(JSON.stringify({ 
+            error: 'start_date is required (format: YYYY-MM-DD)' 
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const cacheKey = `lawsuits-recent-${startDate}-${endDate || 'now'}`;
+        const cached = cache.get(cacheKey);
+        const now = Date.now();
+        
+        if (!forceRefresh && cached && (now - cached.timestamp) < CACHE_TTL) {
+          const items = extractItems(cached.data);
+          const totalCount = extractTotalCount(cached.data, items.length);
+          console.log(`Cache hit for lawsuits-recent: ${items.length} items`);
+          
+          return new Response(JSON.stringify({
+            data: items,
+            totalCount,
+            startDate,
+            endDate,
+            metadata: {
+              fromCache: true,
+              rateLimited: false,
+              cacheAge: Math.floor((now - cached.timestamp) / 1000),
+            },
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        try {
+          // Usar o parâmetro data_processo_inicio da API do Advbox
+          let endpoint = `/lawsuits?limit=1000&page=1&data_processo_inicio=${startDate}`;
+          if (endDate) {
+            endpoint += `&data_processo_fim=${endDate}`;
+          }
+          
+          console.log(`Making request with date filter: ${endpoint}`);
+          const response = await makeAdvboxRequest({ endpoint });
+          
+          const items = Array.isArray(response.data) ? response.data : [];
+          const totalCount = typeof response.totalCount === 'number' ? response.totalCount : items.length;
+          
+          console.log(`Found ${items.length} lawsuits with start date >= ${startDate}`);
+          
+          // Log sample of returned items to verify date filtering
+          if (items.length > 0) {
+            const sample = items.slice(0, 3).map((item: any) => ({
+              id: item.id,
+              process_date: item.process_date,
+              created_at: item.created_at,
+              data_processo_inicio: item.data_processo_inicio,
+              distribution_date: item.distribution_date,
+            }));
+            console.log('[DEBUG] Sample recent lawsuits:', JSON.stringify(sample));
+          }
+
+          // Salvar no cache
+          cache.set(cacheKey, { 
+            data: { items, totalCount },
+            timestamp: now,
+          });
+          
+          return new Response(JSON.stringify({
+            data: items,
+            totalCount,
+            startDate,
+            endDate,
+            metadata: {
+              fromCache: false,
+              rateLimited: false,
+              cacheAge: 0,
+            },
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          console.error('Error fetching recent lawsuits:', error);
+          
+          // Retornar cache existente se disponível
+          if (cached) {
+            const items = extractItems(cached.data);
+            const totalCount = extractTotalCount(cached.data, items.length);
+            return new Response(JSON.stringify({
+              data: items,
+              totalCount,
+              startDate,
+              endDate,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              metadata: {
+                fromCache: true,
+                rateLimited: true,
+                cacheAge: Math.floor((now - cached.timestamp) / 1000),
+              },
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          throw error;
+        }
+      }
+
       // Endpoint rápido - busca apenas primeira página (para carregamento inicial)
       case 'lawsuits': {
         console.log('Fetching lawsuits first page with totalCount...');

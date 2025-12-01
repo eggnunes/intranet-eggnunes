@@ -856,6 +856,61 @@ export default function ProcessosDashboard() {
     });
   };
 
+  // Estado para controlar loading de processos recentes
+  const [isLoadingRecent, setIsLoadingRecent] = useState(false);
+  const [recentLawsuits, setRecentLawsuits] = useState<Lawsuit[]>([]);
+  const [recentLawsuitsStartDate, setRecentLawsuitsStartDate] = useState<string | null>(null);
+
+  // Função para buscar processos recentes usando filtro de data da API
+  const loadRecentLawsuits = async (days: number) => {
+    setIsLoadingRecent(true);
+    const startDate = format(subDays(new Date(), days), 'yyyy-MM-dd');
+    
+    toast({
+      title: `Buscando processos dos últimos ${days} dias`,
+      description: `Usando filtro de data de início do processo desde ${startDate}...`,
+    });
+
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        `advbox-integration/lawsuits-recent?start_date=${startDate}&force_refresh=true`
+      );
+
+      if (error) throw error;
+
+      const recentData = data?.data || [];
+      const totalFound = data?.totalCount || recentData.length;
+      
+      console.log(`[Recent Lawsuits] Found ${recentData.length} processes from ${startDate}`);
+      
+      // Log sample para debug
+      if (recentData.length > 0) {
+        console.log('[Recent Lawsuits] Sample:', recentData.slice(0, 3).map((l: any) => ({
+          id: l.id,
+          process_date: l.process_date,
+          created_at: l.created_at,
+        })));
+      }
+
+      setRecentLawsuits(recentData);
+      setRecentLawsuitsStartDate(startDate);
+
+      toast({
+        title: 'Processos recentes carregados',
+        description: `Encontrados ${totalFound} processos com data de início a partir de ${format(new Date(startDate), 'dd/MM/yyyy')}.`,
+      });
+    } catch (error) {
+      console.error('Error fetching recent lawsuits:', error);
+      toast({
+        title: 'Erro ao buscar processos recentes',
+        description: error instanceof Error ? error.message : 'Não foi possível buscar os processos recentes.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingRecent(false);
+    }
+  };
+
   // Função para limpar cache e forçar recarregamento completo
   const clearCacheAndReload = async () => {
     localStorage.removeItem(CACHE_KEY);
@@ -938,23 +993,64 @@ export default function ProcessosDashboard() {
             </CardHeader>
             <CardContent>
               {!hasCompleteData && (
-                <div className="flex items-center justify-between gap-2 mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-                    <p className="text-xs text-amber-700">
-                      Dados parciais: {lawsuits.length.toLocaleString()} de {totalLawsuits?.toLocaleString() || '?'} processos carregados. 
-                      Para calcular corretamente os "Processos Novos", carregue todos os dados.
-                    </p>
+                <div className="flex flex-col gap-3 mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                      <p className="text-xs text-amber-700">
+                        Dados parciais: {lawsuits.length.toLocaleString()} de {totalLawsuits?.toLocaleString() || '?'} processos carregados.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={loadFullData}
+                      disabled={isLoadingFullData}
+                      className="shrink-0 text-xs"
+                    >
+                      {isLoadingFullData ? 'Carregando...' : 'Carregar Todos'}
+                    </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={loadFullData}
-                    disabled={isLoadingFullData}
-                    className="shrink-0 text-xs"
-                  >
-                    {isLoadingFullData ? 'Carregando...' : 'Carregar Todos'}
-                  </Button>
+                  
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-amber-700">Buscar processos recentes (usa filtro de data da API):</span>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => loadRecentLawsuits(7)}
+                        disabled={isLoadingRecent}
+                        className="text-xs h-7 px-2"
+                      >
+                        {isLoadingRecent ? '...' : '7 dias'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => loadRecentLawsuits(30)}
+                        disabled={isLoadingRecent}
+                        className="text-xs h-7 px-2"
+                      >
+                        {isLoadingRecent ? '...' : '30 dias'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => loadRecentLawsuits(90)}
+                        disabled={isLoadingRecent}
+                        className="text-xs h-7 px-2"
+                      >
+                        {isLoadingRecent ? '...' : '90 dias'}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {recentLawsuits.length > 0 && recentLawsuitsStartDate && (
+                    <div className="text-xs text-green-700 bg-green-500/10 p-2 rounded">
+                      Processos recentes (desde {format(new Date(recentLawsuitsStartDate), 'dd/MM/yyyy')}): 
+                      <strong> {recentLawsuits.length}</strong> encontrados
+                    </div>
+                  )}
                 </div>
               )}
               {hasCompleteData && (
@@ -992,16 +1088,31 @@ export default function ProcessosDashboard() {
                 </div>
                 <div className="text-center p-4 bg-green-500/5 rounded-lg">
                   <div className="text-3xl font-bold text-green-600">
-                    {evolutionMetrics.newProcesses}
+                    {recentLawsuits.length > 0 ? recentLawsuits.length : evolutionMetrics.newProcesses}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
                     Processos Novos
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
-                    {evolutionPeriod === 'all' 
-                      ? (hasCompleteData ? 'Total geral' : 'Na amostra carregada') 
-                      : `Últimos ${evolutionPeriod} dias`}
+                    {recentLawsuits.length > 0 && recentLawsuitsStartDate
+                      ? `Via API (desde ${format(new Date(recentLawsuitsStartDate), 'dd/MM')})`
+                      : evolutionPeriod === 'all' 
+                        ? (hasCompleteData ? 'Total geral' : 'Na amostra carregada') 
+                        : `Últimos ${evolutionPeriod} dias`}
                   </div>
+                  {recentLawsuits.length > 0 && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="mt-1 h-6 text-xs text-green-600"
+                      onClick={() => {
+                        setRecentLawsuits([]);
+                        setRecentLawsuitsStartDate(null);
+                      }}
+                    >
+                      Limpar filtro
+                    </Button>
+                  )}
                 </div>
                 <div className="text-center p-4 bg-purple-500/5 rounded-lg">
                   <div className="text-3xl font-bold text-purple-600">
