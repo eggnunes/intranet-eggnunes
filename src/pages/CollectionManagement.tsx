@@ -1,6 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CollectionDashboard } from '@/components/CollectionDashboard';
 import { CollectionRulesManager } from '@/components/CollectionRulesManager';
+import { CollectionEffectivenessReport } from '@/components/CollectionEffectivenessReport';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -29,11 +30,16 @@ export default function CollectionManagement() {
       <Tabs defaultValue="dashboard" className="space-y-6">
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="effectiveness">Efetividade</TabsTrigger>
           <TabsTrigger value="rules">Regras Automáticas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard">
           <CollectionDashboard />
+        </TabsContent>
+
+        <TabsContent value="effectiveness">
+          <CollectionEffectivenessReport />
         </TabsContent>
 
         <TabsContent value="rules">
