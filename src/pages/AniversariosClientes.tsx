@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Cake, Calendar, Copy, Download, Ban, Eye, EyeOff } from 'lucide-react';
+import { Cake, Calendar, Copy, Download, Ban, Eye, EyeOff, Send } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -47,6 +47,8 @@ export default function AniversariosClientes() {
   const [exclusionReason, setExclusionReason] = useState('');
   const [metadata, setMetadata] = useState<any>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
+  const [sendingMessages, setSendingMessages] = useState(false);
+  const [confirmSendDialogOpen, setConfirmSendDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -400,6 +402,73 @@ export default function AniversariosClientes() {
     return exclusions.some(e => e.customer_id === customerId);
   };
 
+  const handleSendBirthdayMessages = async () => {
+    setConfirmSendDialogOpen(false);
+    setSendingMessages(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('chatguru-birthday-messages');
+
+      if (error) {
+        throw error;
+      }
+
+      const results = data?.results;
+
+      if (results) {
+        toast({
+          title: 'Mensagens enviadas!',
+          description: `${results.sent} mensagem(ns) enviada(s) com sucesso. ${results.failed > 0 ? `${results.failed} falhou(aram).` : ''}`,
+        });
+
+        // Mostrar erros detalhados se houver
+        if (results.errors && results.errors.length > 0) {
+          console.error('Errors sending messages:', results.errors);
+          results.errors.forEach((err: any) => {
+            console.error(`Failed for ${err.customer}:`, err.error);
+          });
+        }
+      } else {
+        toast({
+          title: 'Mensagens processadas',
+          description: 'As mensagens de aniversário foram processadas.',
+        });
+      }
+    } catch (error: any) {
+      console.error('Error sending birthday messages:', error);
+      toast({
+        title: 'Erro ao enviar mensagens',
+        description: error.message || 'Não foi possível enviar as mensagens de aniversário.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingMessages(false);
+    }
+  };
+
+  const openConfirmSendDialog = () => {
+    const excludedIds = new Set(exclusions.map(e => e.customer_id));
+    const todayCustomers = customers.filter((customer) => {
+      const birthday = new Date(customer.birthday);
+      const now = new Date();
+      return birthday.getDate() === now.getDate() && 
+             birthday.getMonth() === now.getMonth() &&
+             !excludedIds.has(customer.id) &&
+             customer.phone;
+    });
+
+    if (todayCustomers.length === 0) {
+      toast({
+        title: 'Nenhuma mensagem para enviar',
+        description: 'Não há aniversariantes hoje com telefone cadastrado que possam receber mensagens.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setConfirmSendDialogOpen(true);
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -469,26 +538,38 @@ export default function AniversariosClientes() {
             </div>
           </div>
 
-          {filteredCustomers.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={copyContactsToClipboard}
-              >
-                <Copy className="h-4 w-4 mr-2" />
-                Copiar Contatos
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={exportToCSV}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Exportar CSV
-              </Button>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={openConfirmSendDialog}
+              disabled={sendingMessages}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              {sendingMessages ? 'Enviando...' : 'Enviar Mensagens de Aniversário'}
+            </Button>
+            
+            {filteredCustomers.length > 0 && (
+              <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={copyContactsToClipboard}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copiar Contatos
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={exportToCSV}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar CSV
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Lista de Aniversariantes */}
@@ -609,6 +690,36 @@ export default function AniversariosClientes() {
             <Button variant="destructive" onClick={confirmExclusion}>
               <Ban className="h-4 w-4 mr-2" />
               Confirmar Exclusão
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Confirmação de Envio */}
+      <Dialog open={confirmSendDialogOpen} onOpenChange={setConfirmSendDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enviar Mensagens de Aniversário</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja enviar as mensagens de aniversário para os clientes de hoje?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              As mensagens serão enviadas apenas para os clientes que fazem aniversário hoje, 
+              que têm telefone cadastrado e que não estão marcados como "não enviar".
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              O template pré-aprovado "aniversario" será utilizado para o envio via WhatsApp.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmSendDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSendBirthdayMessages}>
+              <Send className="h-4 w-4 mr-2" />
+              Confirmar Envio
             </Button>
           </DialogFooter>
         </DialogContent>
