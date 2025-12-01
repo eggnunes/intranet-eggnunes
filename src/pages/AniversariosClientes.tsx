@@ -94,7 +94,8 @@ export default function AniversariosClientes() {
         throw error;
       }
 
-      const rawCustomers: any[] = (data as any)?.data || (data as any) || [];
+      const responseData = (data as any)?.data || data;
+      const rawCustomers: any[] = Array.isArray(responseData) ? responseData : [];
       setMetadata((data as any)?.metadata);
       setLastUpdate(new Date());
 
