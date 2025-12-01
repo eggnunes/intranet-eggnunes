@@ -130,7 +130,8 @@ export default function AniversariosClientes() {
             id: String(c.id ?? c.customer_id ?? ''),
             name: c.name ?? '',
             email: c.email ?? undefined,
-            phone: c.phone ?? c.cellphone ?? undefined,
+            // Priorizar sempre o celular em vez do telefone fixo
+            phone: c.cellphone ?? c.phone ?? undefined,
             birthday: birthdayIso,
           } as Customer;
         })
