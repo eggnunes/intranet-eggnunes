@@ -498,7 +498,12 @@ export default function ProcessosDashboard() {
                       return diffDays <= 7;
                     }).length}
                   </div>
-                  <div className="text-sm text-muted-foreground mt-1">Alertas (Últimos 7 dias)</div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Alertas Recentes (7 dias)
+                  </div>
+                  <div className="text-xs text-muted-foreground/60 mt-0.5">
+                    Baseado em {movements.length} movimentações
+                  </div>
                 </div>
               </div>
             </CardContent>
