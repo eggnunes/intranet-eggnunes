@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Briefcase, AlertCircle, TrendingUp, Search, Filter, Calendar, BarChart, ListTodo } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
@@ -457,18 +457,53 @@ export default function ProcessosDashboard() {
   const evolutionMetrics = getEvolutionMetrics();
   const netGrowth = evolutionMetrics.newProcesses - evolutionMetrics.archivedProcesses;
 
-  // Calcular processos ativos por área (group)
-  const getActiveByAreaData = () => {
-    const areaCounts: { [key: string]: number } = {};
+  // Calcular processos ativos por tipo de ação (type)
+  const getActiveByTypeData = () => {
+    const typeCounts: { [key: string]: number } = {};
     
     filteredLawsuits.forEach(lawsuit => {
-      const area = lawsuit.group || 'Não informado';
-      areaCounts[area] = (areaCounts[area] || 0) + 1;
+      const type = lawsuit.type || 'Não informado';
+      typeCounts[type] = (typeCounts[type] || 0) + 1;
     });
     
-    return Object.entries(areaCounts)
-      .map(([área, quantidade]) => ({ área, quantidade }))
+    return Object.entries(typeCounts)
+      .map(([tipo, quantidade]) => ({ tipo, quantidade }))
       .sort((a, b) => b.quantidade - a.quantidade);
+  };
+
+  // Evolução por tipo de ação (últimos 6 meses)
+  const getTypeEvolutionData = () => {
+    const monthsData: { [key: string]: { [type: string]: number } } = {};
+    
+    // Criar últimos 6 meses
+    for (let i = 5; i >= 0; i--) {
+      const date = subMonths(new Date(), i);
+      const monthKey = format(date, 'MMM/yy', { locale: ptBR });
+      monthsData[monthKey] = {};
+    }
+
+    // Pegar top 5 tipos mais frequentes
+    const topTypes = getActiveByTypeData().slice(0, 5).map(t => t.tipo);
+
+    // Contar processos novos por mês e tipo
+    lawsuits.forEach(lawsuit => {
+      if (lawsuit.created_at && topTypes.includes(lawsuit.type)) {
+        const createdDate = new Date(lawsuit.created_at);
+        const monthKey = format(createdDate, 'MMM/yy', { locale: ptBR });
+        if (monthsData[monthKey]) {
+          const type = lawsuit.type;
+          monthsData[monthKey][type] = (monthsData[monthKey][type] || 0) + 1;
+        }
+      }
+    });
+
+    return {
+      data: Object.entries(monthsData).map(([mês, types]) => ({
+        mês,
+        ...types
+      })),
+      types: topTypes
+    };
   };
 
   useEffect(() => {
@@ -653,7 +688,7 @@ export default function ProcessosDashboard() {
                   <div className="text-3xl font-bold text-blue-600">
                     {movementSearchTerm
                       ? filteredMovements.length
-                      : (totalMovements ?? filteredMovements.length)}
+                       : (totalMovements ?? filteredMovements.length)}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">Movimentações {movementSearchTerm ? 'Filtradas' : 'Recentes'}</div>
                 </div>
@@ -699,166 +734,342 @@ export default function ProcessosDashboard() {
             </CardContent>
           </Card>
 
-          {/* Evolução Temporal */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                Evolução de Processos (Últimos 12 Meses)
-              </CardTitle>
-              <CardDescription>Comparação entre processos novos e arquivados</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={getEvolutionTimelineData()}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="mês" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="novos" stroke="#10b981" name="Processos Novos" strokeWidth={2} />
-                  <Line type="monotone" dataKey="arquivados" stroke="#8b5cf6" name="Processos Arquivados" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Processos Novos por Área */}
-          <Card className="lg:col-span-1">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart className="h-5 w-5" />
-                Processos Novos por Área
-              </CardTitle>
-              <CardDescription>
-                {evolutionPeriod === 'all' ? 'Total geral' : `Últimos ${evolutionPeriod} dias`}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {evolutionMetrics.newByArea.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={evolutionMetrics.newByArea}
-                      dataKey="count"
-                      nameKey="area"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      label={(entry) => `${entry.area}: ${entry.count}`}
-                    >
-                      {evolutionMetrics.newByArea.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                  Nenhum processo novo no período selecionado
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Processos Ativos */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <div className="flex flex-col gap-3">
-                <div>
-                  <CardTitle>Processos Ativos</CardTitle>
-                  <CardDescription>Seus processos em andamento</CardDescription>
-                </div>
-                
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Buscar processos..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-9"
-                    />
+          {/* Seções Expansíveis */}
+          <div className="lg:col-span-3">
+            <Accordion type="multiple" className="space-y-4">
+              
+              {/* Evolução Temporal */}
+              <AccordionItem value="evolucao" className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    <span className="font-semibold">Evolução de Processos (Últimos 12 Meses)</span>
                   </div>
-                  
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="icon">
-                        <Filter className="h-4 w-4" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-80">
-                      <div className="space-y-4">
-                        <h4 className="font-medium">Filtrar por Responsável</h4>
-                        
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="all-process-responsibles"
-                            checked={showAllResponsibles}
-                            onCheckedChange={(checked) => {
-                              setShowAllResponsibles(checked as boolean);
-                              if (checked) setSelectedResponsibles([]);
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-4">
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={getEvolutionTimelineData()}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="mês" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Line type="monotone" dataKey="novos" stroke="#10b981" name="Processos Novos" strokeWidth={2} />
+                        <Line type="monotone" dataKey="arquivados" stroke="#8b5cf6" name="Processos Arquivados" strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Processos Novos por Área */}
+              <AccordionItem value="novos-area" className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <BarChart className="h-5 w-5" />
+                    <span className="font-semibold">Processos Novos por Área</span>
+                    <span className="text-sm text-muted-foreground ml-2">
+                      ({evolutionPeriod === 'all' ? 'Total geral' : `Últimos ${evolutionPeriod} dias`})
+                    </span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-4">
+                    {evolutionMetrics.newByArea.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <PieChart>
+                          <Pie
+                            data={evolutionMetrics.newByArea}
+                            dataKey="count"
+                            nameKey="area"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={80}
+                            label={(entry) => `${entry.area}: ${entry.count}`}
+                          >
+                            {evolutionMetrics.newByArea.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                        Nenhum processo novo no período selecionado
+                      </div>
+                    )}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Processos Ativos por Tipo de Ação */}
+              <AccordionItem value="ativos-tipo" className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <BarChart className="h-5 w-5" />
+                    <span className="font-semibold">Processos Ativos por Tipo de Ação</span>
+                    <span className="text-sm text-muted-foreground ml-2">
+                      ({filteredLawsuits.length} processos)
+                    </span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-4">
+                    <ResponsiveContainer width="100%" height={400}>
+                      <RechartsBarChart data={getActiveByTypeData()} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis 
+                          type="number"
+                          tick={{ fontSize: 12 }}
+                          className="text-muted-foreground"
+                        />
+                        <YAxis 
+                          type="category"
+                          dataKey="tipo" 
+                          tick={{ fontSize: 11 }}
+                          className="text-muted-foreground"
+                          width={200}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px'
+                          }}
+                        />
+                        <Bar 
+                          dataKey="quantidade" 
+                          fill="#10b981"
+                          radius={[0, 8, 8, 0]}
+                        />
+                      </RechartsBarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Crescimento por Tipo de Ação */}
+              <AccordionItem value="crescimento-tipo" className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    <span className="font-semibold">Evolução por Tipo de Ação (Top 5)</span>
+                    <span className="text-sm text-muted-foreground ml-2">(Últimos 6 meses)</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-4">
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={getTypeEvolutionData().data}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="mês" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        {getTypeEvolutionData().types.map((type, index) => (
+                          <Line 
+                            key={type}
+                            type="monotone" 
+                            dataKey={type} 
+                            stroke={COLORS[index % COLORS.length]} 
+                            name={type}
+                            strokeWidth={2}
+                          />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Tipos de Ação Mais Frequentes */}
+              <AccordionItem value="tipos-frequentes" className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <BarChart className="h-5 w-5" />
+                    <span className="font-semibold">Tipos de Ação Mais Frequentes</span>
+                    <span className="text-sm text-muted-foreground ml-2">(Top 10)</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-4">
+                    <ResponsiveContainer width="100%" height={300}>
+                      <RechartsBarChart data={getActionTypesData()} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis 
+                          type="number"
+                          tick={{ fontSize: 12 }}
+                          className="text-muted-foreground"
+                        />
+                        <YAxis 
+                          type="category"
+                          dataKey="tipo" 
+                          tick={{ fontSize: 10 }}
+                          className="text-muted-foreground"
+                          width={150}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px'
+                          }}
+                        />
+                        <Bar 
+                          dataKey="quantidade" 
+                          fill="hsl(var(--accent))"
+                          radius={[0, 8, 8, 0]}
+                        />
+                      </RechartsBarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Timeline de Movimentações */}
+              {filteredMovements.length > 0 && (
+                <AccordionItem value="timeline" className="border rounded-lg px-4">
+                  <AccordionTrigger className="hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <BarChart className="h-5 w-5" />
+                      <span className="font-semibold">Timeline de Movimentações</span>
+                      <span className="text-sm text-muted-foreground ml-2">(Últimos 30 dias)</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="pt-4">
+                      <ResponsiveContainer width="100%" height={300}>
+                        <RechartsBarChart data={getTimelineData()}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis 
+                            dataKey="date" 
+                            tick={{ fontSize: 12 }}
+                            className="text-muted-foreground"
+                          />
+                          <YAxis 
+                            tick={{ fontSize: 12 }}
+                            className="text-muted-foreground"
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'hsl(var(--card))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '8px'
                             }}
                           />
-                          <label htmlFor="all-process-responsibles" className="text-sm font-medium cursor-pointer">
-                            Todos os responsáveis
-                          </label>
-                        </div>
-                        
-                        <div className="border-t pt-2 space-y-2 max-h-60 overflow-y-auto">
-                          {responsibles.map((responsible) => (
-                            <div key={responsible} className="flex items-center space-x-2">
+                          <Bar 
+                            dataKey="movimentações" 
+                            fill="hsl(var(--primary))"
+                            radius={[8, 8, 0, 0]}
+                          />
+                        </RechartsBarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              )}
+
+              {/* Processos Ativos - Lista */}
+              <AccordionItem value="processos-lista" className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="h-5 w-5" />
+                    <span className="font-semibold">Processos Ativos</span>
+                    <span className="text-sm text-muted-foreground ml-2">
+                      ({filteredLawsuits.length} {searchTerm || !showAllResponsibles ? 'filtrados' : 'total'})
+                    </span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-4 space-y-3">
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar processos..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-9"
+                        />
+                      </div>
+                      
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="icon">
+                            <Filter className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80">
+                          <div className="space-y-4">
+                            <h4 className="font-medium">Filtrar por Responsável</h4>
+                            
+                            <div className="flex items-center space-x-2">
                               <Checkbox
-                                id={`process-${responsible}`}
-                                checked={selectedResponsibles.includes(responsible)}
-                                disabled={showAllResponsibles}
+                                id="all-process-responsibles"
+                                checked={showAllResponsibles}
                                 onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    setSelectedResponsibles([...selectedResponsibles, responsible]);
-                                    setShowAllResponsibles(false);
-                                  } else {
-                                    setSelectedResponsibles(selectedResponsibles.filter(r => r !== responsible));
-                                  }
+                                  setShowAllResponsibles(checked as boolean);
+                                  if (checked) setSelectedResponsibles([]);
                                 }}
                               />
-                              <label htmlFor={`process-${responsible}`} className="text-sm cursor-pointer">
-                                {responsible}
+                              <label htmlFor="all-process-responsibles" className="text-sm font-medium cursor-pointer">
+                                Todos os responsáveis
                               </label>
                             </div>
-                          ))}
-                        </div>
-                        
-                        {!showAllResponsibles && selectedResponsibles.length > 0 && (
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => {
-                              setSelectedResponsibles([]);
-                              setShowAllResponsibles(true);
-                            }}
-                            className="w-full"
-                          >
-                            Limpar Filtros
-                          </Button>
-                        )}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[400px]">
-                <div className="space-y-3">
-                   {filteredLawsuits.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">
-                      {searchTerm || !showAllResponsibles ? 'Nenhum processo encontrado com os filtros aplicados' : 'Nenhum processo encontrado'}
-                    </p>
-                  ) : (
-                    filteredLawsuits.map((lawsuit) => (
-                      <Card key={lawsuit.id} className="hover:shadow-md transition-shadow">
-                        <CardContent className="p-4">
+                            
+                            <div className="border-t pt-2 space-y-2 max-h-60 overflow-y-auto">
+                              {responsibles.map((responsible) => (
+                                <div key={responsible} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`process-${responsible}`}
+                                    checked={selectedResponsibles.includes(responsible)}
+                                    disabled={showAllResponsibles}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setSelectedResponsibles([...selectedResponsibles, responsible]);
+                                        setShowAllResponsibles(false);
+                                      } else {
+                                        setSelectedResponsibles(selectedResponsibles.filter(r => r !== responsible));
+                                      }
+                                    }}
+                                  />
+                                  <label htmlFor={`process-${responsible}`} className="text-sm cursor-pointer">
+                                    {responsible}
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            {!showAllResponsibles && selectedResponsibles.length > 0 && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => {
+                                  setSelectedResponsibles([]);
+                                  setShowAllResponsibles(true);
+                                }}
+                                className="w-full"
+                              >
+                                Limpar Filtros
+                              </Button>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    <ScrollArea className="h-[400px]">
+                      <div className="space-y-3">
+                      {filteredLawsuits.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-8">
+                          {searchTerm || !showAllResponsibles ? 'Nenhum processo encontrado com os filtros aplicados' : 'Nenhum processo encontrado'}
+                        </p>
+                      ) : (
+                        filteredLawsuits.map((lawsuit) => (
+                          <Card key={lawsuit.id} className="hover:shadow-md transition-shadow">
+                            <CardContent className="p-4">
                           <div className="space-y-3">
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1">
@@ -951,150 +1162,195 @@ export default function ProcessosDashboard() {
                           </div>
                         </CardContent>
                       </Card>
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
+                        ))
+                      )}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
 
-          {/* Processos Ativos por Área */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart className="h-5 w-5" />
-                Processos Ativos por Área de Atuação
-              </CardTitle>
-              <CardDescription>Distribuição dos {filteredLawsuits.length} processos em andamento por área jurídica</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <RechartsBarChart data={getActiveByAreaData()} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis 
-                    type="number"
-                    tick={{ fontSize: 12 }}
-                    className="text-muted-foreground"
-                  />
-                  <YAxis 
-                    type="category"
-                    dataKey="área" 
-                    tick={{ fontSize: 11 }}
-                    className="text-muted-foreground"
-                    width={180}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Bar 
-                    dataKey="quantidade" 
-                    fill="#10b981"
-                    radius={[0, 8, 8, 0]}
-                  />
-                </RechartsBarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Gráficos */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart className="h-5 w-5" />
-                Tipos de Ação Mais Frequentes
-              </CardTitle>
-              <CardDescription>Top 10 tipos de processos</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <RechartsBarChart data={getActionTypesData()} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis 
-                    type="number"
-                    tick={{ fontSize: 12 }}
-                    className="text-muted-foreground"
-                  />
-                  <YAxis 
-                    type="category"
-                    dataKey="tipo" 
-                    tick={{ fontSize: 10 }}
-                    className="text-muted-foreground"
-                    width={150}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Bar 
-                    dataKey="quantidade" 
-                    fill="hsl(var(--accent))"
-                    radius={[0, 8, 8, 0]}
-                  />
-                </RechartsBarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {filteredMovements.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart className="h-5 w-5" />
-                  Timeline de Movimentações
-                </CardTitle>
-                <CardDescription>Distribuição ao longo do tempo</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <RechartsBarChart data={getTimelineData()}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis 
-                      dataKey="date" 
-                      tick={{ fontSize: 12 }}
-                      className="text-muted-foreground"
-                    />
-                    <YAxis 
-                      tick={{ fontSize: 12 }}
-                      className="text-muted-foreground"
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px'
-                      }}
-                    />
-                    <Bar 
-                      dataKey="movimentações" 
-                      fill="hsl(var(--primary))"
-                      radius={[8, 8, 0, 0]}
-                    />
-                  </RechartsBarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Movimentações Recentes */}
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col gap-3">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
+              {/* Movimentações Recentes */}
+              <AccordionItem value="movimentacoes" className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center gap-2">
                     <AlertCircle className="h-5 w-5" />
-                    Movimentações Recentes
-                  </CardTitle>
+                    <span className="font-semibold">Movimentações Recentes</span>
+                    <span className="text-sm text-muted-foreground ml-2">
+                      ({filteredMovements.length})
+                    </span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-4 space-y-3">
                   <CardDescription>Últimas atualizações dos processos</CardDescription>
                 </div>
                 
-                <div className="flex gap-2 flex-wrap">
+                    <div className="flex gap-2 flex-wrap">
+                      <div className="relative flex-1 min-w-[200px]">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar movimentações..."
+                          value={movementSearchTerm}
+                          onChange={(e) => setMovementSearchTerm(e.target.value)}
+                          className="pl-9"
+                        />
+                      </div>
+                      
+                      <Select value={periodFilter} onValueChange={setPeriodFilter}>
+                        <SelectTrigger className="w-[180px]">
+                          <Calendar className="w-4 h-4 mr-2" />
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos os períodos</SelectItem>
+                          <SelectItem value="week">Última semana</SelectItem>
+                          <SelectItem value="month">Último mês</SelectItem>
+                          <SelectItem value="quarter">Últimos 3 meses</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="gap-2">
+                            <Filter className="h-4 w-4" />
+                            Status
+                            {!showAllStatuses && selectedStatuses.length > 0 && (
+                              <Badge variant="secondary" className="ml-1">{selectedStatuses.length}</Badge>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64" align="end">
+                          <div className="space-y-4">
+                            <h4 className="font-medium text-sm">Filtrar por Status</h4>
+                            
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id="all-statuses"
+                                checked={showAllStatuses}
+                                onCheckedChange={(checked) => {
+                                  setShowAllStatuses(!!checked);
+                                  if (checked) {
+                                    setSelectedStatuses([]);
+                                  }
+                                }}
+                              />
+                              <label htmlFor="all-statuses" className="text-sm font-medium cursor-pointer">
+                                Todos os Status
+                              </label>
+                            </div>
+                            
+                            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                              {lawsuitStatuses.map((status) => (
+                                <div key={status} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`status-${status}`}
+                                    checked={selectedStatuses.includes(status)}
+                                    disabled={showAllStatuses}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setSelectedStatuses([...selectedStatuses, status]);
+                                        setShowAllStatuses(false);
+                                      } else {
+                                        setSelectedStatuses(selectedStatuses.filter(s => s !== status));
+                                      }
+                                    }}
+                                  />
+                                  <label htmlFor={`status-${status}`} className="text-sm cursor-pointer">
+                                    {status}
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            {!showAllStatuses && selectedStatuses.length > 0 && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => {
+                                  setSelectedStatuses([]);
+                                  setShowAllStatuses(true);
+                                }}
+                                className="w-full"
+                              >
+                                Limpar Filtros
+                              </Button>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="gap-2">
+                            <Filter className="h-4 w-4" />
+                            Responsável
+                            {!showAllMovementResponsibles && selectedMovementResponsibles.length > 0 && (
+                              <Badge variant="secondary" className="ml-1">{selectedMovementResponsibles.length}</Badge>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80">
+                          <div className="space-y-4">
+                            <h4 className="font-medium">Filtrar por Responsável</h4>
+                            
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id="all-movement-responsibles"
+                                checked={showAllMovementResponsibles}
+                                onCheckedChange={(checked) => {
+                                  setShowAllMovementResponsibles(checked as boolean);
+                                  if (checked) setSelectedMovementResponsibles([]);
+                                }}
+                              />
+                              <label htmlFor="all-movement-responsibles" className="text-sm font-medium cursor-pointer">
+                                Todos os responsáveis
+                              </label>
+                            </div>
+                            
+                            <div className="border-t pt-2 space-y-2 max-h-60 overflow-y-auto">
+                              {movementResponsibles.map((responsible) => (
+                                <div key={responsible} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`movement-${responsible}`}
+                                    checked={selectedMovementResponsibles.includes(responsible)}
+                                    disabled={showAllMovementResponsibles}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setSelectedMovementResponsibles([...selectedMovementResponsibles, responsible]);
+                                        setShowAllMovementResponsibles(false);
+                                      } else {
+                                        setSelectedMovementResponsibles(selectedMovementResponsibles.filter(r => r !== responsible));
+                                      }
+                                    }}
+                                  />
+                                  <label htmlFor={`movement-${responsible}`} className="text-sm cursor-pointer">
+                                    {responsible}
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            {!showAllMovementResponsibles && selectedMovementResponsibles.length > 0 && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => {
+                                  setSelectedMovementResponsibles([]);
+                                  setShowAllMovementResponsibles(true);
+                                }}
+                                className="w-full"
+                              >
+                                Limpar Filtros
+                              </Button>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    <ScrollArea className="h-[400px]">
+                      <div className="space-y-3">
                   <div className="relative flex-1 min-w-[200px]">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -1306,11 +1562,14 @@ export default function ProcessosDashboard() {
                       </div>
                     ))
                   )}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
+                      </div>
+                    </ScrollArea>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+            </Accordion>
+          </div>
 
         {/* Dialog de Criação de Tarefa */}
         <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
