@@ -143,8 +143,13 @@ export default function RelatoriosFinanceiros() {
     }
 
     return transactions.filter((t) => {
-      const transactionDate = parseISO(t.date);
-      return transactionDate >= startDate && transactionDate <= endDate;
+      if (!t.date) return false;
+      try {
+        const transactionDate = parseISO(t.date);
+        return transactionDate >= startDate && transactionDate <= endDate;
+      } catch {
+        return false;
+      }
     });
   };
 
@@ -176,8 +181,13 @@ export default function RelatoriosFinanceiros() {
     }
 
     return transactions.filter((t) => {
-      const transactionDate = parseISO(t.date);
-      return transactionDate >= startDate && transactionDate <= endDate;
+      if (!t.date) return false;
+      try {
+        const transactionDate = parseISO(t.date);
+        return transactionDate >= startDate && transactionDate <= endDate;
+      } catch {
+        return false;
+      }
     });
   };
 
@@ -212,17 +222,24 @@ export default function RelatoriosFinanceiros() {
     const monthlyData: Record<string, { month: string; receitas: number; despesas: number }> = {};
 
     filteredTransactions.forEach((transaction) => {
-      const date = parseISO(transaction.date);
-      const monthKey = format(date, 'MM/yyyy', { locale: ptBR });
+      // Validar se a data existe antes de fazer parse
+      if (!transaction.date) return;
+      
+      try {
+        const date = parseISO(transaction.date);
+        const monthKey = format(date, 'MM/yyyy', { locale: ptBR });
 
-      if (!monthlyData[monthKey]) {
-        monthlyData[monthKey] = { month: monthKey, receitas: 0, despesas: 0 };
-      }
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = { month: monthKey, receitas: 0, despesas: 0 };
+        }
 
-      if (transaction.type === 'income') {
-        monthlyData[monthKey].receitas += transaction.amount;
-      } else {
-        monthlyData[monthKey].despesas += transaction.amount;
+        if (transaction.type === 'income') {
+          monthlyData[monthKey].receitas += transaction.amount;
+        } else {
+          monthlyData[monthKey].despesas += transaction.amount;
+        }
+      } catch (error) {
+        console.error('Erro ao processar transação:', transaction, error);
       }
     });
 
@@ -237,13 +254,15 @@ export default function RelatoriosFinanceiros() {
   const chartData = getChartData();
 
   const exportToExcel = () => {
-    const worksheetData = filteredTransactions.map((t) => ({
-      Data: format(parseISO(t.date), 'dd/MM/yyyy', { locale: ptBR }),
-      Descrição: t.description,
-      Categoria: t.category,
-      Tipo: t.type === 'income' ? 'Receita' : 'Despesa',
-      Valor: t.amount,
-    }));
+    const worksheetData = filteredTransactions
+      .filter(t => t.date) // Filtrar transações sem data
+      .map((t) => ({
+        Data: format(parseISO(t.date), 'dd/MM/yyyy', { locale: ptBR }),
+        Descrição: t.description,
+        Categoria: t.category,
+        Tipo: t.type === 'income' ? 'Receita' : 'Despesa',
+        Valor: t.amount,
+      }));
 
     const worksheet = XLSX.utils.json_to_sheet(worksheetData);
     const workbook = XLSX.utils.book_new();
@@ -314,13 +333,15 @@ export default function RelatoriosFinanceiros() {
     const finalY = (doc as any).lastAutoTable.finalY || 120;
     doc.text('Transações', 14, finalY + 10);
 
-    const transactionsData = filteredTransactions.map((t) => [
-      format(parseISO(t.date), 'dd/MM/yyyy'),
-      t.description,
-      t.category,
-      t.type === 'income' ? 'Receita' : 'Despesa',
-      formatCurrency(t.amount),
-    ]);
+    const transactionsData = filteredTransactions
+      .filter(t => t.date) // Filtrar transações sem data
+      .map((t) => [
+        format(parseISO(t.date), 'dd/MM/yyyy'),
+        t.description,
+        t.category,
+        t.type === 'income' ? 'Receita' : 'Despesa',
+        formatCurrency(t.amount),
+      ]);
 
     autoTable(doc, {
       startY: finalY + 15,
