@@ -146,6 +146,23 @@ async function fetchAllPaginatedComplete(
       const items = response.data || [];
       totalCount = response.totalCount || totalCount || items.length;
       
+      // Log all field names from first item to debug date fields
+      if (page === 1 && items.length > 0) {
+        console.log(`[DEBUG] Sample item fields:`, Object.keys(items[0]));
+        console.log(`[DEBUG] Sample item date fields:`, JSON.stringify({
+          process_date: items[0].process_date,
+          created_at: items[0].created_at,
+          data_processo_inicio: items[0].data_processo_inicio,
+          data_inicio: items[0].data_inicio,
+          start_date: items[0].start_date,
+          date: items[0].date,
+          distribution_date: items[0].distribution_date,
+          data_distribuicao: items[0].data_distribuicao,
+        }));
+        // Log full first item to see all available fields
+        console.log(`[DEBUG] Full first item:`, JSON.stringify(items[0]).substring(0, 2000));
+      }
+      
       console.log(`Page ${page}: fetched ${items.length} items (total so far: ${allData.length + items.length}/${totalCount})`);
       
       if (items.length === 0) {
