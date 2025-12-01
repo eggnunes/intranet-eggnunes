@@ -476,42 +476,58 @@ export default function ProcessosDashboard() {
 
     // Filtrar lawsuits por tipo e área se filtros estiverem ativos
     let filteredForEvolution = lawsuits;
+    const hasTypeFilter = !showAllEvolutionTypes && selectedEvolutionTypes.length > 0;
+    const hasAreaFilter = !showAllEvolutionAreas && selectedEvolutionAreas.length > 0;
 
-    if (!showAllEvolutionTypes && selectedEvolutionTypes.length > 0) {
+    if (hasTypeFilter) {
       filteredForEvolution = filteredForEvolution.filter(
         (lawsuit) => lawsuit.type && selectedEvolutionTypes.includes(lawsuit.type),
       );
     }
 
-    if (!showAllEvolutionAreas && selectedEvolutionAreas.length > 0) {
+    if (hasAreaFilter) {
       filteredForEvolution = filteredForEvolution.filter(
         (lawsuit) => lawsuit.group && selectedEvolutionAreas.includes(lawsuit.group),
       );
     }
 
-    // Contar processos novos usando data de criação ou data do processo
-    // Também considerar processos que não têm status_closure/exit_production/exit_execution como "novos" dentro do período
-    const newProcesses = filteredForEvolution.filter((lawsuit) => {
-      const createdDate = getCreatedOrProcessDate(lawsuit);
-      if (!createdDate) return false;
-      
-      // Se não tem startDate (todos os períodos), contar tudo com data válida
-      if (!startDate) return true;
-      
-      return isAfter(createdDate, startDate);
+    // Para "todos os períodos" sem filtros, usar totalCount da API como base
+    // já que representa o total real de processos ativos no Advbox
+    const useApiTotal = !startDate && !hasTypeFilter && !hasAreaFilter;
+
+    // Contar processos ativos (sem data de arquivamento) nos dados carregados
+    const activeInLoaded = filteredForEvolution.filter((lawsuit) => {
+      return !getArchiveDate(lawsuit);
     }).length;
 
-    // Contar processos arquivados usando a melhor data disponível de arquivamento/saída
-    const archivedProcesses = filteredForEvolution.filter((lawsuit) => {
+    // Contar processos arquivados nos dados carregados
+    const archivedInLoaded = filteredForEvolution.filter((lawsuit) => {
       const archiveDate = getArchiveDate(lawsuit);
       if (!archiveDate) return false;
-      
       if (!startDate) return true;
-      
       return isAfter(archiveDate, startDate);
     }).length;
 
-    // Quebra por área (group)
+    // Para "processos novos":
+    // - Se "todos" e sem filtros: usar totalCount da API (representa todos processos no Advbox)
+    // - Se período específico: contar processos criados no período nos dados carregados
+    let newProcesses: number;
+    if (useApiTotal && totalLawsuits) {
+      // Total de processos ativos no Advbox
+      newProcesses = totalLawsuits;
+    } else if (!startDate) {
+      // "Todos" com filtros - contar nos dados carregados
+      newProcesses = filteredForEvolution.length;
+    } else {
+      // Período específico - contar processos criados no período
+      newProcesses = filteredForEvolution.filter((lawsuit) => {
+        const createdDate = getCreatedOrProcessDate(lawsuit);
+        if (!createdDate) return false;
+        return isAfter(createdDate, startDate);
+      }).length;
+    }
+
+    // Quebra por área (group) - baseado nos dados carregados
     const newByArea: { [key: string]: number } = {};
     filteredForEvolution.forEach((lawsuit) => {
       const createdDate = getCreatedOrProcessDate(lawsuit);
@@ -524,7 +540,9 @@ export default function ProcessosDashboard() {
 
     return {
       newProcesses,
-      archivedProcesses,
+      archivedProcesses: archivedInLoaded,
+      activeProcesses: activeInLoaded,
+      isPartialData: !useApiTotal || (totalLawsuits && lawsuits.length < totalLawsuits),
       newByArea: Object.entries(newByArea)
         .map(([area, count]) => ({ area, count }))
         .sort((a, b) => b.count - a.count),
@@ -751,6 +769,15 @@ export default function ProcessosDashboard() {
               </div>
             </CardHeader>
             <CardContent>
+              {evolutionPeriod !== 'all' && (
+                <div className="flex items-center gap-2 mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                  <p className="text-xs text-amber-700">
+                    Os dados de período são baseados nos primeiros {lawsuits.length.toLocaleString()} processos carregados. 
+                    O Advbox possui {totalLawsuits?.toLocaleString() || 'mais'} processos no total.
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="text-center p-4 bg-primary/5 rounded-lg">
                   <div className="text-3xl font-bold text-primary">
@@ -773,10 +800,10 @@ export default function ProcessosDashboard() {
                     {evolutionMetrics.newProcesses}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
-                    Processos Novos
+                    {evolutionPeriod === 'all' ? 'Total de Processos' : 'Processos Novos'}
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
-                    {evolutionPeriod === 'all' ? 'Total' : `Últimos ${evolutionPeriod} dias`}
+                    {evolutionPeriod === 'all' ? 'No Advbox' : `Últimos ${evolutionPeriod} dias (amostra)`}
                   </div>
                 </div>
                 <div className="text-center p-4 bg-purple-500/5 rounded-lg">
@@ -787,23 +814,32 @@ export default function ProcessosDashboard() {
                     Processos Arquivados
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
-                    {evolutionPeriod === 'all' ? 'Total' : `Últimos ${evolutionPeriod} dias`}
+                    {evolutionPeriod === 'all' ? 'Na amostra carregada' : `Últimos ${evolutionPeriod} dias`}
                   </div>
                 </div>
                 <div className={`text-center p-4 rounded-lg ${netGrowth >= 0 ? 'bg-emerald-500/5' : 'bg-red-500/5'}`}>
                   <div className={`text-3xl font-bold ${netGrowth >= 0 ? 'text-emerald-600' : 'text-red-600'} flex items-center justify-center gap-1`}>
-                    {netGrowth >= 0 ? '+' : ''}{netGrowth}
-                    {netGrowth >= 0 ? (
+                    {evolutionPeriod === 'all' && totalLawsuits ? (
+                      <>
+                        {totalLawsuits - evolutionMetrics.archivedProcesses >= 0 ? '+' : ''}
+                        {totalLawsuits - evolutionMetrics.archivedProcesses}
+                      </>
+                    ) : (
+                      <>
+                        {netGrowth >= 0 ? '+' : ''}{netGrowth}
+                      </>
+                    )}
+                    {(evolutionPeriod === 'all' ? (totalLawsuits || 0) - evolutionMetrics.archivedProcesses : netGrowth) >= 0 ? (
                       <TrendingUp className="h-5 w-5" />
                     ) : (
                       <TrendingUp className="h-5 w-5 rotate-180" />
                     )}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
-                    Crescimento Líquido
+                    {evolutionPeriod === 'all' ? 'Processos Ativos' : 'Crescimento Líquido'}
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
-                    {evolutionPeriod === 'all' ? 'Total' : `Últimos ${evolutionPeriod} dias`}
+                    {evolutionPeriod === 'all' ? 'Total - Arquivados' : `Últimos ${evolutionPeriod} dias`}
                   </div>
                 </div>
               </div>
