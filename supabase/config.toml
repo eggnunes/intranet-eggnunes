@@ -6,5 +6,8 @@ verify_jwt = true
 [functions.advbox-cache-refresh]
 verify_jwt = false
 
+[functions.chatguru-birthday-messages]
+verify_jwt = true
+
 [functions.process-documents]
 verify_jwt = false
