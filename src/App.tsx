@@ -32,6 +32,7 @@ import AdvboxAnalytics from "./pages/AdvboxAnalytics";
 import RelatoriosProdutividadeTarefas from "./pages/RelatoriosProdutividadeTarefas";
 import Ferias from "./pages/Ferias";
 import SolicitacoesAdministrativas from "./pages/SolicitacoesAdministrativas";
+import HistoricoMensagensAniversario from "./pages/HistoricoMensagensAniversario";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -250,6 +251,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <SolicitacoesAdministrativas />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/historico-mensagens-aniversario"
+              element={
+                <ProtectedRoute>
+                  <HistoricoMensagensAniversario />
                 </ProtectedRoute>
               }
             />
