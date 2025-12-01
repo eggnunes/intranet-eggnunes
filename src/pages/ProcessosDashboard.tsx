@@ -94,6 +94,13 @@ export default function ProcessosDashboard() {
   const [lastUpdate, setLastUpdate] = useState<Date | undefined>(cachedData?.lastUpdate);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [selectedMovement, setSelectedMovement] = useState<Movement | null>(null);
+  
+  // Filtros para gráficos de evolução
+  const [selectedEvolutionTypes, setSelectedEvolutionTypes] = useState<string[]>([]);
+  const [showAllEvolutionTypes, setShowAllEvolutionTypes] = useState(true);
+  const [selectedEvolutionAreas, setSelectedEvolutionAreas] = useState<string[]>([]);
+  const [showAllEvolutionAreas, setShowAllEvolutionAreas] = useState(true);
+  
   const { toast } = useToast();
 
   const openTaskDialog = (movement: Movement) => {
@@ -231,6 +238,16 @@ export default function ProcessosDashboard() {
     lawsuits.map(l => l.group).filter(Boolean)
   ));
   
+  // Extrair lista única de tipos de ação
+  const actionTypes = Array.from(new Set(
+    lawsuits.map(l => l.type).filter(Boolean)
+  ));
+  
+  // Extrair lista única de áreas de atuação
+  const areaOptions = Array.from(new Set(
+    lawsuits.map(l => l.group).filter(Boolean)
+  ));
+  
   // Função para filtrar movimentações por período
   const getDateFilter = () => {
     const now = new Date();
@@ -321,6 +338,21 @@ export default function ProcessosDashboard() {
 
   // Preparar dados para gráfico de evolução temporal (últimos 12 meses)
   const getEvolutionTimelineData = () => {
+    // Filtrar lawsuits por tipo e área se filtros estiverem ativos
+    let filteredForTimeline = lawsuits;
+    
+    if (!showAllEvolutionTypes && selectedEvolutionTypes.length > 0) {
+      filteredForTimeline = filteredForTimeline.filter(lawsuit => 
+        lawsuit.type && selectedEvolutionTypes.includes(lawsuit.type)
+      );
+    }
+    
+    if (!showAllEvolutionAreas && selectedEvolutionAreas.length > 0) {
+      filteredForTimeline = filteredForTimeline.filter(lawsuit => 
+        lawsuit.group && selectedEvolutionAreas.includes(lawsuit.group)
+      );
+    }
+    
     const monthsData: { [key: string]: { novos: number; arquivados: number } } = {};
     
     // Criar últimos 12 meses
@@ -331,7 +363,7 @@ export default function ProcessosDashboard() {
     }
 
     // Contar processos novos por mês
-    lawsuits.forEach(lawsuit => {
+    filteredForTimeline.forEach(lawsuit => {
       if (lawsuit.created_at) {
         const createdDate = new Date(lawsuit.created_at);
         const monthKey = format(createdDate, 'MMM/yy', { locale: ptBR });
@@ -342,7 +374,7 @@ export default function ProcessosDashboard() {
     });
 
     // Contar processos arquivados por mês
-    lawsuits.forEach(lawsuit => {
+    filteredForTimeline.forEach(lawsuit => {
       const closureDate = lawsuit.status_closure ? new Date(lawsuit.status_closure) : null;
       const exitDate = lawsuit.exit_production ? new Date(lawsuit.exit_production) : null;
       const mostRecentDate = closureDate && exitDate 
@@ -385,16 +417,31 @@ export default function ProcessosDashboard() {
         startDate = null; // all time
     }
 
+    // Filtrar lawsuits por tipo e área se filtros estiverem ativos
+    let filteredForEvolution = lawsuits;
+    
+    if (!showAllEvolutionTypes && selectedEvolutionTypes.length > 0) {
+      filteredForEvolution = filteredForEvolution.filter(lawsuit => 
+        lawsuit.type && selectedEvolutionTypes.includes(lawsuit.type)
+      );
+    }
+    
+    if (!showAllEvolutionAreas && selectedEvolutionAreas.length > 0) {
+      filteredForEvolution = filteredForEvolution.filter(lawsuit => 
+        lawsuit.group && selectedEvolutionAreas.includes(lawsuit.group)
+      );
+    }
+
     // Debug: Verificar estrutura dos dados e contagem
-    if (lawsuits.length > 0) {
+    if (filteredForEvolution.length > 0) {
       console.log('=== DEBUG EVOLUÇÃO ===');
       console.log('Período selecionado:', evolutionPeriod);
       console.log('Data de corte (startDate):', startDate?.toISOString());
-      console.log('Total de processos:', lawsuits.length);
-      console.log('Sample lawsuit:', lawsuits[0]);
+      console.log('Total de processos (filtrados):', filteredForEvolution.length);
+      console.log('Sample lawsuit:', filteredForEvolution[0]);
       
       // Contar processos novos para debug
-      const newCount = lawsuits.filter(l => {
+      const newCount = filteredForEvolution.filter(l => {
         if (!l.created_at) return false;
         const createdDate = new Date(l.created_at);
         return !startDate || isAfter(createdDate, startDate);
@@ -402,7 +449,7 @@ export default function ProcessosDashboard() {
       console.log('Processos novos encontrados:', newCount);
       
       // Mostrar alguns exemplos de datas
-      const sampleDates = lawsuits.slice(0, 5).map(l => ({
+      const sampleDates = filteredForEvolution.slice(0, 5).map(l => ({
         created: l.created_at,
         closure: l.status_closure,
         exit: l.exit_production
@@ -411,14 +458,14 @@ export default function ProcessosDashboard() {
     }
 
     // Contar processos novos pelo created_at
-    const newProcesses = lawsuits.filter(lawsuit => {
+    const newProcesses = filteredForEvolution.filter(lawsuit => {
       if (!lawsuit.created_at) return false;
       const createdDate = new Date(lawsuit.created_at);
       return !startDate || isAfter(createdDate, startDate);
     }).length;
 
     // Contar processos arquivados: status_closure OU exit_production
-    const archivedProcesses = lawsuits.filter(lawsuit => {
+    const archivedProcesses = filteredForEvolution.filter(lawsuit => {
       const closureDate = lawsuit.status_closure ? new Date(lawsuit.status_closure) : null;
       const exitDate = lawsuit.exit_production ? new Date(lawsuit.exit_production) : null;
       
@@ -434,7 +481,7 @@ export default function ProcessosDashboard() {
 
     // Calcular breakdown por área (group)
     const newByArea: { [key: string]: number } = {};
-    lawsuits.forEach(lawsuit => {
+    filteredForEvolution.forEach(lawsuit => {
       if (!lawsuit.created_at) return;
       const createdDate = new Date(lawsuit.created_at);
       if (!startDate || isAfter(createdDate, startDate)) {
@@ -745,10 +792,156 @@ export default function ProcessosDashboard() {
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-5 w-5" />
                     <span className="font-semibold">Evolução de Processos (Últimos 12 Meses)</span>
+                    {(!showAllEvolutionTypes || !showAllEvolutionAreas) && (
+                      <Badge variant="secondary" className="ml-2">
+                        Filtrado
+                      </Badge>
+                    )}
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="pt-4">
+                    <div className="flex gap-2 mb-4 flex-wrap">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="gap-2">
+                            <Filter className="h-4 w-4" />
+                            Tipo de Ação
+                            {!showAllEvolutionTypes && selectedEvolutionTypes.length > 0 && (
+                              <Badge variant="secondary" className="ml-1">{selectedEvolutionTypes.length}</Badge>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64" align="start">
+                          <div className="space-y-4">
+                            <h4 className="font-medium text-sm">Filtrar por Tipo de Ação</h4>
+                            
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id="all-evolution-types"
+                                checked={showAllEvolutionTypes}
+                                onCheckedChange={(checked) => {
+                                  setShowAllEvolutionTypes(!!checked);
+                                  if (checked) {
+                                    setSelectedEvolutionTypes([]);
+                                  }
+                                }}
+                              />
+                              <label htmlFor="all-evolution-types" className="text-sm font-medium cursor-pointer">
+                                Todos os Tipos
+                              </label>
+                            </div>
+                            
+                            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                              {actionTypes.map((type) => (
+                                <div key={type} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`evolution-type-${type}`}
+                                    checked={selectedEvolutionTypes.includes(type)}
+                                    disabled={showAllEvolutionTypes}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setSelectedEvolutionTypes([...selectedEvolutionTypes, type]);
+                                        setShowAllEvolutionTypes(false);
+                                      } else {
+                                        setSelectedEvolutionTypes(selectedEvolutionTypes.filter(t => t !== type));
+                                      }
+                                    }}
+                                  />
+                                  <label htmlFor={`evolution-type-${type}`} className="text-sm cursor-pointer">
+                                    {type}
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            {!showAllEvolutionTypes && selectedEvolutionTypes.length > 0 && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => {
+                                  setSelectedEvolutionTypes([]);
+                                  setShowAllEvolutionTypes(true);
+                                }}
+                                className="w-full"
+                              >
+                                Limpar Filtros
+                              </Button>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="gap-2">
+                            <Filter className="h-4 w-4" />
+                            Área de Atuação
+                            {!showAllEvolutionAreas && selectedEvolutionAreas.length > 0 && (
+                              <Badge variant="secondary" className="ml-1">{selectedEvolutionAreas.length}</Badge>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64" align="start">
+                          <div className="space-y-4">
+                            <h4 className="font-medium text-sm">Filtrar por Área de Atuação</h4>
+                            
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id="all-evolution-areas"
+                                checked={showAllEvolutionAreas}
+                                onCheckedChange={(checked) => {
+                                  setShowAllEvolutionAreas(!!checked);
+                                  if (checked) {
+                                    setSelectedEvolutionAreas([]);
+                                  }
+                                }}
+                              />
+                              <label htmlFor="all-evolution-areas" className="text-sm font-medium cursor-pointer">
+                                Todas as Áreas
+                              </label>
+                            </div>
+                            
+                            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                              {areaOptions.map((area) => (
+                                <div key={area} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`evolution-area-${area}`}
+                                    checked={selectedEvolutionAreas.includes(area)}
+                                    disabled={showAllEvolutionAreas}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setSelectedEvolutionAreas([...selectedEvolutionAreas, area]);
+                                        setShowAllEvolutionAreas(false);
+                                      } else {
+                                        setSelectedEvolutionAreas(selectedEvolutionAreas.filter(a => a !== area));
+                                      }
+                                    }}
+                                  />
+                                  <label htmlFor={`evolution-area-${area}`} className="text-sm cursor-pointer">
+                                    {area}
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            {!showAllEvolutionAreas && selectedEvolutionAreas.length > 0 && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => {
+                                  setSelectedEvolutionAreas([]);
+                                  setShowAllEvolutionAreas(true);
+                                }}
+                                className="w-full"
+                              >
+                                Limpar Filtros
+                              </Button>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                     <ResponsiveContainer width="100%" height={300}>
                       <LineChart data={getEvolutionTimelineData()}>
                         <CartesianGrid strokeDasharray="3 3" />
