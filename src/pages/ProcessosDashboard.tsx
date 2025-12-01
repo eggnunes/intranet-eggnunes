@@ -336,25 +336,63 @@ export default function ProcessosDashboard() {
       .slice(0, 10); // Top 10 tipos
   };
 
+  // Helpers para calcular datas de criação e arquivamento
+  const getCreatedOrProcessDate = (lawsuit: Lawsuit): Date | null => {
+    if (lawsuit.created_at) {
+      const created = new Date(lawsuit.created_at);
+      if (!isNaN(created.getTime())) return created;
+    }
+
+    if (lawsuit.process_date) {
+      const process = new Date(lawsuit.process_date);
+      if (!isNaN(process.getTime())) return process;
+    }
+
+    return null;
+  };
+
+  const getArchiveDate = (lawsuit: Lawsuit): Date | null => {
+    const dates: Date[] = [];
+
+    if (lawsuit.status_closure) {
+      const d = new Date(lawsuit.status_closure);
+      if (!isNaN(d.getTime())) dates.push(d);
+    }
+
+    if (lawsuit.exit_production) {
+      const d = new Date(lawsuit.exit_production);
+      if (!isNaN(d.getTime())) dates.push(d);
+    }
+
+    if (lawsuit.exit_execution) {
+      const d = new Date(lawsuit.exit_execution);
+      if (!isNaN(d.getTime())) dates.push(d);
+    }
+
+    if (!dates.length) return null;
+
+    return dates.reduce((latest, current) => (current > latest ? current : latest), dates[0]);
+  };
+
   // Preparar dados para gráfico de evolução temporal (últimos 12 meses)
   const getEvolutionTimelineData = () => {
     // Filtrar lawsuits por tipo e área se filtros estiverem ativos
     let filteredForTimeline = lawsuits;
-    
+
     if (!showAllEvolutionTypes && selectedEvolutionTypes.length > 0) {
-      filteredForTimeline = filteredForTimeline.filter(lawsuit => 
-        lawsuit.type && selectedEvolutionTypes.includes(lawsuit.type)
+      filteredForTimeline = filteredForTimeline.filter(
+        (lawsuit) => lawsuit.type && selectedEvolutionTypes.includes(lawsuit.type),
       );
     }
-    
+
     if (!showAllEvolutionAreas && selectedEvolutionAreas.length > 0) {
-      filteredForTimeline = filteredForTimeline.filter(lawsuit => 
-        lawsuit.group && selectedEvolutionAreas.includes(lawsuit.group)
+      filteredForTimeline = filteredForTimeline.filter(
+        (lawsuit) => lawsuit.group && selectedEvolutionAreas.includes(lawsuit.group),
       );
     }
-    
+
     const monthsData: { [key: string]: { novos: number; arquivados: number } } = {};
-    
+
     // Criar últimos 12 meses
     for (let i = 11; i >= 0; i--) {
       const date = subMonths(new Date(), i);
@@ -363,9 +401,9 @@ export default function ProcessosDashboard() {
     }
 
     // Contar processos novos por mês
-    filteredForTimeline.forEach(lawsuit => {
-      if (lawsuit.created_at) {
-        const createdDate = new Date(lawsuit.created_at);
+    filteredForTimeline.forEach((lawsuit) => {
+      const createdDate = getCreatedOrProcessDate(lawsuit);
+      if (createdDate) {
         const monthKey = format(createdDate, 'MMM/yy', { locale: ptBR });
         if (monthsData[monthKey]) {
           monthsData[monthKey].novos++;
@@ -374,15 +412,10 @@ export default function ProcessosDashboard() {
     });
 
     // Contar processos arquivados por mês
-    filteredForTimeline.forEach(lawsuit => {
-      const closureDate = lawsuit.status_closure ? new Date(lawsuit.status_closure) : null;
-      const exitDate = lawsuit.exit_production ? new Date(lawsuit.exit_production) : null;
-      const mostRecentDate = closureDate && exitDate 
-        ? (closureDate > exitDate ? closureDate : exitDate)
-        : (closureDate || exitDate);
-      
-      if (mostRecentDate) {
-        const monthKey = format(mostRecentDate, 'MMM/yy', { locale: ptBR });
+    filteredForTimeline.forEach((lawsuit) => {
+      const archiveDate = getArchiveDate(lawsuit);
+      if (archiveDate) {
+        const monthKey = format(archiveDate, 'MMM/yy', { locale: ptBR });
         if (monthsData[monthKey]) {
           monthsData[monthKey].arquivados++;
         }
@@ -392,17 +425,41 @@ export default function ProcessosDashboard() {
     return Object.entries(monthsData).map(([mês, data]) => ({
       mês,
       novos: data.novos,
-      arquivados: data.arquivados
+      arquivados: data.arquivados,
     }));
   };
 
+  // Dados para gráfico de taxa de crescimento mensal percentual
+  const getMonthlyGrowthRateData = () => {
+    const timeline = getEvolutionTimelineData();
+    let cumulativeActive = 0;
+
+    return timeline.map((item, index) => {
+      const novos = item.novos ?? 0;
+      const arquivados = item.arquivados ?? 0;
+      const net = novos - arquivados;
+      const previousActive = cumulativeActive;
+      cumulativeActive += net;
+
+      let growthPercent: number | null = null;
+      if (index > 0 && previousActive > 0) {
+        growthPercent = (net / previousActive) * 100;
+        growthPercent = Math.round(growthPercent * 10) / 10;
+      }
+
+      return {
+        ...item,
+        crescimentoPercentual: growthPercent,
+      };
+    });
+  };
   const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#6366f1', '#ec4899', '#14b8a6'];
 
   // Calcular processos novos e arquivados no período selecionado
   const getEvolutionMetrics = () => {
     const now = new Date();
     let startDate: Date | null = null;
-    
+
     switch (evolutionPeriod) {
       case '7':
         startDate = subDays(now, 7);
@@ -414,94 +471,57 @@ export default function ProcessosDashboard() {
         startDate = subDays(now, 90);
         break;
       default:
-        startDate = null; // all time
+        startDate = null; // todos os períodos
     }
 
     // Filtrar lawsuits por tipo e área se filtros estiverem ativos
     let filteredForEvolution = lawsuits;
-    
+
     if (!showAllEvolutionTypes && selectedEvolutionTypes.length > 0) {
-      filteredForEvolution = filteredForEvolution.filter(lawsuit => 
-        lawsuit.type && selectedEvolutionTypes.includes(lawsuit.type)
+      filteredForEvolution = filteredForEvolution.filter(
+        (lawsuit) => lawsuit.type && selectedEvolutionTypes.includes(lawsuit.type),
       );
     }
-    
+
     if (!showAllEvolutionAreas && selectedEvolutionAreas.length > 0) {
-      filteredForEvolution = filteredForEvolution.filter(lawsuit => 
-        lawsuit.group && selectedEvolutionAreas.includes(lawsuit.group)
+      filteredForEvolution = filteredForEvolution.filter(
+        (lawsuit) => lawsuit.group && selectedEvolutionAreas.includes(lawsuit.group),
       );
     }
 
-    // Debug: Verificar estrutura dos dados e contagem
-    if (filteredForEvolution.length > 0) {
-      console.log('=== DEBUG EVOLUÇÃO ===');
-      console.log('Período selecionado:', evolutionPeriod);
-      console.log('Data de corte (startDate):', startDate?.toISOString());
-      console.log('Total de processos (filtrados):', filteredForEvolution.length);
-      console.log('Sample lawsuit:', filteredForEvolution[0]);
-      
-      // Contar processos novos para debug
-      const newCount = filteredForEvolution.filter(l => {
-        if (!l.created_at) return false;
-        const createdDate = new Date(l.created_at);
-        return !startDate || isAfter(createdDate, startDate);
-      }).length;
-      console.log('Processos novos encontrados:', newCount);
-      
-      // Mostrar alguns exemplos de datas
-      const sampleDates = filteredForEvolution.slice(0, 5).map(l => ({
-        created: l.created_at,
-        closure: l.status_closure,
-        exit: l.exit_production
-      }));
-      console.log('Sample dates:', sampleDates);
-    }
-
-    // Contar processos novos pelo created_at
-    const newProcesses = filteredForEvolution.filter(lawsuit => {
-      if (!lawsuit.created_at) return false;
-      const createdDate = new Date(lawsuit.created_at);
+    // Contar processos novos usando data de criação ou data do processo
+    const newProcesses = filteredForEvolution.filter((lawsuit) => {
+      const createdDate = getCreatedOrProcessDate(lawsuit);
+      if (!createdDate) return false;
       return !startDate || isAfter(createdDate, startDate);
     }).length;
 
-    // Contar processos arquivados: status_closure OU exit_production
-    const archivedProcesses = filteredForEvolution.filter(lawsuit => {
-      const closureDate = lawsuit.status_closure ? new Date(lawsuit.status_closure) : null;
-      const exitDate = lawsuit.exit_production ? new Date(lawsuit.exit_production) : null;
-      
-      if (!closureDate && !exitDate) return false;
-      
-      // Usar a data mais recente entre status_closure e exit_production
-      const mostRecentDate = closureDate && exitDate 
-        ? (closureDate > exitDate ? closureDate : exitDate)
-        : (closureDate || exitDate);
-      
-      return !startDate || (mostRecentDate && isAfter(mostRecentDate, startDate));
+    // Contar processos arquivados usando a melhor data disponível de arquivamento/saída
+    const archivedProcesses = filteredForEvolution.filter((lawsuit) => {
+      const archiveDate = getArchiveDate(lawsuit);
+      if (!archiveDate) return false;
+      return !startDate || isAfter(archiveDate, startDate);
     }).length;
 
-    // Calcular breakdown por área (group)
+    // Quebra por área (group)
     const newByArea: { [key: string]: number } = {};
-    filteredForEvolution.forEach(lawsuit => {
-      if (!lawsuit.created_at) return;
-      const createdDate = new Date(lawsuit.created_at);
+    filteredForEvolution.forEach((lawsuit) => {
+      const createdDate = getCreatedOrProcessDate(lawsuit);
+      if (!createdDate) return;
       if (!startDate || isAfter(createdDate, startDate)) {
         const area = lawsuit.group || 'Não informado';
         newByArea[area] = (newByArea[area] || 0) + 1;
       }
     });
 
-    console.log('Processos novos FINAL:', newProcesses);
-    console.log('Processos arquivados FINAL:', archivedProcesses);
-
-    return { 
-      newProcesses, 
+    return {
+      newProcesses,
       archivedProcesses,
       newByArea: Object.entries(newByArea)
         .map(([area, count]) => ({ area, count }))
-        .sort((a, b) => b.count - a.count)
+        .sort((a, b) => b.count - a.count),
     };
   };
-
   const evolutionMetrics = getEvolutionMetrics();
   const netGrowth = evolutionMetrics.newProcesses - evolutionMetrics.archivedProcesses;
 
@@ -951,6 +971,44 @@ export default function ProcessosDashboard() {
                         <Legend />
                         <Line type="monotone" dataKey="novos" stroke="#10b981" name="Processos Novos" strokeWidth={2} />
                         <Line type="monotone" dataKey="arquivados" stroke="#8b5cf6" name="Processos Arquivados" strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Taxa de Crescimento Mensal */}
+              <AccordionItem value="taxa-crescimento" className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    <span className="font-semibold">Taxa de Crescimento Mensal (%)</span>
+                    <span className="text-sm text-muted-foreground ml-2">(Últimos 12 meses)</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-4">
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={getMonthlyGrowthRateData()}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="mês" />
+                        <YAxis tickFormatter={(value) => `${value}%`} />
+                        <Tooltip
+                          formatter={(value) =>
+                            value != null
+                              ? [`${(value as number).toFixed(1)}%`, 'Crescimento']
+                              : ['Sem dados', 'Crescimento']
+                          }
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="crescimentoPercentual"
+                          name="Crescimento %"
+                          stroke="hsl(var(--accent))"
+                          strokeWidth={2}
+                          connectNulls
+                        />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
