@@ -287,12 +287,39 @@ Deno.serve(async (req) => {
       }
 
       case 'last-movements': {
-        console.log('Fetching all movements with pagination...');
-        const result = await getCachedOrFetch('last-movements', async () => {
-          return await fetchAllPaginated('/last_movements', 1000);
-        }, forceRefresh);
-        
-        return new Response(JSON.stringify(result), {
+        console.log('Fetching movements first page with totalCount...');
+        const rawResult = await getCachedOrFetch(
+          'last-movements-first-page',
+          async () => {
+            const response = await makeAdvboxRequest({ endpoint: '/last_movements?limit=1000&page=1' });
+            const items = Array.isArray(response.data) ? response.data : [];
+            const totalCount =
+              typeof response.totalCount === 'number' ? response.totalCount : items.length;
+            return { items, totalCount };
+          },
+          forceRefresh
+        );
+
+        const cachedData: any = rawResult.data;
+        const items: any[] = Array.isArray(cachedData)
+          ? cachedData
+          : Array.isArray(cachedData?.items)
+          ? cachedData.items
+          : Array.isArray(cachedData?.data)
+          ? cachedData.data
+          : [];
+
+        const totalCount =
+          (cachedData && (cachedData.totalCount ?? cachedData.total ?? cachedData.count)) ??
+          items.length;
+
+        const responseBody = {
+          data: items,
+          metadata: rawResult.metadata,
+          totalCount,
+        };
+
+        return new Response(JSON.stringify(responseBody), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
