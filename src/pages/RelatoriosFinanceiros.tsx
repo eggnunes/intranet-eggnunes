@@ -194,6 +194,17 @@ export default function RelatoriosFinanceiros() {
   const filteredTransactions = getFilteredTransactions();
   const previousPeriodTransactions = getPreviousPeriodTransactions();
 
+  // Filtrar apenas transações com datas válidas para exibição
+  const validFilteredTransactions = filteredTransactions.filter(t => {
+    if (!t.date) return false;
+    try {
+      const date = new Date(t.date);
+      return !isNaN(date.getTime());
+    } catch {
+      return false;
+    }
+  });
+
   const totalIncome = Array.isArray(filteredTransactions)
     ? filteredTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0)
     : 0;
@@ -217,16 +228,13 @@ export default function RelatoriosFinanceiros() {
   const growthRate = prevIncome > 0 ? ((totalIncome - prevIncome) / prevIncome) * 100 : 0;
 
   const getChartData = () => {
-    if (!Array.isArray(filteredTransactions) || filteredTransactions.length === 0) return [];
+    if (!Array.isArray(validFilteredTransactions) || validFilteredTransactions.length === 0) return [];
 
     const monthlyData: Record<string, { month: string; receitas: number; despesas: number }> = {};
 
-    filteredTransactions.forEach((transaction) => {
-      // Validar se a data existe antes de fazer parse
-      if (!transaction.date) return;
-      
+    validFilteredTransactions.forEach((transaction) => {
       try {
-        const date = parseISO(transaction.date);
+        const date = new Date(transaction.date);
         const monthKey = format(date, 'MM/yyyy', { locale: ptBR });
 
         if (!monthlyData[monthKey]) {
@@ -254,10 +262,9 @@ export default function RelatoriosFinanceiros() {
   const chartData = getChartData();
 
   const exportToExcel = () => {
-    const worksheetData = filteredTransactions
-      .filter(t => t.date) // Filtrar transações sem data
+    const worksheetData = validFilteredTransactions
       .map((t) => ({
-        Data: format(parseISO(t.date), 'dd/MM/yyyy', { locale: ptBR }),
+        Data: format(new Date(t.date), 'dd/MM/yyyy', { locale: ptBR }),
         Descrição: t.description,
         Categoria: t.category,
         Tipo: t.type === 'income' ? 'Receita' : 'Despesa',
@@ -333,10 +340,9 @@ export default function RelatoriosFinanceiros() {
     const finalY = (doc as any).lastAutoTable.finalY || 120;
     doc.text('Transações', 14, finalY + 10);
 
-    const transactionsData = filteredTransactions
-      .filter(t => t.date) // Filtrar transações sem data
+    const transactionsData = validFilteredTransactions
       .map((t) => [
-        format(parseISO(t.date), 'dd/MM/yyyy'),
+        format(new Date(t.date), 'dd/MM/yyyy'),
         t.description,
         t.category,
         t.type === 'income' ? 'Receita' : 'Despesa',
@@ -434,6 +440,16 @@ export default function RelatoriosFinanceiros() {
             <AlertDescription>
               Não foi possível atualizar os dados do Advbox devido ao limite de requisições da API. 
               Os dados exibidos são do último cache disponível. Tente novamente mais tarde.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {filteredTransactions.length !== validFilteredTransactions.length && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Transações com datas inválidas</AlertTitle>
+            <AlertDescription>
+              {filteredTransactions.length - validFilteredTransactions.length} {filteredTransactions.length - validFilteredTransactions.length === 1 ? 'transação foi ignorada' : 'transações foram ignoradas'} por conter dados de data inválidos ou ausentes.
             </AlertDescription>
           </Alert>
         )}
@@ -698,19 +714,19 @@ export default function RelatoriosFinanceiros() {
           <CardHeader>
             <CardTitle>Transações</CardTitle>
             <CardDescription>
-              {filteredTransactions.length} {filteredTransactions.length === 1 ? 'transação' : 'transações'}
+              {validFilteredTransactions.length} {validFilteredTransactions.length === 1 ? 'transação' : 'transações'}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[500px]">
-              {filteredTransactions.length === 0 ? (
+              {validFilteredTransactions.length === 0 ? (
                 <div className="text-center py-12">
                   <DollarSign className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <p className="text-muted-foreground">Nenhuma transação encontrada</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {filteredTransactions.map((transaction) => (
+                  {validFilteredTransactions.map((transaction) => (
                     <Card key={transaction.id} className="hover:shadow-md transition-shadow">
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between gap-4">
