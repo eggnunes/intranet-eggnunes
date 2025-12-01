@@ -190,12 +190,21 @@ async function getCachedOrFetch(cacheKey: string, fetchFn: () => Promise<any>, f
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    
+    // Verificar se é um erro transiente (rate limit ou erros de servidor)
+    const isTransientError = 
+      message.includes('429') || 
+      message.includes('502') || 
+      message.includes('503') || 
+      message.includes('504') ||
+      message.includes('500') ||
+      message.includes('Bad gateway');
 
-    if (message.includes('429')) {
-      console.warn(`Rate limited for ${cacheKey}.`);
+    if (isTransientError) {
+      console.warn(`Transient error for ${cacheKey}: ${message.substring(0, 100)}`);
       // SEMPRE retornar cache se existir, independente da idade
       if (cached) {
-        console.warn(`Returning cached data (age: ${Math.floor((now - cached.timestamp) / 1000)}s) for ${cacheKey} due to rate limit.`);
+        console.warn(`Returning cached data (age: ${Math.floor((now - cached.timestamp) / 1000)}s) for ${cacheKey} due to transient error.`);
         return {
           data: cached.data,
           metadata: {
