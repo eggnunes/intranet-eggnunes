@@ -540,11 +540,14 @@ export default function ProcessosDashboard() {
       }
     });
 
+    // Dados são completos se hasCompleteData é true OU se carregamos todos os processos
+    const dataIsComplete = hasCompleteData || (totalLawsuits && lawsuits.length >= totalLawsuits);
+    
     return {
       newProcesses,
       archivedProcesses: archivedInLoaded,
       activeProcesses: activeInLoaded,
-      isPartialData: !useApiTotal || (totalLawsuits && lawsuits.length < totalLawsuits),
+      isPartialData: !dataIsComplete,
       newByArea: Object.entries(newByArea)
         .map(([area, count]) => ({ area, count }))
         .sort((a, b) => b.count - a.count),
@@ -899,7 +902,9 @@ export default function ProcessosDashboard() {
                     Processos Novos
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
-                    {evolutionPeriod === 'all' ? 'Na amostra carregada' : `Últimos ${evolutionPeriod} dias`}
+                    {evolutionPeriod === 'all' 
+                      ? (hasCompleteData ? 'Total geral' : 'Na amostra carregada') 
+                      : `Últimos ${evolutionPeriod} dias`}
                   </div>
                 </div>
                 <div className="text-center p-4 bg-purple-500/5 rounded-lg">
@@ -910,7 +915,9 @@ export default function ProcessosDashboard() {
                     Processos Arquivados
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
-                    {evolutionPeriod === 'all' ? 'Na amostra carregada' : `Últimos ${evolutionPeriod} dias`}
+                    {evolutionPeriod === 'all' 
+                      ? (hasCompleteData ? 'Total geral' : 'Na amostra carregada') 
+                      : `Últimos ${evolutionPeriod} dias`}
                   </div>
                 </div>
                 <div className={`text-center p-4 rounded-lg ${netGrowth >= 0 ? 'bg-emerald-500/5' : 'bg-red-500/5'}`}>
