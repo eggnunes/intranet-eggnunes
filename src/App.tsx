@@ -33,6 +33,7 @@ import RelatoriosProdutividadeTarefas from "./pages/RelatoriosProdutividadeTaref
 import Ferias from "./pages/Ferias";
 import SolicitacoesAdministrativas from "./pages/SolicitacoesAdministrativas";
 import HistoricoMensagensAniversario from "./pages/HistoricoMensagensAniversario";
+import CollectionManagement from "./pages/CollectionManagement";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -259,6 +260,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <HistoricoMensagensAniversario />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/gestao-cobrancas"
+              element={
+                <ProtectedRoute>
+                  <CollectionManagement />
                 </ProtectedRoute>
               }
             />
