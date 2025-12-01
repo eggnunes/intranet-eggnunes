@@ -248,24 +248,10 @@ Deno.serve(async (req) => {
     switch (path) {
       // Dashboard de Processos
       case 'lawsuits': {
-        console.log('Fetching lawsuits (single page, limited to 1000 items)...');
-        const result = await getCachedOrFetch(
-          'lawsuits',
-          async () => {
-            // Usar apenas a primeira página para reduzir risco de rate limit
-            const response = await makeAdvboxRequest({
-              endpoint: '/lawsuits?limit=1000&page=1',
-            });
-
-            // A API pode responder tanto com array direto quanto com { data: [...] }
-            if (Array.isArray(response)) {
-              return response;
-            }
-
-            return response.data || [];
-          },
-          forceRefresh
-        );
+        console.log('Fetching all lawsuits with pagination...');
+        const result = await getCachedOrFetch('lawsuits', async () => {
+          return await fetchAllPaginated('/lawsuits', 1000);
+        }, forceRefresh);
         
         return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
