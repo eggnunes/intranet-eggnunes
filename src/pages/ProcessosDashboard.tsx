@@ -17,6 +17,7 @@ import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
 import { format, subDays, subMonths, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Briefcase, TrendingUp, BarChart, Search, Filter, AlertCircle, Calendar, ListTodo } from 'lucide-react';
 
 interface Lawsuit {
   id: number;
@@ -1351,174 +1352,6 @@ export default function ProcessosDashboard() {
 
                     <ScrollArea className="h-[400px]">
                       <div className="space-y-3">
-                  <div className="relative flex-1 min-w-[200px]">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Buscar movimentações..."
-                      value={movementSearchTerm}
-                      onChange={(e) => setMovementSearchTerm(e.target.value)}
-                      className="pl-9"
-                    />
-                  </div>
-                  
-                  <Select value={periodFilter} onValueChange={setPeriodFilter}>
-                    <SelectTrigger className="w-[180px]">
-                      <Calendar className="w-4 h-4 mr-2" />
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os períodos</SelectItem>
-                      <SelectItem value="week">Última semana</SelectItem>
-                      <SelectItem value="month">Último mês</SelectItem>
-                      <SelectItem value="quarter">Últimos 3 meses</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="gap-2">
-                        <Filter className="h-4 w-4" />
-                        Status
-                        {!showAllStatuses && selectedStatuses.length > 0 && (
-                          <Badge variant="secondary" className="ml-1">{selectedStatuses.length}</Badge>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64" align="end">
-                      <div className="space-y-4">
-                        <h4 className="font-medium text-sm">Filtrar por Status</h4>
-                        
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="all-statuses"
-                            checked={showAllStatuses}
-                            onCheckedChange={(checked) => {
-                              setShowAllStatuses(!!checked);
-                              if (checked) {
-                                setSelectedStatuses([]);
-                              }
-                            }}
-                          />
-                          <label htmlFor="all-statuses" className="text-sm font-medium cursor-pointer">
-                            Todos os Status
-                          </label>
-                        </div>
-                        
-                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                          {lawsuitStatuses.map((status) => (
-                            <div key={status} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`status-${status}`}
-                                checked={selectedStatuses.includes(status)}
-                                disabled={showAllStatuses}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    setSelectedStatuses([...selectedStatuses, status]);
-                                    setShowAllStatuses(false);
-                                  } else {
-                                    setSelectedStatuses(selectedStatuses.filter(s => s !== status));
-                                  }
-                                }}
-                              />
-                              <label htmlFor={`status-${status}`} className="text-sm cursor-pointer">
-                                {status}
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                        
-                        {!showAllStatuses && selectedStatuses.length > 0 && (
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => {
-                              setSelectedStatuses([]);
-                              setShowAllStatuses(true);
-                            }}
-                            className="w-full"
-                          >
-                            Limpar Filtros
-                          </Button>
-                        )}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                  
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="gap-2">
-                        <Filter className="h-4 w-4" />
-                        Responsável
-                        {!showAllMovementResponsibles && selectedMovementResponsibles.length > 0 && (
-                          <Badge variant="secondary" className="ml-1">{selectedMovementResponsibles.length}</Badge>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64" align="end">
-                      <div className="space-y-4">
-                        <h4 className="font-medium text-sm">Filtrar por Responsável</h4>
-                        
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="all-movement-responsibles"
-                            checked={showAllMovementResponsibles}
-                            onCheckedChange={(checked) => {
-                              setShowAllMovementResponsibles(!!checked);
-                              if (checked) {
-                                setSelectedMovementResponsibles([]);
-                              }
-                            }}
-                          />
-                          <label htmlFor="all-movement-responsibles" className="text-sm font-medium cursor-pointer">
-                            Todos os Responsáveis
-                          </label>
-                        </div>
-                        
-                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                          {movementResponsibles.map((responsible) => (
-                            <div key={responsible} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`movement-${responsible}`}
-                                checked={selectedMovementResponsibles.includes(responsible)}
-                                disabled={showAllMovementResponsibles}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    setSelectedMovementResponsibles([...selectedMovementResponsibles, responsible]);
-                                    setShowAllMovementResponsibles(false);
-                                  } else {
-                                    setSelectedMovementResponsibles(selectedMovementResponsibles.filter(r => r !== responsible));
-                                  }
-                                }}
-                              />
-                              <label htmlFor={`movement-${responsible}`} className="text-sm cursor-pointer">
-                                {responsible}
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                        
-                        {!showAllMovementResponsibles && selectedMovementResponsibles.length > 0 && (
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => {
-                              setSelectedMovementResponsibles([]);
-                              setShowAllMovementResponsibles(true);
-                            }}
-                            className="w-full"
-                          >
-                            Limpar Filtros
-                          </Button>
-                        )}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[400px]">
-                <div className="space-y-3">
                   {filteredMovements.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">
                       {movementSearchTerm || !showAllMovementResponsibles ? 'Nenhuma movimentação encontrada com os filtros aplicados' : 'Nenhuma movimentação encontrada'}
@@ -1564,12 +1397,12 @@ export default function ProcessosDashboard() {
                   )}
                       </div>
                     </ScrollArea>
-                  </div>
                 </AccordionContent>
               </AccordionItem>
 
             </Accordion>
           </div>
+        </div>
 
         {/* Dialog de Criação de Tarefa */}
         <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
