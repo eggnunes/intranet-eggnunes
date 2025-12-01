@@ -259,6 +259,39 @@ export type Database = {
         }
         Relationships: []
       }
+      collection_rules: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          days_overdue: number
+          id: string
+          is_active: boolean | null
+          name: string
+          send_time: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          days_overdue: number
+          id?: string
+          is_active?: boolean | null
+          name: string
+          send_time?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          days_overdue?: number
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          send_time?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       customer_birthday_exclusions: {
         Row: {
           created_at: string
