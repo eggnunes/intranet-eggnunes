@@ -549,7 +549,7 @@ export default function ProcessosDashboard() {
     };
   };
   const evolutionMetrics = getEvolutionMetrics();
-  const netGrowth = evolutionMetrics.newProcesses - evolutionMetrics.archivedProcesses;
+  const netGrowth = evolutionMetrics.activeProcesses - evolutionMetrics.archivedProcesses;
 
   // Calcular processos ativos por tipo de ação (type)
   const getActiveByTypeData = () => {
@@ -797,13 +797,13 @@ export default function ProcessosDashboard() {
                 </div>
                 <div className="text-center p-4 bg-green-500/5 rounded-lg">
                   <div className="text-3xl font-bold text-green-600">
-                    {evolutionMetrics.newProcesses}
+                    {evolutionMetrics.activeProcesses}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
-                    {evolutionPeriod === 'all' ? 'Total de Processos' : 'Processos Novos'}
+                    Processos em Andamento
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
-                    {evolutionPeriod === 'all' ? 'No Advbox' : `Últimos ${evolutionPeriod} dias (amostra)`}
+                    Sem data de arquivamento
                   </div>
                 </div>
                 <div className="text-center p-4 bg-purple-500/5 rounded-lg">
@@ -819,27 +819,18 @@ export default function ProcessosDashboard() {
                 </div>
                 <div className={`text-center p-4 rounded-lg ${netGrowth >= 0 ? 'bg-emerald-500/5' : 'bg-red-500/5'}`}>
                   <div className={`text-3xl font-bold ${netGrowth >= 0 ? 'text-emerald-600' : 'text-red-600'} flex items-center justify-center gap-1`}>
-                    {evolutionPeriod === 'all' && totalLawsuits ? (
-                      <>
-                        {totalLawsuits - evolutionMetrics.archivedProcesses >= 0 ? '+' : ''}
-                        {totalLawsuits - evolutionMetrics.archivedProcesses}
-                      </>
-                    ) : (
-                      <>
-                        {netGrowth >= 0 ? '+' : ''}{netGrowth}
-                      </>
-                    )}
-                    {(evolutionPeriod === 'all' ? (totalLawsuits || 0) - evolutionMetrics.archivedProcesses : netGrowth) >= 0 ? (
+                    {netGrowth >= 0 ? '+' : ''}{netGrowth}
+                    {netGrowth >= 0 ? (
                       <TrendingUp className="h-5 w-5" />
                     ) : (
                       <TrendingUp className="h-5 w-5 rotate-180" />
                     )}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
-                    {evolutionPeriod === 'all' ? 'Processos Ativos' : 'Crescimento Líquido'}
+                    Crescimento Líquido
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
-                    {evolutionPeriod === 'all' ? 'Total - Arquivados' : `Últimos ${evolutionPeriod} dias`}
+                    Em andamento - Arquivados
                   </div>
                 </div>
               </div>
