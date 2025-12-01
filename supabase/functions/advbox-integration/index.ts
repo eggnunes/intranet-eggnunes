@@ -257,11 +257,19 @@ Deno.serve(async (req) => {
     switch (path) {
       // Dashboard de Processos
       case 'lawsuits': {
-        console.log('Fetching lawsuits first page with totalCount...');
+        console.log('Fetching lawsuits first page with totalCount (sorted by created_at DESC)...');
         const rawResult = await getCachedOrFetch(
-          'lawsuits-first-page',
+          'lawsuits-first-page-sorted',
           async () => {
-            const response = await makeAdvboxRequest({ endpoint: '/lawsuits?limit=1000&page=1' });
+            // Tentar buscar ordenado por created_at desc para obter processos mais recentes
+            // Advbox API pode suportar order=-created_at ou sort=-created_at
+            let response;
+            try {
+              response = await makeAdvboxRequest({ endpoint: '/lawsuits?limit=1000&page=1&order=-created_at' });
+            } catch (e) {
+              console.warn('Sorted request failed, trying without sort:', e);
+              response = await makeAdvboxRequest({ endpoint: '/lawsuits?limit=1000&page=1' });
+            }
             const items = Array.isArray(response.data) ? response.data : [];
             const totalCount =
               typeof response.totalCount === 'number' ? response.totalCount : items.length;
