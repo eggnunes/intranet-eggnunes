@@ -350,15 +350,17 @@ export default function ProcessosDashboard() {
       console.log('Lawsuits parsed:', lawsuitsArray.length, 'items');
       console.log('Movements parsed:', movementsArray.length, 'items');
 
-      // Se a API retornar vazio mas já temos processos em memória,
-      // mantemos o estado atual para evitar zerar a página
-      if (lawsuitsArray.length === 0 && lawsuits.length > 0) {
-        console.warn('API retornou 0 processos, mantendo lista atual em memória.');
-      } else {
-        setLawsuits(lawsuitsArray);
-      }
+      // Definir qual lista realmente será usada na tela:
+      // - Se a API voltou vazia mas já temos processos em memória (cache do navegador),
+      //   continuamos usando a lista em memória para não zerar a página.
+      const finalLawsuits: Lawsuit[] =
+        lawsuitsArray.length === 0 && lawsuits.length > 0 ? lawsuits : lawsuitsArray;
 
-      setMovements(movementsArray);
+      const finalMovements: Movement[] = movementsArray;
+
+      setLawsuits(finalLawsuits);
+      setMovements(finalMovements);
+
       const updateTime = new Date();
       setLastUpdate(updateTime);
       
@@ -368,25 +370,25 @@ export default function ProcessosDashboard() {
         setMetadata(rootMetadata);
       }
 
-      const lawsuitsTotal = lawsuitsArray.length;
-      const movementsTotal = movementsArray.length;
+      const lawsuitsTotal = finalLawsuits.length;
+      const movementsTotal = finalMovements.length;
 
       setTotalLawsuits(lawsuitsTotal);
       setTotalMovements(movementsTotal);
 
       // Atualizar cache apenas quando tivermos dados de processos
       try {
-        if (lawsuitsArray.length > 0) {
+        if (finalLawsuits.length > 0) {
           const cacheData = {
-            lawsuits: lawsuitsArray,
-            movements: movementsArray,
+            lawsuits: finalLawsuits,
+            movements: finalMovements,
             totalLawsuits: lawsuitsTotal,
             totalMovements: movementsTotal,
             metadata: rootMetadata || null,
           };
           localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
           localStorage.setItem(CACHE_TIMESTAMP_KEY, updateTime.toISOString());
-        } else if (!cachedData?.lawsuits?.length && lawsuits.length === 0) {
+        } else if (!cachedData?.lawsuits?.length && finalLawsuits.length === 0) {
           // Primeira vez sem dados nenhum: limpar cache para refletir estado vazio real
           localStorage.removeItem(CACHE_KEY);
           localStorage.removeItem(CACHE_TIMESTAMP_KEY);
