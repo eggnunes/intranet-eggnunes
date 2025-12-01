@@ -16,8 +16,8 @@ interface Customer {
   birthday: string;
 }
 
-async function sendWhatsAppMessage(phone: string, message: string) {
-  console.log(`Sending message to ${phone}`);
+async function sendWhatsAppMessage(phone: string, customerName: string) {
+  console.log(`Sending birthday template message to ${phone} for ${customerName}`);
   
   // Remove formatting from phone number
   const cleanPhone = phone.replace(/\D/g, '');
@@ -32,9 +32,23 @@ async function sendWhatsAppMessage(phone: string, message: string) {
     body: JSON.stringify({
       messaging_product: 'whatsapp',
       to: cleanPhone,
-      type: 'text',
-      text: {
-        body: message,
+      type: 'template',
+      template: {
+        name: 'aniversario',
+        language: {
+          code: 'pt_BR',
+        },
+        components: [
+          {
+            type: 'body',
+            parameters: [
+              {
+                type: 'text',
+                text: customerName,
+              },
+            ],
+          },
+        ],
       },
     }),
   });
@@ -46,19 +60,8 @@ async function sendWhatsAppMessage(phone: string, message: string) {
   }
 
   const data = await response.json();
-  console.log('Message sent successfully:', data);
+  console.log('Template message sent successfully:', data);
   return data;
-}
-
-function generateBirthdayMessage(name: string): string {
-  return `🎉 Feliz Aniversário, ${name}! 🎂
-
-Toda a equipe da Egg Nunes deseja um dia especial repleto de alegrias e realizações!
-
-Que este novo ano de vida seja marcado por muitas conquistas e momentos felizes! 🎈
-
-Com carinho,
-Equipe Egg Nunes 💙`;
 }
 
 Deno.serve(async (req) => {
@@ -169,35 +172,34 @@ Deno.serve(async (req) => {
     // Send messages
     for (const customer of customersToMessage) {
       try {
-        const message = generateBirthdayMessage(customer.name);
-        console.log(`Sending birthday message to ${customer.name} (${customer.phone})`);
+        console.log(`Sending birthday template to ${customer.name} (${customer.phone})`);
 
-        const chatGuruResponse = await sendWhatsAppMessage(customer.phone!, message);
+        const chatGuruResponse = await sendWhatsAppMessage(customer.phone!, customer.name);
 
         // Log successful send
         await supabase.from('chatguru_birthday_messages_log').insert({
           customer_id: customer.id,
           customer_name: customer.name,
           customer_phone: customer.phone,
-          message_text: message,
+          message_text: `Template: aniversario - Nome: ${customer.name}`,
           status: 'sent',
           chatguru_message_id: chatGuruResponse?.message_id || null,
         });
 
         results.sent++;
-        console.log(`✓ Message sent successfully to ${customer.name}`);
+        console.log(`✓ Template message sent successfully to ${customer.name}`);
 
         // Delay between messages to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 2000));
       } catch (error: any) {
-        console.error(`✗ Failed to send message to ${customer.name}:`, error.message);
+        console.error(`✗ Failed to send template to ${customer.name}:`, error.message);
         
         // Log failed send
         await supabase.from('chatguru_birthday_messages_log').insert({
           customer_id: customer.id,
           customer_name: customer.name,
           customer_phone: customer.phone!,
-          message_text: generateBirthdayMessage(customer.name),
+          message_text: `Template: aniversario - Nome: ${customer.name}`,
           status: 'failed',
           error_message: error.message,
         });
