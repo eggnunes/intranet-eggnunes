@@ -549,7 +549,7 @@ export default function ProcessosDashboard() {
     };
   };
   const evolutionMetrics = getEvolutionMetrics();
-  const netGrowth = evolutionMetrics.activeProcesses - evolutionMetrics.archivedProcesses;
+  const netGrowth = evolutionMetrics.newProcesses - evolutionMetrics.archivedProcesses;
 
   // Calcular processos ativos por tipo de ação (type)
   const getActiveByTypeData = () => {
@@ -769,15 +769,15 @@ export default function ProcessosDashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              {evolutionPeriod !== 'all' && (
-                <div className="flex items-center gap-2 mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-                  <p className="text-xs text-amber-700">
-                    Os dados de período são baseados nos primeiros {lawsuits.length.toLocaleString()} processos carregados. 
-                    O Advbox possui {totalLawsuits?.toLocaleString() || 'mais'} processos no total.
-                  </p>
-                </div>
-              )}
+              <div className="flex items-center gap-2 mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                <p className="text-xs text-amber-700">
+                  {evolutionPeriod === 'all' 
+                    ? `Dados baseados em uma amostra de ${lawsuits.length.toLocaleString()} processos. O Advbox possui ${totalLawsuits?.toLocaleString() || 'mais'} processos no total. A API retorna os processos mais antigos primeiro, então os contadores de "Processos Novos" podem não refletir a realidade recente.`
+                    : `A API do Advbox retorna os processos mais antigos primeiro. Os ${lawsuits.length.toLocaleString()} processos carregados podem não conter processos criados nos últimos ${evolutionPeriod} dias. Total no Advbox: ${totalLawsuits?.toLocaleString() || 'N/A'} processos.`
+                  }
+                </p>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="text-center p-4 bg-primary/5 rounded-lg">
                   <div className="text-3xl font-bold text-primary">
@@ -797,13 +797,13 @@ export default function ProcessosDashboard() {
                 </div>
                 <div className="text-center p-4 bg-green-500/5 rounded-lg">
                   <div className="text-3xl font-bold text-green-600">
-                    {evolutionMetrics.activeProcesses}
+                    {evolutionMetrics.newProcesses}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
-                    Processos em Andamento
+                    Processos Novos
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
-                    Sem data de arquivamento
+                    {evolutionPeriod === 'all' ? 'Na amostra carregada' : `Últimos ${evolutionPeriod} dias`}
                   </div>
                 </div>
                 <div className="text-center p-4 bg-purple-500/5 rounded-lg">
@@ -830,7 +830,7 @@ export default function ProcessosDashboard() {
                     Crescimento Líquido
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
-                    Em andamento - Arquivados
+                    Novos - Arquivados
                   </div>
                 </div>
               </div>
