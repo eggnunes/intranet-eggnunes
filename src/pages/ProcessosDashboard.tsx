@@ -681,20 +681,28 @@ export default function ProcessosDashboard() {
       console.log('Lawsuits parsed:', lawsuitsArray.length, 'items');
       console.log('Movements parsed:', movementsArray.length, 'items');
       
-      // Debug: Verificar se process_date está disponível nos dados
+      // Debug: Verificar TODOS os campos disponíveis no processo
       if (lawsuitsArray.length > 0) {
+        // Log ALL field names from the first lawsuit
+        const firstLawsuit = lawsuitsArray[0] as any;
+        console.log('[Debug] ALL FIELDS in first lawsuit:', Object.keys(firstLawsuit));
+        
+        // Log all date-like fields from the first lawsuit
+        const dateFields = Object.entries(firstLawsuit).filter(([key, value]) => {
+          const keyLower = key.toLowerCase();
+          return keyLower.includes('date') || keyLower.includes('data') || keyLower.includes('inicio') || 
+                 keyLower.includes('created') || keyLower.includes('updated') || keyLower.includes('start') ||
+                 keyLower.includes('distribution') || keyLower.includes('distribuicao');
+        });
+        console.log('[Debug] DATE-LIKE FIELDS in first lawsuit:', Object.fromEntries(dateFields));
+        
+        // Log full first lawsuit object for complete visibility
+        console.log('[Debug] FULL FIRST LAWSUIT:', JSON.stringify(firstLawsuit, null, 2));
+        
         const withProcessDate = lawsuitsArray.filter(l => l.process_date).length;
         const withCreatedAt = lawsuitsArray.filter(l => l.created_at).length;
         console.log('[Debug] Lawsuits with process_date:', withProcessDate, 'of', lawsuitsArray.length);
         console.log('[Debug] Lawsuits with created_at:', withCreatedAt, 'of', lawsuitsArray.length);
-        
-        // Mostrar exemplos de datas
-        const samples = lawsuitsArray.slice(0, 3).map(l => ({
-          id: l.id,
-          process_date: l.process_date,
-          created_at: l.created_at
-        }));
-        console.log('[Debug] Sample lawsuits dates:', samples);
       }
 
       // Definir qual lista realmente será usada na tela:
