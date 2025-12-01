@@ -380,8 +380,15 @@ export default function ProcessosDashboard() {
           ? (lawsuitsPayload as any).totalCount
           : undefined;
 
+      const movementsTotalFromApi =
+        typeof (rawMovements as any)?.totalCount === 'number'
+          ? (rawMovements as any).totalCount
+          : typeof (movementsPayload as any)?.totalCount === 'number'
+          ? (movementsPayload as any).totalCount
+          : undefined;
+
       const lawsuitsTotal = lawsuitsTotalFromApi ?? finalLawsuits.length;
-      const movementsTotal = finalMovements.length;
+      const movementsTotal = movementsTotalFromApi ?? finalMovements.length;
 
       setTotalLawsuits(lawsuitsTotal);
       setTotalMovements(movementsTotal);
