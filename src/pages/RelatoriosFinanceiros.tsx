@@ -190,11 +190,12 @@ export default function RelatoriosFinanceiros() {
         const lawsuitId = t.lawsuit_id || t.lawsuit?.id || t.lawsuits_id || null;
         const lawsuitData = lawsuitId ? lawsuitMap.get(String(lawsuitId)) : null;
         
-        // Extrair nome do cliente - priorizar customer_name da transação, depois do processo
-        let customerName = t.customer_name || t.person?.name || t.customer?.name || t.person_name || null;
+        // CORREÇÃO: A API Advbox retorna "name" e "identification", NÃO "customer_name"
+        // Os campos reais são: name, identification (conforme debug dos logs)
+        let customerName = t.name || t.customer_name || t.person?.name || t.customer?.name || t.person_name || null;
         let customerPhone = t.person?.cellphone || t.person?.phone || t.customer?.cellphone || t.customer?.phone || null;
         let customerEmail = t.person?.email || t.customer?.email || null;
-        let personDocument = t.customer_identification || t.person?.document || t.person?.cpf || t.person?.cnpj || t.customer?.document || null;
+        let personDocument = t.identification || t.customer_identification || t.person?.document || t.person?.cpf || t.person?.cnpj || t.customer?.document || null;
         
         // Se não encontrou dados do cliente na transação, usar do processo
         if (!customerName && lawsuitData) {
