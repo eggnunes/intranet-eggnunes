@@ -784,6 +784,113 @@ Deno.serve(async (req) => {
         });
       }
 
+      case 'task-types': {
+        // A API Advbox não tem endpoint específico para tipos de tarefa
+        // Tentamos buscar do endpoint /settings que pode conter configurações
+        console.log('Fetching task types from settings...');
+        try {
+          const settingsResult = await makeAdvboxRequest({ endpoint: '/settings' });
+          console.log('Settings response keys:', Object.keys(settingsResult));
+          console.log('Settings response preview:', JSON.stringify(settingsResult).substring(0, 1000));
+          
+          // Verificar se settings contém tasks ou task_types
+          const settings = settingsResult.data || settingsResult;
+          let taskTypes = [];
+          
+          // Tentar extrair tipos de tarefa de diferentes locais possíveis
+          if (settings.tasks) {
+            console.log('Found tasks in settings');
+            taskTypes = Array.isArray(settings.tasks) ? settings.tasks : [];
+          } else if (settings.task_types) {
+            console.log('Found task_types in settings');
+            taskTypes = Array.isArray(settings.task_types) ? settings.task_types : [];
+          } else if (settings.account?.tasks) {
+            console.log('Found account.tasks in settings');
+            taskTypes = Array.isArray(settings.account.tasks) ? settings.account.tasks : [];
+          } else if (settings.account) {
+            console.log('Settings account keys:', Object.keys(settings.account));
+          }
+          
+          if (taskTypes.length > 0) {
+            return new Response(JSON.stringify({ data: taskTypes, source: 'settings' }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          
+          // Se não encontrou em settings, tentar extrair de tarefas existentes
+          console.log('No task types in settings, extracting from existing posts...');
+          const postsResult = await getCachedOrFetch('tasks', async () => {
+            return await makeAdvboxRequest({ endpoint: '/posts' });
+          }, false);
+          
+          const posts = postsResult.data?.data || postsResult.data || [];
+          const uniqueTaskTypes = new Map();
+          
+          if (Array.isArray(posts) && posts.length > 0) {
+            // Log first post structure for debugging
+            const firstPost = posts[0];
+            console.log('First post keys:', Object.keys(firstPost));
+            console.log('First post preview:', JSON.stringify(firstPost).substring(0, 500));
+            
+            posts.forEach((post: any) => {
+              // Tentar várias formas de extrair o tipo de tarefa
+              if (post.tasks_id && post.task_name) {
+                uniqueTaskTypes.set(String(post.tasks_id), {
+                  id: String(post.tasks_id),
+                  name: post.task_name,
+                });
+              } else if (post.task?.id && post.task?.name) {
+                uniqueTaskTypes.set(String(post.task.id), {
+                  id: String(post.task.id),
+                  name: post.task.name,
+                });
+              } else if (post.tasks_id && post.task) {
+                uniqueTaskTypes.set(String(post.tasks_id), {
+                  id: String(post.tasks_id),
+                  name: post.task,
+                });
+              } else if (post.type_id && post.type_name) {
+                uniqueTaskTypes.set(String(post.type_id), {
+                  id: String(post.type_id),
+                  name: post.type_name,
+                });
+              }
+            });
+          }
+          
+          const extractedTypes = Array.from(uniqueTaskTypes.values());
+          console.log(`Extracted ${extractedTypes.length} unique task types from ${posts.length} posts`);
+          
+          return new Response(JSON.stringify({ 
+            data: extractedTypes, 
+            source: 'posts',
+            totalPosts: posts.length,
+            samplePostKeys: Array.isArray(posts) && posts.length > 0 ? Object.keys(posts[0]) : [],
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          console.error('Error fetching task types:', error);
+          return new Response(JSON.stringify({ 
+            error: 'Failed to fetch task types', 
+            details: error instanceof Error ? error.message : String(error),
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      case 'settings': {
+        // Endpoint para buscar configurações da conta
+        const result = await getCachedOrFetch('settings', async () => {
+          return await makeAdvboxRequest({ endpoint: '/settings' });
+        }, forceRefresh);
+        return new Response(JSON.stringify(result), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       case 'create-task': {
         const body = await req.json();
         console.log('Creating task with body:', JSON.stringify(body));
