@@ -1070,7 +1070,25 @@ Deno.serve(async (req) => {
         const result = await getCachedOrFetch(cacheKey, async () => {
           const endpoint = `/transactions?limit=1000&date_due_start=${startDateStr}&date_due_end=${endDateStr}`;
           console.log('Transactions-recent endpoint:', endpoint);
-          return await makeAdvboxRequest({ endpoint });
+          const response = await makeAdvboxRequest({ endpoint });
+          
+          // Debug: log sample transaction to see customer_name field
+          const items = response?.data || [];
+          if (items.length > 0) {
+            console.log('[DEBUG] First transaction keys:', Object.keys(items[0]));
+            console.log('[DEBUG] First transaction customer fields:', JSON.stringify({
+              customer_name: items[0].customer_name,
+              customer_identification: items[0].customer_identification,
+              person: items[0].person,
+              customer: items[0].customer,
+            }));
+            // Log first 3 transactions to see pattern
+            console.log('[DEBUG] First 3 transactions customer_name:', 
+              items.slice(0, 3).map((t: any) => ({ id: t.id, customer_name: t.customer_name, description: t.description?.substring(0, 50) }))
+            );
+          }
+          
+          return response;
         }, forceRefresh);
         
         return new Response(JSON.stringify(result), {
