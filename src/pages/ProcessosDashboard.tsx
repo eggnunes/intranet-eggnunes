@@ -1216,74 +1216,31 @@ export default function ProcessosDashboard() {
                 </div>
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                {/* PROCESSOS ATIVOS - Sempre mostra o total real, independente do período */}
                 <div className="text-center p-4 bg-primary/5 rounded-lg">
                   <div className="text-3xl font-bold text-primary">
-                    {(() => {
-                      // Se há filtro de busca ou responsável, mostrar filtrados
-                      if (searchTerm || !showAllResponsibles) {
-                        return filteredLawsuits.length;
-                      }
-                      
-                      // Se período "all", mostrar total
-                      if (evolutionPeriod === 'all') {
-                        return totalLawsuits ?? filteredLawsuits.length;
-                      }
-                      
-                      // Se temos processos recentes carregados via API, calcular ativos no período
-                      // Processos ativos no período = processos únicos com movimentação no período + processos novos no período
-                      const getEvolutionDateFilter = () => {
-                        const now = new Date();
-                        switch (evolutionPeriod) {
-                          case '7':
-                            return startOfDay(subDays(now, 7));
-                          case '30':
-                            return startOfDay(subDays(now, 30));
-                          case '90':
-                            return startOfDay(subMonths(now, 3));
-                          default:
-                            return null;
-                        }
-                      };
-                      
-                      const evolutionDateFilter = getEvolutionDateFilter();
-                      if (!evolutionDateFilter) {
-                        return totalLawsuits ?? filteredLawsuits.length;
-                      }
-                      
-                      // Processos com movimentação no período
-                      const lawsuitsWithMovementInPeriod = new Set(
-                        movements
-                          .filter(m => !isBefore(new Date(m.date), evolutionDateFilter))
-                          .map(m => m.lawsuit_id)
-                      );
-                      
-                      // Adicionar processos novos no período (se carregados via API)
-                      if (recentLawsuits.length > 0) {
-                        recentLawsuits.forEach(l => lawsuitsWithMovementInPeriod.add(l.id));
-                      }
-                      
-                      return lawsuitsWithMovementInPeriod.size;
-                    })()}
+                    {searchTerm || !showAllResponsibles 
+                      ? filteredLawsuits.length 
+                      : (totalLawsuits ?? filteredLawsuits.length)}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
-                    {searchTerm || !showAllResponsibles 
-                      ? 'Processos Filtrados' 
-                      : evolutionPeriod === 'all' 
-                        ? 'Processos Ativos' 
-                        : 'Processos Ativos no Período'}
+                    {searchTerm || !showAllResponsibles ? 'Processos Filtrados' : 'Processos Ativos'}
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
-                    {evolutionPeriod === 'all' 
-                      ? 'Total no Advbox' 
-                      : `Últimos ${evolutionPeriod} dias`}
+                    Total atual no Advbox
                   </div>
                 </div>
+                
+                {/* MOVIMENTAÇÕES NO PERÍODO - Filtra das movimentações completas */}
                 <div className="text-center p-4 bg-blue-500/5 rounded-lg">
                   <div className="text-3xl font-bold text-blue-600 flex items-center justify-center gap-2">
                     {isLoadingRecent ? (
                       <RefreshCw className="h-6 w-6 animate-spin" />
                     ) : (() => {
-                      // Filtrar movimentações pelo período de evolução selecionado
+                      // Usar fullMovements se disponível, senão usar movements
+                      const movementsToUse = hasFullMovements && fullMovements.length > 0 ? fullMovements : movements;
+                      
+                      // Filtrar pelo período de evolução selecionado
                       const getEvolutionDateFilter = () => {
                         const now = new Date();
                         switch (evolutionPeriod) {
@@ -1300,13 +1257,13 @@ export default function ProcessosDashboard() {
                       const evolutionDateFilter = getEvolutionDateFilter();
                       
                       if (evolutionDateFilter) {
-                        const filteredByEvolution = movements.filter(m => {
+                        const filteredByEvolution = movementsToUse.filter(m => {
                           const movementDate = new Date(m.date);
                           return !isBefore(movementDate, evolutionDateFilter);
                         });
                         return filteredByEvolution.length;
                       }
-                      return totalMovements ?? movements.length;
+                      return totalMovements ?? movementsToUse.length;
                     })()}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
@@ -1315,6 +1272,7 @@ export default function ProcessosDashboard() {
                   {evolutionPeriod !== 'all' && (
                     <div className="text-xs text-muted-foreground/60 mt-0.5">
                       Últimos {evolutionPeriod} dias
+                      {hasFullMovements && <span className="ml-1 text-green-600">(completo)</span>}
                     </div>
                   )}
                 </div>
