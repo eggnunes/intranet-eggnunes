@@ -103,7 +103,29 @@ Deno.serve(async (req) => {
       throw birthdayError;
     }
 
-    const rawCustomers: any[] = (birthdayData as any)?.data || (birthdayData as any) || [];
+    // Debug: log the structure of birthdayData
+    console.log('birthdayData type:', typeof birthdayData);
+    console.log('birthdayData keys:', birthdayData ? Object.keys(birthdayData) : 'null');
+    
+    // Handle nested data structure from Advbox API
+    let rawCustomers: any[] = [];
+    if (Array.isArray(birthdayData)) {
+      rawCustomers = birthdayData;
+    } else if (birthdayData?.data?.data && Array.isArray(birthdayData.data.data)) {
+      rawCustomers = birthdayData.data.data;
+    } else if (birthdayData?.data && Array.isArray(birthdayData.data)) {
+      rawCustomers = birthdayData.data;
+    } else if (birthdayData && typeof birthdayData === 'object') {
+      // Try to find an array property
+      for (const key of Object.keys(birthdayData)) {
+        if (Array.isArray(birthdayData[key])) {
+          rawCustomers = birthdayData[key];
+          console.log(`Found array in birthdayData.${key}`);
+          break;
+        }
+      }
+    }
+    
     console.log(`Found ${rawCustomers.length} total customers with birthdays`);
 
     // Normalize and filter customers with birthdays today
