@@ -784,6 +784,17 @@ Deno.serve(async (req) => {
         });
       }
 
+      case 'task-types': {
+        // Buscar tipos de tarefa do endpoint /tasks
+        const result = await getCachedOrFetch('task-types', async () => {
+          console.log('Fetching task types from /tasks endpoint');
+          return await makeAdvboxRequest({ endpoint: '/tasks' });
+        }, forceRefresh);
+        return new Response(JSON.stringify(result), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       case 'create-task': {
         const body = await req.json();
         console.log('Creating task with body:', JSON.stringify(body));
