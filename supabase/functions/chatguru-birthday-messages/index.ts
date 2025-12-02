@@ -22,16 +22,22 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
   // Remove formatting from phone number
   const cleanPhone = phone.replace(/\D/g, '');
   
-  const url = `https://v1.nocodeapi.com/eggnunes/${CHATGURU_ACCOUNT_ID}/whatsapp/${CHATGURU_API_KEY}`;
+  // Verificar se o telefone é válido (deve ter 10 ou 11 dígitos)
+  if (cleanPhone.length < 10 || cleanPhone.length > 11) {
+    throw new Error('Número de telefone inválido');
+  }
   
-  const response = await fetch(url, {
+  // Usar a API correta do ChatGuru
+  const response = await fetch('https://api.chatguru.app/api/v1/messages', {
     method: 'POST',
     headers: {
+      'Authorization': `Bearer ${CHATGURU_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      to: cleanPhone,
+      account_id: CHATGURU_ACCOUNT_ID,
+      phone_id: CHATGURU_PHONE_ID,
+      to: `55${cleanPhone}`, // Adiciona código do Brasil
       type: 'template',
       template: {
         name: 'aniversario',
