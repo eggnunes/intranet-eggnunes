@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_task_notification_recipients: {
+        Row: {
+          admin_user_id: string
+          created_at: string
+          id: string
+          receive_due_soon_alerts: boolean
+          receive_due_today_alerts: boolean
+          receive_overdue_alerts: boolean
+          updated_at: string
+        }
+        Insert: {
+          admin_user_id: string
+          created_at?: string
+          id?: string
+          receive_due_soon_alerts?: boolean
+          receive_due_today_alerts?: boolean
+          receive_overdue_alerts?: boolean
+          updated_at?: string
+        }
+        Update: {
+          admin_user_id?: string
+          created_at?: string
+          id?: string
+          receive_due_soon_alerts?: boolean
+          receive_due_today_alerts?: boolean
+          receive_overdue_alerts?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       administrative_requests: {
         Row: {
           created_at: string
