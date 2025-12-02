@@ -1597,20 +1597,34 @@ export default function ProcessosDashboard() {
               </AccordionItem>
 
               {/* Processos Ativos por Tipo de Ação */}
-              <AccordionItem value="ativos-tipo" className="border rounded-lg px-4">
+              {/* Processos Ativos por Área */}
+              <AccordionItem value="ativos-area" className="border rounded-lg px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center gap-2">
                     <BarChart className="h-5 w-5" />
-                    <span className="font-semibold">Processos Ativos por Tipo de Ação</span>
+                    <span className="font-semibold">Processos Ativos por Área</span>
                     <span className="text-sm text-muted-foreground ml-2">
-                      ({filteredLawsuits.length} processos)
+                      ({totalLawsuits ?? filteredLawsuits.length} processos atualmente)
                     </span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="pt-4">
                     <ResponsiveContainer width="100%" height={400}>
-                      <RechartsBarChart data={getActiveByTypeData()} layout="vertical">
+                      <RechartsBarChart 
+                        data={(() => {
+                          // Contar processos por área (group)
+                          const areaCounts: { [key: string]: number } = {};
+                          lawsuits.forEach(lawsuit => {
+                            const area = lawsuit.group || 'Não informado';
+                            areaCounts[area] = (areaCounts[area] || 0) + 1;
+                          });
+                          return Object.entries(areaCounts)
+                            .map(([area, quantidade]) => ({ area, quantidade }))
+                            .sort((a, b) => b.quantidade - a.quantidade);
+                        })()} 
+                        layout="vertical"
+                      >
                         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                         <XAxis 
                           type="number"
@@ -1619,7 +1633,7 @@ export default function ProcessosDashboard() {
                         />
                         <YAxis 
                           type="category"
-                          dataKey="tipo" 
+                          dataKey="area" 
                           tick={{ fontSize: 11 }}
                           className="text-muted-foreground"
                           width={200}
