@@ -17,7 +17,7 @@ import { TaskNotificationSettings } from '@/components/TaskNotificationSettings'
 import { useTaskNotifications } from '@/hooks/useTaskNotifications';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { format, isToday, isThisWeek, isThisMonth, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
 import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
@@ -83,6 +83,7 @@ export default function TarefasAdvbox() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [assignedFilter, setAssignedFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [dueDateFilter, setDueDateFilter] = useState<string>('all');
   const [priorityDialogOpen, setPriorityDialogOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -488,6 +489,30 @@ export default function TarefasAdvbox() {
       if (statusFilter !== 'all' && task.status !== statusFilter) return false;
       if (assignedFilter !== 'all' && task.assigned_to !== assignedFilter) return false;
       if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false;
+      
+      // Filtro por data de vencimento
+      if (dueDateFilter !== 'all' && task.due_date) {
+        const dueDate = new Date(task.due_date);
+        const today = startOfDay(new Date());
+        
+        switch (dueDateFilter) {
+          case 'overdue':
+            if (!isBefore(dueDate, today)) return false;
+            break;
+          case 'today':
+            if (!isToday(dueDate)) return false;
+            break;
+          case 'week':
+            if (!isThisWeek(dueDate, { weekStartsOn: 0 })) return false;
+            break;
+          case 'month':
+            if (!isThisMonth(dueDate)) return false;
+            break;
+        }
+      } else if (dueDateFilter !== 'all' && !task.due_date) {
+        return false;
+      }
+      
       return true;
     });
 
@@ -500,7 +525,7 @@ export default function TarefasAdvbox() {
     });
 
     return filtered;
-  }, [visibleTasks, statusFilter, assignedFilter, priorityFilter]);
+  }, [visibleTasks, statusFilter, assignedFilter, priorityFilter, dueDateFilter]);
 
   const getStatusIcon = (status?: string) => {
     const normalized = status?.toLowerCase() ?? '';
@@ -587,7 +612,17 @@ export default function TarefasAdvbox() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={() => fetchTasks(true)}
+              onClick={() => {
+                // Limpar cache local
+                localStorage.removeItem(CACHE_KEY);
+                localStorage.removeItem(CACHE_TIMESTAMP_KEY);
+                setTasks([]);
+                toast({
+                  title: 'Cache limpo',
+                  description: 'Buscando dados atualizados...',
+                });
+                fetchTasks(true);
+              }}
             >
               <Flag className="h-4 w-4 mr-2" />
               Atualizar dados
@@ -755,7 +790,7 @@ export default function TarefasAdvbox() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <Label htmlFor="status-filter">Status</Label>
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -782,6 +817,22 @@ export default function TarefasAdvbox() {
                         <SelectItem value="alta">Alta</SelectItem>
                         <SelectItem value="media">Média</SelectItem>
                         <SelectItem value="baixa">Baixa</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="due-date-filter">Vencimento</Label>
+                    <Select value={dueDateFilter} onValueChange={setDueDateFilter}>
+                      <SelectTrigger id="due-date-filter">
+                        <SelectValue placeholder="Filtrar por vencimento" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas as datas</SelectItem>
+                        <SelectItem value="overdue">Atrasadas</SelectItem>
+                        <SelectItem value="today">Vence Hoje</SelectItem>
+                        <SelectItem value="week">Esta Semana</SelectItem>
+                        <SelectItem value="month">Este Mês</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
