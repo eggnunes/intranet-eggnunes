@@ -225,21 +225,20 @@ export default function ProcessosDashboard() {
       }
 
       // Preparar dados no formato esperado pela API do Advbox
+      // start_date deve ser APENAS YYYY-MM-DD (sem horário)
       const taskData = targetMovement ? {
         lawsuits_id: targetMovement.lawsuit_id || lawsuit.id,
-        start_date: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
+        start_date: format(new Date(), 'yyyy-MM-dd'),
         title: `Movimentação: ${targetMovement.title}`,
         description: targetMovement.header || targetMovement.title,
         from: lawsuit.responsible_id, // ID do responsável pelo processo no Advbox
-        tasks_id: 1, // ID padrão do tipo de tarefa (ajustar conforme necessário)
         guests: [lawsuit.responsible_id], // Atribuir ao responsável do processo
       } : {
         lawsuits_id: lawsuit.id,
-        start_date: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
+        start_date: format(new Date(), 'yyyy-MM-dd'),
         title: `Acompanhamento: ${lawsuit.process_number}`,
         description: `Tarefa criada para acompanhamento do processo ${lawsuit.process_number}`,
         from: lawsuit.responsible_id,
-        tasks_id: 1,
         guests: [lawsuit.responsible_id],
       };
 
