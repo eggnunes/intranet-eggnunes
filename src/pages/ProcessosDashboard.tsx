@@ -114,6 +114,8 @@ export default function ProcessosDashboard() {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [selectedMovement, setSelectedMovement] = useState<Movement | null>(null);
   const [isLoadingFullData, setIsLoadingFullData] = useState(false);
+  const [taskTypeInput, setTaskTypeInput] = useState('');
+  const [taskComments, setTaskComments] = useState('');
   const [hasCompleteData, setHasCompleteData] = useState(cachedData?.isComplete || false);
   
   // Filtros para gráficos de evolução
@@ -126,6 +128,8 @@ export default function ProcessosDashboard() {
 
   const openTaskDialog = (movement: Movement) => {
     setSelectedMovement(movement);
+    setTaskTypeInput('');
+    setTaskComments(movement.header || movement.title || '');
     setTaskDialogOpen(true);
   };
 
@@ -225,21 +229,21 @@ export default function ProcessosDashboard() {
       }
 
       // Preparar dados no formato esperado pela API do Advbox
-      // start_date deve ser APENAS YYYY-MM-DD (sem horário)
+      // Conforme documentação: https://app.advbox.com.br/api/v1/posts
       const taskData = targetMovement ? {
         lawsuits_id: targetMovement.lawsuit_id || lawsuit.id,
         start_date: format(new Date(), 'yyyy-MM-dd'),
-        title: `Movimentação: ${targetMovement.title}`,
-        description: targetMovement.header || targetMovement.title,
+        comments: taskComments || targetMovement.header || targetMovement.title,
         from: lawsuit.responsible_id, // ID do responsável pelo processo no Advbox
         guests: [lawsuit.responsible_id], // Atribuir ao responsável do processo
+        ...(taskTypeInput && { tasks_id: taskTypeInput }),
       } : {
         lawsuits_id: lawsuit.id,
         start_date: format(new Date(), 'yyyy-MM-dd'),
-        title: `Acompanhamento: ${lawsuit.process_number}`,
-        description: `Tarefa criada para acompanhamento do processo ${lawsuit.process_number}`,
+        comments: `Tarefa criada para acompanhamento do processo ${lawsuit.process_number}`,
         from: lawsuit.responsible_id,
         guests: [lawsuit.responsible_id],
+        ...(taskTypeInput && { tasks_id: taskTypeInput }),
       };
 
       const { error } = await supabase.functions.invoke('advbox-integration/create-task', {
@@ -2332,8 +2336,35 @@ export default function ProcessosDashboard() {
                   )}
                 </div>
                 
+                {/* Campo para tipo de tarefa (tasks_id) */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">ID do Tipo de Tarefa (tasks_id) *</label>
+                  <Input
+                    value={taskTypeInput}
+                    onChange={(e) => setTaskTypeInput(e.target.value)}
+                    placeholder="Ex: 98765"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    O Advbox requer o ID do tipo de tarefa. Consulte o Advbox para obter os IDs disponíveis.
+                  </p>
+                </div>
+                
+                {/* Campo para comentários */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Descrição da Tarefa</label>
+                  <Input
+                    value={taskComments}
+                    onChange={(e) => setTaskComments(e.target.value)}
+                    placeholder="Descrição da tarefa..."
+                  />
+                </div>
+                
                 <div className="flex gap-2">
-                  <Button onClick={() => createTaskFromMovement()} className="flex-1">
+                  <Button 
+                    onClick={() => createTaskFromMovement()} 
+                    className="flex-1"
+                    disabled={!taskTypeInput}
+                  >
                     Criar Tarefa
                   </Button>
                   <Button
