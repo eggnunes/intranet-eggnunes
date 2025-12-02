@@ -90,20 +90,51 @@ export default function RelatoriosFinanceiros() {
 
       // A resposta vem como: { data: { data: { data: [...], offset, limit, totalCount } } }
       const apiResponse = data?.data || data;
-      const transactionsData = apiResponse?.data || [];
+      const rawTransactionsData = apiResponse?.data || [];
       
       // Check if we got rate limited but have cached data
-      if (data?.metadata?.rateLimited && transactionsData.length === 0) {
+      if (data?.metadata?.rateLimited && rawTransactionsData.length === 0) {
         setRateLimitError(true);
         // Keep existing cached transactions
         return;
       }
       
-      if (transactionsData.length > 0) {
-        setTransactions(transactionsData);
+      // Mapear campos da API para o formato esperado pelo frontend
+      const mappedTransactions: Transaction[] = rawTransactionsData.map((t: any) => {
+        // Usar date_payment se disponível, senão date_due
+        const transactionDate = t.date_payment || t.date_due || null;
+        
+        // Determinar tipo baseado na categoria
+        // Categorias que indicam receita
+        const incomeCategories = [
+          'RECEITA', 'HONORÁRIO', 'RECEITAS', 'RESULTADO COM APLICAÇÕES',
+          'RENDIMENTO', 'REPASSES'
+        ];
+        const categoryUpper = (t.category || '').toUpperCase();
+        const descriptionUpper = (t.description || '').toUpperCase();
+        
+        // Se a categoria contém palavras de receita, é income
+        // Se tem credit_bank e não debit_bank, provavelmente é income
+        const isIncome = incomeCategories.some(cat => categoryUpper.includes(cat)) ||
+                        (t.credit_bank && !t.debit_bank) ||
+                        descriptionUpper.includes('HONORÁRIO') ||
+                        descriptionUpper.includes('RENDIMENTO');
+        
+        return {
+          id: String(t.id || Math.random()),
+          date: transactionDate,
+          description: t.description || 'Sem descrição',
+          amount: Math.abs(t.amount || 0),
+          type: isIncome ? 'income' : 'expense',
+          category: t.category || 'Outros',
+        };
+      });
+      
+      if (mappedTransactions.length > 0) {
+        setTransactions(mappedTransactions);
         // Save to localStorage
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          transactions: transactionsData,
+          transactions: mappedTransactions,
           timestamp: new Date().toISOString()
         }));
       }
@@ -433,7 +464,7 @@ export default function RelatoriosFinanceiros() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <DollarSign className="h-8 w-8 text-primary" />
@@ -446,6 +477,22 @@ export default function RelatoriosFinanceiros() {
               <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
             </div>
           </div>
+          <Button
+            variant="outline"
+            onClick={() => {
+              // Limpar cache local para forçar remapeamento dos dados
+              localStorage.removeItem(STORAGE_KEY);
+              setTransactions([]);
+              toast({
+                title: 'Cache limpo',
+                description: 'Buscando dados atualizados...',
+              });
+              fetchTransactions(true);
+            }}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Atualizar dados
+          </Button>
         </div>
 
         {metadata && <AdvboxCacheAlert metadata={metadata} />}

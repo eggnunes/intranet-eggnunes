@@ -11,9 +11,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X, Edit, History, Calendar, List, Settings } from 'lucide-react';
+import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X, Edit, History, Calendar, List, Settings, BarChart3 } from 'lucide-react';
 import { TaskCalendarView } from '@/components/TaskCalendarView';
 import { TaskNotificationSettings } from '@/components/TaskNotificationSettings';
+import { WeeklyTaskReport } from '@/components/WeeklyTaskReport';
 import { useTaskNotifications } from '@/hooks/useTaskNotifications';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -764,7 +765,7 @@ export default function TarefasAdvbox() {
 
         {/* Tabs de Visualização */}
         <Tabs value={viewTab} onValueChange={setViewTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'} lg:w-[${isAdmin ? '500px' : '400px'}]`}>
             <TabsTrigger value="list" className="gap-2">
               <List className="h-4 w-4" />
               <span className="hidden sm:inline">Lista</span>
@@ -773,6 +774,12 @@ export default function TarefasAdvbox() {
               <Calendar className="h-4 w-4" />
               <span className="hidden sm:inline">Calendário</span>
             </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="report" className="gap-2">
+                <BarChart3 className="h-4 w-4" />
+                <span className="hidden sm:inline">Relatório</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="settings" className="gap-2">
               <Settings className="h-4 w-4" />
               <span className="hidden sm:inline">Notificações</span>
@@ -955,6 +962,13 @@ export default function TarefasAdvbox() {
               onTaskClick={openTaskDetails}
             />
           </TabsContent>
+
+          {/* Aba Relatório Semanal (apenas admins) */}
+          {isAdmin && (
+            <TabsContent value="report">
+              <WeeklyTaskReport tasks={tasks} />
+            </TabsContent>
+          )}
 
           {/* Aba Configurações de Notificação */}
           <TabsContent value="settings">
