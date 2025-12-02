@@ -33,8 +33,38 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
   // Mensagem de aniversário personalizada
   const birthdayMessage = `Olá ${customerName}! 🎂\n\nA equipe Egg Nunes Advogados deseja a você um feliz aniversário! Que seu dia seja repleto de alegrias e realizações.\n\nUm forte abraço!`;
   
-  // Usar a API correta do ChatGuru com query parameters
-  const params = new URLSearchParams({
+  // Primeiro, tentar cadastrar o chat com a mensagem inicial usando chat_add
+  // Isso permite enviar para contatos que não estão previamente cadastrados no ChatGuru
+  const chatAddParams = new URLSearchParams({
+    key: CHATGURU_API_KEY!,
+    account_id: CHATGURU_ACCOUNT_ID!,
+    phone_id: CHATGURU_PHONE_ID!,
+    action: 'chat_add',
+    chat_number: fullPhone,
+    name: customerName,
+    text: birthdayMessage,
+  });
+  
+  const chatAddUrl = `https://app.zap.guru/api/v1?${chatAddParams.toString()}`;
+  console.log('Calling ChatGuru API (chat_add)...');
+  
+  const chatAddResponse = await fetch(chatAddUrl, {
+    method: 'POST',
+  });
+
+  const chatAddData = await chatAddResponse.json();
+  console.log('ChatGuru chat_add response:', JSON.stringify(chatAddData));
+  
+  // Se chat_add funcionar, retornar sucesso
+  if (chatAddData.result === 'success') {
+    console.log('Chat added and message sent successfully via chat_add');
+    return chatAddData;
+  }
+  
+  // Se o chat já existir, tentar enviar mensagem diretamente com message_send
+  console.log('Trying message_send as fallback...');
+  
+  const messageSendParams = new URLSearchParams({
     key: CHATGURU_API_KEY!,
     account_id: CHATGURU_ACCOUNT_ID!,
     phone_id: CHATGURU_PHONE_ID!,
@@ -43,22 +73,22 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
     text: birthdayMessage,
   });
   
-  const url = `https://app.zap.guru/api/v1?${params.toString()}`;
-  console.log('Calling ChatGuru API...');
+  const messageSendUrl = `https://app.zap.guru/api/v1?${messageSendParams.toString()}`;
+  console.log('Calling ChatGuru API (message_send)...');
   
-  const response = await fetch(url, {
+  const messageSendResponse = await fetch(messageSendUrl, {
     method: 'POST',
   });
 
-  const data = await response.json();
-  console.log('ChatGuru API response:', JSON.stringify(data));
+  const messageSendData = await messageSendResponse.json();
+  console.log('ChatGuru message_send response:', JSON.stringify(messageSendData));
   
-  if (data.result === 'error' || data.code >= 400) {
-    throw new Error(`ChatGuru API error: ${data.description || JSON.stringify(data)}`);
+  if (messageSendData.result === 'error' || messageSendData.code >= 400) {
+    throw new Error(`ChatGuru API error: ${messageSendData.description || chatAddData.description || JSON.stringify(messageSendData)}`);
   }
 
-  console.log('Message sent successfully:', data);
-  return data;
+  console.log('Message sent successfully via message_send');
+  return messageSendData;
 }
 
 Deno.serve(async (req) => {
