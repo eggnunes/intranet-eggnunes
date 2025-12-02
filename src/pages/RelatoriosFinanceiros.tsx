@@ -159,11 +159,12 @@ export default function RelatoriosFinanceiros() {
           }
         }
         
-        // Extrair nome do cliente da pessoa/customer
-        const customerName = t.person?.name || t.customer?.name || t.person_name || t.customer_name || null;
+        // Extrair nome do cliente - customer_name vem diretamente na API
+        const customerName = t.customer_name || t.person?.name || t.customer?.name || t.person_name || null;
         const customerPhone = t.person?.cellphone || t.person?.phone || t.customer?.cellphone || t.customer?.phone || null;
         const customerEmail = t.person?.email || t.customer?.email || null;
-        const personDocument = t.person?.document || t.person?.cpf || t.person?.cnpj || t.customer?.document || null;
+        // customer_identification é CPF/CNPJ segundo API doc
+        const personDocument = t.customer_identification || t.person?.document || t.person?.cpf || t.person?.cnpj || t.customer?.document || null;
         
         // Extrair dados do processo/lawsuit
         const lawsuitId = t.lawsuit_id || t.lawsuit?.id || t.lawsuits_id || null;
