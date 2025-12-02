@@ -119,6 +119,12 @@ export default function RelatoriosFinanceiros() {
       }
       
       // Mapear campos da API para o formato esperado pelo frontend
+      // Debug: log first transaction to see all available fields
+      if (rawTransactionsData.length > 0) {
+        console.log('Sample transaction fields:', Object.keys(rawTransactionsData[0]));
+        console.log('Sample transaction data:', JSON.stringify(rawTransactionsData[0], null, 2).substring(0, 1500));
+      }
+      
       const mappedTransactions: Transaction[] = rawTransactionsData.map((t: any) => {
         // Usar date_payment se disponível, senão date_due
         const transactionDate = t.date_payment || t.date_due || null;
