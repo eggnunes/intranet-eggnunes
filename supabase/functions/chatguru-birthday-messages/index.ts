@@ -49,7 +49,8 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
     template: 'aniversario', // Nome do template aprovado pela Meta
   });
   
-  const url = `https://app.zap.guru/api/v1?${params.toString()}`;
+  // IMPORTANTE: Usar o endpoint correto s17.chatguru.app (não app.zap.guru)
+  const url = `https://s17.chatguru.app/api/v1?${params.toString()}`;
   console.log('Calling ChatGuru API with template "aniversario"...');
   console.log('Full URL (redacted key):', url.replace(CHATGURU_API_KEY!, 'REDACTED'));
   
@@ -82,7 +83,7 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
     text: birthdayMessage,
   });
   
-  const chatAddUrl = `https://app.zap.guru/api/v1?${chatAddParams.toString()}`;
+  const chatAddUrl = `https://s17.chatguru.app/api/v1?${chatAddParams.toString()}`;
   console.log('Calling ChatGuru API (chat_add)...');
   
   const chatAddResponse = await fetch(chatAddUrl, {
