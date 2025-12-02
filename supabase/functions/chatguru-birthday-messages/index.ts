@@ -39,48 +39,38 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
   console.log(`Using Account ID: ${CHATGURU_ACCOUNT_ID}`);
   console.log(`Using Phone ID: ${CHATGURU_PHONE_ID}`);
   
-  // Para API oficial do WhatsApp, DEVE usar template pré-aprovado pela Meta
-  // Tentativas com diferentes formatos de nome do template
-  const templateNames = ['aniversario', 'aniversário', 'mensagem_aniversario', 'mensagem aniversário'];
+  // Para API oficial do WhatsApp com templates, usar message_send com template E text
+  // O "text" deve conter os parâmetros do template separados por |
+  // Exemplo: se o template tem {{1}} para o nome, enviar o nome no text
+  const params = new URLSearchParams({
+    key: CHATGURU_API_KEY!,
+    account_id: CHATGURU_ACCOUNT_ID!,
+    phone_id: CHATGURU_PHONE_ID!,
+    action: 'message_send',
+    chat_number: fullPhone,
+    template: 'aniversario',
+    text: customerName, // Parâmetro do template (nome do cliente)
+  });
   
-  for (const templateName of templateNames) {
-    console.log(`Trying template: "${templateName}"...`);
-    
-    const params = new URLSearchParams({
-      key: CHATGURU_API_KEY!,
-      account_id: CHATGURU_ACCOUNT_ID!,
-      phone_id: CHATGURU_PHONE_ID!,
-      action: 'message_send',
-      chat_number: fullPhone,
-      template: templateName,
-    });
-    
-    const url = `https://s17.chatguru.app/api/v1?${params.toString()}`;
-    console.log('Calling ChatGuru API...');
-    console.log('Full URL (redacted key):', url.replace(CHATGURU_API_KEY!, 'REDACTED'));
-    
-    const response = await fetch(url, {
-      method: 'POST',
-    });
+  const url = `https://s17.chatguru.app/api/v1?${params.toString()}`;
+  console.log('Calling ChatGuru API with template "aniversario" and customer name...');
+  console.log('Full URL (redacted key):', url.replace(CHATGURU_API_KEY!, 'REDACTED'));
+  
+  const response = await fetch(url, {
+    method: 'POST',
+  });
 
-    const data = await response.json();
-    console.log(`ChatGuru API response for template "${templateName}":`, JSON.stringify(data));
-    
-    // Se funcionou, retornar sucesso
-    if (data.result === 'success') {
-      console.log(`Message sent successfully with template "${templateName}"`);
-      return data;
-    }
-    
-    // Se o erro não é sobre template, parar de tentar outros nomes
-    if (data.description && !data.description.toLowerCase().includes('template')) {
-      console.log(`Error not related to template name, stopping attempts: ${data.description}`);
-      throw new Error(`ChatGuru API error: ${data.description}`);
-    }
+  const data = await response.json();
+  console.log('ChatGuru API response:', JSON.stringify(data));
+  
+  // Se funcionou, retornar sucesso
+  if (data.result === 'success') {
+    console.log('Message sent successfully with template');
+    return data;
   }
   
-  // Se nenhum template funcionou, mostrar erro
-  throw new Error(`Nenhum nome de template funcionou. Verifique o nome exato do template aprovado pela Meta no ChatGuru.`);
+  // Se falhou, mostrar erro detalhado
+  throw new Error(`ChatGuru API error: ${data.description || JSON.stringify(data)}`);
 }
 
 Deno.serve(async (req) => {
