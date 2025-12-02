@@ -55,6 +55,7 @@ export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) 
   const { isAdmin } = useUserRole();
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [exclusions, setExclusions] = useState<Set<string>>(new Set());
   const [sendingMessage, setSendingMessage] = useState<string | null>(null);
 
@@ -103,9 +104,12 @@ export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) 
         const daysPastDue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
         
         if (daysPastDue > 0) {
+          // Usar customer_name se disponível, senão marcar como não identificado
+          const customerName = transaction.customer_name || null;
+          
           defaultersList.push({
             id: transaction.id,
-            name: transaction.customer_name || transaction.description || 'Cliente não identificado',
+            name: customerName || 'Cliente não identificado',
             amount: transaction.amount,
             dueDate: format(dueDate, "dd/MM/yyyy", { locale: ptBR }),
             daysPastDue,
@@ -123,6 +127,20 @@ export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) 
     // Ordenar por dias em atraso (maior para menor)
     return defaultersList.sort((a, b) => b.daysPastDue - a.daysPastDue);
   }, [transactions, startDate, endDate]);
+
+  // Filtrar por termo de busca
+  const filteredDefaulters = useMemo(() => {
+    if (!searchTerm.trim()) return defaulters;
+    
+    const term = searchTerm.toLowerCase();
+    return defaulters.filter(d => 
+      d.name.toLowerCase().includes(term) ||
+      (d.description && d.description.toLowerCase().includes(term)) ||
+      (d.lawsuitNumber && d.lawsuitNumber.toLowerCase().includes(term)) ||
+      (d.category && d.category.toLowerCase().includes(term)) ||
+      (d.document && d.document.includes(term))
+    );
+  }, [defaulters, searchTerm]);
 
   const totalOverdue = useMemo(() => {
     return defaulters.reduce((sum, d) => sum + d.amount, 0);
@@ -234,9 +252,22 @@ export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) 
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Filtros de Data */}
-        <div className="flex gap-3 items-end">
-          <div className="flex-1">
+        {/* Filtros de Data e Busca */}
+        <div className="flex gap-3 items-end flex-wrap">
+          <div className="flex-1 min-w-[200px]">
+            <label className="text-sm font-medium mb-1 block">Buscar</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Nome, processo, descrição..."
+                className="pl-9"
+              />
+            </div>
+          </div>
+          <div className="flex-1 min-w-[140px]">
             <label className="text-sm font-medium mb-1 block">Data Inicial</label>
             <Input
               type="date"
@@ -245,7 +276,7 @@ export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) 
               placeholder="dd/mm/aaaa"
             />
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-[140px]">
             <label className="text-sm font-medium mb-1 block">Data Final</label>
             <Input
               type="date"
@@ -256,17 +287,25 @@ export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) 
           </div>
         </div>
 
+        {/* Contador de resultados */}
+        {searchTerm && (
+          <div className="text-sm text-muted-foreground">
+            {filteredDefaulters.length} de {defaulters.length} inadimplentes encontrados
+          </div>
+        )}
+
         {/* Lista de Inadimplentes */}
-        {defaulters.length === 0 ? (
+        {filteredDefaulters.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <AlertTriangle className="h-12 w-12 mx-auto mb-2 opacity-50" />
-            <p>Nenhum inadimplente encontrado no período selecionado</p>
+            <p>{searchTerm ? 'Nenhum inadimplente encontrado com esse termo' : 'Nenhum inadimplente encontrado no período selecionado'}</p>
           </div>
         ) : (
           <ScrollArea className="h-[500px] pr-4">
             <div className="space-y-4">
-              {defaulters.map((defaulter, index) => {
+              {filteredDefaulters.map((defaulter, index) => {
                 const isExcluded = exclusions.has(defaulter.id);
+                const isUnidentified = defaulter.name === 'Cliente não identificado';
                 return (
                   <div
                     key={`${defaulter.id}-${index}`}
@@ -279,7 +318,9 @@ export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) 
                         {/* Nome e Status */}
                         <div className="flex items-center gap-2 flex-wrap">
                           <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-semibold text-lg">{defaulter.name}</span>
+                          <span className={`font-semibold text-lg ${isUnidentified ? 'text-muted-foreground italic' : ''}`}>
+                            {defaulter.name}
+                          </span>
                           <Badge variant="destructive">
                             {defaulter.daysPastDue} {defaulter.daysPastDue === 1 ? 'dia' : 'dias'} em atraso
                           </Badge>
