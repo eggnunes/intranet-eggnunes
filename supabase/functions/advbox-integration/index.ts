@@ -562,6 +562,77 @@ Deno.serve(async (req) => {
 
       // ========== MOVIMENTAÇÕES ==========
       
+      // Endpoint para buscar TODAS as movimentações com paginação completa
+      case 'movements-full': {
+        console.log('Fetching ALL movements with complete pagination...');
+        const cacheKey = 'movements-full';
+        
+        const cached = cache.get(cacheKey);
+        const now = Date.now();
+        
+        if (!forceRefresh && cached && (now - cached.timestamp) < CACHE_TTL) {
+          const items = extractItems(cached.data);
+          const totalCount = extractTotalCount(cached.data, items.length);
+          console.log(`Cache hit for movements-full: ${items.length} items`);
+          
+          return new Response(JSON.stringify({
+            data: items,
+            totalCount,
+            isComplete: true,
+            metadata: {
+              fromCache: true,
+              rateLimited: false,
+              cacheAge: Math.floor((now - cached.timestamp) / 1000),
+            },
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        try {
+          // Buscar todas as movimentações com paginação completa (máximo 20 páginas = 2000 movimentações)
+          const result = await fetchAllPaginatedComplete('/last_movements', cacheKey, 100, 20);
+          
+          cache.set(cacheKey, { 
+            data: { items: result.items, totalCount: result.totalCount },
+            timestamp: now,
+          });
+          
+          return new Response(JSON.stringify({
+            data: result.items,
+            totalCount: result.totalCount,
+            pagesLoaded: result.pagesLoaded,
+            isComplete: result.items.length >= result.totalCount,
+            metadata: {
+              fromCache: false,
+              rateLimited: false,
+              cacheAge: 0,
+            },
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          if (cached) {
+            const items = extractItems(cached.data);
+            const totalCount = extractTotalCount(cached.data, items.length);
+            return new Response(JSON.stringify({
+              data: items,
+              totalCount,
+              isComplete: items.length >= totalCount,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              metadata: {
+                fromCache: true,
+                rateLimited: true,
+                cacheAge: Math.floor((now - cached.timestamp) / 1000),
+              },
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          throw error;
+        }
+      }
+      
       case 'last-movements': {
         console.log('Fetching movements first page with totalCount...');
         const rawResult = await getCachedOrFetch(
