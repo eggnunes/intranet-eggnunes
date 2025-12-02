@@ -11,7 +11,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X, Edit, History } from 'lucide-react';
+import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X, Edit, History, Calendar, List, Settings } from 'lucide-react';
+import { TaskCalendarView } from '@/components/TaskCalendarView';
+import { TaskNotificationSettings } from '@/components/TaskNotificationSettings';
+import { useTaskNotifications } from '@/hooks/useTaskNotifications';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -85,9 +88,13 @@ export default function TarefasAdvbox() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedPriority, setSelectedPriority] = useState<'alta' | 'media' | 'baixa'>('media');
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [viewTab, setViewTab] = useState<string>('list');
   const { toast } = useToast();
   const { isAdmin, profile, loading: roleLoading } = useUserRole();
   const isMobile = useIsMobile();
+  
+  // Hook para notificações push
+  useTaskNotifications(tasks);
 
   useEffect(() => {
     fetchTasks();
@@ -692,70 +699,89 @@ export default function TarefasAdvbox() {
 
         {metadata && <AdvboxCacheAlert metadata={metadata} />}
 
-        {/* Filtros */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filtros
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="status-filter">Status</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger id="status-filter">
-                    <SelectValue placeholder="Filtrar por status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os status</SelectItem>
-                    <SelectItem value="pending">Pendente</SelectItem>
-                    <SelectItem value="in_progress">Em Andamento</SelectItem>
-                    <SelectItem value="completed">Concluída</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+        {/* Tabs de Visualização */}
+        <Tabs value={viewTab} onValueChange={setViewTab} className="space-y-4">
+          <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
+            <TabsTrigger value="list" className="gap-2">
+              <List className="h-4 w-4" />
+              <span className="hidden sm:inline">Lista</span>
+            </TabsTrigger>
+            <TabsTrigger value="calendar" className="gap-2">
+              <Calendar className="h-4 w-4" />
+              <span className="hidden sm:inline">Calendário</span>
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="gap-2">
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Notificações</span>
+            </TabsTrigger>
+          </TabsList>
 
-              <div>
-                <Label htmlFor="priority-filter">Prioridade</Label>
-                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                  <SelectTrigger id="priority-filter">
-                    <SelectValue placeholder="Filtrar por prioridade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas as prioridades</SelectItem>
-                    <SelectItem value="alta">Alta</SelectItem>
-                    <SelectItem value="media">Média</SelectItem>
-                    <SelectItem value="baixa">Baixa</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          {/* Aba Lista */}
+          <TabsContent value="list" className="space-y-4">
+            {/* Filtros */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Filter className="h-5 w-5" />
+                  Filtros
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="status-filter">Status</Label>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger id="status-filter">
+                        <SelectValue placeholder="Filtrar por status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os status</SelectItem>
+                        <SelectItem value="pending">Pendente</SelectItem>
+                        <SelectItem value="in_progress">Em Andamento</SelectItem>
+                        <SelectItem value="completed">Concluída</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              {isAdmin && (
-                <div>
-                  <Label htmlFor="assigned-filter">Responsável</Label>
-                  <Select value={assignedFilter} onValueChange={setAssignedFilter}>
-                    <SelectTrigger id="assigned-filter">
-                      <SelectValue placeholder="Filtrar por responsável" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os responsáveis</SelectItem>
-                      {assignedUsers.map((user) => (
-                        <SelectItem key={user} value={user}>
-                          {user}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div>
+                    <Label htmlFor="priority-filter">Prioridade</Label>
+                    <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                      <SelectTrigger id="priority-filter">
+                        <SelectValue placeholder="Filtrar por prioridade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas as prioridades</SelectItem>
+                        <SelectItem value="alta">Alta</SelectItem>
+                        <SelectItem value="media">Média</SelectItem>
+                        <SelectItem value="baixa">Baixa</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {isAdmin && (
+                    <div>
+                      <Label htmlFor="assigned-filter">Responsável</Label>
+                      <Select value={assignedFilter} onValueChange={setAssignedFilter}>
+                        <SelectTrigger id="assigned-filter">
+                          <SelectValue placeholder="Filtrar por responsável" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos os responsáveis</SelectItem>
+                          {assignedUsers.map((user) => (
+                            <SelectItem key={user} value={user}>
+                              {user}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        {/* Lista de Tarefas */}
-        <Card>
+            {/* Lista de Tarefas */}
+            <Card>
           <CardHeader>
             <CardTitle>{isAdmin ? 'Todas as Tarefas' : 'Suas Tarefas'}</CardTitle>
             <CardDescription>
@@ -841,6 +867,21 @@ export default function TarefasAdvbox() {
             </ScrollArea>
           </CardContent>
         </Card>
+          </TabsContent>
+
+          {/* Aba Calendário */}
+          <TabsContent value="calendar">
+            <TaskCalendarView 
+              tasks={filteredTasks} 
+              onTaskClick={openTaskDetails}
+            />
+          </TabsContent>
+
+          {/* Aba Configurações de Notificação */}
+          <TabsContent value="settings">
+            <TaskNotificationSettings />
+          </TabsContent>
+        </Tabs>
 
         {/* Dialog de Edição de Tarefa (Admin) */}
         {isAdmin && editTask && (
