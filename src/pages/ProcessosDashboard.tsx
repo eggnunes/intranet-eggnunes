@@ -116,6 +116,8 @@ export default function ProcessosDashboard() {
   const [isLoadingFullData, setIsLoadingFullData] = useState(false);
   const [taskTypeInput, setTaskTypeInput] = useState('');
   const [taskComments, setTaskComments] = useState('');
+  const [taskTypes, setTaskTypes] = useState<{ id: string | number; name: string }[]>([]);
+  const [loadingTaskTypes, setLoadingTaskTypes] = useState(false);
   const [hasCompleteData, setHasCompleteData] = useState(cachedData?.isComplete || false);
   
   // Filtros para gráficos de evolução
@@ -126,11 +128,47 @@ export default function ProcessosDashboard() {
   
   const { toast } = useToast();
 
+  // Buscar tipos de tarefa do Advbox
+  const fetchTaskTypes = async () => {
+    setLoadingTaskTypes(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('advbox-integration/task-types');
+      
+      if (error) {
+        console.error('Erro ao buscar tipos de tarefa:', error);
+        toast({
+          title: 'Aviso',
+          description: 'Não foi possível carregar os tipos de tarefa do Advbox',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // Extrair lista de tipos de tarefa
+      const rawData = data?.data?.data || data?.data || data || [];
+      const types = Array.isArray(rawData) ? rawData.map((t: any) => ({
+        id: t.id || t.tasks_id,
+        name: t.name || t.title || t.description || `Tipo ${t.id || t.tasks_id}`,
+      })) : [];
+      
+      console.log('Tipos de tarefa carregados:', types);
+      setTaskTypes(types);
+    } catch (err) {
+      console.error('Erro ao buscar tipos de tarefa:', err);
+    } finally {
+      setLoadingTaskTypes(false);
+    }
+  };
+
   const openTaskDialog = (movement: Movement) => {
     setSelectedMovement(movement);
     setTaskTypeInput('');
     setTaskComments(movement.header || movement.title || '');
     setTaskDialogOpen(true);
+    // Buscar tipos de tarefa quando abrir o dialog
+    if (taskTypes.length === 0) {
+      fetchTaskTypes();
+    }
   };
 
   const normalizeProcessNumber = (value?: string | null) =>
@@ -2338,15 +2376,40 @@ export default function ProcessosDashboard() {
                 
                 {/* Campo para tipo de tarefa (tasks_id) */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">ID do Tipo de Tarefa (tasks_id) *</label>
-                  <Input
-                    value={taskTypeInput}
-                    onChange={(e) => setTaskTypeInput(e.target.value)}
-                    placeholder="Ex: 98765"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    O Advbox requer o ID do tipo de tarefa. Consulte o Advbox para obter os IDs disponíveis.
-                  </p>
+                  <label className="text-sm font-medium">Tipo de Tarefa *</label>
+                  {loadingTaskTypes ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Carregando tipos de tarefa...
+                    </div>
+                  ) : taskTypes.length > 0 ? (
+                    <Select value={taskTypeInput} onValueChange={setTaskTypeInput}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o tipo de tarefa" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {taskTypes.map((type) => (
+                          <SelectItem key={type.id} value={String(type.id)}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="space-y-2">
+                      <Input
+                        value={taskTypeInput}
+                        onChange={(e) => setTaskTypeInput(e.target.value)}
+                        placeholder="Ex: 98765"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Não foi possível carregar tipos de tarefa. Informe o ID manualmente.
+                      </p>
+                      <Button variant="outline" size="sm" onClick={fetchTaskTypes}>
+                        <RefreshCw className="h-3 w-3 mr-1" /> Tentar novamente
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Campo para comentários */}
