@@ -17,7 +17,7 @@ interface Customer {
 }
 
 async function sendWhatsAppMessage(phone: string, customerName: string) {
-  console.log(`Sending birthday template message to ${phone} for ${customerName}`);
+  console.log(`Sending birthday message to ${phone} for ${customerName}`);
   
   // Remove formatting from phone number
   const cleanPhone = phone.replace(/\D/g, '');
@@ -27,46 +27,37 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
     throw new Error('Número de telefone inválido');
   }
   
-  // Usar a API correta do ChatGuru
-  const response = await fetch('https://api.chatguru.app/api/v1/messages', {
+  // Adiciona código do país se não tiver
+  const fullPhone = cleanPhone.length <= 11 ? `55${cleanPhone}` : cleanPhone;
+  
+  // Mensagem de aniversário personalizada
+  const birthdayMessage = `Olá ${customerName}! 🎂\n\nA equipe Egg Nunes Advogados deseja a você um feliz aniversário! Que seu dia seja repleto de alegrias e realizações.\n\nUm forte abraço!`;
+  
+  // Usar a API correta do ChatGuru com query parameters
+  const params = new URLSearchParams({
+    key: CHATGURU_API_KEY!,
+    account_id: CHATGURU_ACCOUNT_ID!,
+    phone_id: CHATGURU_PHONE_ID!,
+    action: 'message_send',
+    chat_number: fullPhone,
+    text: birthdayMessage,
+  });
+  
+  const url = `https://app.zap.guru/api/v1?${params.toString()}`;
+  console.log('Calling ChatGuru API...');
+  
+  const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${CHATGURU_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      account_id: CHATGURU_ACCOUNT_ID,
-      phone_id: CHATGURU_PHONE_ID,
-      to: `55${cleanPhone}`, // Adiciona código do Brasil
-      type: 'template',
-      template: {
-        name: 'aniversario',
-        language: {
-          code: 'pt_BR',
-        },
-        components: [
-          {
-            type: 'body',
-            parameters: [
-              {
-                type: 'text',
-                text: customerName,
-              },
-            ],
-          },
-        ],
-      },
-    }),
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('ChatGuru API error:', errorText);
-    throw new Error(`ChatGuru API error: ${response.status} - ${errorText}`);
+  const data = await response.json();
+  console.log('ChatGuru API response:', JSON.stringify(data));
+  
+  if (data.result === 'error' || data.code >= 400) {
+    throw new Error(`ChatGuru API error: ${data.description || JSON.stringify(data)}`);
   }
 
-  const data = await response.json();
-  console.log('Template message sent successfully:', data);
+  console.log('Message sent successfully:', data);
   return data;
 }
 
@@ -200,7 +191,7 @@ Deno.serve(async (req) => {
     // Send messages
     for (const customer of customersToMessage) {
       try {
-        console.log(`Sending birthday template to ${customer.name} (${customer.phone})`);
+        console.log(`Sending birthday message to ${customer.name} (${customer.phone})`);
 
         const chatGuruResponse = await sendWhatsAppMessage(customer.phone!, customer.name);
 
@@ -209,25 +200,25 @@ Deno.serve(async (req) => {
           customer_id: customer.id,
           customer_name: customer.name,
           customer_phone: customer.phone,
-          message_text: `Template: aniversario - Nome: ${customer.name}`,
+          message_text: `Mensagem de aniversário enviada para ${customer.name}`,
           status: 'sent',
           chatguru_message_id: chatGuruResponse?.message_id || null,
         });
 
         results.sent++;
-        console.log(`✓ Template message sent successfully to ${customer.name}`);
+        console.log(`✓ Message sent successfully to ${customer.name}`);
 
         // Delay between messages to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 2000));
       } catch (error: any) {
-        console.error(`✗ Failed to send template to ${customer.name}:`, error.message);
+        console.error(`✗ Failed to send to ${customer.name}:`, error.message);
         
         // Log failed send
         await supabase.from('chatguru_birthday_messages_log').insert({
           customer_id: customer.id,
           customer_name: customer.name,
           customer_phone: customer.phone!,
-          message_text: `Template: aniversario - Nome: ${customer.name}`,
+          message_text: `Falha no envio para ${customer.name}`,
           status: 'failed',
           error_message: error.message,
         });
