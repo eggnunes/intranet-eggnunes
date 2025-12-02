@@ -34,6 +34,10 @@ interface Transaction {
   amount: number;
   type: 'income' | 'expense';
   category: string;
+  customer_name?: string;
+  due_date?: string;
+  status?: 'pending' | 'paid' | 'overdue';
+  customer_phone?: string;
 }
 
 const STORAGE_KEY = 'relatorios_financeiros_cache';
@@ -113,6 +117,7 @@ export default function RelatoriosFinanceiros() {
       const mappedTransactions: Transaction[] = rawTransactionsData.map((t: any) => {
         // Usar date_payment se disponível, senão date_due
         const transactionDate = t.date_payment || t.date_due || null;
+        const dueDate = t.date_due || null;
         
         // Determinar tipo baseado na categoria
         // Categorias que indicam receita
@@ -130,6 +135,23 @@ export default function RelatoriosFinanceiros() {
                         descriptionUpper.includes('HONORÁRIO') ||
                         descriptionUpper.includes('RENDIMENTO');
         
+        // Determinar status: se não foi pago (date_payment null) e venceu, é overdue
+        let status: 'pending' | 'paid' | 'overdue' = 'pending';
+        if (t.date_payment) {
+          status = 'paid';
+        } else if (dueDate) {
+          const dueDateObj = new Date(dueDate);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (dueDateObj < today) {
+            status = 'overdue';
+          }
+        }
+        
+        // Extrair nome do cliente da pessoa/customer
+        const customerName = t.person?.name || t.customer?.name || t.person_name || t.customer_name || null;
+        const customerPhone = t.person?.cellphone || t.person?.phone || t.customer?.cellphone || t.customer?.phone || null;
+        
         return {
           id: String(t.id || Math.random()),
           date: transactionDate,
@@ -137,7 +159,25 @@ export default function RelatoriosFinanceiros() {
           amount: Math.abs(t.amount || 0),
           type: isIncome ? 'income' : 'expense',
           category: t.category || 'Outros',
+          customer_name: customerName,
+          due_date: dueDate,
+          status: status,
+          customer_phone: customerPhone,
         };
+      });
+      
+      // Debug: verificar quantos inadimplentes
+      const overdueIncomes = mappedTransactions.filter(t => t.type === 'income' && t.status === 'overdue');
+      console.log('Defaulters debug:', {
+        totalTransactions: mappedTransactions.length,
+        incomeTransactions: mappedTransactions.filter(t => t.type === 'income').length,
+        overdueIncomes: overdueIncomes.length,
+        sampleOverdue: overdueIncomes.slice(0, 3).map(t => ({
+          customer: t.customer_name,
+          due_date: t.due_date,
+          amount: t.amount,
+          status: t.status
+        }))
       });
       
       if (mappedTransactions.length > 0) {
