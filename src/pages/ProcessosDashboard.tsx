@@ -106,7 +106,7 @@ export default function ProcessosDashboard() {
   const [periodFilter, setPeriodFilter] = useState<string>('all');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [showAllStatuses, setShowAllStatuses] = useState(true);
-  const [evolutionPeriod, setEvolutionPeriod] = useState<string>('all'); // dias: 7, 30, 90, all - padrão "all" para mostrar dados
+  const [evolutionPeriod, setEvolutionPeriod] = useState<string>('30'); // dias: 7, 30, 90, all - padrão "30 dias"
   const [totalLawsuits, setTotalLawsuits] = useState<number | null>(cachedData?.totalLawsuits || null);
   const [totalMovements, setTotalMovements] = useState<number | null>(cachedMovements?.length || cachedData?.totalMovements || null);
   const [metadata, setMetadata] = useState<{ fromCache: boolean; rateLimited: boolean; cacheAge: number } | null>(cachedData?.metadata || null);
@@ -700,7 +700,26 @@ export default function ProcessosDashboard() {
 
   useEffect(() => {
     fetchData();
+    // Carregar movimentações completas automaticamente ao montar
+    loadFullMovements();
   }, []);
+
+  // Filtrar processos locais quando dados carregam (para período padrão de 30 dias)
+  useEffect(() => {
+    if (lawsuits.length > 0 && evolutionPeriod !== 'all') {
+      const days = parseInt(evolutionPeriod);
+      const startDate = startOfDay(subDays(new Date(), days));
+      
+      const recentFromCache = lawsuits.filter((lawsuit) => {
+        const createdDate = getCreatedOrProcessDate(lawsuit);
+        if (!createdDate) return false;
+        return !isBefore(createdDate, startDate);
+      });
+      
+      setRecentLawsuits(recentFromCache);
+      setRecentLawsuitsStartDate(format(startDate, 'yyyy-MM-dd'));
+    }
+  }, [lawsuits.length]);
 
   const fetchData = async (forceRefresh = false, loadFullData = false) => {
     try {
@@ -1600,37 +1619,51 @@ export default function ProcessosDashboard() {
                 </AccordionContent>
               </AccordionItem>
 
-              {/* Processos Novos por Área */}
+              {/* Processos Novos por Área - Top 10 */}
               <AccordionItem value="novos-area" className="border rounded-lg px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center gap-2">
                     <BarChart className="h-5 w-5" />
-                    <span className="font-semibold">Processos Novos por Área</span>
+                    <span className="font-semibold">Processos Novos por Área (Top 10)</span>
                     <span className="text-sm text-muted-foreground ml-2">
-                      ({evolutionPeriod === 'all' ? 'Total geral' : `Últimos ${evolutionPeriod} dias`})
+                      {evolutionPeriod === 'all' ? 'Total geral' : `Últimos ${evolutionPeriod} dias`}
                     </span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="pt-4">
                     {evolutionMetrics.newByArea.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={evolutionMetrics.newByArea}
-                            dataKey="count"
-                            nameKey="area"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={80}
-                            label={(entry) => `${entry.area}: ${entry.count}`}
-                          >
-                            {evolutionMetrics.newByArea.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
+                      <ResponsiveContainer width="100%" height={400}>
+                        <RechartsBarChart 
+                          data={evolutionMetrics.newByArea.slice(0, 10)}
+                          layout="vertical"
+                        >
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis 
+                            type="number"
+                            tick={{ fontSize: 12 }}
+                            className="text-muted-foreground"
+                          />
+                          <YAxis 
+                            type="category"
+                            dataKey="area" 
+                            tick={{ fontSize: 11 }}
+                            className="text-muted-foreground"
+                            width={200}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'hsl(var(--card))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '8px'
+                            }}
+                          />
+                          <Bar 
+                            dataKey="count" 
+                            fill="#3b82f6"
+                            radius={[0, 8, 8, 0]}
+                          />
+                        </RechartsBarChart>
                       </ResponsiveContainer>
                     ) : (
                       <div className="flex items-center justify-center h-[300px] text-muted-foreground">
@@ -1641,15 +1674,14 @@ export default function ProcessosDashboard() {
                 </AccordionContent>
               </AccordionItem>
 
-              {/* Processos Ativos por Tipo de Ação */}
-              {/* Processos Ativos por Área */}
+              {/* Processos Ativos por Área - Top 10 */}
               <AccordionItem value="ativos-area" className="border rounded-lg px-4">
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center gap-2">
                     <BarChart className="h-5 w-5" />
-                    <span className="font-semibold">Processos Ativos por Área</span>
+                    <span className="font-semibold">Processos Ativos por Área (Top 10)</span>
                     <span className="text-sm text-muted-foreground ml-2">
-                      ({totalLawsuits ?? filteredLawsuits.length} processos atualmente)
+                      {totalLawsuits ?? filteredLawsuits.length} processos atualmente
                     </span>
                   </div>
                 </AccordionTrigger>
@@ -1658,7 +1690,7 @@ export default function ProcessosDashboard() {
                     <ResponsiveContainer width="100%" height={400}>
                       <RechartsBarChart 
                         data={(() => {
-                          // Contar processos por área (group)
+                          // Contar processos por área (group) - limitar às top 10
                           const areaCounts: { [key: string]: number } = {};
                           lawsuits.forEach(lawsuit => {
                             const area = lawsuit.group || 'Não informado';
@@ -1666,7 +1698,8 @@ export default function ProcessosDashboard() {
                           });
                           return Object.entries(areaCounts)
                             .map(([area, quantidade]) => ({ area, quantidade }))
-                            .sort((a, b) => b.quantidade - a.quantidade);
+                            .sort((a, b) => b.quantidade - a.quantidade)
+                            .slice(0, 10); // Top 10 áreas
                         })()} 
                         layout="vertical"
                       >
