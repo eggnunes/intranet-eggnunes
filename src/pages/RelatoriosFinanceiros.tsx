@@ -82,8 +82,12 @@ export default function RelatoriosFinanceiros() {
     }
     setRateLimitError(false);
     try {
-      const { data, error } = await supabase.functions.invoke('advbox-integration/transactions', {
-        body: { force_refresh: forceRefresh },
+      // Usar endpoint transactions-recent para buscar últimos 24 meses por padrão
+      const { data, error } = await supabase.functions.invoke('advbox-integration/transactions-recent', {
+        body: { 
+          force_refresh: forceRefresh,
+          months: 24 // Buscar últimos 24 meses
+        },
       });
 
       if (error) throw error;
@@ -91,6 +95,12 @@ export default function RelatoriosFinanceiros() {
       // A resposta vem como: { data: { data: { data: [...], offset, limit, totalCount } } }
       const apiResponse = data?.data || data;
       const rawTransactionsData = apiResponse?.data || [];
+      
+      console.log('Transactions response:', {
+        totalCount: apiResponse?.totalCount,
+        dataLength: rawTransactionsData.length,
+        sampleDate: rawTransactionsData[0]?.date_due || rawTransactionsData[0]?.date_payment
+      });
       
       // Check if we got rate limited but have cached data
       if (data?.metadata?.rateLimited && rawTransactionsData.length === 0) {
@@ -483,9 +493,10 @@ export default function RelatoriosFinanceiros() {
               // Limpar cache local para forçar remapeamento dos dados
               localStorage.removeItem(STORAGE_KEY);
               setTransactions([]);
+              setLoading(true);
               toast({
                 title: 'Cache limpo',
-                description: 'Buscando dados atualizados...',
+                description: 'Buscando dados dos últimos 24 meses...',
               });
               fetchTransactions(true);
             }}
