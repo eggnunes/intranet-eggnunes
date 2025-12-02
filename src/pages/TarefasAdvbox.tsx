@@ -131,15 +131,43 @@ export default function TarefasAdvbox() {
 
       // A resposta vem como: { data: { data: { data: [...], offset, limit, totalCount } } }
       const apiResponse = data?.data || data;
-      const tasksData = apiResponse?.data || [];
+      const rawTasksData = apiResponse?.data || [];
 
       // Se não recebeu dados válidos mas tinha cache, manter o cache
-      if (tasksData.length === 0 && tasks.length > 0 && !forceRefresh) {
+      if (rawTasksData.length === 0 && tasks.length > 0 && !forceRefresh) {
         console.log('No new data received, keeping cached tasks');
         setMetadata(data?.metadata);
         setLoading(false);
         return;
       }
+
+      // Mapear campos da API para o formato esperado pelo frontend
+      const tasksData = rawTasksData.map((apiTask: any) => {
+        // Extrair responsáveis do array de users
+        const assignedUsers = apiTask.users?.map((u: any) => u.name).filter(Boolean) || [];
+        const assignedTo = assignedUsers.join(', ');
+        
+        // Usar date_deadline se disponível, senão date
+        const dueDate = apiTask.date_deadline || apiTask.date || null;
+        
+        // Extrair número do processo
+        const processNumber = apiTask.lawsuit?.process_number || null;
+        
+        // Determinar status baseado em se algum usuário completou
+        const hasCompleted = apiTask.users?.some((u: any) => u.completed !== null);
+        const status = hasCompleted ? 'completed' : 'pending';
+        
+        return {
+          id: String(apiTask.id),
+          title: apiTask.task || 'Sem título',
+          description: apiTask.notes || '',
+          due_date: dueDate,
+          status: status,
+          assigned_to: assignedTo,
+          process_number: processNumber,
+          category: '', // Será detectado automaticamente pelo calendário
+        };
+      });
 
       // Buscar prioridades do banco
       const { data: priorities } = await supabase
