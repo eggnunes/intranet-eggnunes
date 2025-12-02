@@ -54,6 +54,8 @@ interface Movement {
 export default function ProcessosDashboard() {
   const CACHE_KEY = 'advbox-processos-cache';
   const CACHE_TIMESTAMP_KEY = 'advbox-processos-cache-timestamp';
+  const MOVEMENTS_CACHE_KEY = 'advbox-movements-full-cache';
+  const MOVEMENTS_CACHE_TIMESTAMP_KEY = 'advbox-movements-full-cache-timestamp';
   
   // Carregar dados do cache imediatamente
   const loadFromCache = () => {
@@ -72,11 +74,28 @@ export default function ProcessosDashboard() {
     }
     return null;
   };
+  
+  // Carregar movimentações completas do cache
+  const loadMovementsFromCache = () => {
+    try {
+      const cached = localStorage.getItem(MOVEMENTS_CACHE_KEY);
+      const timestamp = localStorage.getItem(MOVEMENTS_CACHE_TIMESTAMP_KEY);
+      if (cached && timestamp) {
+        const data = JSON.parse(cached);
+        console.log(`[Movements Cache] Loaded ${data.length} movements from cache`);
+        return data;
+      }
+    } catch (error) {
+      console.error('Error loading movements from cache:', error);
+    }
+    return null;
+  };
 
   const cachedData = loadFromCache();
+  const cachedMovements = loadMovementsFromCache();
   
   const [lawsuits, setLawsuits] = useState<Lawsuit[]>(cachedData?.lawsuits || []);
-  const [movements, setMovements] = useState<Movement[]>(cachedData?.movements || []);
+  const [movements, setMovements] = useState<Movement[]>(cachedMovements || cachedData?.movements || []);
   const [loading, setLoading] = useState(!cachedData); // Não mostra loading se tem cache
   const [searchTerm, setSearchTerm] = useState('');
   const [movementSearchTerm, setMovementSearchTerm] = useState('');
@@ -89,7 +108,7 @@ export default function ProcessosDashboard() {
   const [showAllStatuses, setShowAllStatuses] = useState(true);
   const [evolutionPeriod, setEvolutionPeriod] = useState<string>('all'); // dias: 7, 30, 90, all - padrão "all" para mostrar dados
   const [totalLawsuits, setTotalLawsuits] = useState<number | null>(cachedData?.totalLawsuits || null);
-  const [totalMovements, setTotalMovements] = useState<number | null>(cachedData?.totalMovements || null);
+  const [totalMovements, setTotalMovements] = useState<number | null>(cachedMovements?.length || cachedData?.totalMovements || null);
   const [metadata, setMetadata] = useState<{ fromCache: boolean; rateLimited: boolean; cacheAge: number } | null>(cachedData?.metadata || null);
   const [lastUpdate, setLastUpdate] = useState<Date | undefined>(cachedData?.lastUpdate);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
@@ -910,9 +929,37 @@ export default function ProcessosDashboard() {
   const [recentLawsuits, setRecentLawsuits] = useState<Lawsuit[]>([]);
   const [recentLawsuitsStartDate, setRecentLawsuitsStartDate] = useState<string | null>(null);
   
-  // Estado para movimentações completas
-  const [fullMovements, setFullMovements] = useState<Movement[]>([]);
-  const [hasFullMovements, setHasFullMovements] = useState(false);
+  // Estado para movimentações completas (inicializa com cache se disponível)
+  const [fullMovements, setFullMovements] = useState<Movement[]>(cachedMovements || []);
+  const [hasFullMovements, setHasFullMovements] = useState(!!cachedMovements && cachedMovements.length > 100);
+
+  // Função auxiliar para salvar movimentações no cache
+  const saveMovementsToCache = (movementsData: Movement[]) => {
+    try {
+      // Salvar apenas campos essenciais para evitar quota exceeded
+      const minimalMovements = movementsData.map(m => ({
+        lawsuit_id: m.lawsuit_id,
+        date: m.date,
+        title: m.title,
+        header: m.header,
+        process_number: m.process_number,
+        protocol_number: m.protocol_number,
+        customers: m.customers,
+      }));
+      localStorage.setItem(MOVEMENTS_CACHE_KEY, JSON.stringify(minimalMovements));
+      localStorage.setItem(MOVEMENTS_CACHE_TIMESTAMP_KEY, new Date().toISOString());
+      console.log(`[Movements Cache] Saved ${minimalMovements.length} movements to cache`);
+    } catch (error) {
+      console.warn('Error saving movements to cache:', error);
+      // Se exceder quota, limpar e tentar novamente com menos dados
+      try {
+        localStorage.removeItem(MOVEMENTS_CACHE_KEY);
+        localStorage.removeItem(MOVEMENTS_CACHE_TIMESTAMP_KEY);
+      } catch {
+        // Ignorar erro de limpeza
+      }
+    }
+  };
 
   // Função para buscar TODAS as movimentações
   const loadFullMovements = async () => {
@@ -935,6 +982,9 @@ export default function ProcessosDashboard() {
         setMovements(movementsData);
         setTotalMovements(movementsData.length);
       }
+      
+      // Salvar no cache local
+      saveMovementsToCache(movementsData);
       
       return movementsData;
     } catch (error) {
@@ -959,7 +1009,7 @@ export default function ProcessosDashboard() {
         supabase.functions.invoke(
           `advbox-integration/lawsuits-recent?start_date=${startDate}&force_refresh=true`
         ),
-        // Buscar todas as movimentações apenas se ainda não temos
+        // Buscar todas as movimentações apenas se ainda não temos (e não temos cache)
         !hasFullMovements ? supabase.functions.invoke('advbox-integration/movements-full') : Promise.resolve({ data: { data: fullMovements } })
       ]);
 
@@ -983,7 +1033,7 @@ export default function ProcessosDashboard() {
       setRecentLawsuitsStartDate(startDate);
       
       // Processar movimentações se vieram novas
-      if (movementsResult.data?.data && movementsResult.data.data.length > 0) {
+      if (movementsResult.data?.data && movementsResult.data.data.length > 0 && !hasFullMovements) {
         const movementsData = movementsResult.data.data;
         setFullMovements(movementsData);
         setHasFullMovements(true);
@@ -991,7 +1041,9 @@ export default function ProcessosDashboard() {
           setMovements(movementsData);
           setTotalMovements(movementsData.length);
         }
-        console.log(`[Movements] Loaded ${movementsData.length} movements`);
+        // Salvar no cache local
+        saveMovementsToCache(movementsData);
+        console.log(`[Movements] Loaded and cached ${movementsData.length} movements`);
       }
 
       toast({
@@ -1014,8 +1066,12 @@ export default function ProcessosDashboard() {
   const clearCacheAndReload = async () => {
     localStorage.removeItem(CACHE_KEY);
     localStorage.removeItem(CACHE_TIMESTAMP_KEY);
+    localStorage.removeItem(MOVEMENTS_CACHE_KEY);
+    localStorage.removeItem(MOVEMENTS_CACHE_TIMESTAMP_KEY);
     setLawsuits([]);
     setMovements([]);
+    setFullMovements([]);
+    setHasFullMovements(false);
     setHasCompleteData(false);
     toast({
       title: 'Cache limpo',
