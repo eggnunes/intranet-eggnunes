@@ -28,6 +28,7 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
   }
   
   // Adiciona código do país se não tiver (número brasileiro)
+  // Formato final: 5531999999999 (sem o +)
   let fullPhone = cleanPhone;
   if (cleanPhone.length <= 11) {
     fullPhone = `55${cleanPhone}`;
@@ -38,69 +39,48 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
   console.log(`Using Account ID: ${CHATGURU_ACCOUNT_ID}`);
   console.log(`Using Phone ID: ${CHATGURU_PHONE_ID}`);
   
-  // Para API oficial do WhatsApp com templates, usar message_send com template
-  // Formato: action=message_send&template=NOME_DO_TEMPLATE
-  const params = new URLSearchParams({
-    key: CHATGURU_API_KEY!,
-    account_id: CHATGURU_ACCOUNT_ID!,
-    phone_id: CHATGURU_PHONE_ID!,
-    action: 'message_send',
-    chat_number: fullPhone,
-    template: 'aniversario', // Nome do template aprovado pela Meta
-  });
+  // Para API oficial do WhatsApp, DEVE usar template pré-aprovado pela Meta
+  // Tentativas com diferentes formatos de nome do template
+  const templateNames = ['aniversario', 'aniversário', 'mensagem_aniversario', 'mensagem aniversário'];
   
-  // IMPORTANTE: Usar o endpoint correto s17.chatguru.app (não app.zap.guru)
-  const url = `https://s17.chatguru.app/api/v1?${params.toString()}`;
-  console.log('Calling ChatGuru API with template "aniversario"...');
-  console.log('Full URL (redacted key):', url.replace(CHATGURU_API_KEY!, 'REDACTED'));
-  
-  const response = await fetch(url, {
-    method: 'POST',
-  });
+  for (const templateName of templateNames) {
+    console.log(`Trying template: "${templateName}"...`);
+    
+    const params = new URLSearchParams({
+      key: CHATGURU_API_KEY!,
+      account_id: CHATGURU_ACCOUNT_ID!,
+      phone_id: CHATGURU_PHONE_ID!,
+      action: 'message_send',
+      chat_number: fullPhone,
+      template: templateName,
+    });
+    
+    const url = `https://s17.chatguru.app/api/v1?${params.toString()}`;
+    console.log('Calling ChatGuru API...');
+    console.log('Full URL (redacted key):', url.replace(CHATGURU_API_KEY!, 'REDACTED'));
+    
+    const response = await fetch(url, {
+      method: 'POST',
+    });
 
-  const data = await response.json();
-  console.log('ChatGuru API response:', JSON.stringify(data));
-  
-  // Se funcionou, retornar sucesso
-  if (data.result === 'success') {
-    console.log('Message sent successfully via message_send with template');
-    return data;
+    const data = await response.json();
+    console.log(`ChatGuru API response for template "${templateName}":`, JSON.stringify(data));
+    
+    // Se funcionou, retornar sucesso
+    if (data.result === 'success') {
+      console.log(`Message sent successfully with template "${templateName}"`);
+      return data;
+    }
+    
+    // Se o erro não é sobre template, parar de tentar outros nomes
+    if (data.description && !data.description.toLowerCase().includes('template')) {
+      console.log(`Error not related to template name, stopping attempts: ${data.description}`);
+      throw new Error(`ChatGuru API error: ${data.description}`);
+    }
   }
   
-  // Se falhou com template, tentar chat_add (para contatos novos)
-  console.log('Trying chat_add as fallback...');
-  
-  // Mensagem de aniversário personalizada para fallback
-  const birthdayMessage = `Olá ${customerName}! 🎂\n\nA equipe Egg Nunes Advogados deseja a você um feliz aniversário! Que seu dia seja repleto de alegrias e realizações.\n\nUm forte abraço!`;
-  
-  const chatAddParams = new URLSearchParams({
-    key: CHATGURU_API_KEY!,
-    account_id: CHATGURU_ACCOUNT_ID!,
-    phone_id: CHATGURU_PHONE_ID!,
-    action: 'chat_add',
-    chat_number: fullPhone,
-    name: customerName,
-    text: birthdayMessage,
-  });
-  
-  const chatAddUrl = `https://s17.chatguru.app/api/v1?${chatAddParams.toString()}`;
-  console.log('Calling ChatGuru API (chat_add)...');
-  
-  const chatAddResponse = await fetch(chatAddUrl, {
-    method: 'POST',
-  });
-
-  const chatAddData = await chatAddResponse.json();
-  console.log('ChatGuru chat_add response:', JSON.stringify(chatAddData));
-  
-  if (chatAddData.result === 'success') {
-    console.log('Chat added successfully via chat_add');
-    return chatAddData;
-  }
-  
-  // Se ainda falhou, mostrar erro detalhado
-  const errorMessage = data.description || chatAddData.description || JSON.stringify(data);
-  throw new Error(`ChatGuru API error: ${errorMessage}`);
+  // Se nenhum template funcionou, mostrar erro
+  throw new Error(`Nenhum nome de template funcionou. Verifique o nome exato do template aprovado pela Meta no ChatGuru.`);
 }
 
 Deno.serve(async (req) => {
