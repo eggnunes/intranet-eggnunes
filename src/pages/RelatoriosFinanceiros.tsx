@@ -157,25 +157,46 @@ export default function RelatoriosFinanceiros() {
         const transactionDate = t.date_payment || t.date_due || null;
         const dueDate = t.date_due || null;
         
-        // Determinar tipo baseado na categoria
-        // Categorias que indicam receita
+        // Determinar tipo baseado na categoria e tipo de transação
+        // A API Advbox pode retornar um campo "type" ou "transaction_type"
+        const apiType = (t.type || t.transaction_type || '').toLowerCase();
+        
+        // Categorias que indicam receita (honorários a receber)
         const incomeCategories = [
           'RECEITA', 'HONORÁRIO', 'RECEITAS', 'RESULTADO COM APLICAÇÕES',
-          'RENDIMENTO', 'REPASSES'
+          'RENDIMENTO', 'REPASSES', 'RECEBIMENTO', 'CRÉDITO', 'A RECEBER',
+          'ENTRADA', 'PAGAMENTO CLIENTE', 'FATURAMENTO'
         ];
+        
+        // Categorias que indicam despesa
+        const expenseCategories = [
+          'DESPESA', 'PAGAMENTO', 'CUSTOS', 'DÉBITO', 'SAÍDA',
+          'FORNECEDOR', 'MATERIAL', 'CONTAS A PAGAR'
+        ];
+        
         const categoryUpper = (t.category || '').toUpperCase();
         const descriptionUpper = (t.description || '').toUpperCase();
         
-        // Se a categoria contém palavras de receita, é income
-        // Se tem credit_bank e não debit_bank, provavelmente é income
-        const isIncome = incomeCategories.some(cat => categoryUpper.includes(cat)) ||
+        // Lógica melhorada para determinar se é receita ou despesa
+        // 1. Se API indica explicitamente como receita/crédito
+        // 2. Se categoria contém palavras de receita
+        // 3. Se descrição contém indicadores de honorários/recebimentos
+        // 4. Se tem credit_bank e não debit_bank (entrada de dinheiro)
+        const isIncome = apiType === 'income' || apiType === 'credit' || apiType === 'receita' ||
+                        incomeCategories.some(cat => categoryUpper.includes(cat)) ||
+                        incomeCategories.some(cat => descriptionUpper.includes(cat)) ||
                         (t.credit_bank && !t.debit_bank) ||
                         descriptionUpper.includes('HONORÁRIO') ||
-                        descriptionUpper.includes('RENDIMENTO');
+                        descriptionUpper.includes('RENDIMENTO') ||
+                        descriptionUpper.includes('ÊXITO') ||
+                        descriptionUpper.includes('SUCUMB');
         
-        // Determinar status: se não foi pago (date_payment null) e venceu, é overdue
+        // Determinar status: se não foi pago (date_payment null/vazio) e venceu, é overdue
+        // IMPORTANTE: Considerar "overdue" se está sem pagamento e passou da data de vencimento
         let status: 'pending' | 'paid' | 'overdue' = 'pending';
-        if (t.date_payment) {
+        const hasPayment = t.date_payment && t.date_payment.trim() !== '';
+        
+        if (hasPayment) {
           status = 'paid';
         } else if (dueDate) {
           const dueDateObj = new Date(dueDate);
@@ -236,23 +257,26 @@ export default function RelatoriosFinanceiros() {
       
       // Debug: verificar quantos inadimplentes
       const overdueIncomes = mappedTransactions.filter(t => t.type === 'income' && t.status === 'overdue');
-      console.log('Defaulters debug:', {
-        totalTransactions: mappedTransactions.length,
-        incomeTransactions: mappedTransactions.filter(t => t.type === 'income').length,
-        overdueIncomes: overdueIncomes.length,
-        sampleOverdue: overdueIncomes.slice(0, 3).map(t => ({
-          customer: t.customer_name,
-          due_date: t.due_date,
-          amount: t.amount,
-          phone: t.customer_phone,
-          email: t.customer_email,
-          lawsuit_number: t.lawsuit_number,
-          document: t.person_document,
-          description: t.description,
-          category: t.category,
-          status: t.status
-        }))
+      const pendingIncomes = mappedTransactions.filter(t => t.type === 'income' && t.status === 'pending');
+      const paidIncomes = mappedTransactions.filter(t => t.type === 'income' && t.status === 'paid');
+      
+      console.log('=== FINANCIAL DATA SUMMARY ===');
+      console.log('Total transactions loaded:', mappedTransactions.length);
+      console.log('Income transactions:', mappedTransactions.filter(t => t.type === 'income').length);
+      console.log('Expense transactions:', mappedTransactions.filter(t => t.type === 'expense').length);
+      console.log('Income by status:', {
+        overdue: overdueIncomes.length,
+        pending: pendingIncomes.length,
+        paid: paidIncomes.length,
       });
+      console.log('Sample OVERDUE incomes:', overdueIncomes.slice(0, 5).map(t => ({
+        customer: t.customer_name,
+        due_date: t.due_date,
+        amount: t.amount,
+        description: t.description?.substring(0, 40),
+        category: t.category,
+      })));
+      console.log('==============================');
       
       if (mappedTransactions.length > 0) {
         setTransactions(mappedTransactions);
