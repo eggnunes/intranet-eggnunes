@@ -578,7 +578,7 @@ Deno.serve(async (req) => {
           return new Response(JSON.stringify({
             data: items,
             totalCount,
-            isComplete: true,
+            isComplete: items.length >= totalCount,
             metadata: {
               fromCache: true,
               rateLimited: false,
@@ -590,8 +590,8 @@ Deno.serve(async (req) => {
         }
         
         try {
-          // Buscar todas as movimentações com paginação completa (máximo 20 páginas = 2000 movimentações)
-          const result = await fetchAllPaginatedComplete('/last_movements', cacheKey, 100, 20);
+          // Buscar TODAS as movimentações com paginação completa (até 100 páginas = 10.000 movimentações)
+          const result = await fetchAllPaginatedComplete('/last_movements', cacheKey, 100, 100);
           
           cache.set(cacheKey, { 
             data: { items: result.items, totalCount: result.totalCount },
