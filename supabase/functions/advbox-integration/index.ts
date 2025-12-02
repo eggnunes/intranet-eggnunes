@@ -788,24 +788,8 @@ Deno.serve(async (req) => {
         const body = await req.json();
         console.log('Creating task with body:', JSON.stringify(body));
         
-        // Garantir que tasks_id está presente (tipo de tarefa no Advbox)
-        // Se não foi fornecido, tentar usar um valor padrão
-        if (!body.tasks_id) {
-          // Primeiro, buscar a lista de tipos de tarefas disponíveis
-          try {
-            const taskTypes = await makeAdvboxRequest({ endpoint: '/tasks' });
-            console.log('Available task types:', JSON.stringify(taskTypes));
-            
-            // Usar o primeiro tipo disponível como padrão
-            const taskTypesData = taskTypes?.data || taskTypes;
-            if (Array.isArray(taskTypesData) && taskTypesData.length > 0) {
-              body.tasks_id = taskTypesData[0].id;
-              console.log('Using first available task type:', body.tasks_id);
-            }
-          } catch (err) {
-            console.warn('Could not fetch task types:', err);
-          }
-        }
+        // Nota: tasks_id é requerido pelo Advbox mas o endpoint /tasks não está acessível
+        // Se não foi fornecido, tentar criar sem ele (o Advbox pode usar um padrão)
         
         const data = await makeAdvboxRequest({ 
           endpoint: '/posts', 
@@ -813,16 +797,6 @@ Deno.serve(async (req) => {
           body 
         });
         return new Response(JSON.stringify(data), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      // Endpoint para listar tipos de tarefas disponíveis
-      case 'task-types': {
-        const result = await getCachedOrFetch('task-types', async () => {
-          return await makeAdvboxRequest({ endpoint: '/tasks' });
-        }, forceRefresh);
-        return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
