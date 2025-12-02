@@ -909,6 +909,39 @@ export default function ProcessosDashboard() {
   const [isLoadingRecent, setIsLoadingRecent] = useState(false);
   const [recentLawsuits, setRecentLawsuits] = useState<Lawsuit[]>([]);
   const [recentLawsuitsStartDate, setRecentLawsuitsStartDate] = useState<string | null>(null);
+  
+  // Estado para movimentações completas
+  const [fullMovements, setFullMovements] = useState<Movement[]>([]);
+  const [hasFullMovements, setHasFullMovements] = useState(false);
+
+  // Função para buscar TODAS as movimentações
+  const loadFullMovements = async () => {
+    console.log('[Movements] Loading all movements...');
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        'advbox-integration/movements-full'
+      );
+
+      if (error) throw error;
+
+      const movementsData = data?.data || [];
+      console.log(`[Movements] Loaded ${movementsData.length} movements`);
+      
+      setFullMovements(movementsData);
+      setHasFullMovements(true);
+      
+      // Atualizar também o estado principal se tiver mais dados
+      if (movementsData.length > movements.length) {
+        setMovements(movementsData);
+        setTotalMovements(movementsData.length);
+      }
+      
+      return movementsData;
+    } catch (error) {
+      console.error('Error fetching full movements:', error);
+      return movements; // Fallback para movimentações existentes
+    }
+  };
 
   // Função para buscar processos recentes usando filtro de data da API
   const loadRecentLawsuits = async (days: number) => {
@@ -916,19 +949,24 @@ export default function ProcessosDashboard() {
     const startDate = format(subDays(new Date(), days), 'yyyy-MM-dd');
     
     toast({
-      title: `Buscando processos dos últimos ${days} dias`,
-      description: `Usando filtro de data de início do processo desde ${startDate}...`,
+      title: `Buscando dados dos últimos ${days} dias`,
+      description: `Carregando processos e movimentações desde ${startDate}...`,
     });
 
     try {
-      const { data, error } = await supabase.functions.invoke(
-        `advbox-integration/lawsuits-recent?start_date=${startDate}&force_refresh=true`
-      );
+      // Buscar processos e movimentações em paralelo
+      const [lawsuitsResult, movementsResult] = await Promise.all([
+        supabase.functions.invoke(
+          `advbox-integration/lawsuits-recent?start_date=${startDate}&force_refresh=true`
+        ),
+        // Buscar todas as movimentações apenas se ainda não temos
+        !hasFullMovements ? supabase.functions.invoke('advbox-integration/movements-full') : Promise.resolve({ data: { data: fullMovements } })
+      ]);
 
-      if (error) throw error;
+      if (lawsuitsResult.error) throw lawsuitsResult.error;
 
-      const recentData = data?.data || [];
-      const totalFound = data?.totalCount || recentData.length;
+      const recentData = lawsuitsResult.data?.data || [];
+      const totalFound = lawsuitsResult.data?.totalCount || recentData.length;
       
       console.log(`[Recent Lawsuits] Found ${recentData.length} processes from ${startDate}`);
       
@@ -943,16 +981,28 @@ export default function ProcessosDashboard() {
 
       setRecentLawsuits(recentData);
       setRecentLawsuitsStartDate(startDate);
+      
+      // Processar movimentações se vieram novas
+      if (movementsResult.data?.data && movementsResult.data.data.length > 0) {
+        const movementsData = movementsResult.data.data;
+        setFullMovements(movementsData);
+        setHasFullMovements(true);
+        if (movementsData.length > movements.length) {
+          setMovements(movementsData);
+          setTotalMovements(movementsData.length);
+        }
+        console.log(`[Movements] Loaded ${movementsData.length} movements`);
+      }
 
       toast({
-        title: 'Processos recentes carregados',
-        description: `Encontrados ${totalFound} processos com data de início a partir de ${format(new Date(startDate), 'dd/MM/yyyy')}.`,
+        title: 'Dados carregados',
+        description: `${totalFound} processos novos e ${hasFullMovements || movementsResult.data?.data?.length ? (movementsResult.data?.data?.length || fullMovements.length) : movements.length} movimentações carregadas.`,
       });
     } catch (error) {
-      console.error('Error fetching recent lawsuits:', error);
+      console.error('Error fetching recent data:', error);
       toast({
-        title: 'Erro ao buscar processos recentes',
-        description: error instanceof Error ? error.message : 'Não foi possível buscar os processos recentes.',
+        title: 'Erro ao buscar dados',
+        description: error instanceof Error ? error.message : 'Não foi possível buscar os dados.',
         variant: 'destructive',
       });
     } finally {
@@ -1112,16 +1162,71 @@ export default function ProcessosDashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="text-center p-4 bg-primary/5 rounded-lg">
                   <div className="text-3xl font-bold text-primary">
-                    {searchTerm || !showAllResponsibles
-                      ? filteredLawsuits.length
-                      : (totalLawsuits ?? filteredLawsuits.length)}
+                    {(() => {
+                      // Se há filtro de busca ou responsável, mostrar filtrados
+                      if (searchTerm || !showAllResponsibles) {
+                        return filteredLawsuits.length;
+                      }
+                      
+                      // Se período "all", mostrar total
+                      if (evolutionPeriod === 'all') {
+                        return totalLawsuits ?? filteredLawsuits.length;
+                      }
+                      
+                      // Se temos processos recentes carregados via API, calcular ativos no período
+                      // Processos ativos no período = processos únicos com movimentação no período + processos novos no período
+                      const getEvolutionDateFilter = () => {
+                        const now = new Date();
+                        switch (evolutionPeriod) {
+                          case '7':
+                            return startOfDay(subDays(now, 7));
+                          case '30':
+                            return startOfDay(subDays(now, 30));
+                          case '90':
+                            return startOfDay(subMonths(now, 3));
+                          default:
+                            return null;
+                        }
+                      };
+                      
+                      const evolutionDateFilter = getEvolutionDateFilter();
+                      if (!evolutionDateFilter) {
+                        return totalLawsuits ?? filteredLawsuits.length;
+                      }
+                      
+                      // Processos com movimentação no período
+                      const lawsuitsWithMovementInPeriod = new Set(
+                        movements
+                          .filter(m => !isBefore(new Date(m.date), evolutionDateFilter))
+                          .map(m => m.lawsuit_id)
+                      );
+                      
+                      // Adicionar processos novos no período (se carregados via API)
+                      if (recentLawsuits.length > 0) {
+                        recentLawsuits.forEach(l => lawsuitsWithMovementInPeriod.add(l.id));
+                      }
+                      
+                      return lawsuitsWithMovementInPeriod.size;
+                    })()}
                   </div>
-                  <div className="text-sm text-muted-foreground mt-1">Processos {searchTerm || !showAllResponsibles ? 'Filtrados' : 'Ativos'}</div>
-                  <div className="text-xs text-muted-foreground/60 mt-0.5">Total no Advbox</div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {searchTerm || !showAllResponsibles 
+                      ? 'Processos Filtrados' 
+                      : evolutionPeriod === 'all' 
+                        ? 'Processos Ativos' 
+                        : 'Processos Ativos no Período'}
+                  </div>
+                  <div className="text-xs text-muted-foreground/60 mt-0.5">
+                    {evolutionPeriod === 'all' 
+                      ? 'Total no Advbox' 
+                      : `Últimos ${evolutionPeriod} dias`}
+                  </div>
                 </div>
                 <div className="text-center p-4 bg-blue-500/5 rounded-lg">
-                  <div className="text-3xl font-bold text-blue-600">
-                    {(() => {
+                  <div className="text-3xl font-bold text-blue-600 flex items-center justify-center gap-2">
+                    {isLoadingRecent ? (
+                      <RefreshCw className="h-6 w-6 animate-spin" />
+                    ) : (() => {
                       // Filtrar movimentações pelo período de evolução selecionado
                       const getEvolutionDateFilter = () => {
                         const now = new Date();
