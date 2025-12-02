@@ -935,6 +935,45 @@ export type Database = {
         }
         Relationships: []
       }
+      task_notification_settings: {
+        Row: {
+          created_at: string
+          email_notifications: boolean
+          id: string
+          notification_time: string
+          notify_days_before: number
+          notify_on_due_date: boolean
+          notify_when_overdue: boolean
+          push_notifications: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email_notifications?: boolean
+          id?: string
+          notification_time?: string
+          notify_days_before?: number
+          notify_on_due_date?: boolean
+          notify_when_overdue?: boolean
+          push_notifications?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email_notifications?: boolean
+          id?: string
+          notification_time?: string
+          notify_days_before?: number
+          notify_on_due_date?: boolean
+          notify_when_overdue?: boolean
+          push_notifications?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       task_priorities: {
         Row: {
           created_at: string
