@@ -114,6 +114,9 @@ export default function ProcessosDashboard() {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [selectedMovement, setSelectedMovement] = useState<Movement | null>(null);
   const [isLoadingFullData, setIsLoadingFullData] = useState(false);
+  const [taskTypes, setTaskTypes] = useState<{ id: number; name: string }[]>([]);
+  const [selectedTaskTypeId, setSelectedTaskTypeId] = useState<number | null>(null);
+  const [loadingTaskTypes, setLoadingTaskTypes] = useState(false);
   const [hasCompleteData, setHasCompleteData] = useState(cachedData?.isComplete || false);
   
   // Filtros para gráficos de evolução
@@ -124,9 +127,31 @@ export default function ProcessosDashboard() {
   
   const { toast } = useToast();
 
+  const fetchTaskTypes = async () => {
+    if (taskTypes.length > 0) return; // Já carregou
+    setLoadingTaskTypes(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('advbox-integration/task-types');
+      if (!error && data) {
+        const types = data?.data || data;
+        if (Array.isArray(types)) {
+          setTaskTypes(types);
+          if (types.length > 0 && !selectedTaskTypeId) {
+            setSelectedTaskTypeId(types[0].id);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching task types:', err);
+    } finally {
+      setLoadingTaskTypes(false);
+    }
+  };
+
   const openTaskDialog = (movement: Movement) => {
     setSelectedMovement(movement);
     setTaskDialogOpen(true);
+    fetchTaskTypes();
   };
 
   const normalizeProcessNumber = (value?: string | null) =>
@@ -233,6 +258,7 @@ export default function ProcessosDashboard() {
         description: targetMovement.header || targetMovement.title,
         from: lawsuit.responsible_id, // ID do responsável pelo processo no Advbox
         guests: [lawsuit.responsible_id], // Atribuir ao responsável do processo
+        ...(selectedTaskTypeId && { tasks_id: selectedTaskTypeId }),
       } : {
         lawsuits_id: lawsuit.id,
         start_date: format(new Date(), 'yyyy-MM-dd'),
@@ -240,6 +266,7 @@ export default function ProcessosDashboard() {
         description: `Tarefa criada para acompanhamento do processo ${lawsuit.process_number}`,
         from: lawsuit.responsible_id,
         guests: [lawsuit.responsible_id],
+        ...(selectedTaskTypeId && { tasks_id: selectedTaskTypeId }),
       };
 
       const { error } = await supabase.functions.invoke('advbox-integration/create-task', {
@@ -2331,8 +2358,35 @@ export default function ProcessosDashboard() {
                     </p>
                   )}
                 </div>
+                
+                {/* Seletor de Tipo de Tarefa */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Tipo de Tarefa</label>
+                  {loadingTaskTypes ? (
+                    <div className="text-sm text-muted-foreground">Carregando tipos...</div>
+                  ) : taskTypes.length > 0 ? (
+                    <Select
+                      value={selectedTaskTypeId?.toString() || ''}
+                      onValueChange={(value) => setSelectedTaskTypeId(Number(value))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o tipo de tarefa" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {taskTypes.map((type) => (
+                          <SelectItem key={type.id} value={type.id.toString()}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">Nenhum tipo disponível</div>
+                  )}
+                </div>
+                
                 <div className="flex gap-2">
-                  <Button onClick={() => createTaskFromMovement()} className="flex-1">
+                  <Button onClick={() => createTaskFromMovement()} className="flex-1" disabled={!selectedTaskTypeId}>
                     Criar Tarefa
                   </Button>
                   <Button
