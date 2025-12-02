@@ -39,21 +39,23 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
   console.log(`Using Account ID: ${CHATGURU_ACCOUNT_ID}`);
   console.log(`Using Phone ID: ${CHATGURU_PHONE_ID}`);
   
-  // Para API oficial do WhatsApp com templates, usar message_send com template E text
-  // O "text" deve conter os parâmetros do template separados por |
-  // Exemplo: se o template tem {{1}} para o nome, enviar o nome no text
+  // Para API oficial do WhatsApp com templates aprovados pela Meta
+  // Usar action=template_send com o nome do template
+  // O ChatGuru substitui automaticamente as variáveis do template
   const params = new URLSearchParams({
     key: CHATGURU_API_KEY!,
     account_id: CHATGURU_ACCOUNT_ID!,
     phone_id: CHATGURU_PHONE_ID!,
-    action: 'message_send',
+    action: 'template_send',
     chat_number: fullPhone,
     template: 'aniversario',
-    text: customerName, // Parâmetro do template (nome do cliente)
+    // Variáveis do template separadas por | (pipe)
+    // Se o template usa {{1}} para nome, passar aqui
+    vars: customerName,
   });
   
   const url = `https://s17.chatguru.app/api/v1?${params.toString()}`;
-  console.log('Calling ChatGuru API with template "aniversario" and customer name...');
+  console.log('Calling ChatGuru API with action template_send...');
   console.log('Full URL (redacted key):', url.replace(CHATGURU_API_KEY!, 'REDACTED'));
   
   const response = await fetch(url, {
@@ -61,16 +63,44 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
   });
 
   const data = await response.json();
-  console.log('ChatGuru API response:', JSON.stringify(data));
+  console.log('ChatGuru API response (template_send):', JSON.stringify(data));
   
   // Se funcionou, retornar sucesso
   if (data.result === 'success') {
-    console.log('Message sent successfully with template');
+    console.log('Message sent successfully with template_send');
     return data;
   }
   
+  // Se template_send não funcionou, tentar message_send com template
+  console.log('Trying message_send with template as fallback...');
+  
+  const fallbackParams = new URLSearchParams({
+    key: CHATGURU_API_KEY!,
+    account_id: CHATGURU_ACCOUNT_ID!,
+    phone_id: CHATGURU_PHONE_ID!,
+    action: 'message_send',
+    chat_number: fullPhone,
+    template: 'aniversario',
+  });
+  
+  const fallbackUrl = `https://s17.chatguru.app/api/v1?${fallbackParams.toString()}`;
+  console.log('Calling ChatGuru API with message_send + template...');
+  
+  const fallbackResponse = await fetch(fallbackUrl, {
+    method: 'POST',
+  });
+
+  const fallbackData = await fallbackResponse.json();
+  console.log('ChatGuru API response (message_send fallback):', JSON.stringify(fallbackData));
+  
+  if (fallbackData.result === 'success') {
+    console.log('Message sent successfully with message_send + template');
+    return fallbackData;
+  }
+  
   // Se falhou, mostrar erro detalhado
-  throw new Error(`ChatGuru API error: ${data.description || JSON.stringify(data)}`);
+  const errorMsg = data.description || fallbackData.description || JSON.stringify(data);
+  throw new Error(`ChatGuru API error: ${errorMsg}`);
 }
 
 Deno.serve(async (req) => {
