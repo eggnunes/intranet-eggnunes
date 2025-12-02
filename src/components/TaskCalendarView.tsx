@@ -100,6 +100,7 @@ export const TaskCalendarView = ({ tasks, onTaskClick }: TaskCalendarViewProps) 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [assignedFilter, setAssignedFilter] = useState<string>('all');
 
   const getDaysToDisplay = useMemo(() => {
     if (viewMode === 'month') {
@@ -114,9 +115,12 @@ export const TaskCalendarView = ({ tasks, onTaskClick }: TaskCalendarViewProps) 
   }, [currentDate, viewMode]);
 
   const filteredTasks = useMemo(() => {
-    if (categoryFilter === 'all') return tasks;
-    return tasks.filter((task) => task.category === categoryFilter);
-  }, [tasks, categoryFilter]);
+    return tasks.filter((task) => {
+      if (categoryFilter !== 'all' && detectCategory(task) !== categoryFilter) return false;
+      if (assignedFilter !== 'all' && task.assigned_to !== assignedFilter) return false;
+      return true;
+    });
+  }, [tasks, categoryFilter, assignedFilter]);
 
   const getTasksForDay = (day: Date) => {
     return filteredTasks.filter((task) => {
@@ -197,6 +201,15 @@ export const TaskCalendarView = ({ tasks, onTaskClick }: TaskCalendarViewProps) 
     return Array.from(categories).sort();
   }, [tasks]);
 
+  // Extrair responsáveis únicos
+  const uniqueAssigned = useMemo(() => {
+    const assigned = new Set<string>();
+    tasks.forEach((task) => {
+      if (task.assigned_to) assigned.add(task.assigned_to);
+    });
+    return Array.from(assigned).sort();
+  }, [tasks]);
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -206,6 +219,19 @@ export const TaskCalendarView = ({ tasks, onTaskClick }: TaskCalendarViewProps) 
             Calendário de Tarefas
           </CardTitle>
           <div className="flex items-center gap-2 flex-wrap">
+            <Select value={assignedFilter} onValueChange={setAssignedFilter}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Filtrar responsável" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover">
+                <SelectItem value="all">Todos responsáveis</SelectItem>
+                {uniqueAssigned.map((user) => (
+                  <SelectItem key={user} value={user}>
+                    {user}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
               <SelectTrigger className="w-[160px]">
                 <SelectValue placeholder="Filtrar categoria" />
