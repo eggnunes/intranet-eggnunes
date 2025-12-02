@@ -891,6 +891,71 @@ Deno.serve(async (req) => {
         });
       }
 
+      case 'users': {
+        // Buscar usuários do Advbox via settings
+        console.log('Fetching users from settings...');
+        try {
+          const settingsResult = await getCachedOrFetch('settings', async () => {
+            return await makeAdvboxRequest({ endpoint: '/settings' });
+          }, forceRefresh);
+          
+          const settings = settingsResult.data?.data || settingsResult.data || settingsResult;
+          console.log('Settings keys for users:', Object.keys(settings));
+          
+          let users: any[] = [];
+          
+          // Tentar extrair usuários de diferentes locais possíveis
+          if (settings.users && Array.isArray(settings.users)) {
+            users = settings.users;
+            console.log(`Found ${users.length} users in settings.users`);
+          } else if (settings.account?.users && Array.isArray(settings.account.users)) {
+            users = settings.account.users;
+            console.log(`Found ${users.length} users in settings.account.users`);
+          } else if (settings.members && Array.isArray(settings.members)) {
+            users = settings.members;
+            console.log(`Found ${users.length} users in settings.members`);
+          } else if (settings.account?.members && Array.isArray(settings.account.members)) {
+            users = settings.account.members;
+            console.log(`Found ${users.length} users in settings.account.members`);
+          } else if (settings.responsibles && Array.isArray(settings.responsibles)) {
+            users = settings.responsibles;
+            console.log(`Found ${users.length} users in settings.responsibles`);
+          } else {
+            // Log available keys for debugging
+            console.log('No users array found. Available settings keys:', 
+              JSON.stringify(Object.keys(settings)).substring(0, 500));
+            if (settings.account) {
+              console.log('Account keys:', JSON.stringify(Object.keys(settings.account)).substring(0, 500));
+            }
+          }
+          
+          // Normalizar formato dos usuários
+          const normalizedUsers = users.map((u: any) => ({
+            id: u.id || u.user_id || u.member_id,
+            name: u.name || u.full_name || u.nome || u.email || `Usuário ${u.id || u.user_id}`,
+            email: u.email,
+          })).filter((u: any) => u.id);
+          
+          return new Response(JSON.stringify({ 
+            data: normalizedUsers, 
+            source: 'settings',
+            rawCount: users.length,
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          console.error('Error fetching users:', error);
+          return new Response(JSON.stringify({ 
+            error: 'Failed to fetch users',
+            details: error instanceof Error ? error.message : String(error),
+            data: [],
+          }), {
+            status: 200, // Return 200 with empty array so frontend can fallback
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
       case 'create-task': {
         const body = await req.json();
         console.log('Creating task with body:', JSON.stringify(body));
