@@ -8,12 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
 import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
+import { TaskCreationDialog } from '@/components/TaskCreationDialog';
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
 import { format, subDays, subMonths, isAfter, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -114,10 +114,6 @@ export default function ProcessosDashboard() {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [selectedMovement, setSelectedMovement] = useState<Movement | null>(null);
   const [isLoadingFullData, setIsLoadingFullData] = useState(false);
-  const [taskTypeInput, setTaskTypeInput] = useState('');
-  const [taskComments, setTaskComments] = useState('');
-  const [taskTypes, setTaskTypes] = useState<{ id: string | number; name: string }[]>([]);
-  const [loadingTaskTypes, setLoadingTaskTypes] = useState(false);
   const [hasCompleteData, setHasCompleteData] = useState(cachedData?.isComplete || false);
   
   // Filtros para gráficos de evolução
@@ -128,190 +124,26 @@ export default function ProcessosDashboard() {
   
   const { toast } = useToast();
 
-  // Buscar tipos de tarefa do Advbox (via settings ou posts existentes)
-  const fetchTaskTypes = async () => {
-    setLoadingTaskTypes(true);
-    try {
-      console.log('Buscando tipos de tarefa...');
-      const { data, error } = await supabase.functions.invoke('advbox-integration/task-types');
-      
-      if (error) {
-        console.error('Erro ao buscar tipos de tarefa:', error);
-        return;
-      }
-      
-      console.log('Resposta task-types:', data);
-      
-      // Extrair lista de tipos de tarefa
-      const rawData = data?.data || [];
-      const types = Array.isArray(rawData) ? rawData.map((t: any) => ({
-        id: t.id || t.tasks_id,
-        name: t.task || t.name || t.title || t.description || `Tipo ${t.id || t.tasks_id}`,
-      })).filter((t: any) => t.id && t.name) : [];
-      
-      console.log('Tipos de tarefa carregados:', types.length);
-      
-      if (types.length > 0) {
-        setTaskTypes(types);
-        toast({
-          title: 'Tipos de tarefa carregados',
-          description: `${types.length} tipos encontrados (fonte: ${data?.source || 'API'})`,
-        });
-      }
-    } catch (err) {
-      console.error('Erro ao buscar tipos de tarefa:', err);
-    } finally {
-      setLoadingTaskTypes(false);
-    }
-  };
-
   const openTaskDialog = (movement: Movement) => {
     setSelectedMovement(movement);
-    setTaskTypeInput('');
-    setTaskComments(movement.header || movement.title || '');
     setTaskDialogOpen(true);
-    // Buscar tipos de tarefa quando abrir o dialog
-    if (taskTypes.length === 0) {
-      fetchTaskTypes();
-    }
+  };
+  
+  const openTaskDialogFromLawsuit = (lawsuit: Lawsuit) => {
+    // Criar um "movement" virtual a partir do lawsuit
+    const virtualMovement: Movement = {
+      lawsuit_id: lawsuit.id,
+      date: lawsuit.created_at || new Date().toISOString(),
+      title: `Tarefa para processo ${lawsuit.process_number}`,
+      header: `Acompanhamento do processo ${lawsuit.process_number}`,
+      process_number: lawsuit.process_number,
+      protocol_number: lawsuit.protocol_number,
+      customers: lawsuit.customers || '',
+    };
+    setSelectedMovement(virtualMovement);
+    setTaskDialogOpen(true);
   };
 
-  const normalizeProcessNumber = (value?: string | null) =>
-    (value || '').replace(/[^0-9]/g, '');
-
-  const createTaskFromMovement = async (lawsuitOrMovement?: Lawsuit | Movement) => {
-    // Pode ser chamado com um movement (do dialog) ou um lawsuit diretamente
-    const targetMovement = lawsuitOrMovement && 'title' in lawsuitOrMovement ? lawsuitOrMovement as Movement : selectedMovement;
-    const targetLawsuit = lawsuitOrMovement && 'type' in lawsuitOrMovement && !('title' in lawsuitOrMovement) ? lawsuitOrMovement as Lawsuit : null;
-    
-    if (!targetMovement && !targetLawsuit) return;
-
-    try {
-      console.log('createTaskFromMovement - target', targetMovement || targetLawsuit);
-      console.log('createTaskFromMovement - lawsuits length', lawsuits.length);
-
-      let lawsuit: Lawsuit | undefined = targetLawsuit || undefined;
-      
-      // Se não tem lawsuit direto, buscar pelo movement
-      if (!lawsuit && targetMovement) {
-        // Tentar localizar o processo pelo ID ou pelo número (ignorando formatação)
-        lawsuit = lawsuits.find(
-          (l) =>
-            l.id === targetMovement.lawsuit_id ||
-            normalizeProcessNumber(l.process_number) ===
-              normalizeProcessNumber(targetMovement.process_number)
-        );
-
-        // Se não encontrar localmente, buscar diretamente pelo ID via API
-        if (!lawsuit && targetMovement.lawsuit_id) {
-          console.log('Lawsuit not found locally, fetching by ID from Advbox...', targetMovement.lawsuit_id);
-          try {
-            const { data: lawsuitData, error: lawsuitError } = await supabase.functions.invoke(
-              `advbox-integration/lawsuit-by-id?lawsuit_id=${targetMovement.lawsuit_id}`
-            );
-
-            if (!lawsuitError && lawsuitData) {
-              const fetchedLawsuit = lawsuitData?.data || lawsuitData;
-              if (fetchedLawsuit && fetchedLawsuit.id) {
-                lawsuit = fetchedLawsuit as Lawsuit;
-                console.log('Lawsuit found via API:', lawsuit.id, lawsuit.process_number);
-              }
-            } else {
-              console.error('Error fetching lawsuit by ID:', lawsuitError);
-            }
-          } catch (apiError) {
-            console.error('API error fetching lawsuit:', apiError);
-          }
-        }
-        
-        // Último fallback: buscar lista completa
-        if (!lawsuit) {
-          console.warn('Lawsuit still not found, refetching full list from Advbox...');
-          const { data: lawsuitsData, error: lawsuitsError } = await supabase.functions.invoke(
-            'advbox-integration/lawsuits'
-          );
-
-          if (!lawsuitsError && lawsuitsData) {
-            const apiResponse = lawsuitsData?.data || lawsuitsData;
-            const refreshed = apiResponse?.data || [];
-            setLawsuits(refreshed);
-            lawsuit = (refreshed as any[]).find(
-              (l: any) =>
-                l.id === targetMovement.lawsuit_id ||
-                normalizeProcessNumber(l.process_number) ===
-                  normalizeProcessNumber(targetMovement.process_number)
-            );
-          } else {
-            console.error('Error refetching lawsuits for task creation', lawsuitsError);
-          }
-        }
-      }
-
-      if (!lawsuit) {
-        toast({
-          title: 'Processo não encontrado',
-          description:
-            'Não foi possível localizar o processo no Advbox para criar a tarefa. Tente novamente em alguns minutos.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      // Buscar o usuário atual (mantido para futura expansão, se precisarmos vincular no banco interno)
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        toast({
-          title: 'Usuário não autenticado',
-          description: 'Você precisa estar autenticado para criar tarefas.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      // Preparar dados no formato esperado pela API do Advbox
-      // Conforme documentação: https://app.advbox.com.br/api/v1/posts
-      const taskData = targetMovement ? {
-        lawsuits_id: targetMovement.lawsuit_id || lawsuit.id,
-        start_date: format(new Date(), 'yyyy-MM-dd'),
-        comments: taskComments || targetMovement.header || targetMovement.title,
-        from: lawsuit.responsible_id, // ID do responsável pelo processo no Advbox
-        guests: [lawsuit.responsible_id], // Atribuir ao responsável do processo
-        ...(taskTypeInput && { tasks_id: taskTypeInput }),
-      } : {
-        lawsuits_id: lawsuit.id,
-        start_date: format(new Date(), 'yyyy-MM-dd'),
-        comments: `Tarefa criada para acompanhamento do processo ${lawsuit.process_number}`,
-        from: lawsuit.responsible_id,
-        guests: [lawsuit.responsible_id],
-        ...(taskTypeInput && { tasks_id: taskTypeInput }),
-      };
-
-      const { error } = await supabase.functions.invoke('advbox-integration/create-task', {
-        body: taskData,
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: 'Tarefa criada',
-        description: 'Tarefa criada com sucesso a partir da movimentação.',
-      });
-
-      setTaskDialogOpen(false);
-      setSelectedMovement(null);
-    } catch (error) {
-      console.error('Error creating task:', error);
-      toast({
-        title: 'Erro ao criar tarefa',
-        description:
-          error instanceof Error ? error.message : 'Não foi possível criar a tarefa.',
-        variant: 'destructive',
-      });
-    }
-  };
   const getCustomerName = (customers: Lawsuit['customers'] | Movement['customers']): string => {
     if (!customers) return '';
     if (typeof customers === 'string') return customers;
@@ -2021,7 +1853,7 @@ export default function ProcessosDashboard() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => createTaskFromMovement(lawsuit)}
+                                onClick={() => openTaskDialogFromLawsuit(lawsuit)}
                                 className="shrink-0"
                               >
                                 <ListTodo className="h-4 w-4 mr-1" />
@@ -2343,110 +2175,19 @@ export default function ProcessosDashboard() {
         </div>
 
         {/* Dialog de Criação de Tarefa */}
-        <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Criar Tarefa a partir da Movimentação</DialogTitle>
-              <DialogDescription>
-                Confirme para criar uma tarefa baseada nesta movimentação
-              </DialogDescription>
-            </DialogHeader>
-            {selectedMovement && (
-              <div className="space-y-4">
-                <div className="bg-muted/30 p-3 rounded-md text-sm space-y-2">
-                  <p>
-                    <span className="font-medium">Data:</span>{' '}
-                    {format(new Date(selectedMovement.date), "dd 'de' MMMM 'de' yyyy", {
-                      locale: ptBR,
-                    })}
-                  </p>
-                  <p>
-                    <span className="font-medium">Processo:</span> {selectedMovement.process_number}
-                  </p>
-                  <p>
-                    <span className="font-medium">Título:</span> {selectedMovement.title}
-                  </p>
-                  {selectedMovement.header && (
-                    <p>
-                      <span className="font-medium">Detalhes:</span> {selectedMovement.header}
-                    </p>
-                  )}
-                  {selectedMovement.customers && (
-                    <p>
-                      <span className="font-medium">Cliente(s):</span>{' '}
-                      {getCustomerName(selectedMovement.customers)}
-                    </p>
-                  )}
-                </div>
-                
-                {/* Campo para tipo de tarefa (tasks_id) */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Tipo de Tarefa *</label>
-                  {loadingTaskTypes ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      Carregando tipos de tarefa...
-                    </div>
-                  ) : taskTypes.length > 0 ? (
-                    <Select value={taskTypeInput} onValueChange={setTaskTypeInput}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o tipo de tarefa" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {taskTypes.map((type) => (
-                          <SelectItem key={type.id} value={String(type.id)}>
-                            {type.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="space-y-2">
-                      <Input
-                        value={taskTypeInput}
-                        onChange={(e) => setTaskTypeInput(e.target.value)}
-                        placeholder="ID do tipo de tarefa (ex: 98765)"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Não foi possível carregar tipos. Informe o ID manualmente.
-                      </p>
-                      <Button variant="outline" size="sm" onClick={fetchTaskTypes} disabled={loadingTaskTypes}>
-                        <RefreshCw className="h-3 w-3 mr-1" /> Tentar carregar
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                
-                {/* Campo para comentários */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Descrição da Tarefa</label>
-                  <Input
-                    value={taskComments}
-                    onChange={(e) => setTaskComments(e.target.value)}
-                    placeholder="Descrição da tarefa..."
-                  />
-                </div>
-                
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={() => createTaskFromMovement()} 
-                    className="flex-1"
-                    disabled={!taskTypeInput}
-                  >
-                    Criar Tarefa
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setTaskDialogOpen(false)}
-                    className="flex-1"
-                  >
-                    Cancelar
-                  </Button>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        <TaskCreationDialog
+          open={taskDialogOpen}
+          onOpenChange={setTaskDialogOpen}
+          selectedMovement={selectedMovement}
+          lawsuits={lawsuits}
+          onTaskCreated={() => {
+            setSelectedMovement(null);
+            toast({
+              title: 'Tarefa criada',
+              description: 'Tarefa criada com sucesso no Advbox.',
+            });
+          }}
+        />
       </div>
     </Layout>
   );
