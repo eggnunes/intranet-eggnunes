@@ -146,7 +146,7 @@ export default function ProcessosDashboard() {
       const rawData = data?.data || [];
       const types = Array.isArray(rawData) ? rawData.map((t: any) => ({
         id: t.id || t.tasks_id,
-        name: t.name || t.title || t.description || `Tipo ${t.id || t.tasks_id}`,
+        name: t.task || t.name || t.title || t.description || `Tipo ${t.id || t.tasks_id}`,
       })).filter((t: any) => t.id && t.name) : [];
       
       console.log('Tipos de tarefa carregados:', types.length);
