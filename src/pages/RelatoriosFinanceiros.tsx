@@ -91,19 +91,46 @@ export default function RelatoriosFinanceiros() {
     }
     setRateLimitError(false);
     try {
-      // Usar endpoint transactions-recent para buscar últimos 24 meses por padrão
-      const { data, error } = await supabase.functions.invoke('advbox-integration/transactions-recent', {
-        body: { 
-          force_refresh: forceRefresh,
-          months: 24 // Buscar últimos 24 meses
-        },
-      });
+      // Buscar transações e processos em paralelo para enriquecer dados
+      const [transactionsResponse, lawsuitsResponse] = await Promise.all([
+        supabase.functions.invoke('advbox-integration/transactions-recent', {
+          body: { 
+            force_refresh: forceRefresh,
+            months: 24 // Buscar últimos 24 meses
+          },
+        }),
+        supabase.functions.invoke('advbox-integration/lawsuits', {
+          body: { force_refresh: false }, // Usar cache para processos
+        }),
+      ]);
 
-      if (error) throw error;
+      if (transactionsResponse.error) throw transactionsResponse.error;
 
       // A resposta vem como: { data: { data: { data: [...], offset, limit, totalCount } } }
-      const apiResponse = data?.data || data;
+      const apiResponse = transactionsResponse.data?.data || transactionsResponse.data;
       const rawTransactionsData = apiResponse?.data || [];
+      
+      // Criar mapa de lawsuit_id -> dados do processo (incluindo nome do cliente)
+      const lawsuitsData = lawsuitsResponse.data?.data?.data || lawsuitsResponse.data?.data || [];
+      const lawsuitMap = new Map<string, { personName: string; personPhone: string; personEmail: string; personDocument: string }>();
+      
+      if (Array.isArray(lawsuitsData)) {
+        lawsuitsData.forEach((lawsuit: any) => {
+          const lawsuitId = String(lawsuit.id);
+          // Extrair nome do cliente de várias fontes possíveis
+          const personName = lawsuit.person?.name || lawsuit.customer?.name || lawsuit.person_name || lawsuit.customer_name || lawsuit.name_customer || null;
+          const personPhone = lawsuit.person?.cellphone || lawsuit.person?.phone || lawsuit.customer?.cellphone || lawsuit.customer?.phone || null;
+          const personEmail = lawsuit.person?.email || lawsuit.customer?.email || null;
+          const personDocument = lawsuit.person?.document || lawsuit.person?.cpf || lawsuit.person?.cnpj || lawsuit.customer?.document || null;
+          
+          if (personName) {
+            lawsuitMap.set(lawsuitId, { personName, personPhone, personEmail, personDocument });
+          }
+        });
+      }
+      
+      console.log('Lawsuit map size:', lawsuitMap.size);
+      console.log('Sample lawsuit mapping:', Array.from(lawsuitMap.entries()).slice(0, 3));
       
       console.log('Transactions response:', {
         totalCount: apiResponse?.totalCount,
@@ -112,7 +139,7 @@ export default function RelatoriosFinanceiros() {
       });
       
       // Check if we got rate limited but have cached data
-      if (data?.metadata?.rateLimited && rawTransactionsData.length === 0) {
+      if (transactionsResponse.data?.metadata?.rateLimited && rawTransactionsData.length === 0) {
         setRateLimitError(true);
         // Keep existing cached transactions
         return;
@@ -159,15 +186,31 @@ export default function RelatoriosFinanceiros() {
           }
         }
         
-        // Extrair nome do cliente - customer_name vem diretamente na API
-        const customerName = t.customer_name || t.person?.name || t.customer?.name || t.person_name || null;
-        const customerPhone = t.person?.cellphone || t.person?.phone || t.customer?.cellphone || t.customer?.phone || null;
-        const customerEmail = t.person?.email || t.customer?.email || null;
-        // customer_identification é CPF/CNPJ segundo API doc
-        const personDocument = t.customer_identification || t.person?.document || t.person?.cpf || t.person?.cnpj || t.customer?.document || null;
+        // Extrair lawsuit_id para buscar dados do processo
+        const lawsuitId = t.lawsuit_id || t.lawsuit?.id || t.lawsuits_id || null;
+        const lawsuitData = lawsuitId ? lawsuitMap.get(String(lawsuitId)) : null;
+        
+        // Extrair nome do cliente - priorizar customer_name da transação, depois do processo
+        let customerName = t.customer_name || t.person?.name || t.customer?.name || t.person_name || null;
+        let customerPhone = t.person?.cellphone || t.person?.phone || t.customer?.cellphone || t.customer?.phone || null;
+        let customerEmail = t.person?.email || t.customer?.email || null;
+        let personDocument = t.customer_identification || t.person?.document || t.person?.cpf || t.person?.cnpj || t.customer?.document || null;
+        
+        // Se não encontrou dados do cliente na transação, usar do processo
+        if (!customerName && lawsuitData) {
+          customerName = lawsuitData.personName;
+        }
+        if (!customerPhone && lawsuitData) {
+          customerPhone = lawsuitData.personPhone;
+        }
+        if (!customerEmail && lawsuitData) {
+          customerEmail = lawsuitData.personEmail;
+        }
+        if (!personDocument && lawsuitData) {
+          personDocument = lawsuitData.personDocument;
+        }
         
         // Extrair dados do processo/lawsuit
-        const lawsuitId = t.lawsuit_id || t.lawsuit?.id || t.lawsuits_id || null;
         const lawsuitNumber = t.lawsuit_number || t.lawsuit?.number || t.lawsuit?.process_number || t.process_number || null;
         const lawsuitName = t.lawsuit_name || t.lawsuit?.name || t.lawsuit?.title || null;
         
@@ -219,10 +262,10 @@ export default function RelatoriosFinanceiros() {
         }));
       }
       
-      setMetadata(data?.metadata);
+      setMetadata(transactionsResponse.data?.metadata);
       setLastUpdate(new Date());
       
-      if (data?.metadata?.rateLimited) {
+      if (transactionsResponse.data?.metadata?.rateLimited) {
         setRateLimitError(true);
       }
 
