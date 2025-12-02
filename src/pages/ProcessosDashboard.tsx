@@ -1121,16 +1121,39 @@ export default function ProcessosDashboard() {
                 </div>
                 <div className="text-center p-4 bg-blue-500/5 rounded-lg">
                   <div className="text-3xl font-bold text-blue-600">
-                    {movementSearchTerm || periodFilter !== 'all' || !showAllMovementResponsibles || !showAllStatuses
-                      ? filteredMovements.length
-                       : (totalMovements ?? filteredMovements.length)}
+                    {(() => {
+                      // Filtrar movimentações pelo período de evolução selecionado
+                      const getEvolutionDateFilter = () => {
+                        const now = new Date();
+                        switch (evolutionPeriod) {
+                          case '7':
+                            return startOfDay(subDays(now, 7));
+                          case '30':
+                            return startOfDay(subDays(now, 30));
+                          case '90':
+                            return startOfDay(subMonths(now, 3));
+                          default:
+                            return null;
+                        }
+                      };
+                      const evolutionDateFilter = getEvolutionDateFilter();
+                      
+                      if (evolutionDateFilter) {
+                        const filteredByEvolution = movements.filter(m => {
+                          const movementDate = new Date(m.date);
+                          return !isBefore(movementDate, evolutionDateFilter);
+                        });
+                        return filteredByEvolution.length;
+                      }
+                      return totalMovements ?? movements.length;
+                    })()}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
-                    Movimentações {(movementSearchTerm || periodFilter !== 'all' || !showAllMovementResponsibles || !showAllStatuses) ? 'Filtradas' : 'Recentes'}
+                    Movimentações {evolutionPeriod !== 'all' ? 'no Período' : 'Recentes'}
                   </div>
-                  {periodFilter !== 'all' && (
+                  {evolutionPeriod !== 'all' && (
                     <div className="text-xs text-muted-foreground/60 mt-0.5">
-                      {periodFilter === 'week' ? 'Última semana' : periodFilter === 'month' ? 'Último mês' : 'Últimos 3 meses'}
+                      Últimos {evolutionPeriod} dias
                     </div>
                   )}
                 </div>
