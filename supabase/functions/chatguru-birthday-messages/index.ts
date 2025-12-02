@@ -22,73 +22,80 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
   // Remove formatting from phone number
   const cleanPhone = phone.replace(/\D/g, '');
   
-  // Verificar se o telefone é válido (deve ter 10 ou 11 dígitos)
-  if (cleanPhone.length < 10 || cleanPhone.length > 11) {
-    throw new Error('Número de telefone inválido');
+  // Verificar se o telefone é válido (deve ter 10 ou 11 dígitos para número brasileiro)
+  if (cleanPhone.length < 10 || cleanPhone.length > 13) {
+    throw new Error(`Número de telefone inválido: ${cleanPhone} (${cleanPhone.length} dígitos)`);
   }
   
-  // Adiciona código do país se não tiver
-  const fullPhone = cleanPhone.length <= 11 ? `55${cleanPhone}` : cleanPhone;
+  // Adiciona código do país se não tiver (número brasileiro)
+  let fullPhone = cleanPhone;
+  if (cleanPhone.length <= 11) {
+    fullPhone = `55${cleanPhone}`;
+  }
   
-  // Mensagem de aniversário personalizada
-  const birthdayMessage = `Olá ${customerName}! 🎂\n\nA equipe Egg Nunes Advogados deseja a você um feliz aniversário! Que seu dia seja repleto de alegrias e realizações.\n\nUm forte abraço!`;
+  console.log(`Formatted phone number: ${fullPhone}`);
   
-  // Primeiro, tentar cadastrar o chat com a mensagem inicial usando chat_add
-  // Isso permite enviar para contatos que não estão previamente cadastrados no ChatGuru
-  const chatAddParams = new URLSearchParams({
+  // Para API oficial do WhatsApp, usar template pré-aprovado
+  // Template "aniversario" aprovado pela Meta
+  const templateParams = new URLSearchParams({
     key: CHATGURU_API_KEY!,
     account_id: CHATGURU_ACCOUNT_ID!,
     phone_id: CHATGURU_PHONE_ID!,
-    action: 'chat_add',
+    action: 'template_send',
     chat_number: fullPhone,
-    name: customerName,
-    text: birthdayMessage,
+    template_name: 'aniversario',
   });
   
-  const chatAddUrl = `https://app.zap.guru/api/v1?${chatAddParams.toString()}`;
-  console.log('Calling ChatGuru API (chat_add)...');
+  const templateUrl = `https://app.zap.guru/api/v1?${templateParams.toString()}`;
+  console.log('Calling ChatGuru API (template_send) with template "aniversario"...');
+  console.log(`Using account_id: ${CHATGURU_ACCOUNT_ID}`);
+  console.log(`Using phone_id: ${CHATGURU_PHONE_ID}`);
   
-  const chatAddResponse = await fetch(chatAddUrl, {
+  const templateResponse = await fetch(templateUrl, {
     method: 'POST',
   });
 
-  const chatAddData = await chatAddResponse.json();
-  console.log('ChatGuru chat_add response:', JSON.stringify(chatAddData));
+  const templateData = await templateResponse.json();
+  console.log('ChatGuru template_send response:', JSON.stringify(templateData));
   
-  // Se chat_add funcionar, retornar sucesso
-  if (chatAddData.result === 'success') {
-    console.log('Chat added and message sent successfully via chat_add');
-    return chatAddData;
+  // Se template_send funcionar, retornar sucesso
+  if (templateData.result === 'success') {
+    console.log('Message sent successfully via template_send');
+    return templateData;
   }
   
-  // Se o chat já existir, tentar enviar mensagem diretamente com message_send
-  console.log('Trying message_send as fallback...');
+  // Se falhou, tentar com parâmetros do template (nome do cliente)
+  console.log('Trying template_send with parameters...');
   
-  const messageSendParams = new URLSearchParams({
+  const templateParamsWithVars = new URLSearchParams({
     key: CHATGURU_API_KEY!,
     account_id: CHATGURU_ACCOUNT_ID!,
     phone_id: CHATGURU_PHONE_ID!,
-    action: 'message_send',
+    action: 'template_send',
     chat_number: fullPhone,
-    text: birthdayMessage,
+    template_name: 'aniversario',
+    // Parâmetros do template (variáveis)
+    'params[0]': customerName,
   });
   
-  const messageSendUrl = `https://app.zap.guru/api/v1?${messageSendParams.toString()}`;
-  console.log('Calling ChatGuru API (message_send)...');
+  const templateUrlWithParams = `https://app.zap.guru/api/v1?${templateParamsWithVars.toString()}`;
+  console.log('Calling ChatGuru API (template_send with params)...');
   
-  const messageSendResponse = await fetch(messageSendUrl, {
+  const templateResponseWithParams = await fetch(templateUrlWithParams, {
     method: 'POST',
   });
 
-  const messageSendData = await messageSendResponse.json();
-  console.log('ChatGuru message_send response:', JSON.stringify(messageSendData));
+  const templateDataWithParams = await templateResponseWithParams.json();
+  console.log('ChatGuru template_send with params response:', JSON.stringify(templateDataWithParams));
   
-  if (messageSendData.result === 'error' || messageSendData.code >= 400) {
-    throw new Error(`ChatGuru API error: ${messageSendData.description || chatAddData.description || JSON.stringify(messageSendData)}`);
+  if (templateDataWithParams.result === 'success') {
+    console.log('Message sent successfully via template_send with params');
+    return templateDataWithParams;
   }
-
-  console.log('Message sent successfully via message_send');
-  return messageSendData;
+  
+  // Se ainda falhou, mostrar erro detalhado
+  const errorMessage = templateDataWithParams.description || templateData.description || JSON.stringify(templateDataWithParams);
+  throw new Error(`ChatGuru API error: ${errorMessage}`);
 }
 
 Deno.serve(async (req) => {
@@ -104,6 +111,10 @@ Deno.serve(async (req) => {
     if (!CHATGURU_API_KEY || !CHATGURU_ACCOUNT_ID || !CHATGURU_PHONE_ID) {
       throw new Error('ChatGuru credentials not configured');
     }
+    
+    console.log('ChatGuru credentials verified');
+    console.log(`Account ID: ${CHATGURU_ACCOUNT_ID}`);
+    console.log(`Phone ID: ${CHATGURU_PHONE_ID}`);
 
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -230,7 +241,7 @@ Deno.serve(async (req) => {
           customer_id: customer.id,
           customer_name: customer.name,
           customer_phone: customer.phone,
-          message_text: `Mensagem de aniversário enviada para ${customer.name}`,
+          message_text: `Mensagem de aniversário (template) enviada para ${customer.name}`,
           status: 'sent',
           chatguru_message_id: chatGuruResponse?.message_id || null,
         });
