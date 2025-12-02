@@ -132,40 +132,71 @@ export default function ProcessosDashboard() {
   const normalizeProcessNumber = (value?: string | null) =>
     (value || '').replace(/[^0-9]/g, '');
 
-  const createTaskFromMovement = async () => {
-    if (!selectedMovement) return;
+  const createTaskFromMovement = async (lawsuitOrMovement?: Lawsuit | Movement) => {
+    // Pode ser chamado com um movement (do dialog) ou um lawsuit diretamente
+    const targetMovement = lawsuitOrMovement && 'title' in lawsuitOrMovement ? lawsuitOrMovement as Movement : selectedMovement;
+    const targetLawsuit = lawsuitOrMovement && 'type' in lawsuitOrMovement && !('title' in lawsuitOrMovement) ? lawsuitOrMovement as Lawsuit : null;
+    
+    if (!targetMovement && !targetLawsuit) return;
 
     try {
-      console.log('createTaskFromMovement - selectedMovement', selectedMovement);
+      console.log('createTaskFromMovement - target', targetMovement || targetLawsuit);
       console.log('createTaskFromMovement - lawsuits length', lawsuits.length);
 
-      // Tentar localizar o processo pelo ID ou pelo número (ignorando formatação)
-      let lawsuit = lawsuits.find(
-        (l) =>
-          l.id === selectedMovement.lawsuit_id ||
-          normalizeProcessNumber(l.process_number) ===
-            normalizeProcessNumber(selectedMovement.process_number)
-      );
-
-      // Se não encontrar, tenta recarregar a lista de processos uma vez
-      if (!lawsuit) {
-        console.warn('Lawsuit not found locally, refetching from Advbox...');
-        const { data: lawsuitsData, error: lawsuitsError } = await supabase.functions.invoke(
-          'advbox-integration/lawsuits'
+      let lawsuit: Lawsuit | undefined = targetLawsuit || undefined;
+      
+      // Se não tem lawsuit direto, buscar pelo movement
+      if (!lawsuit && targetMovement) {
+        // Tentar localizar o processo pelo ID ou pelo número (ignorando formatação)
+        lawsuit = lawsuits.find(
+          (l) =>
+            l.id === targetMovement.lawsuit_id ||
+            normalizeProcessNumber(l.process_number) ===
+              normalizeProcessNumber(targetMovement.process_number)
         );
 
-        if (!lawsuitsError && lawsuitsData) {
-          const apiResponse = lawsuitsData?.data || lawsuitsData;
-          const refreshed = apiResponse?.data || [];
-          setLawsuits(refreshed);
-          lawsuit = (refreshed as any[]).find(
-            (l: any) =>
-              l.id === selectedMovement.lawsuit_id ||
-              normalizeProcessNumber(l.process_number) ===
-                normalizeProcessNumber(selectedMovement.process_number)
+        // Se não encontrar localmente, buscar diretamente pelo ID via API
+        if (!lawsuit && targetMovement.lawsuit_id) {
+          console.log('Lawsuit not found locally, fetching by ID from Advbox...', targetMovement.lawsuit_id);
+          try {
+            const { data: lawsuitData, error: lawsuitError } = await supabase.functions.invoke(
+              `advbox-integration/lawsuit-by-id?lawsuit_id=${targetMovement.lawsuit_id}`
+            );
+
+            if (!lawsuitError && lawsuitData) {
+              const fetchedLawsuit = lawsuitData?.data || lawsuitData;
+              if (fetchedLawsuit && fetchedLawsuit.id) {
+                lawsuit = fetchedLawsuit as Lawsuit;
+                console.log('Lawsuit found via API:', lawsuit.id, lawsuit.process_number);
+              }
+            } else {
+              console.error('Error fetching lawsuit by ID:', lawsuitError);
+            }
+          } catch (apiError) {
+            console.error('API error fetching lawsuit:', apiError);
+          }
+        }
+        
+        // Último fallback: buscar lista completa
+        if (!lawsuit) {
+          console.warn('Lawsuit still not found, refetching full list from Advbox...');
+          const { data: lawsuitsData, error: lawsuitsError } = await supabase.functions.invoke(
+            'advbox-integration/lawsuits'
           );
-        } else {
-          console.error('Error refetching lawsuits for task creation', lawsuitsError);
+
+          if (!lawsuitsError && lawsuitsData) {
+            const apiResponse = lawsuitsData?.data || lawsuitsData;
+            const refreshed = apiResponse?.data || [];
+            setLawsuits(refreshed);
+            lawsuit = (refreshed as any[]).find(
+              (l: any) =>
+                l.id === targetMovement.lawsuit_id ||
+                normalizeProcessNumber(l.process_number) ===
+                  normalizeProcessNumber(targetMovement.process_number)
+            );
+          } else {
+            console.error('Error refetching lawsuits for task creation', lawsuitsError);
+          }
         }
       }
 
@@ -194,14 +225,22 @@ export default function ProcessosDashboard() {
       }
 
       // Preparar dados no formato esperado pela API do Advbox
-      const taskData = {
-        lawsuits_id: selectedMovement.lawsuit_id || lawsuit.id,
+      const taskData = targetMovement ? {
+        lawsuits_id: targetMovement.lawsuit_id || lawsuit.id,
         start_date: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
-        title: `Movimentação: ${selectedMovement.title}`,
-        description: selectedMovement.header || selectedMovement.title,
+        title: `Movimentação: ${targetMovement.title}`,
+        description: targetMovement.header || targetMovement.title,
         from: lawsuit.responsible_id, // ID do responsável pelo processo no Advbox
         tasks_id: 1, // ID padrão do tipo de tarefa (ajustar conforme necessário)
         guests: [lawsuit.responsible_id], // Atribuir ao responsável do processo
+      } : {
+        lawsuits_id: lawsuit.id,
+        start_date: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
+        title: `Acompanhamento: ${lawsuit.process_number}`,
+        description: `Tarefa criada para acompanhamento do processo ${lawsuit.process_number}`,
+        from: lawsuit.responsible_id,
+        tasks_id: 1,
+        guests: [lawsuit.responsible_id],
       };
 
       const { error } = await supabase.functions.invoke('advbox-integration/create-task', {
@@ -1137,13 +1176,28 @@ export default function ProcessosDashboard() {
                   value={evolutionPeriod} 
                   onValueChange={(value) => {
                     setEvolutionPeriod(value);
-                    // Quando muda o período, buscar processos recentes via API (exceto "all")
-                    if (value !== 'all') {
-                      loadRecentLawsuits(parseInt(value));
-                    } else {
+                    // Usar dados cacheados localmente ao invés de chamar API
+                    // A atualização dos dados acontece automaticamente via cache refresh diário
+                    if (value === 'all') {
                       // Limpar filtro de recentes quando volta para "todos"
                       setRecentLawsuits([]);
                       setRecentLawsuitsStartDate(null);
+                    } else {
+                      // Filtrar dados localmente do cache
+                      const days = parseInt(value);
+                      const startDate = startOfDay(subDays(new Date(), days));
+                      
+                      // Filtrar processos locais pelo período
+                      const recentFromCache = lawsuits.filter((lawsuit) => {
+                        const createdDate = getCreatedOrProcessDate(lawsuit);
+                        if (!createdDate) return false;
+                        return !isBefore(createdDate, startDate);
+                      });
+                      
+                      setRecentLawsuits(recentFromCache);
+                      setRecentLawsuitsStartDate(format(startDate, 'yyyy-MM-dd'));
+                      
+                      console.log(`[Cache Filter] ${recentFromCache.length} processos encontrados no período de ${days} dias (dados locais)`);
                     }
                   }}
                 >
@@ -1157,9 +1211,6 @@ export default function ProcessosDashboard() {
                     <SelectItem value="all">Todos os períodos</SelectItem>
                   </SelectContent>
                 </Select>
-                {isLoadingRecent && (
-                  <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
-                )}
               </div>
             </CardHeader>
             <CardContent>
@@ -1234,9 +1285,7 @@ export default function ProcessosDashboard() {
                 {/* MOVIMENTAÇÕES NO PERÍODO - Filtra das movimentações completas */}
                 <div className="text-center p-4 bg-blue-500/5 rounded-lg">
                   <div className="text-3xl font-bold text-blue-600 flex items-center justify-center gap-2">
-                    {isLoadingRecent ? (
-                      <RefreshCw className="h-6 w-6 animate-spin" />
-                    ) : (() => {
+                    {(() => {
                       // Usar fullMovements se disponível, senão usar movements
                       const movementsToUse = hasFullMovements && fullMovements.length > 0 ? fullMovements : movements;
                       
@@ -1272,15 +1321,13 @@ export default function ProcessosDashboard() {
                   {evolutionPeriod !== 'all' && (
                     <div className="text-xs text-muted-foreground/60 mt-0.5">
                       Últimos {evolutionPeriod} dias
-                      {hasFullMovements && <span className="ml-1 text-green-600">(completo)</span>}
+                      {hasFullMovements && <span className="ml-1 text-green-600">(cache local)</span>}
                     </div>
                   )}
                 </div>
                 <div className="text-center p-4 bg-green-500/5 rounded-lg border-2 border-green-500/20">
                   <div className="text-3xl font-bold text-green-600">
-                    {isLoadingRecent ? (
-                      <RefreshCw className="h-6 w-6 animate-spin mx-auto" />
-                    ) : recentLawsuits.length > 0 ? (
+                    {recentLawsuits.length > 0 ? (
                       recentLawsuits.length
                     ) : evolutionPeriod === 'all' ? (
                       hasCompleteData ? evolutionMetrics.newProcesses : '—'
@@ -1292,13 +1339,11 @@ export default function ProcessosDashboard() {
                     Processos Novos
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
-                    {isLoadingRecent 
-                      ? 'Buscando na API...'
-                      : recentLawsuits.length > 0 && recentLawsuitsStartDate
-                        ? `Via API (desde ${format(new Date(recentLawsuitsStartDate), 'dd/MM')})`
-                        : evolutionPeriod === 'all' 
-                          ? (hasCompleteData ? 'Total geral' : 'Selecione um período') 
-                          : `Últimos ${evolutionPeriod} dias`}
+                    {recentLawsuits.length > 0 && recentLawsuitsStartDate
+                      ? `Desde ${format(new Date(recentLawsuitsStartDate), 'dd/MM')} (cache local)`
+                      : evolutionPeriod === 'all' 
+                        ? (hasCompleteData ? 'Total geral' : 'Selecione um período') 
+                        : `Últimos ${evolutionPeriod} dias`}
                   </div>
                 </div>
                 <div className="text-center p-4 bg-purple-500/5 rounded-lg">
@@ -1894,6 +1939,15 @@ export default function ProcessosDashboard() {
                                   </Badge>
                                 </div>
                               </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => createTaskFromMovement(lawsuit)}
+                                className="shrink-0"
+                              >
+                                <ListTodo className="h-4 w-4 mr-1" />
+                                Criar Tarefa
+                              </Button>
                             </div>
                             
                             {lawsuit.responsible && (
@@ -2246,7 +2300,7 @@ export default function ProcessosDashboard() {
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={createTaskFromMovement} className="flex-1">
+                  <Button onClick={() => createTaskFromMovement()} className="flex-1">
                     Criar Tarefa
                   </Button>
                   <Button
