@@ -38,6 +38,11 @@ interface Transaction {
   due_date?: string;
   status?: 'pending' | 'paid' | 'overdue';
   customer_phone?: string;
+  customer_email?: string;
+  lawsuit_id?: string;
+  lawsuit_number?: string;
+  lawsuit_name?: string;
+  person_document?: string;
 }
 
 const STORAGE_KEY = 'relatorios_financeiros_cache';
@@ -151,6 +156,13 @@ export default function RelatoriosFinanceiros() {
         // Extrair nome do cliente da pessoa/customer
         const customerName = t.person?.name || t.customer?.name || t.person_name || t.customer_name || null;
         const customerPhone = t.person?.cellphone || t.person?.phone || t.customer?.cellphone || t.customer?.phone || null;
+        const customerEmail = t.person?.email || t.customer?.email || null;
+        const personDocument = t.person?.document || t.person?.cpf || t.person?.cnpj || t.customer?.document || null;
+        
+        // Extrair dados do processo/lawsuit
+        const lawsuitId = t.lawsuit_id || t.lawsuit?.id || t.lawsuits_id || null;
+        const lawsuitNumber = t.lawsuit_number || t.lawsuit?.number || t.lawsuit?.process_number || t.process_number || null;
+        const lawsuitName = t.lawsuit_name || t.lawsuit?.name || t.lawsuit?.title || null;
         
         return {
           id: String(t.id || Math.random()),
@@ -163,6 +175,11 @@ export default function RelatoriosFinanceiros() {
           due_date: dueDate,
           status: status,
           customer_phone: customerPhone,
+          customer_email: customerEmail,
+          lawsuit_id: lawsuitId,
+          lawsuit_number: lawsuitNumber,
+          lawsuit_name: lawsuitName,
+          person_document: personDocument,
         };
       });
       
@@ -176,6 +193,12 @@ export default function RelatoriosFinanceiros() {
           customer: t.customer_name,
           due_date: t.due_date,
           amount: t.amount,
+          phone: t.customer_phone,
+          email: t.customer_email,
+          lawsuit_number: t.lawsuit_number,
+          document: t.person_document,
+          description: t.description,
+          category: t.category,
           status: t.status
         }))
       });

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AlertTriangle, Calendar, User, DollarSign, MessageCircle, Ban, Search } from 'lucide-react';
+import { AlertTriangle, Calendar, User, DollarSign, MessageCircle, Ban, Search, FileText, Phone, Mail, Hash, Briefcase } from 'lucide-react';
 import { format, parseISO, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -23,6 +23,12 @@ interface Transaction {
   customer_name?: string;
   due_date?: string;
   status?: 'pending' | 'paid' | 'overdue';
+  customer_phone?: string;
+  customer_email?: string;
+  lawsuit_id?: string;
+  lawsuit_number?: string;
+  lawsuit_name?: string;
+  person_document?: string;
 }
 
 interface FinancialDefaultersProps {
@@ -36,6 +42,12 @@ interface Defaulter {
   dueDate: string;
   daysPastDue: number;
   phone?: string;
+  email?: string;
+  description?: string;
+  category?: string;
+  lawsuitNumber?: string;
+  lawsuitName?: string;
+  document?: string;
 }
 
 export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) {
@@ -97,7 +109,13 @@ export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) 
             amount: transaction.amount,
             dueDate: format(dueDate, "dd/MM/yyyy", { locale: ptBR }),
             daysPastDue,
-            phone: (transaction as any).customer_phone,
+            phone: transaction.customer_phone,
+            email: transaction.customer_email,
+            description: transaction.description,
+            category: transaction.category,
+            lawsuitNumber: transaction.lawsuit_number,
+            lawsuitName: transaction.lawsuit_name,
+            document: transaction.person_document,
           });
         }
       });
@@ -245,8 +263,8 @@ export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) 
             <p>Nenhum inadimplente encontrado no período selecionado</p>
           </div>
         ) : (
-          <ScrollArea className="h-[400px] pr-4">
-            <div className="space-y-3">
+          <ScrollArea className="h-[500px] pr-4">
+            <div className="space-y-4">
               {defaulters.map((defaulter, index) => {
                 const isExcluded = exclusions.has(defaulter.id);
                 return (
@@ -257,10 +275,14 @@ export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) 
                     }`}
                   >
                     <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center gap-2">
+                      <div className="flex-1 space-y-2">
+                        {/* Nome e Status */}
+                        <div className="flex items-center gap-2 flex-wrap">
                           <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{defaulter.name}</span>
+                          <span className="font-semibold text-lg">{defaulter.name}</span>
+                          <Badge variant="destructive">
+                            {defaulter.daysPastDue} {defaulter.daysPastDue === 1 ? 'dia' : 'dias'} em atraso
+                          </Badge>
                           {isExcluded && (
                             <Badge variant="outline" className="border-destructive text-destructive">
                               <Ban className="h-3 w-3 mr-1" />
@@ -268,21 +290,75 @@ export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) 
                             </Badge>
                           )}
                         </div>
+                        
+                        {/* Descrição/Serviço */}
+                        {defaulter.description && (
+                          <div className="flex items-start gap-2 text-sm">
+                            <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
+                            <span className="text-foreground">{defaulter.description}</span>
+                          </div>
+                        )}
+                        
+                        {/* Número do Processo */}
+                        {defaulter.lawsuitNumber && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Briefcase className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-muted-foreground">Processo:</span>
+                            <span className="font-mono text-foreground">{defaulter.lawsuitNumber}</span>
+                            {defaulter.lawsuitName && (
+                              <span className="text-muted-foreground">- {defaulter.lawsuitName}</span>
+                            )}
+                          </div>
+                        )}
+                        
+                        {/* Categoria */}
+                        {defaulter.category && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Hash className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-muted-foreground">Categoria:</span>
+                            <Badge variant="secondary">{defaulter.category}</Badge>
+                          </div>
+                        )}
+                        
+                        {/* CPF/CNPJ */}
+                        {defaulter.document && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-muted-foreground">Documento:</span>
+                            <span className="font-mono text-foreground">{defaulter.document}</span>
+                          </div>
+                        )}
+                        
+                        {/* Contatos */}
+                        <div className="flex items-center gap-4 text-sm flex-wrap">
+                          {defaulter.phone && (
+                            <div className="flex items-center gap-1">
+                              <Phone className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-foreground">{defaulter.phone}</span>
+                            </div>
+                          )}
+                          {defaulter.email && (
+                            <div className="flex items-center gap-1">
+                              <Mail className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-foreground">{defaulter.email}</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Data de Vencimento */}
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Calendar className="h-3 w-3" />
                           <span>Vencimento: {defaulter.dueDate}</span>
                         </div>
-                        <Badge variant="destructive" className="mt-1">
-                          {defaulter.daysPastDue} {defaulter.daysPastDue === 1 ? 'dia' : 'dias'} em atraso
-                        </Badge>
                       </div>
+                      
                       <div className="flex flex-col items-end gap-2">
-                        <div className="flex items-center gap-1 text-destructive font-bold">
-                          <DollarSign className="h-4 w-4" />
+                        <div className="flex items-center gap-1 text-destructive font-bold text-xl">
+                          <DollarSign className="h-5 w-5" />
                           {formatCurrency(defaulter.amount)}
                         </div>
                         {isAdmin && (
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-wrap justify-end">
                             <Button
                               size="sm"
                               variant={isExcluded ? "outline" : "default"}
