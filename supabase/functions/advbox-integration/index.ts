@@ -1054,7 +1054,7 @@ Deno.serve(async (req) => {
         });
       }
       
-      // Endpoint para transações recentes (últimos N meses)
+      // Endpoint para transações recentes (últimos N meses) - COM PAGINAÇÃO COMPLETA
       case 'transactions-recent': {
         const months = parseInt(url.searchParams.get('months') || '12');
         const now = new Date();
@@ -1068,27 +1068,70 @@ Deno.serve(async (req) => {
         const cacheKey = `transactions-recent-${months}m`;
         
         const result = await getCachedOrFetch(cacheKey, async () => {
-          const endpoint = `/transactions?limit=1000&date_due_start=${startDateStr}&date_due_end=${endDateStr}`;
-          console.log('Transactions-recent endpoint:', endpoint);
-          const response = await makeAdvboxRequest({ endpoint });
+          // Fazer paginação COMPLETA para buscar TODAS as transações do período
+          let allTransactions: any[] = [];
+          let offset = 0;
+          const limit = 100; // API Advbox aceita máximo de 100 por página
+          let hasMore = true;
+          let totalCount = 0;
+          let iterations = 0;
+          const maxIterations = 100; // Máximo de 10.000 transações
           
-          // Debug: log sample transaction to see customer_name field
-          const items = response?.data || [];
-          if (items.length > 0) {
-            console.log('[DEBUG] First transaction keys:', Object.keys(items[0]));
-            console.log('[DEBUG] First transaction customer fields:', JSON.stringify({
-              customer_name: items[0].customer_name,
-              customer_identification: items[0].customer_identification,
-              person: items[0].person,
-              customer: items[0].customer,
-            }));
-            // Log first 3 transactions to see pattern
-            console.log('[DEBUG] First 3 transactions customer_name:', 
-              items.slice(0, 3).map((t: any) => ({ id: t.id, customer_name: t.customer_name, description: t.description?.substring(0, 50) }))
-            );
+          console.log('Starting paginated fetch for transactions...');
+          
+          while (hasMore && iterations < maxIterations) {
+            // Delay entre requests para evitar rate limit
+            if (iterations > 0) {
+              await sleep(DELAY_BETWEEN_REQUESTS);
+            }
+            
+            const endpoint = `/transactions?limit=${limit}&offset=${offset}&date_due_start=${startDateStr}&date_due_end=${endDateStr}`;
+            console.log(`Transactions fetch iteration ${iterations + 1}: offset=${offset}`);
+            
+            const response = await makeAdvboxRequest({ endpoint });
+            const items = response?.data || [];
+            totalCount = response?.totalCount || totalCount;
+            
+            if (items.length === 0) {
+              hasMore = false;
+            } else {
+              allTransactions = [...allTransactions, ...items];
+              offset += limit;
+              
+              // Se retornou menos que o limit, não há mais páginas
+              if (items.length < limit) {
+                hasMore = false;
+              }
+            }
+            
+            iterations++;
+            console.log(`Loaded ${allTransactions.length} transactions so far (totalCount: ${totalCount})`);
           }
           
-          return response;
+          console.log(`[TRANSACTIONS] Finished loading ${allTransactions.length} transactions in ${iterations} iterations`);
+          
+          // Debug: log sample transaction
+          if (allTransactions.length > 0) {
+            console.log('[DEBUG] First transaction keys:', Object.keys(allTransactions[0]));
+            console.log('[DEBUG] Sample transaction fields:', JSON.stringify({
+              id: allTransactions[0].id,
+              name: allTransactions[0].name,
+              identification: allTransactions[0].identification,
+              customer_name: allTransactions[0].customer_name,
+              description: allTransactions[0].description,
+              date_due: allTransactions[0].date_due,
+              date_payment: allTransactions[0].date_payment,
+              amount: allTransactions[0].amount,
+              category: allTransactions[0].category,
+            }));
+          }
+          
+          return {
+            data: allTransactions,
+            totalCount: allTransactions.length,
+            offset: 0,
+            limit: allTransactions.length,
+          };
         }, forceRefresh);
         
         return new Response(JSON.stringify(result), {
