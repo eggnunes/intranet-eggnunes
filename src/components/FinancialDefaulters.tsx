@@ -4,8 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Checkbox } from '@/components/ui/checkbox';
-import { AlertTriangle, Calendar, User, DollarSign, MessageCircle, Ban, Search, FileText, Phone, Mail, Hash, Briefcase } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertTriangle, Calendar, User, DollarSign, MessageCircle, Ban, Search, FileText, Phone, Mail, Hash, Briefcase, Filter } from 'lucide-react';
 import { format, parseISO, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -56,6 +56,7 @@ export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) 
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [exclusions, setExclusions] = useState<Set<string>>(new Set());
   const [sendingMessage, setSendingMessage] = useState<string | null>(null);
 
@@ -128,19 +129,40 @@ export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) 
     return defaultersList.sort((a, b) => b.daysPastDue - a.daysPastDue);
   }, [transactions, startDate, endDate]);
 
-  // Filtrar por termo de busca
+  // Extrair categorias únicas
+  const uniqueCategories = useMemo(() => {
+    const categories = new Set<string>();
+    defaulters.forEach(d => {
+      if (d.category) {
+        categories.add(d.category);
+      }
+    });
+    return Array.from(categories).sort();
+  }, [defaulters]);
+
+  // Filtrar por termo de busca e categoria
   const filteredDefaulters = useMemo(() => {
-    if (!searchTerm.trim()) return defaulters;
+    let filtered = defaulters;
     
-    const term = searchTerm.toLowerCase();
-    return defaulters.filter(d => 
-      d.name.toLowerCase().includes(term) ||
-      (d.description && d.description.toLowerCase().includes(term)) ||
-      (d.lawsuitNumber && d.lawsuitNumber.toLowerCase().includes(term)) ||
-      (d.category && d.category.toLowerCase().includes(term)) ||
-      (d.document && d.document.includes(term))
-    );
-  }, [defaulters, searchTerm]);
+    // Filtrar por categoria
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(d => d.category === selectedCategory);
+    }
+    
+    // Filtrar por termo de busca
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(d => 
+        d.name.toLowerCase().includes(term) ||
+        (d.description && d.description.toLowerCase().includes(term)) ||
+        (d.lawsuitNumber && d.lawsuitNumber.toLowerCase().includes(term)) ||
+        (d.category && d.category.toLowerCase().includes(term)) ||
+        (d.document && d.document.includes(term))
+      );
+    }
+    
+    return filtered;
+  }, [defaulters, searchTerm, selectedCategory]);
 
   const totalOverdue = useMemo(() => {
     return defaulters.reduce((sum, d) => sum + d.amount, 0);
@@ -252,7 +274,7 @@ export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) 
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Filtros de Data e Busca */}
+        {/* Filtros de Data, Categoria e Busca */}
         <div className="flex gap-3 items-end flex-wrap">
           <div className="flex-1 min-w-[200px]">
             <label className="text-sm font-medium mb-1 block">Buscar</label>
@@ -266,6 +288,25 @@ export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) 
                 className="pl-9"
               />
             </div>
+          </div>
+          <div className="flex-1 min-w-[180px]">
+            <label className="text-sm font-medium mb-1 block flex items-center gap-1">
+              <Filter className="h-3 w-3" />
+              Categoria
+            </label>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="Todas as categorias" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as categorias</SelectItem>
+                {uniqueCategories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex-1 min-w-[140px]">
             <label className="text-sm font-medium mb-1 block">Data Inicial</label>
@@ -288,9 +329,14 @@ export function FinancialDefaulters({ transactions }: FinancialDefaultersProps) 
         </div>
 
         {/* Contador de resultados */}
-        {searchTerm && (
-          <div className="text-sm text-muted-foreground">
-            {filteredDefaulters.length} de {defaulters.length} inadimplentes encontrados
+        {(searchTerm || selectedCategory !== 'all') && (
+          <div className="text-sm text-muted-foreground flex items-center gap-2">
+            <span>{filteredDefaulters.length} de {defaulters.length} inadimplentes</span>
+            {selectedCategory !== 'all' && (
+              <Badge variant="secondary" className="text-xs">
+                {selectedCategory}
+              </Badge>
+            )}
           </div>
         )}
 
