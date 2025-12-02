@@ -1008,9 +1008,71 @@ Deno.serve(async (req) => {
       // ========== TRANSAÇÕES FINANCEIRAS ==========
       
       case 'transactions': {
-        const result = await getCachedOrFetch('transactions', async () => {
-          return await makeAdvboxRequest({ endpoint: '/transactions' });
+        // Aceitar parâmetros de data para filtrar transações recentes
+        let startDate = url.searchParams.get('start_date');
+        let endDate = url.searchParams.get('end_date');
+        
+        // Tentar ler do body se não veio na URL
+        if (!startDate && req.method === 'POST') {
+          try {
+            const body = await req.json();
+            startDate = body.start_date;
+            endDate = body.end_date;
+          } catch (e) {
+            // Ignorar erro de parse
+          }
+        }
+        
+        // Se não tem filtro de data, usar padrão de 12 meses
+        if (!startDate) {
+          const now = new Date();
+          const oneYearAgo = new Date(now);
+          oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+          startDate = oneYearAgo.toISOString().split('T')[0];
+          endDate = now.toISOString().split('T')[0];
+        }
+        
+        console.log(`Fetching transactions from ${startDate} to ${endDate || 'now'}`);
+        
+        const cacheKey = `transactions-${startDate}-${endDate || 'now'}`;
+        
+        const result = await getCachedOrFetch(cacheKey, async () => {
+          // Usar filtros de data na API do Advbox
+          let endpoint = '/transactions?limit=1000';
+          if (startDate) {
+            endpoint += `&date_due_start=${startDate}`;
+          }
+          if (endDate) {
+            endpoint += `&date_due_end=${endDate}`;
+          }
+          console.log('Transactions endpoint:', endpoint);
+          return await makeAdvboxRequest({ endpoint });
         }, forceRefresh);
+        
+        return new Response(JSON.stringify(result), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      // Endpoint para transações recentes (últimos N meses)
+      case 'transactions-recent': {
+        const months = parseInt(url.searchParams.get('months') || '12');
+        const now = new Date();
+        const startDate = new Date(now);
+        startDate.setMonth(startDate.getMonth() - months);
+        const startDateStr = startDate.toISOString().split('T')[0];
+        const endDateStr = now.toISOString().split('T')[0];
+        
+        console.log(`Fetching transactions for last ${months} months: ${startDateStr} to ${endDateStr}`);
+        
+        const cacheKey = `transactions-recent-${months}m`;
+        
+        const result = await getCachedOrFetch(cacheKey, async () => {
+          const endpoint = `/transactions?limit=1000&date_due_start=${startDateStr}&date_due_end=${endDateStr}`;
+          console.log('Transactions-recent endpoint:', endpoint);
+          return await makeAdvboxRequest({ endpoint });
+        }, forceRefresh);
+        
         return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
