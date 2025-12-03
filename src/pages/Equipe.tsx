@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, User, Briefcase, GraduationCap, Building2, UserCog, Mail, IdCard, Cake } from 'lucide-react';
+import { Users, User, Briefcase, GraduationCap, Building2, UserCog, Mail, IdCard, Cake, CalendarCheck } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { format, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -18,6 +18,7 @@ interface TeamMember {
   oab_number: string | null;
   oab_state: string | null;
   birth_date: string | null;
+  join_date: string | null;
 }
 
 interface GroupedTeam {
@@ -77,7 +78,7 @@ export default function Equipe() {
   const fetchTeam = async () => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, email, avatar_url, position, oab_number, oab_state, birth_date')
+      .select('id, full_name, email, avatar_url, position, oab_number, oab_state, birth_date, join_date')
       .eq('approval_status', 'approved')
       .order('full_name');
 
@@ -219,6 +220,14 @@ export default function Equipe() {
                                 <Cake className="h-3 w-3 flex-shrink-0" />
                                 <span>
                                   {format(parse(member.birth_date, 'yyyy-MM-dd', new Date()), "dd 'de' MMMM", { locale: ptBR })}
+                                </span>
+                              </div>
+                            )}
+                            {member.join_date && (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <CalendarCheck className="h-3 w-3 flex-shrink-0" />
+                                <span>
+                                  Desde {format(parse(member.join_date, 'yyyy-MM-dd', new Date()), "MMMM 'de' yyyy", { locale: ptBR })}
                                 </span>
                               </div>
                             )}
