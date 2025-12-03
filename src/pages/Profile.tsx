@@ -9,13 +9,14 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { User, Lock, Calendar, Upload, IdCard, History, Building } from 'lucide-react';
+import { User, Lock, Calendar, Upload, IdCard, History, Building, Bookmark, Download, Trash2, Search } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { useNavigate } from 'react-router-dom';
 
 const BRAZILIAN_STATES = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
@@ -31,9 +32,19 @@ interface UsageHistoryItem {
   metadata: any;
 }
 
+interface SavedJurisprudence {
+  id: string;
+  title: string;
+  content: string;
+  source: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
 export default function Profile() {
   const { user } = useAuth();
   const { profile, loading, isAdmin } = useUserRole();
+  const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
@@ -55,6 +66,8 @@ export default function Profile() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [usageHistory, setUsageHistory] = useState<UsageHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [savedJurisprudence, setSavedJurisprudence] = useState<SavedJurisprudence[]>([]);
+  const [jurisprudenceLoading, setJurisprudenceLoading] = useState(true);
 
   useEffect(() => {
     if (profile) {
@@ -69,6 +82,7 @@ export default function Profile() {
         setJoinDate(parse((profile as any).join_date, 'yyyy-MM-dd', new Date()));
       }
       fetchUsageHistory();
+      fetchSavedJurisprudence();
     }
   }, [profile]);
 
@@ -86,6 +100,68 @@ export default function Profile() {
       setUsageHistory(data);
     }
     setHistoryLoading(false);
+  };
+
+  const fetchSavedJurisprudence = async () => {
+    if (!user) return;
+    
+    const { data, error } = await supabase
+      .from('saved_jurisprudence')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (!error && data) {
+      setSavedJurisprudence(data as SavedJurisprudence[]);
+    }
+    setJurisprudenceLoading(false);
+  };
+
+  const downloadJurisprudence = (item: SavedJurisprudence) => {
+    const content = `JURISPRUDÊNCIA SALVA
+==================
+
+Título: ${item.title}
+Data de salvamento: ${format(new Date(item.created_at), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+Fonte: ${item.source || 'Não informada'}
+
+---
+
+${item.content}
+
+${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
+`;
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `jurisprudencia-${item.title.toLowerCase().replace(/\s+/g, '-').slice(0, 30)}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDeleteJurisprudence = async (id: string) => {
+    const { error } = await supabase
+      .from('saved_jurisprudence')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      toast({
+        title: 'Erro',
+        description: 'Erro ao remover jurisprudência',
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Sucesso',
+        description: 'Jurisprudência removida',
+      });
+      fetchSavedJurisprudence();
+    }
   };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -530,6 +606,92 @@ export default function Profile() {
             >
               {changingPassword ? 'Alterando...' : 'Alterar Senha'}
             </Button>
+          </CardContent>
+        </Card>
+
+        {/* Jurisprudências Salvas */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Bookmark className="w-5 h-5" />
+                  Jurisprudências Salvas
+                </CardTitle>
+                <CardDescription>
+                  Decisões judiciais salvas para consulta
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => navigate('/pesquisa-jurisprudencia')}>
+                <Search className="w-4 h-4 mr-2" />
+                Pesquisar
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {jurisprudenceLoading ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Carregando jurisprudências...
+              </div>
+            ) : savedJurisprudence.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Bookmark className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>Nenhuma jurisprudência salva ainda</p>
+                <Button 
+                  variant="link" 
+                  className="mt-2"
+                  onClick={() => navigate('/pesquisa-jurisprudencia')}
+                >
+                  Pesquisar jurisprudência
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {savedJurisprudence.map((item) => (
+                  <div 
+                    key={item.id} 
+                    className="border rounded-lg p-3 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{item.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {item.source && `${item.source} • `}
+                          {format(new Date(item.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                        </p>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => downloadJurisprudence(item)}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleDeleteJurisprudence(item.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {savedJurisprudence.length === 10 && (
+                  <Button 
+                    variant="link" 
+                    className="w-full"
+                    onClick={() => navigate('/pesquisa-jurisprudencia')}
+                  >
+                    Ver todas as jurisprudências salvas
+                  </Button>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 

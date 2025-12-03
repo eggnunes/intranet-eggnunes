@@ -4,7 +4,7 @@ import { Layout } from '@/components/Layout';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, MessageSquare, History, FolderOpen, TrendingUp, User, Mail, Book, Phone, Users, Instagram, Music, Video, Building2, Home, Briefcase, Award, ExternalLink, Shield, Gavel, FileCheck, Banknote, Clock, AlertCircle, Cake, DollarSign, Bell, CheckSquare, Megaphone, Calendar, Trophy, Pin } from 'lucide-react';
+import { FileText, MessageSquare, History, FolderOpen, TrendingUp, User, Mail, Book, Phone, Users, Instagram, Music, Video, Building2, Home, Briefcase, Award, ExternalLink, Shield, Gavel, FileCheck, Banknote, Clock, AlertCircle, Cake, DollarSign, Bell, CheckSquare, Megaphone, Calendar, Trophy, Pin, Search } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -146,6 +146,13 @@ export default function Dashboard() {
       icon: FileText,
       path: '/tools/rotadoc',
       gradient: 'from-violet-500 to-purple-600',
+    },
+    {
+      title: 'Pesquisa de Jurisprudência',
+      description: 'Busque decisões judiciais com IA',
+      icon: Search,
+      path: '/pesquisa-jurisprudencia',
+      gradient: 'from-indigo-500 to-blue-600',
     },
     {
       title: 'Agentes de IA',
