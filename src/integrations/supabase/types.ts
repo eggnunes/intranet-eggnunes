@@ -1028,6 +1028,154 @@ export type Database = {
         }
         Relationships: []
       }
+      recruitment_candidates: {
+        Row: {
+          created_at: string
+          created_by: string
+          current_stage: Database["public"]["Enums"]["recruitment_stage"]
+          elimination_notes: string | null
+          elimination_reason:
+            | Database["public"]["Enums"]["elimination_reason"]
+            | null
+          email: string | null
+          extracted_data: Json | null
+          full_name: string
+          hired_date: string | null
+          id: string
+          in_person_interview_date: string | null
+          interview_date: string | null
+          is_active: boolean
+          phone: string | null
+          position_applied: string | null
+          resume_file_name: string | null
+          resume_url: string | null
+          test_date: string | null
+          test_score: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          current_stage?: Database["public"]["Enums"]["recruitment_stage"]
+          elimination_notes?: string | null
+          elimination_reason?:
+            | Database["public"]["Enums"]["elimination_reason"]
+            | null
+          email?: string | null
+          extracted_data?: Json | null
+          full_name: string
+          hired_date?: string | null
+          id?: string
+          in_person_interview_date?: string | null
+          interview_date?: string | null
+          is_active?: boolean
+          phone?: string | null
+          position_applied?: string | null
+          resume_file_name?: string | null
+          resume_url?: string | null
+          test_date?: string | null
+          test_score?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          current_stage?: Database["public"]["Enums"]["recruitment_stage"]
+          elimination_notes?: string | null
+          elimination_reason?:
+            | Database["public"]["Enums"]["elimination_reason"]
+            | null
+          email?: string | null
+          extracted_data?: Json | null
+          full_name?: string
+          hired_date?: string | null
+          id?: string
+          in_person_interview_date?: string | null
+          interview_date?: string | null
+          is_active?: boolean
+          phone?: string | null
+          position_applied?: string | null
+          resume_file_name?: string | null
+          resume_url?: string | null
+          test_date?: string | null
+          test_score?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      recruitment_notes: {
+        Row: {
+          candidate_id: string
+          content: string
+          created_at: string
+          created_by: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          candidate_id: string
+          content: string
+          created_at?: string
+          created_by: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          candidate_id?: string
+          content?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_notes_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruitment_stage_history: {
+        Row: {
+          candidate_id: string
+          changed_by: string
+          created_at: string
+          from_stage: Database["public"]["Enums"]["recruitment_stage"] | null
+          id: string
+          notes: string | null
+          to_stage: Database["public"]["Enums"]["recruitment_stage"]
+        }
+        Insert: {
+          candidate_id: string
+          changed_by: string
+          created_at?: string
+          from_stage?: Database["public"]["Enums"]["recruitment_stage"] | null
+          id?: string
+          notes?: string | null
+          to_stage: Database["public"]["Enums"]["recruitment_stage"]
+        }
+        Update: {
+          candidate_id?: string
+          changed_by?: string
+          created_at?: string
+          from_stage?: Database["public"]["Enums"]["recruitment_stage"] | null
+          id?: string
+          notes?: string | null
+          to_stage?: Database["public"]["Enums"]["recruitment_stage"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_stage_history_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suggestion_comments: {
         Row: {
           content: string
@@ -1567,12 +1715,29 @@ export type Database = {
     Enums: {
       app_role: "admin" | "user"
       approval_status: "pending" | "approved" | "rejected"
+      elimination_reason:
+        | "sem_interesse_candidato"
+        | "sem_interesse_escritorio"
+        | "reprovado_entrevista"
+        | "reprovado_prova"
+        | "reprovado_entrevista_presencial"
+        | "outro"
       position_type:
         | "socio"
         | "advogado"
         | "estagiario"
         | "comercial"
         | "administrativo"
+      recruitment_stage:
+        | "curriculo_recebido"
+        | "entrevista_agendada"
+        | "entrevista_realizada"
+        | "aguardando_prova"
+        | "prova_realizada"
+        | "entrevista_presencial_agendada"
+        | "entrevista_presencial_realizada"
+        | "contratado"
+        | "eliminado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1702,12 +1867,31 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "user"],
       approval_status: ["pending", "approved", "rejected"],
+      elimination_reason: [
+        "sem_interesse_candidato",
+        "sem_interesse_escritorio",
+        "reprovado_entrevista",
+        "reprovado_prova",
+        "reprovado_entrevista_presencial",
+        "outro",
+      ],
       position_type: [
         "socio",
         "advogado",
         "estagiario",
         "comercial",
         "administrativo",
+      ],
+      recruitment_stage: [
+        "curriculo_recebido",
+        "entrevista_agendada",
+        "entrevista_realizada",
+        "aguardando_prova",
+        "prova_realizada",
+        "entrevista_presencial_agendada",
+        "entrevista_presencial_realizada",
+        "contratado",
+        "eliminado",
       ],
     },
   },
