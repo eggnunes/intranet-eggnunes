@@ -21,6 +21,7 @@ import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
 interface Publication {
   id: string | number;
   date: string;
+  created_at?: string;
   description?: string;
   lawsuit_number?: string;
   court?: string;
@@ -60,6 +61,8 @@ export default function PublicacoesFeed() {
   const [selectedPublication, setSelectedPublication] = useState<Publication | null>(null);
   const [readPublications, setReadPublications] = useState<Set<string>>(new Set());
   const [userId, setUserId] = useState<string | null>(null);
+  const [isSuggestingTask, setIsSuggestingTask] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<any>(null);
   const { toast } = useToast();
 
   // Obter ID do usuário logado
@@ -208,27 +211,82 @@ export default function PublicacoesFeed() {
 
   const openTaskDialog = (publication: Publication) => {
     setSelectedPublication(publication);
+    setAiSuggestion(null);
     setTaskDialogOpen(true);
+  };
+
+  const suggestTaskWithAI = async () => {
+    if (!selectedPublication) return;
+    
+    setIsSuggestingTask(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('suggest-task', {
+        body: {
+          publicationContent: selectedPublication.title || selectedPublication.header || selectedPublication.description || '',
+          processNumber: selectedPublication.process_number || selectedPublication.lawsuit_number,
+          customerName: selectedPublication.customers,
+          court: extractCourtCode(selectedPublication.header),
+        },
+      });
+
+      if (error) throw error;
+      if (data && !data.error) {
+        setAiSuggestion(data);
+        toast({ title: 'Sugestão gerada', description: 'A IA analisou a publicação e sugeriu uma tarefa.' });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: 'Não foi possível gerar sugestão.', variant: 'destructive' });
+    } finally {
+      setIsSuggestingTask(false);
+    }
   };
 
   const createTaskFromPublication = async () => {
     if (!selectedPublication) return;
 
     try {
-      const { data: lawsuitsData, error: lawsuitsError } = await supabase.functions.invoke('advbox-integration/lawsuits');
-      
-      if (lawsuitsError) throw lawsuitsError;
+      let lawsuitId = selectedPublication.lawsuit_id;
+      let responsibleId: number | null = null;
 
-      const apiResponse = lawsuitsData?.data || lawsuitsData;
-      const lawsuits = apiResponse?.data || [];
-      const processNumber = selectedPublication.process_number || selectedPublication.lawsuit_number || '';
-      
-      const lawsuit = lawsuits.find((l: any) => l.process_number === processNumber);
-      
-      if (!lawsuit) {
+      // Se já temos o lawsuit_id, buscar diretamente
+      if (lawsuitId) {
+        try {
+          const { data: lawsuitData } = await supabase.functions.invoke('advbox-integration/lawsuit-by-id', {
+            body: { lawsuit_id: lawsuitId },
+          });
+          if (lawsuitData?.data?.responsible_id) {
+            responsibleId = lawsuitData.data.responsible_id;
+          } else if (lawsuitData?.responsible_id) {
+            responsibleId = lawsuitData.responsible_id;
+          }
+        } catch (err) {
+          console.warn('Could not fetch lawsuit details, will use default responsible');
+        }
+      } else {
+        // Fallback: buscar por process_number
+        const { data: lawsuitsData, error: lawsuitsError } = await supabase.functions.invoke('advbox-integration/lawsuits');
+        
+        if (lawsuitsError) throw lawsuitsError;
+
+        const apiResponse = lawsuitsData?.data || lawsuitsData;
+        const lawsuits = apiResponse?.data || [];
+        const processNumber = (selectedPublication.process_number || selectedPublication.lawsuit_number || '').replace(/\D/g, '');
+        
+        const lawsuit = lawsuits.find((l: any) => {
+          const lpn = (l.process_number || '').replace(/\D/g, '');
+          return lpn === processNumber;
+        });
+        
+        if (lawsuit) {
+          lawsuitId = lawsuit.id;
+          responsibleId = lawsuit.responsible_id;
+        }
+      }
+
+      if (!lawsuitId) {
         toast({
           title: 'Processo não encontrado',
-          description: 'Não foi possível localizar o processo para criar a tarefa.',
+          description: 'Não foi possível localizar o processo para criar a tarefa. Tente usar o diálogo completo de tarefas.',
           variant: 'destructive',
         });
         return;
@@ -246,13 +304,13 @@ export default function PublicacoesFeed() {
       }
 
       const taskData = {
-        lawsuits_id: lawsuit.id,
+        lawsuits_id: lawsuitId,
         start_date: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
         title: `Intimação: ${selectedPublication.title || 'Publicação'}`,
         description: selectedPublication.description || selectedPublication.header || '',
-        from: lawsuit.responsible_id,
+        from: responsibleId || 1,
         tasks_id: 1,
-        guests: [lawsuit.responsible_id],
+        guests: responsibleId ? [responsibleId] : [],
       };
 
       const { error } = await supabase.functions.invoke('advbox-integration/create-task', {
@@ -312,6 +370,7 @@ export default function PublicacoesFeed() {
       const mappedPubs: Publication[] = allPubs.map((movement: any, index: number) => ({
         id: movement.id ?? `${movement.lawsuit_id ?? 'movement'}-${movement.date ?? movement.created_at}-${index}`,
         date: movement.date || movement.created_at,
+        created_at: movement.created_at,
         process_number: movement.process_number,
         title: movement.title,
         header: movement.header,
@@ -847,9 +906,15 @@ export default function PublicacoesFeed() {
                               />
                               <div>
                                 <div className="flex items-center gap-2 flex-wrap">
+                                  {publication.created_at && publication.created_at !== publication.date && (
+                                    <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-900/20">
+                                      <Calendar className="h-3 w-3 mr-1" />
+                                      Publicado: {format(new Date(publication.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                                    </Badge>
+                                  )}
                                   <Badge variant="outline" className="text-xs">
                                     <Calendar className="h-3 w-3 mr-1" />
-                                    {format(new Date(publication.date), "dd/MM/yyyy", { locale: ptBR })}
+                                    Evento: {format(new Date(publication.date), "dd/MM/yyyy", { locale: ptBR })}
                                   </Badge>
                                   <Badge variant="secondary" className="text-xs">
                                     {extractCourtCode(publication.header)}
@@ -950,6 +1015,25 @@ export default function PublicacoesFeed() {
                     </p>
                   )}
                 </div>
+                
+                <Button 
+                  onClick={suggestTaskWithAI} 
+                  variant="outline" 
+                  className="w-full"
+                  disabled={isSuggestingTask}
+                >
+                  {isSuggestingTask ? 'Analisando com IA...' : '✨ Sugerir Tarefa com IA'}
+                </Button>
+                
+                {aiSuggestion && (
+                  <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-md text-sm border border-purple-200 dark:border-purple-800">
+                    <p className="font-medium text-purple-700 dark:text-purple-300 mb-2">Sugestão da IA:</p>
+                    {aiSuggestion.taskTitle && <p><strong>Título:</strong> {aiSuggestion.taskTitle}</p>}
+                    {aiSuggestion.suggestedTaskType && <p><strong>Tipo:</strong> {aiSuggestion.suggestedTaskType}</p>}
+                    {aiSuggestion.reasoning && <p className="mt-2 text-muted-foreground">{aiSuggestion.reasoning}</p>}
+                  </div>
+                )}
+                
                 <div className="flex gap-2">
                   <Button onClick={createTaskFromPublication} className="flex-1">
                     Criar Tarefa

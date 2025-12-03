@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { RefreshCw, Calendar as CalendarIcon, Clock, MapPin, Users, X } from 'lucide-react';
+import { RefreshCw, Calendar as CalendarIcon, Clock, MapPin, Users, X, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface TaskType {
@@ -68,6 +68,8 @@ export function TaskCreationDialog({
   const [loadingTaskTypes, setLoadingTaskTypes] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isSuggestingTask, setIsSuggestingTask] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<any>(null);
   
   // Form fields
   const [taskTypeId, setTaskTypeId] = useState('');
@@ -110,6 +112,7 @@ export function TaskCreationDialog({
       setIsImportant(false);
       setDisplaySchedule(true);
       setSelectedGuests([]);
+      setAiSuggestion(null);
       
       // Find the lawsuit to get the responsible
       const lawsuit = lawsuits.find(l => l.id === selectedMovement.lawsuit_id);
@@ -123,6 +126,79 @@ export function TaskCreationDialog({
       if (advboxUsers.length === 0) fetchUsers();
     }
   }, [open, selectedMovement]);
+
+  const suggestTaskWithAI = async () => {
+    if (!selectedMovement) return;
+    
+    setIsSuggestingTask(true);
+    setAiSuggestion(null);
+    
+    try {
+      const publicationContent = selectedMovement.header || selectedMovement.title || '';
+      const customerName = getCustomerName(selectedMovement.customers);
+      
+      const { data, error } = await supabase.functions.invoke('suggest-task', {
+        body: {
+          publicationContent,
+          processNumber: selectedMovement.process_number,
+          customerName,
+          court: selectedMovement.header?.split(' - ')?.[0] || '',
+          taskTypes: taskTypes.map(t => ({ id: t.id, name: t.name })),
+        },
+      });
+
+      if (error) throw error;
+
+      if (data && !data.error) {
+        setAiSuggestion(data);
+        
+        // Apply suggestion to form
+        if (data.taskDescription) {
+          setComments(data.taskDescription);
+        }
+        
+        if (data.suggestedTaskTypeId) {
+          setTaskTypeId(String(data.suggestedTaskTypeId));
+        } else if (data.suggestedTaskType && taskTypes.length > 0) {
+          // Try to find matching task type by name
+          const matchingType = taskTypes.find(t => 
+            t.name.toLowerCase().includes(data.suggestedTaskType.toLowerCase()) ||
+            data.suggestedTaskType.toLowerCase().includes(t.name.toLowerCase())
+          );
+          if (matchingType) {
+            setTaskTypeId(String(matchingType.id));
+          }
+        }
+        
+        if (data.suggestedDeadline) {
+          try {
+            setDeadlineDate(parseISO(data.suggestedDeadline));
+          } catch (e) {
+            console.warn('Could not parse deadline date:', data.suggestedDeadline);
+          }
+        }
+        
+        if (data.isUrgent) setIsUrgent(true);
+        if (data.isImportant) setIsImportant(true);
+        
+        toast({
+          title: 'Sugestão gerada',
+          description: 'A IA analisou a publicação e sugeriu os campos da tarefa.',
+        });
+      } else if (data?.error) {
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      console.error('Error suggesting task:', error);
+      toast({
+        title: 'Erro ao sugerir tarefa',
+        description: error instanceof Error ? error.message : 'Não foi possível gerar sugestão.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSuggestingTask(false);
+    }
+  };
 
   const fetchTaskTypes = async () => {
     setLoadingTaskTypes(true);
@@ -265,6 +341,45 @@ export function TaskCreationDialog({
               <p>
                 <span className="font-medium">Cliente:</span> {getCustomerName(selectedMovement.customers)}
               </p>
+            )}
+          </div>
+        )}
+
+        {/* AI Suggestion Button */}
+        {selectedMovement && (
+          <div className="space-y-3">
+            <Button 
+              onClick={suggestTaskWithAI} 
+              variant="outline" 
+              className="w-full bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20 border-purple-500/30"
+              disabled={isSuggestingTask}
+            >
+              {isSuggestingTask ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Analisando com IA...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2 text-purple-500" />
+                  Sugerir Tarefa com IA
+                </>
+              )}
+            </Button>
+            
+            {aiSuggestion?.reasoning && (
+              <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-md text-sm border border-purple-200 dark:border-purple-800">
+                <p className="font-medium text-purple-700 dark:text-purple-300 mb-1 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Análise da IA
+                </p>
+                <p className="text-purple-600 dark:text-purple-400">{aiSuggestion.reasoning}</p>
+                {aiSuggestion.taskTitle && (
+                  <p className="mt-2 font-medium text-purple-700 dark:text-purple-300">
+                    Título sugerido: {aiSuggestion.taskTitle}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}

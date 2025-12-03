@@ -11,3 +11,12 @@ verify_jwt = true
 
 [functions.process-documents]
 verify_jwt = false
+
+[functions.suggest-task]
+verify_jwt = true
+
+[functions.send-defaulter-message]
+verify_jwt = true
+
+[functions.process-automatic-collections]
+verify_jwt = false
