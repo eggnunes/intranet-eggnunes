@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X, Edit, History, Calendar, List, Settings, BarChart3, Zap } from 'lucide-react';
+import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X, Edit, History, Calendar, List, Settings, BarChart3, Lightbulb } from 'lucide-react';
 import { TaskCalendarView } from '@/components/TaskCalendarView';
 import { TaskNotificationSettings } from '@/components/TaskNotificationSettings';
 import { WeeklyTaskReport } from '@/components/WeeklyTaskReport';
@@ -784,8 +784,8 @@ export default function TarefasAdvbox() {
             )}
             {isAdmin && (
               <TabsTrigger value="rules" className="gap-2">
-                <Zap className="h-4 w-4" />
-                <span className="hidden sm:inline">Regras</span>
+                <Lightbulb className="h-4 w-4" />
+                <span className="hidden sm:inline">Sugestões</span>
               </TabsTrigger>
             )}
             <TabsTrigger value="settings" className="gap-2">
@@ -978,7 +978,7 @@ export default function TarefasAdvbox() {
             </TabsContent>
           )}
 
-          {/* Aba Regras Automáticas (apenas admins) */}
+          {/* Aba Regras de Sugestão (apenas admins) */}
           {isAdmin && (
             <TabsContent value="rules">
               <TaskAutoRulesManager 

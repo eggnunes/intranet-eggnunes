@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Zap, Search, FileText, Tag } from "lucide-react";
+import { Plus, Pencil, Trash2, Lightbulb, Search, FileText, Tag } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 interface TaskAutoRule {
@@ -54,6 +54,31 @@ export function TaskAutoRulesManager({ taskTypes, advboxUsers }: TaskAutoRulesMa
     responsible_user_id: '',
     is_active: true
   });
+
+  // Function to check if a movement/publication matches any active rule
+  const checkForSuggestions = (items: Array<{ title: string; type?: string }>) => {
+    const activeRules = rules.filter(r => r.is_active);
+    const suggestions: Array<{ rule: TaskAutoRule; item: { title: string; type?: string } }> = [];
+
+    for (const item of items) {
+      for (const rule of activeRules) {
+        let matches = false;
+        
+        if (rule.trigger_type === 'keyword') {
+          const keywords = rule.trigger_value.toLowerCase().split(',').map(k => k.trim());
+          matches = keywords.some(kw => item.title.toLowerCase().includes(kw));
+        } else if (rule.trigger_type === 'movement_type' || rule.trigger_type === 'publication_type') {
+          matches = item.type?.toLowerCase() === rule.trigger_value.toLowerCase();
+        }
+
+        if (matches) {
+          suggestions.push({ rule, item });
+        }
+      }
+    }
+
+    return suggestions;
+  };
 
   useEffect(() => {
     fetchRules();
@@ -200,7 +225,7 @@ export function TaskAutoRulesManager({ taskTypes, advboxUsers }: TaskAutoRulesMa
       case 'keyword': return <Search className="h-4 w-4" />;
       case 'movement_type': return <FileText className="h-4 w-4" />;
       case 'publication_type': return <Tag className="h-4 w-4" />;
-      default: return <Zap className="h-4 w-4" />;
+      default: return <Lightbulb className="h-4 w-4" />;
     }
   };
 
@@ -226,11 +251,11 @@ export function TaskAutoRulesManager({ taskTypes, advboxUsers }: TaskAutoRulesMa
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5" />
-            Regras de Tarefas Automáticas
+            <Lightbulb className="h-5 w-5" />
+            Regras de Sugestão de Tarefas
           </CardTitle>
           <CardDescription>
-            Configure regras para criar tarefas automaticamente com base em padrões
+            Configure padrões para sugerir tarefas ao visualizar movimentações e publicações
           </CardDescription>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
@@ -393,9 +418,9 @@ export function TaskAutoRulesManager({ taskTypes, advboxUsers }: TaskAutoRulesMa
       <CardContent>
         {rules.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            <Zap className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <Lightbulb className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>Nenhuma regra configurada</p>
-            <p className="text-sm">Crie regras para automatizar a criação de tarefas</p>
+            <p className="text-sm">Crie regras para sugerir tarefas baseadas em padrões</p>
           </div>
         ) : (
           <div className="space-y-3">
