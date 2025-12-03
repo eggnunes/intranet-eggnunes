@@ -75,9 +75,12 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
   }
   
   // Se o erro for "Chat não encontrado", tentar chat_add com dialog_id
+  // Para WABA, o parâmetro 'text' deve conter o identificador do template
   if (dialogData.description?.includes('Chat não encontrado') || dialogData.code === 400) {
-    console.log('Chat not found, attempting chat_add with dialog_id...');
+    console.log('Chat not found, attempting chat_add with dialog_id and template text...');
     
+    // Para WABA/API oficial do WhatsApp, usar o nome do template como texto inicial
+    // O template "aniversario" está aprovado pela Meta
     const chatAddParams = new URLSearchParams({
       key: CHATGURU_API_KEY!,
       account_id: CHATGURU_ACCOUNT_ID!,
@@ -85,11 +88,12 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
       action: 'chat_add',
       chat_number: fullPhone,
       name: customerName,
+      text: 'aniversario', // Nome do template WABA aprovado pela Meta
       dialog_id: DIALOG_ID,
     });
     
     const chatAddUrl = `https://s17.chatguru.app/api/v1?${chatAddParams.toString()}`;
-    console.log('Calling chat_add with dialog_id...');
+    console.log('Calling chat_add with dialog_id and text=aniversario...');
     console.log('Full URL (redacted key):', chatAddUrl.replace(CHATGURU_API_KEY!, 'REDACTED'));
     
     const chatAddResponse = await fetch(chatAddUrl, { method: 'POST' });
