@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
 import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
 import { TaskCreationDialog } from '@/components/TaskCreationDialog';
+import { TaskSuggestionsPanel } from '@/components/TaskSuggestionsPanel';
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
 import { format, subDays, subMonths, isAfter, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -1717,6 +1718,25 @@ export default function ProcessosDashboard() {
                         </PopoverContent>
                       </Popover>
                     </div>
+
+                    {/* Sugestões de Tarefas */}
+                    <TaskSuggestionsPanel
+                      items={filteredMovements.map(m => ({
+                        id: `${m.lawsuit_id}-${m.date}`,
+                        title: m.title,
+                        type: m.title,
+                        process_number: m.process_number,
+                        lawsuit_id: m.lawsuit_id,
+                      }))}
+                      onCreateTask={(suggestion) => {
+                        const movement = filteredMovements.find(m => 
+                          `${m.lawsuit_id}-${m.date}` === suggestion.item.id
+                        );
+                        if (movement) {
+                          openTaskDialog(movement);
+                        }
+                      }}
+                    />
 
                     <ScrollArea className="h-[400px]">
                       <div className="space-y-3">

@@ -19,6 +19,7 @@ import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
 import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
 import { TaskCreationForm } from '@/components/TaskCreationForm';
 import { PublicationPreview } from '@/components/PublicationPreview';
+import { TaskSuggestionsPanel } from '@/components/TaskSuggestionsPanel';
 
 interface Publication {
   id: string | number;
@@ -784,6 +785,24 @@ export default function PublicacoesFeed() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Sugestões de Tarefas */}
+        <TaskSuggestionsPanel
+          items={publications.map(pub => ({
+            id: pub.id,
+            title: pub.title || pub.description || '',
+            type: pub.title,
+            process_number: pub.process_number || pub.lawsuit_number,
+            lawsuit_id: pub.lawsuit_id,
+          }))}
+          onCreateTask={(suggestion) => {
+            const pub = publications.find(p => p.id === suggestion.item.id);
+            if (pub) {
+              setSelectedPublication(pub);
+              setTaskDialogOpen(true);
+            }
+          }}
+        />
 
         {/* Lista de Publicações */}
         {loadingRecent ? (
