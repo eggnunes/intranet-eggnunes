@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Layout } from '@/components/Layout';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,6 +59,7 @@ interface Profile {
 export default function Ferias() {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
+  const { canEdit, isSocioOrRafael } = useAdminPermissions();
   const [requests, setRequests] = useState<VacationRequest[]>([]);
   const [balance, setBalance] = useState<VacationBalance | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -69,15 +71,18 @@ export default function Ferias() {
   const [endDate, setEndDate] = useState<Date>();
   const [notes, setNotes] = useState('');
   const [adminSelectedUser, setAdminSelectedUser] = useState<string>('');
+  
+  // Check if user can manage vacations
+  const canManageVacations = isAdmin && (isSocioOrRafael || canEdit('vacation'));
 
   useEffect(() => {
     if (user) {
       fetchData();
-      if (isAdmin) {
+      if (canManageVacations) {
         fetchProfiles();
       }
     }
-  }, [user, isAdmin, selectedUser]);
+  }, [user, canManageVacations, selectedUser]);
 
   const fetchProfiles = async () => {
     const { data } = await supabase
@@ -418,7 +423,7 @@ export default function Ferias() {
               </DialogContent>
             </Dialog>
 
-            {isAdmin && (
+            {canManageVacations && (
               <Dialog open={isAdminCreateOpen} onOpenChange={setIsAdminCreateOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline">
@@ -527,7 +532,7 @@ export default function Ferias() {
           </div>
         </div>
 
-        {isAdmin && (
+        {canManageVacations && (
           <Card>
             <CardHeader>
               <CardTitle>Filtrar por Colaborador</CardTitle>
@@ -595,7 +600,7 @@ export default function Ferias() {
                         <CardContent className="pt-6">
                           <div className="flex items-start justify-between">
                             <div className="space-y-2 flex-1">
-                              {isAdmin && (
+                              {canManageVacations && (
                                 <div className="flex items-center gap-2">
                                   <User className="h-4 w-4 text-muted-foreground" />
                                   <span className="font-medium">{request.profiles.full_name}</span>
@@ -624,7 +629,7 @@ export default function Ferias() {
                             </div>
                             <div className="flex items-center gap-2">
                               {getStatusBadge(request.status)}
-                              {isAdmin && request.status === 'pending' && (
+                              {canManageVacations && request.status === 'pending' && (
                                 <div className="flex gap-2">
                                   <Button
                                     size="sm"

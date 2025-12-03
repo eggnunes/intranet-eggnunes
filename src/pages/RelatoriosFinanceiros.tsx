@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, Shield, Download, FileSpreadsheet, FileText, Percent, Receipt, Activity, ArrowRight } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, Shield, Download, FileSpreadsheet, FileText, Percent, Receipt, Activity, ArrowRight, Lock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, parseISO, subMonths, subQuarters, subYears } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
@@ -25,7 +26,7 @@ import { FinancialDistribution } from '@/components/FinancialDistribution';
 import { CashFlowProjection } from '@/components/CashFlowProjection';
 import { ExecutiveDashboard } from '@/components/ExecutiveDashboard';
 import { FinancialDefaulters } from '@/components/FinancialDefaulters';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 
 interface Transaction {
   id: string;
@@ -56,6 +57,37 @@ export default function RelatoriosFinanceiros() {
   const [rateLimitError, setRateLimitError] = useState(false);
   const { toast } = useToast();
   const { isAdmin, loading: roleLoading } = useUserRole();
+  const { canView, loading: permLoading, isSocioOrRafael } = useAdminPermissions();
+
+  // Check permission - only admin with financial permission or sócio/rafael can access
+  const hasFinancialAccess = isSocioOrRafael || canView('financial');
+  
+  // Show loading while checking permissions
+  if (roleLoading || permLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Redirect if no access
+  if (!isAdmin || !hasFinancialAccess) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+          <Lock className="h-16 w-16 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">Acesso Restrito</h2>
+          <p className="text-muted-foreground text-center max-w-md">
+            Você não tem permissão para acessar os relatórios financeiros.
+            Entre em contato com um administrador para solicitar acesso.
+          </p>
+        </div>
+      </Layout>
+    );
+  }
 
   // Carregar cache imediatamente antes do componente montar
   const loadFromCache = () => {

@@ -7,13 +7,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Home, Calendar, Users, ArrowRightLeft, Check, X, Clock,
-  Plus, Trash2, Bell, AlertCircle, BarChart3, FileSpreadsheet, FileText, Download
+  Plus, Trash2, Bell, AlertCircle, BarChart3, FileSpreadsheet, FileText, Download, Shuffle, Building
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -70,15 +73,128 @@ const HomeOffice = () => {
   const [swapTargetDate, setSwapTargetDate] = useState<string>('');
   const [isRequestingSwap, setIsRequestingSwap] = useState(false);
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
+  
+  // Randomizer state
+  const [randomDialogOpen, setRandomDialogOpen] = useState(false);
+  const [selectedLawyersForRandom, setSelectedLawyersForRandom] = useState<string[]>([]);
+  const [mandatoryOfficeDay, setMandatoryOfficeDay] = useState<number>(3); // Default Wednesday
+  const [isRandomizing, setIsRandomizing] = useState(false);
+  
   const { toast } = useToast();
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
+  const { canEdit } = useAdminPermissions();
 
   const month = currentMonth.getMonth() + 1;
   const year = currentMonth.getFullYear();
   const monthLabel = format(currentMonth, 'MMMM yyyy', { locale: ptBR });
 
   const isLawyer = userProfile?.position === 'advogado';
+  
+  // Check if user can manage home office
+  const canManageHomeOffice = isAdmin && (canEdit('home_office') || canEdit('users'));
+
+  // Randomize home office schedule
+  const handleRandomizeSchedule = async () => {
+    if (selectedLawyersForRandom.length === 0) {
+      toast({
+        title: 'Selecione advogados',
+        description: 'Selecione pelo menos um advogado para o sorteio.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsRandomizing(true);
+
+    try {
+      // Get available days (excluding mandatory office day)
+      const availableDays = DAYS_OF_WEEK
+        .map(d => d.value)
+        .filter(d => d !== mandatoryOfficeDay);
+
+      // Shuffle function
+      const shuffle = <T,>(array: T[]): T[] => {
+        const arr = [...array];
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+      };
+
+      // Assign random days to each selected lawyer
+      const assignments: { userId: string; days: number[] }[] = [];
+      
+      for (const lawyerId of selectedLawyersForRandom) {
+        // Shuffle available days and pick 2
+        const shuffledDays = shuffle(availableDays);
+        const assignedDays = shuffledDays.slice(0, 2);
+        assignments.push({ userId: lawyerId, days: assignedDays });
+      }
+
+      // Delete existing schedules for selected lawyers in this month
+      for (const lawyerId of selectedLawyersForRandom) {
+        await supabase
+          .from('home_office_schedules')
+          .delete()
+          .eq('user_id', lawyerId)
+          .eq('month', month)
+          .eq('year', year);
+      }
+
+      // Insert new schedules
+      const scheduleInserts = assignments.flatMap(({ userId, days }) =>
+        days.map(day => ({
+          user_id: userId,
+          day_of_week: day,
+          month,
+          year,
+          created_by: user?.id,
+        }))
+      );
+
+      const { error } = await supabase
+        .from('home_office_schedules')
+        .insert(scheduleInserts);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Sorteio realizado!',
+        description: `Escala de home office sorteada para ${selectedLawyersForRandom.length} advogado(s). Dia presencial obrigatório: ${DAYS_OF_WEEK.find(d => d.value === mandatoryOfficeDay)?.label}.`,
+      });
+
+      setRandomDialogOpen(false);
+      setSelectedLawyersForRandom([]);
+      fetchSchedules();
+    } catch (error: any) {
+      console.error('Error randomizing schedule:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Não foi possível realizar o sorteio.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRandomizing(false);
+    }
+  };
+
+  const toggleLawyerSelection = (lawyerId: string) => {
+    setSelectedLawyersForRandom(prev =>
+      prev.includes(lawyerId)
+        ? prev.filter(id => id !== lawyerId)
+        : [...prev, lawyerId]
+    );
+  };
+
+  const selectAllLawyers = () => {
+    setSelectedLawyersForRandom(lawyers.map(l => l.id));
+  };
+
+  const deselectAllLawyers = () => {
+    setSelectedLawyersForRandom([]);
+  };
 
   useEffect(() => {
     fetchLawyers();
@@ -593,7 +709,7 @@ const HomeOffice = () => {
         </div>
 
         <Tabs defaultValue="board" className="w-full">
-          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : isLawyer ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <TabsList className={`grid w-full ${canManageHomeOffice ? 'grid-cols-4' : isLawyer ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <TabsTrigger value="board">Mural da Semana</TabsTrigger>
             {isLawyer && (
               <TabsTrigger value="swap" className="flex items-center gap-2">
@@ -606,7 +722,7 @@ const HomeOffice = () => {
                 )}
               </TabsTrigger>
             )}
-            {isAdmin && (
+            {canManageHomeOffice && (
               <>
                 <TabsTrigger value="manage">Gerenciar Escala</TabsTrigger>
                 <TabsTrigger value="stats">
@@ -889,9 +1005,151 @@ const HomeOffice = () => {
           )}
 
           {/* Manage Tab (Admin Only) */}
-          {isAdmin && (
+          {canManageHomeOffice && (
             <>
             <TabsContent value="manage" className="space-y-6">
+              {/* Randomizer Card */}
+              <Card className="border-primary/50 bg-primary/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shuffle className="h-5 w-5 text-primary" />
+                    Sorteio Automático de Home Office
+                  </CardTitle>
+                  <CardDescription>
+                    Sorteie automaticamente os dias de home office para os advogados selecionados, garantindo um dia presencial obrigatório para todos.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Dialog open={randomDialogOpen} onOpenChange={setRandomDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="gap-2">
+                        <Shuffle className="h-4 w-4" />
+                        Sortear Escala
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                          <Shuffle className="h-5 w-5" />
+                          Sortear Home Office - {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
+                        </DialogTitle>
+                        <DialogDescription>
+                          Selecione os advogados e o dia presencial obrigatório. O sistema sorteará 2 dias de home office para cada advogado, excluindo o dia presencial.
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      <div className="space-y-6 py-4">
+                        {/* Mandatory Office Day Selection */}
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <Building className="h-4 w-4" />
+                            Dia Presencial Obrigatório
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Neste dia, todos os advogados deverão estar no escritório.
+                          </p>
+                          <Select 
+                            value={mandatoryOfficeDay.toString()} 
+                            onValueChange={(v) => setMandatoryOfficeDay(parseInt(v))}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DAYS_OF_WEEK.map(day => (
+                                <SelectItem key={day.value} value={day.value.toString()}>
+                                  {day.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Lawyer Selection */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="flex items-center gap-2">
+                              <Users className="h-4 w-4" />
+                              Advogados para o Sorteio
+                            </Label>
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm" onClick={selectAllLawyers}>
+                                Selecionar Todos
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={deselectAllLawyers}>
+                                Limpar
+                              </Button>
+                            </div>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Selecione os advogados que participarão do sorteio. A escala existente será substituída.
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[300px] overflow-y-auto p-2 border rounded-lg">
+                            {lawyers.map(lawyer => (
+                              <div
+                                key={lawyer.id}
+                                className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${
+                                  selectedLawyersForRandom.includes(lawyer.id)
+                                    ? 'bg-primary/10 border border-primary'
+                                    : 'bg-muted/30 border border-transparent hover:bg-muted/50'
+                                }`}
+                                onClick={() => toggleLawyerSelection(lawyer.id)}
+                              >
+                                <Checkbox
+                                  checked={selectedLawyersForRandom.includes(lawyer.id)}
+                                  onCheckedChange={() => toggleLawyerSelection(lawyer.id)}
+                                />
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage src={lawyer.avatar_url || ''} />
+                                  <AvatarFallback>{lawyer.full_name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <span className="text-sm font-medium truncate">{lawyer.full_name}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-sm text-muted-foreground text-center">
+                            {selectedLawyersForRandom.length} de {lawyers.length} advogado(s) selecionado(s)
+                          </p>
+                        </div>
+
+                        {/* Preview */}
+                        {selectedLawyersForRandom.length > 0 && (
+                          <div className="p-4 rounded-lg bg-muted/30 border">
+                            <h4 className="font-medium mb-2">Resumo do Sorteio</h4>
+                            <ul className="text-sm text-muted-foreground space-y-1">
+                              <li>• <strong>{selectedLawyersForRandom.length}</strong> advogado(s) terão suas escalas sorteadas</li>
+                              <li>• Cada um receberá <strong>2 dias</strong> de home office aleatórios</li>
+                              <li>• <strong>{DAYS_OF_WEEK.find(d => d.value === mandatoryOfficeDay)?.label}</strong> será o dia presencial obrigatório</li>
+                              <li>• Dias disponíveis para sorteio: {DAYS_OF_WEEK.filter(d => d.value !== mandatoryOfficeDay).map(d => d.short).join(', ')}</li>
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setRandomDialogOpen(false)}>
+                          Cancelar
+                        </Button>
+                        <Button 
+                          onClick={handleRandomizeSchedule} 
+                          disabled={isRandomizing || selectedLawyersForRandom.length === 0}
+                          className="gap-2"
+                        >
+                          {isRandomizing ? (
+                            <>Sorteando...</>
+                          ) : (
+                            <>
+                              <Shuffle className="h-4 w-4" />
+                              Sortear Agora
+                            </>
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
