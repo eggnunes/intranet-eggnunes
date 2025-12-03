@@ -241,21 +241,24 @@ export default function Admin() {
   };
 
   const handleApprove = async (userId: string) => {
-    // Remove imediatamente da lista local para feedback instantâneo
-    setPendingUsers(prev => prev.filter(u => u.id !== userId));
+    const { data: userData } = await supabase.auth.getUser();
     
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .update({
         approval_status: 'approved',
         approved_at: new Date().toISOString(),
+        approved_by: userData?.user?.id,
       })
-      .eq('id', userId);
+      .eq('id', userId)
+      .select()
+      .single();
 
-    if (error) {
+    if (error || !data) {
+      console.error('Erro ao aprovar:', error);
       toast({
         title: 'Erro',
-        description: 'Erro ao aprovar usuário',
+        description: error?.message || 'Erro ao aprovar usuário. Verifique suas permissões.',
         variant: 'destructive',
       });
       // Recarregar em caso de erro
@@ -265,7 +268,8 @@ export default function Admin() {
         title: 'Usuário aprovado',
         description: 'O usuário já pode acessar o sistema',
       });
-      // Atualizar lista de aprovados também
+      // Remover da lista de pendentes e atualizar aprovados
+      setPendingUsers(prev => prev.filter(u => u.id !== userId));
       fetchApprovedUsers();
     }
   };
