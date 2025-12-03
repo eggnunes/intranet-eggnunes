@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { 
   Coffee, Plus, ShoppingCart, Check, RefreshCw, Sparkles, Users, 
   FileSpreadsheet, FileText, Trophy, CheckCircle2, XCircle, Clock,
-  Apple, GlassWater, Cookie, Sandwich, Edit2, Trash2
+  Apple, GlassWater, Cookie, Sandwich, Edit2, Trash2, Wand2
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -84,6 +84,7 @@ const CopaCozinha = () => {
   const [editingFood, setEditingFood] = useState<FoodItem | null>(null);
   const [editName, setEditName] = useState('');
   const [editCategory, setEditCategory] = useState('');
+  const [isSuggestingCategory, setIsSuggestingCategory] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
@@ -91,6 +92,47 @@ const CopaCozinha = () => {
   const currentWeekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
   const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
   const weekLabel = `${format(startOfWeek(new Date(), { weekStartsOn: 1 }), "dd/MM", { locale: ptBR })} - ${format(weekEnd, "dd/MM", { locale: ptBR })}`;
+
+  // AI category suggestion with debounce
+  const suggestCategory = useCallback(async (foodName: string) => {
+    if (foodName.trim().length < 3) return;
+    
+    setIsSuggestingCategory(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('suggest-food-category', {
+        body: { foodName: foodName.trim() }
+      });
+
+      if (error) throw error;
+      
+      if (data?.category) {
+        const categoryMap: Record<string, string> = {
+          'Bebidas': 'bebidas',
+          'Snacks': 'snacks',
+          'Frutas': 'frutas',
+          'Lanches': 'lanches',
+          'Outros': 'outros',
+        };
+        const normalizedCategory = categoryMap[data.category] || 'outros';
+        setNewFoodCategory(normalizedCategory);
+      }
+    } catch (error) {
+      console.error('Error suggesting category:', error);
+    } finally {
+      setIsSuggestingCategory(false);
+    }
+  }, []);
+
+  // Debounced food name change handler
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (newFoodName.trim().length >= 3) {
+        suggestCategory(newFoodName);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [newFoodName, suggestCategory]);
 
   useEffect(() => {
     fetchFoodItems();
@@ -607,21 +649,35 @@ const CopaCozinha = () => {
                         )}
                       </Button>
                     </div>
-                    <Select value={newFoodCategory} onValueChange={setNewFoodCategory}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Categoria" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CATEGORIES.map(cat => (
-                          <SelectItem key={cat.value} value={cat.value}>
-                            <div className="flex items-center gap-2">
-                              <cat.icon className="h-4 w-4" />
-                              {cat.label}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-2 items-center">
+                      <Select value={newFoodCategory} onValueChange={setNewFoodCategory}>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Categoria" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CATEGORIES.map(cat => (
+                            <SelectItem key={cat.value} value={cat.value}>
+                              <div className="flex items-center gap-2">
+                                <cat.icon className="h-4 w-4" />
+                                {cat.label}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {isSuggestingCategory && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Wand2 className="h-3 w-3 animate-pulse" />
+                          <span>IA sugerindo...</span>
+                        </div>
+                      )}
+                    </div>
+                    {newFoodName.trim().length >= 3 && !isSuggestingCategory && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Wand2 className="h-3 w-3" />
+                        Categoria sugerida pela IA (você pode alterar)
+                      </p>
+                    )}
                   </div>
 
                   {/* Filtros */}
