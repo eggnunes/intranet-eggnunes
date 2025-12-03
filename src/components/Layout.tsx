@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
-import { LogOut, Home as HomeIcon, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, MoreHorizontal, Coffee, Home, UserPlus } from 'lucide-react';
+import { LogOut, Home as HomeIcon, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, MoreHorizontal, Coffee, Home, UserPlus, DoorOpen } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
@@ -227,6 +227,7 @@ export const Layout = ({ children }: LayoutProps) => {
   ];
 
   const maisMenuItems = [
+    { icon: DoorOpen, path: '/sala-reuniao', label: 'Sala de Reunião', description: 'Reservar sala' },
     { icon: MessageSquare, path: '/forum', label: 'Fórum', description: 'Discussões da equipe' },
     { icon: FileStack, path: '/documentos-uteis', label: 'Documentos', description: 'Documentos úteis' },
     { icon: Lightbulb, path: '/sugestoes', label: 'Sugestões', description: 'Envie suas ideias' },
