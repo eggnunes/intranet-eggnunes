@@ -9,11 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Bell, Search, Calendar as CalendarIcon, Filter, FileDown, FileText, ListTodo, Eye, EyeOff, CheckCircle2, Sparkles, RefreshCw, Clock, MapPin, Users, X } from 'lucide-react';
+import { Bell, Search, Filter, FileDown, FileText, ListTodo, Eye, EyeOff, RefreshCw, CheckCircle2, Calendar as CalendarIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, subDays, startOfDay, startOfMonth, isAfter, parseISO } from 'date-fns';
@@ -21,7 +17,8 @@ import { ptBR } from 'date-fns/locale';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
 import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
-import { cn } from '@/lib/utils';
+import { TaskCreationForm } from '@/components/TaskCreationForm';
+import { PublicationPreview } from '@/components/PublicationPreview';
 
 interface Publication {
   id: string | number;
@@ -70,28 +67,10 @@ export default function PublicacoesFeed() {
   const [isSuggestingTask, setIsSuggestingTask] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<any>(null);
   const [taskTypes, setTaskTypes] = useState<{ id: string | number; name: string }[]>([]);
-  const [selectedTaskType, setSelectedTaskType] = useState<string>('');
   const [loadingTaskTypes, setLoadingTaskTypes] = useState(false);
   const [advboxUsers, setAdvboxUsers] = useState<{ id: number; name: string }[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  
-  // Task form fields
-  const [taskTitle, setTaskTitle] = useState('');
-  const [taskDescription, setTaskDescription] = useState('');
-  const [taskProcessNumber, setTaskProcessNumber] = useState('');
-  const [taskResponsible, setTaskResponsible] = useState('');
-  const [taskNotes, setTaskNotes] = useState('');
   const [isCreatingTask, setIsCreatingTask] = useState(false);
-  const [selectedGuests, setSelectedGuests] = useState<number[]>([]);
-  const [startDate, setStartDate] = useState<Date | undefined>(new Date());
-  const [startTime, setStartTime] = useState('09:00');
-  const [endDate, setEndDate] = useState<Date | undefined>();
-  const [endTime, setEndTime] = useState('');
-  const [deadlineDate, setDeadlineDate] = useState<Date | undefined>();
-  const [taskLocal, setTaskLocal] = useState('');
-  const [isUrgent, setIsUrgent] = useState(false);
-  const [isImportant, setIsImportant] = useState(false);
-  const [displaySchedule, setDisplaySchedule] = useState(true);
   
   const { toast } = useToast();
 
@@ -242,22 +221,6 @@ export default function PublicacoesFeed() {
   const openTaskDialog = async (publication: Publication) => {
     setSelectedPublication(publication);
     setAiSuggestion(null);
-    setSelectedTaskType('');
-    setTaskTitle(`Intimação: ${publication.title || 'Publicação'}`);
-    setTaskDescription(publication.header || publication.description || '');
-    setTaskProcessNumber(publication.process_number || publication.lawsuit_number || '');
-    setTaskNotes('');
-    setTaskResponsible('');
-    setSelectedGuests([]);
-    setStartDate(new Date());
-    setStartTime('09:00');
-    setEndDate(undefined);
-    setEndTime('');
-    setDeadlineDate(undefined);
-    setTaskLocal('');
-    setIsUrgent(false);
-    setIsImportant(false);
-    setDisplaySchedule(true);
     setTaskDialogOpen(true);
     
     // Buscar tipos de tarefa ao abrir o diálogo
@@ -269,30 +232,6 @@ export default function PublicacoesFeed() {
     if (advboxUsers.length === 0) {
       fetchAdvboxUsers();
     }
-    
-    // Buscar responsável do processo
-    if (publication.lawsuit_id) {
-      try {
-        const { data: lawsuitData } = await supabase.functions.invoke('advbox-integration/lawsuit-by-id', {
-          body: { lawsuit_id: publication.lawsuit_id },
-        });
-        const responsibleId = lawsuitData?.data?.responsible_id || lawsuitData?.responsible_id;
-        if (responsibleId) {
-          setTaskResponsible(String(responsibleId));
-          setSelectedGuests([parseInt(String(responsibleId), 10)]);
-        }
-      } catch (err) {
-        console.warn('Could not fetch lawsuit responsible');
-      }
-    }
-  };
-  
-  const toggleGuest = (userId: number) => {
-    setSelectedGuests(prev => 
-      prev.includes(userId) 
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
-    );
   };
   
   const fetchAdvboxUsers = async () => {
@@ -332,189 +271,6 @@ export default function PublicacoesFeed() {
       console.error('Erro ao buscar tipos de tarefa:', err);
     } finally {
       setLoadingTaskTypes(false);
-    }
-  };
-
-  const suggestTaskWithAI = async () => {
-    if (!selectedPublication) return;
-    
-    setIsSuggestingTask(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('suggest-task', {
-        body: {
-          publicationContent: selectedPublication.title || selectedPublication.header || selectedPublication.description || '',
-          processNumber: selectedPublication.process_number || selectedPublication.lawsuit_number,
-          customerName: selectedPublication.customers,
-          court: extractCourtCode(selectedPublication.header),
-          taskTypes: taskTypes.map(t => ({ id: t.id, name: t.name })),
-        },
-      });
-
-      if (error) throw error;
-      if (data && !data.error) {
-        setAiSuggestion(data);
-        toast({ title: 'Sugestão gerada', description: 'Clique em "Aplicar Sugestão" para preencher os campos automaticamente.' });
-      }
-    } catch (error) {
-      toast({ title: 'Erro', description: 'Não foi possível gerar sugestão.', variant: 'destructive' });
-    } finally {
-      setIsSuggestingTask(false);
-    }
-  };
-  
-  const applyAISuggestion = () => {
-    if (!aiSuggestion) return;
-    
-    // Aplicar sugestão aos campos do formulário
-    if (aiSuggestion.taskTitle) {
-      setTaskTitle(aiSuggestion.taskTitle);
-    }
-    if (aiSuggestion.taskDescription) {
-      setTaskDescription(aiSuggestion.taskDescription);
-    }
-    if (aiSuggestion.suggestedTaskTypeId) {
-      setSelectedTaskType(String(aiSuggestion.suggestedTaskTypeId));
-    } else if (aiSuggestion.suggestedTaskType && taskTypes.length > 0) {
-      const matchingType = taskTypes.find(t => 
-        t.name.toLowerCase().includes(aiSuggestion.suggestedTaskType.toLowerCase()) ||
-        aiSuggestion.suggestedTaskType.toLowerCase().includes(t.name.toLowerCase())
-      );
-      if (matchingType) {
-        setSelectedTaskType(String(matchingType.id));
-      }
-    }
-    if (aiSuggestion.suggestedDeadline) {
-      try {
-        setDeadlineDate(parseISO(aiSuggestion.suggestedDeadline));
-      } catch (e) {
-        console.warn('Could not parse deadline date');
-      }
-    }
-    if (aiSuggestion.reasoning) {
-      setTaskNotes(aiSuggestion.reasoning);
-    }
-    
-    toast({ title: 'Sugestão aplicada', description: 'Os campos foram preenchidos com a sugestão da IA.' });
-  };
-
-  const createTaskFromPublication = async () => {
-    if (!selectedPublication) return;
-
-    // Validar campos obrigatórios
-    if (!taskTitle.trim()) {
-      toast({
-        title: 'Título obrigatório',
-        description: 'Informe o título da tarefa.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (!selectedTaskType) {
-      toast({
-        title: 'Categoria obrigatória',
-        description: 'Selecione uma categoria antes de criar.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsCreatingTask(true);
-    
-    try {
-      let lawsuitId = selectedPublication.lawsuit_id;
-
-      // Se não temos lawsuit_id, buscar por process_number
-      if (!lawsuitId) {
-        const { data: lawsuitsData, error: lawsuitsError } = await supabase.functions.invoke('advbox-integration/lawsuits');
-        
-        if (lawsuitsError) throw lawsuitsError;
-
-        const apiResponse = lawsuitsData?.data || lawsuitsData;
-        const lawsuits = apiResponse?.data || [];
-        const processNumber = (taskProcessNumber || '').replace(/\D/g, '');
-        
-        const lawsuit = lawsuits.find((l: any) => {
-          const lpn = (l.process_number || '').replace(/\D/g, '');
-          return lpn === processNumber;
-        });
-        
-        if (lawsuit) {
-          lawsuitId = lawsuit.id;
-        }
-      }
-
-      if (!lawsuitId) {
-        toast({
-          title: 'Processo não encontrado',
-          description: 'Não foi possível localizar o processo para criar a tarefa.',
-          variant: 'destructive',
-        });
-        setIsCreatingTask(false);
-        return;
-      }
-
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        toast({
-          title: 'Usuário não autenticado',
-          description: 'Você precisa estar autenticado para criar tarefas.',
-          variant: 'destructive',
-        });
-        setIsCreatingTask(false);
-        return;
-      }
-
-      // Garantir formato correto para API Advbox
-      const parsedLawsuitId = parseInt(String(lawsuitId), 10);
-      const parsedResponsibleId = taskResponsible ? parseInt(String(taskResponsible), 10) : 1;
-      const parsedTaskTypeId = parseInt(String(selectedTaskType), 10);
-      const parsedGuests = selectedGuests.length > 0 
-        ? selectedGuests.map(g => parseInt(String(g), 10))
-        : [parsedResponsibleId];
-      
-      const taskData: Record<string, any> = {
-        lawsuits_id: parsedLawsuitId,
-        start_date: startDate ? format(startDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
-        comments: `${taskTitle}\n\n${taskDescription}${taskNotes ? '\n\nObservações: ' + taskNotes : ''}`,
-        from: parsedResponsibleId,
-        tasks_id: parsedTaskTypeId,
-        guests: parsedGuests,
-      };
-      
-      // Optional fields
-      if (startTime) taskData.start_time = startTime;
-      if (endDate) taskData.end_date = format(endDate, 'yyyy-MM-dd');
-      if (endTime) taskData.end_time = endTime;
-      if (deadlineDate) taskData.date_deadline = format(deadlineDate, 'yyyy-MM-dd');
-      if (taskLocal) taskData.local = taskLocal;
-      if (isUrgent) taskData.urgent = 1;
-      if (isImportant) taskData.important = 1;
-      taskData.display_schedule = displaySchedule ? 1 : 0;
-
-      const { error } = await supabase.functions.invoke('advbox-integration/create-task', {
-        body: taskData,
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: 'Tarefa criada',
-        description: 'Tarefa criada com sucesso a partir da publicação.',
-      });
-
-      setTaskDialogOpen(false);
-      setSelectedPublication(null);
-    } catch (error) {
-      console.error('Error creating task:', error);
-      toast({
-        title: 'Erro ao criar tarefa',
-        description: error instanceof Error ? error.message : 'Não foi possível criar a tarefa.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsCreatingTask(false);
     }
   };
 
@@ -1049,8 +805,8 @@ export default function PublicacoesFeed() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
+                <CardTitle className="flex items-center gap-2">
+                    <CalendarIcon className="h-5 w-5" />
                     {lawsuitNumber ? 'Publicações do Processo' : 'Publicações Recentes'}
                   </CardTitle>
                   <CardDescription>
@@ -1091,7 +847,7 @@ export default function PublicacoesFeed() {
                               <div>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <Badge variant="outline" className="text-xs text-blue-700 bg-blue-50 dark:bg-blue-900/20">
-                                    <Calendar className="h-3 w-3 mr-1" />
+                                    <CalendarIcon className="h-3 w-3 mr-1" />
                                     Publicado: {format(new Date(publication.date), "dd/MM/yyyy", { locale: ptBR })}
                                   </Badge>
                                   {publication.event_date && (
@@ -1164,7 +920,7 @@ export default function PublicacoesFeed() {
 
         {/* Dialog de Criação de Tarefa */}
         <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Criar Nova Tarefa</DialogTitle>
               <DialogDescription>
@@ -1172,364 +928,80 @@ export default function PublicacoesFeed() {
               </DialogDescription>
             </DialogHeader>
             {selectedPublication && (
-              <div className="space-y-4">
-                {/* AI Suggestion Button */}
-                <Button 
-                  onClick={suggestTaskWithAI} 
-                  variant="outline" 
-                  className="w-full bg-gradient-to-r from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20 border-purple-500/30"
-                  disabled={isSuggestingTask}
-                >
-                  {isSuggestingTask ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Analisando com IA...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4 mr-2 text-purple-500" />
-                      Sugerir Tarefa com IA
-                    </>
-                  )}
-                </Button>
-                
-                {aiSuggestion && (
-                  <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-md text-sm border border-purple-200 dark:border-purple-800 space-y-2">
-                    <p className="font-medium text-purple-700 dark:text-purple-300 flex items-center gap-2">
-                      <Sparkles className="h-4 w-4" />
-                      Sugestão da IA:
-                    </p>
-                    {aiSuggestion.taskTitle && <p><strong>Título:</strong> {aiSuggestion.taskTitle}</p>}
-                    {aiSuggestion.suggestedTaskType && <p><strong>Tipo:</strong> {aiSuggestion.suggestedTaskType}</p>}
-                    {aiSuggestion.suggestedDeadline && <p><strong>Prazo:</strong> {format(parseISO(aiSuggestion.suggestedDeadline), 'dd/MM/yyyy')}</p>}
-                    {aiSuggestion.reasoning && <p className="text-muted-foreground text-xs">{aiSuggestion.reasoning}</p>}
-                    <Button 
-                      onClick={applyAISuggestion} 
-                      size="sm" 
-                      className="w-full mt-2 bg-purple-600 hover:bg-purple-700"
-                    >
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Aplicar Sugestão
-                    </Button>
-                  </div>
-                )}
-
-                {/* Título */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Título *</Label>
-                  <Input
-                    value={taskTitle}
-                    onChange={(e) => setTaskTitle(e.target.value)}
-                    placeholder="Título da tarefa"
-                  />
-                </div>
-
-                {/* Descrição */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Descrição</Label>
-                  <Textarea
-                    value={taskDescription}
-                    onChange={(e) => setTaskDescription(e.target.value)}
-                    placeholder="Descrição da tarefa"
-                    rows={3}
-                  />
-                </div>
-
-                {/* Número do Processo */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Número do Processo</Label>
-                  <Input
-                    value={taskProcessNumber}
-                    onChange={(e) => setTaskProcessNumber(e.target.value)}
-                    placeholder="Ex: 1234567-89.2023.8.26.0100"
-                    disabled
-                  />
-                </div>
-
-                {/* Categoria */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Categoria *</Label>
-                  {loadingTaskTypes ? (
-                    <p className="text-sm text-muted-foreground">Carregando categorias...</p>
-                  ) : taskTypes.length > 0 ? (
-                    <Select value={selectedTaskType} onValueChange={setSelectedTaskType}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione a categoria" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {taskTypes.map((type) => (
-                          <SelectItem key={type.id} value={String(type.id)}>
-                            {type.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Nenhuma categoria disponível</p>
-                  )}
-                </div>
-
-                {/* Responsável */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Responsável (Criador)</Label>
-                  {loadingUsers ? (
-                    <p className="text-sm text-muted-foreground">Carregando responsáveis...</p>
-                  ) : advboxUsers.length > 0 ? (
-                    <Select value={taskResponsible} onValueChange={setTaskResponsible}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o responsável" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {advboxUsers.map((user) => (
-                          <SelectItem key={user.id} value={String(user.id)}>
-                            {user.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      value={taskResponsible}
-                      onChange={(e) => setTaskResponsible(e.target.value)}
-                      placeholder="ID do responsável"
-                    />
-                  )}
-                </div>
-
-                {/* Participantes */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Participantes
-                  </Label>
-                  {advboxUsers.length > 0 ? (
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        {selectedGuests.map(guestId => {
-                          const user = advboxUsers.find(u => u.id === guestId);
-                          return (
-                            <Badge key={guestId} variant="secondary" className="gap-1">
-                              {user?.name || `ID: ${guestId}`}
-                              <X 
-                                className="h-3 w-3 cursor-pointer" 
-                                onClick={() => toggleGuest(guestId)}
-                              />
-                            </Badge>
-                          );
-                        })}
-                      </div>
-                      <ScrollArea className="h-24 border rounded-md p-2">
-                        <div className="space-y-2">
-                          {advboxUsers.map((user) => (
-                            <div key={user.id} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`guest-pub-${user.id}`}
-                                checked={selectedGuests.includes(user.id)}
-                                onCheckedChange={() => toggleGuest(user.id)}
-                              />
-                              <label htmlFor={`guest-pub-${user.id}`} className="text-sm cursor-pointer">
-                                {user.name}
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Os participantes serão definidos automaticamente.
-                    </p>
-                  )}
-                </div>
-
-                {/* Data e Hora de Início */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium flex items-center gap-2">
-                      <CalendarIcon className="h-4 w-4" />
-                      Data *
-                    </Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !startDate && "text-muted-foreground"
-                          )}
-                        >
-                          {startDate ? format(startDate, "dd/MM/yyyy") : "Selecionar"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={startDate}
-                          onSelect={setStartDate}
-                          locale={ptBR}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      Hora
-                    </Label>
-                    <Input
-                      type="time"
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                {/* Data e Hora de Término */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Data Término</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !endDate && "text-muted-foreground"
-                          )}
-                        >
-                          {endDate ? format(endDate, "dd/MM/yyyy") : "Opcional"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={endDate}
-                          onSelect={setEndDate}
-                          locale={ptBR}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Hora Término</Label>
-                    <Input
-                      type="time"
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                      placeholder="HH:MM"
-                    />
-                  </div>
-                </div>
-
-                {/* Prazo Fatal */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-destructive flex items-center gap-2">
-                    <CalendarIcon className="h-4 w-4" />
-                    Prazo Fatal
-                  </Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !deadlineDate && "text-muted-foreground"
-                        )}
-                      >
-                        {deadlineDate ? format(deadlineDate, "dd/MM/yyyy") : "Selecionar prazo fatal"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={deadlineDate}
-                        onSelect={setDeadlineDate}
-                        locale={ptBR}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                {/* Local */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    Local do Evento
-                  </Label>
-                  <Input
-                    value={taskLocal}
-                    onChange={(e) => setTaskLocal(e.target.value)}
-                    placeholder="Ex: Sala de reuniões, Fórum, etc."
-                  />
-                </div>
-
-                {/* Observações */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Observações</Label>
-                  <Textarea
-                    value={taskNotes}
-                    onChange={(e) => setTaskNotes(e.target.value)}
-                    placeholder="Observações adicionais"
-                    rows={2}
-                  />
-                </div>
-
-                {/* Flags: Urgente, Importante, Mostrar na Agenda */}
-                <div className="space-y-3 pt-2 border-t">
-                  <Label className="text-sm font-medium">Opções</Label>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="urgent-pub"
-                        checked={isUrgent}
-                        onCheckedChange={(checked) => setIsUrgent(checked as boolean)}
-                      />
-                      <label htmlFor="urgent-pub" className="text-sm cursor-pointer font-medium text-orange-600">
-                        Urgente
-                      </label>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="important-pub"
-                        checked={isImportant}
-                        onCheckedChange={(checked) => setIsImportant(checked as boolean)}
-                      />
-                      <label htmlFor="important-pub" className="text-sm cursor-pointer font-medium text-blue-600">
-                        Importante
-                      </label>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="display_schedule-pub"
-                        checked={displaySchedule}
-                        onCheckedChange={(checked) => setDisplaySchedule(checked as boolean)}
-                      />
-                      <label htmlFor="display_schedule-pub" className="text-sm cursor-pointer">
-                        Mostrar na Agenda
-                      </label>
-                    </div>
-                  </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Preview da Publicação */}
+                <div className="order-2 lg:order-1">
+                  <PublicationPreview publication={selectedPublication} />
                 </div>
                 
-                <Button 
-                  onClick={createTaskFromPublication} 
-                  className="w-full" 
-                  disabled={!taskTitle || !selectedTaskType || isCreatingTask}
-                >
-                  {isCreatingTask ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Criando...
-                    </>
-                  ) : (
-                    'Criar Tarefa'
-                  )}
-                </Button>
+                {/* Formulário */}
+                <div className="order-1 lg:order-2">
+                  <ScrollArea className="max-h-[60vh] pr-4">
+                    <TaskCreationForm
+                      initialData={{
+                        lawsuitId: selectedPublication.lawsuit_id || 0,
+                        processNumber: selectedPublication.process_number || selectedPublication.lawsuit_number || '',
+                        title: `Intimação: ${selectedPublication.title || 'Publicação'}`,
+                        description: selectedPublication.header || selectedPublication.description || '',
+                        customerName: selectedPublication.customers,
+                      }}
+                      taskTypes={taskTypes}
+                      advboxUsers={advboxUsers}
+                      loadingTaskTypes={loadingTaskTypes}
+                      loadingUsers={loadingUsers}
+                      onFetchTaskTypes={fetchTaskTypes}
+                      onFetchUsers={fetchAdvboxUsers}
+                      onSubmit={async (taskData) => {
+                        setIsCreatingTask(true);
+                        try {
+                          // Se não temos lawsuit_id, buscar por process_number
+                          if (!taskData.lawsuits_id) {
+                            const { data: lawsuitsData } = await supabase.functions.invoke('advbox-integration/lawsuits');
+                            const apiResponse = lawsuitsData?.data || lawsuitsData;
+                            const lawsuits = apiResponse?.data || [];
+                            const processNumber = (selectedPublication.process_number || '').replace(/\D/g, '');
+                            
+                            const lawsuit = lawsuits.find((l: any) => {
+                              const lpn = (l.process_number || '').replace(/\D/g, '');
+                              return lpn === processNumber;
+                            });
+                            
+                            if (lawsuit) {
+                              taskData.lawsuits_id = lawsuit.id;
+                            } else {
+                              throw new Error('Processo não encontrado');
+                            }
+                          }
+
+                          const { error } = await supabase.functions.invoke('advbox-integration/create-task', {
+                            body: taskData,
+                          });
+
+                          if (error) throw error;
+
+                          toast({
+                            title: 'Tarefa criada',
+                            description: 'Tarefa criada com sucesso a partir da publicação.',
+                          });
+
+                          setTaskDialogOpen(false);
+                          setSelectedPublication(null);
+                        } catch (error) {
+                          console.error('Error creating task:', error);
+                          toast({
+                            title: 'Erro ao criar tarefa',
+                            description: error instanceof Error ? error.message : 'Não foi possível criar a tarefa.',
+                            variant: 'destructive',
+                          });
+                        } finally {
+                          setIsCreatingTask(false);
+                        }
+                      }}
+                      onCancel={() => setTaskDialogOpen(false)}
+                      isSubmitting={isCreatingTask}
+                    />
+                  </ScrollArea>
+                </div>
               </div>
             )}
           </DialogContent>
