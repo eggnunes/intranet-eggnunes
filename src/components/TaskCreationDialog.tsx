@@ -25,6 +25,10 @@ interface Movement {
   process_number: string;
   protocol_number: string | null;
   customers: string | { name: string; customer_id?: number; identification?: string; origin?: string } | { name: string; customer_id?: number; identification?: string; origin?: string }[];
+  // Pre-fill fields from suggestion rules
+  prefillTaskTypeId?: number;
+  prefillResponsibleId?: string | null;
+  prefillDeadline?: string;
 }
 
 interface Lawsuit {
@@ -170,6 +174,10 @@ export function TaskCreationDialog({
       title: selectedMovement.title || '',
       description: selectedMovement.header || selectedMovement.title || '',
       customerName: getCustomerName(selectedMovement.customers),
+      // Pre-fill from suggestion rules
+      prefillTaskTypeId: selectedMovement.prefillTaskTypeId,
+      prefillResponsibleId: selectedMovement.prefillResponsibleId,
+      prefillDeadline: selectedMovement.prefillDeadline,
     };
   };
 

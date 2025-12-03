@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { Lightbulb, Plus, X, Search, Loader2 } from "lucide-react";
+import { TaskCreationDialog } from "@/components/TaskCreationDialog";
 
 interface TaskRule {
   id: string;
@@ -25,26 +26,33 @@ interface Item {
   type?: string;
   process_number?: string;
   lawsuit_id?: number;
+  customer_name?: string;
+  customer_names?: string[];
 }
 
 interface Suggestion {
   rule: TaskRule;
   item: Item;
   suggestedTitle: string;
+  suggestedDescription: string | null;
 }
 
 interface TaskSuggestionsPanelProps {
   items: Item[];
-  onCreateTask: (suggestion: Suggestion) => void;
+  lawsuits?: any[];
   className?: string;
 }
 
-export function TaskSuggestionsPanel({ items, onCreateTask, className }: TaskSuggestionsPanelProps) {
+export function TaskSuggestionsPanel({ items, lawsuits = [], className }: TaskSuggestionsPanelProps) {
   const [rules, setRules] = useState<TaskRule[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
+  
+  // Task creation dialog state
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<Suggestion | null>(null);
 
   useEffect(() => {
     fetchRules();
@@ -83,14 +91,24 @@ export function TaskSuggestionsPanel({ items, onCreateTask, className }: TaskSug
         if (matches) {
           const suggestionKey = `${rule.id}-${item.id}`;
           if (!dismissedSuggestions.has(suggestionKey)) {
+            const customerName = item.customer_name || item.customer_names?.[0] || 'Cliente';
             const suggestedTitle = rule.task_title_template
               .replace('{processo}', item.process_number || 'N/A')
-              .replace('{titulo}', item.title || '');
+              .replace('{titulo}', item.title || '')
+              .replace('{cliente}', customerName);
+            
+            const suggestedDescription = rule.task_description_template
+              ? rule.task_description_template
+                  .replace('{processo}', item.process_number || 'N/A')
+                  .replace('{titulo}', item.title || '')
+                  .replace('{cliente}', customerName)
+              : null;
             
             newSuggestions.push({
               rule,
               item,
               suggestedTitle,
+              suggestedDescription,
             });
           }
         }
@@ -115,12 +133,50 @@ export function TaskSuggestionsPanel({ items, onCreateTask, className }: TaskSug
   };
 
   const handleCreateTask = (suggestion: Suggestion) => {
-    onCreateTask(suggestion);
-    dismissSuggestion(suggestion);
+    setSelectedSuggestion(suggestion);
+    setDialogOpen(true);
+  };
+
+  const handleDialogClose = () => {
+    setDialogOpen(false);
+    setSelectedSuggestion(null);
+  };
+
+  const handleTaskCreated = () => {
+    if (selectedSuggestion) {
+      dismissSuggestion(selectedSuggestion);
+    }
+    handleDialogClose();
+  };
+
+  // Build selected movement for TaskCreationDialog with pre-filled data
+  const getSelectedMovement = () => {
+    if (!selectedSuggestion) return null;
+    
+    const item = selectedSuggestion.item;
+    const rule = selectedSuggestion.rule;
+    
+    // Calculate deadline based on rule
+    const deadlineDate = new Date();
+    deadlineDate.setDate(deadlineDate.getDate() + (rule.days_to_deadline || 7));
+    
+    return {
+      title: selectedSuggestion.suggestedTitle,
+      header: selectedSuggestion.suggestedDescription || item.title || '',
+      date: new Date().toISOString().split('T')[0],
+      lawsuit_id: item.lawsuit_id || 0,
+      process_number: item.process_number || '',
+      protocol_number: null,
+      customers: item.customer_name || item.customer_names?.[0] || '',
+      // Pre-fill from rule
+      prefillTaskTypeId: rule.task_type_id,
+      prefillResponsibleId: rule.responsible_user_id,
+      prefillDeadline: deadlineDate.toISOString().split('T')[0],
+    };
   };
 
   if (rules.length === 0) {
-    return null; // Não mostra nada se não houver regras configuradas
+    return null;
   }
 
   return (
@@ -178,6 +234,11 @@ export function TaskSuggestionsPanel({ items, onCreateTask, className }: TaskSug
                         </span>
                       </div>
                       <p className="font-medium text-sm">{suggestion.suggestedTitle}</p>
+                      {suggestion.suggestedDescription && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {suggestion.suggestedDescription}
+                        </p>
+                      )}
                       <p className="text-xs text-muted-foreground truncate">
                         {suggestion.item.title} • {suggestion.item.process_number || 'Sem processo'}
                       </p>
@@ -207,6 +268,15 @@ export function TaskSuggestionsPanel({ items, onCreateTask, className }: TaskSug
           </CardContent>
         </Card>
       )}
+
+      {/* Task Creation Dialog with pre-filled fields */}
+      <TaskCreationDialog
+        open={dialogOpen}
+        onOpenChange={handleDialogClose}
+        selectedMovement={getSelectedMovement()}
+        lawsuits={lawsuits}
+        onTaskCreated={handleTaskCreated}
+      />
     </div>
   );
 }

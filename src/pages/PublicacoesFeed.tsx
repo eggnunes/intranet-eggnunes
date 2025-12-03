@@ -795,13 +795,6 @@ export default function PublicacoesFeed() {
             process_number: pub.process_number || pub.lawsuit_number,
             lawsuit_id: pub.lawsuit_id,
           }))}
-          onCreateTask={(suggestion) => {
-            const pub = publications.find(p => p.id === suggestion.item.id);
-            if (pub) {
-              setSelectedPublication(pub);
-              setTaskDialogOpen(true);
-            }
-          }}
         />
 
         {/* Lista de Publicações */}
