@@ -1031,6 +1031,50 @@ export type Database = {
         }
         Relationships: []
       }
+      recruitment_candidate_documents: {
+        Row: {
+          candidate_id: string
+          created_at: string
+          document_type: string
+          file_name: string
+          file_size: number | null
+          file_type: string | null
+          file_url: string
+          id: string
+          uploaded_by: string
+        }
+        Insert: {
+          candidate_id: string
+          created_at?: string
+          document_type?: string
+          file_name: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url: string
+          id?: string
+          uploaded_by: string
+        }
+        Update: {
+          candidate_id?: string
+          created_at?: string
+          document_type?: string
+          file_name?: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string
+          id?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_candidate_documents_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recruitment_candidates: {
         Row: {
           created_at: string
@@ -1048,6 +1092,7 @@ export type Database = {
           in_person_interview_date: string | null
           interview_date: string | null
           is_active: boolean
+          job_opening_id: string | null
           phone: string | null
           position_applied: string | null
           resume_file_name: string | null
@@ -1072,6 +1117,7 @@ export type Database = {
           in_person_interview_date?: string | null
           interview_date?: string | null
           is_active?: boolean
+          job_opening_id?: string | null
           phone?: string | null
           position_applied?: string | null
           resume_file_name?: string | null
@@ -1096,12 +1142,125 @@ export type Database = {
           in_person_interview_date?: string | null
           interview_date?: string | null
           is_active?: boolean
+          job_opening_id?: string | null
           phone?: string | null
           position_applied?: string | null
           resume_file_name?: string | null
           resume_url?: string | null
           test_date?: string | null
           test_score?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_candidates_job_opening_id_fkey"
+            columns: ["job_opening_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_job_openings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruitment_interviews: {
+        Row: {
+          candidate_id: string
+          created_at: string
+          created_by: string
+          duration_minutes: number | null
+          feedback: string | null
+          id: string
+          interview_type: string
+          interviewer_ids: string[]
+          location: string | null
+          meeting_link: string | null
+          notes: string | null
+          rating: number | null
+          scheduled_date: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          candidate_id: string
+          created_at?: string
+          created_by: string
+          duration_minutes?: number | null
+          feedback?: string | null
+          id?: string
+          interview_type: string
+          interviewer_ids?: string[]
+          location?: string | null
+          meeting_link?: string | null
+          notes?: string | null
+          rating?: number | null
+          scheduled_date: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          candidate_id?: string
+          created_at?: string
+          created_by?: string
+          duration_minutes?: number | null
+          feedback?: string | null
+          id?: string
+          interview_type?: string
+          interviewer_ids?: string[]
+          location?: string | null
+          meeting_link?: string | null
+          notes?: string | null
+          rating?: number | null
+          scheduled_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_interviews_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruitment_job_openings: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          opened_at: string
+          position: string
+          requirements: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          opened_at?: string
+          position: string
+          requirements?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          opened_at?: string
+          position?: string
+          requirements?: string | null
+          status?: string
+          title?: string
           updated_at?: string
         }
         Relationships: []
