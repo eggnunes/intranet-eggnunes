@@ -11,10 +11,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X, Edit, History, Calendar, List, Settings, BarChart3 } from 'lucide-react';
+import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X, Edit, History, Calendar, List, Settings, BarChart3, Zap } from 'lucide-react';
 import { TaskCalendarView } from '@/components/TaskCalendarView';
 import { TaskNotificationSettings } from '@/components/TaskNotificationSettings';
 import { WeeklyTaskReport } from '@/components/WeeklyTaskReport';
+import { TaskAutoRulesManager } from '@/components/TaskAutoRulesManager';
 import { useTaskNotifications } from '@/hooks/useTaskNotifications';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -766,7 +767,7 @@ export default function TarefasAdvbox() {
 
         {/* Tabs de Visualização */}
         <Tabs value={viewTab} onValueChange={setViewTab} className="space-y-4">
-          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'} lg:w-[${isAdmin ? '500px' : '400px'}]`}>
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-5' : 'grid-cols-3'} lg:w-auto`}>
             <TabsTrigger value="list" className="gap-2">
               <List className="h-4 w-4" />
               <span className="hidden sm:inline">Lista</span>
@@ -779,6 +780,12 @@ export default function TarefasAdvbox() {
               <TabsTrigger value="report" className="gap-2">
                 <BarChart3 className="h-4 w-4" />
                 <span className="hidden sm:inline">Relatório</span>
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="rules" className="gap-2">
+                <Zap className="h-4 w-4" />
+                <span className="hidden sm:inline">Regras</span>
               </TabsTrigger>
             )}
             <TabsTrigger value="settings" className="gap-2">
@@ -968,6 +975,25 @@ export default function TarefasAdvbox() {
           {isAdmin && (
             <TabsContent value="report">
               <WeeklyTaskReport tasks={tasks} />
+            </TabsContent>
+          )}
+
+          {/* Aba Regras Automáticas (apenas admins) */}
+          {isAdmin && (
+            <TabsContent value="rules">
+              <TaskAutoRulesManager 
+                taskTypes={[
+                  { id: 1, title: 'Tarefa Geral' },
+                  { id: 2, title: 'Audiência' },
+                  { id: 3, title: 'Prazo' },
+                  { id: 4, title: 'Intimação' },
+                  { id: 5, title: 'Sentença' },
+                  { id: 6, title: 'Recurso' },
+                  { id: 7, title: 'Despacho' },
+                  { id: 8, title: 'Petição' },
+                ]}
+                advboxUsers={allUsers.map(u => ({ id: u.id, name: u.full_name }))}
+              />
             </TabsContent>
           )}
 
