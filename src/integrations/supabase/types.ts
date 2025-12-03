@@ -968,6 +968,54 @@ export type Database = {
         }
         Relationships: []
       }
+      task_auto_rules: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          days_to_deadline: number | null
+          id: string
+          is_active: boolean | null
+          name: string
+          responsible_user_id: string | null
+          task_description_template: string | null
+          task_title_template: string
+          task_type_id: number
+          trigger_type: string
+          trigger_value: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          days_to_deadline?: number | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          responsible_user_id?: string | null
+          task_description_template?: string | null
+          task_title_template: string
+          task_type_id: number
+          trigger_type: string
+          trigger_value: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          days_to_deadline?: number | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          responsible_user_id?: string | null
+          task_description_template?: string | null
+          task_title_template?: string
+          task_type_id?: number
+          trigger_type?: string
+          trigger_value?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       task_comments: {
         Row: {
           content: string
