@@ -567,6 +567,62 @@ export type Database = {
         }
         Relationships: []
       }
+      food_items: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          normalized_name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          normalized_name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          normalized_name?: string
+        }
+        Relationships: []
+      }
+      food_suggestions: {
+        Row: {
+          created_at: string
+          food_item_id: string
+          id: string
+          user_id: string
+          week_start: string
+        }
+        Insert: {
+          created_at?: string
+          food_item_id: string
+          id?: string
+          user_id: string
+          week_start: string
+        }
+        Update: {
+          created_at?: string
+          food_item_id?: string
+          id?: string
+          user_id?: string
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "food_suggestions_food_item_id_fkey"
+            columns: ["food_item_id"]
+            isOneToOne: false
+            referencedRelation: "food_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forum_notifications: {
         Row: {
           created_at: string

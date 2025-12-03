@@ -34,6 +34,7 @@ import Ferias from "./pages/Ferias";
 import SolicitacoesAdministrativas from "./pages/SolicitacoesAdministrativas";
 import HistoricoMensagensAniversario from "./pages/HistoricoMensagensAniversario";
 import CollectionManagement from "./pages/CollectionManagement";
+import CopaCozinha from "./pages/CopaCozinha";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -268,6 +269,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <CollectionManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/copa-cozinha"
+              element={
+                <ProtectedRoute>
+                  <CopaCozinha />
                 </ProtectedRoute>
               }
             />
