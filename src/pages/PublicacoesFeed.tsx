@@ -11,7 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Bell, Search, Calendar, Filter, FileDown, FileText, ListTodo, Eye, EyeOff, CheckCircle2, Sparkles, RefreshCw } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Bell, Search, Calendar as CalendarIcon, Filter, FileDown, FileText, ListTodo, Eye, EyeOff, CheckCircle2, Sparkles, RefreshCw, Clock, MapPin, Users, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, subDays, startOfDay, startOfMonth, isAfter, parseISO } from 'date-fns';
@@ -19,6 +21,7 @@ import { ptBR } from 'date-fns/locale';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
 import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
+import { cn } from '@/lib/utils';
 
 interface Publication {
   id: string | number;
@@ -77,10 +80,18 @@ export default function PublicacoesFeed() {
   const [taskDescription, setTaskDescription] = useState('');
   const [taskProcessNumber, setTaskProcessNumber] = useState('');
   const [taskResponsible, setTaskResponsible] = useState('');
-  const [taskDueDate, setTaskDueDate] = useState('');
-  const [taskStatus, setTaskStatus] = useState('pending');
   const [taskNotes, setTaskNotes] = useState('');
   const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [selectedGuests, setSelectedGuests] = useState<number[]>([]);
+  const [startDate, setStartDate] = useState<Date | undefined>(new Date());
+  const [startTime, setStartTime] = useState('09:00');
+  const [endDate, setEndDate] = useState<Date | undefined>();
+  const [endTime, setEndTime] = useState('');
+  const [deadlineDate, setDeadlineDate] = useState<Date | undefined>();
+  const [taskLocal, setTaskLocal] = useState('');
+  const [isUrgent, setIsUrgent] = useState(false);
+  const [isImportant, setIsImportant] = useState(false);
+  const [displaySchedule, setDisplaySchedule] = useState(true);
   
   const { toast } = useToast();
 
@@ -235,10 +246,18 @@ export default function PublicacoesFeed() {
     setTaskTitle(`Intimação: ${publication.title || 'Publicação'}`);
     setTaskDescription(publication.header || publication.description || '');
     setTaskProcessNumber(publication.process_number || publication.lawsuit_number || '');
-    setTaskDueDate('');
-    setTaskStatus('pending');
     setTaskNotes('');
     setTaskResponsible('');
+    setSelectedGuests([]);
+    setStartDate(new Date());
+    setStartTime('09:00');
+    setEndDate(undefined);
+    setEndTime('');
+    setDeadlineDate(undefined);
+    setTaskLocal('');
+    setIsUrgent(false);
+    setIsImportant(false);
+    setDisplaySchedule(true);
     setTaskDialogOpen(true);
     
     // Buscar tipos de tarefa ao abrir o diálogo
@@ -260,11 +279,20 @@ export default function PublicacoesFeed() {
         const responsibleId = lawsuitData?.data?.responsible_id || lawsuitData?.responsible_id;
         if (responsibleId) {
           setTaskResponsible(String(responsibleId));
+          setSelectedGuests([parseInt(String(responsibleId), 10)]);
         }
       } catch (err) {
         console.warn('Could not fetch lawsuit responsible');
       }
     }
+  };
+  
+  const toggleGuest = (userId: number) => {
+    setSelectedGuests(prev => 
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
   };
   
   const fetchAdvboxUsers = async () => {
@@ -356,7 +384,11 @@ export default function PublicacoesFeed() {
       }
     }
     if (aiSuggestion.suggestedDeadline) {
-      setTaskDueDate(aiSuggestion.suggestedDeadline);
+      try {
+        setDeadlineDate(parseISO(aiSuggestion.suggestedDeadline));
+      } catch (e) {
+        console.warn('Could not parse deadline date');
+      }
     }
     if (aiSuggestion.reasoning) {
       setTaskNotes(aiSuggestion.reasoning);
@@ -438,20 +470,28 @@ export default function PublicacoesFeed() {
       const parsedLawsuitId = parseInt(String(lawsuitId), 10);
       const parsedResponsibleId = taskResponsible ? parseInt(String(taskResponsible), 10) : 1;
       const parsedTaskTypeId = parseInt(String(selectedTaskType), 10);
+      const parsedGuests = selectedGuests.length > 0 
+        ? selectedGuests.map(g => parseInt(String(g), 10))
+        : [parsedResponsibleId];
       
       const taskData: Record<string, any> = {
         lawsuits_id: parsedLawsuitId,
-        start_date: format(new Date(), 'yyyy-MM-dd'),
+        start_date: startDate ? format(startDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
         comments: `${taskTitle}\n\n${taskDescription}${taskNotes ? '\n\nObservações: ' + taskNotes : ''}`,
         from: parsedResponsibleId,
         tasks_id: parsedTaskTypeId,
-        guests: parsedResponsibleId > 1 ? [parsedResponsibleId] : [],
+        guests: parsedGuests,
       };
       
-      // Adicionar data de vencimento se informada
-      if (taskDueDate) {
-        taskData.date_deadline = taskDueDate;
-      }
+      // Optional fields
+      if (startTime) taskData.start_time = startTime;
+      if (endDate) taskData.end_date = format(endDate, 'yyyy-MM-dd');
+      if (endTime) taskData.end_time = endTime;
+      if (deadlineDate) taskData.date_deadline = format(deadlineDate, 'yyyy-MM-dd');
+      if (taskLocal) taskData.local = taskLocal;
+      if (isUrgent) taskData.urgent = 1;
+      if (isImportant) taskData.important = 1;
+      taskData.display_schedule = displaySchedule ? 1 : 0;
 
       const { error } = await supabase.functions.invoke('advbox-integration/create-task', {
         body: taskData,
@@ -1231,7 +1271,7 @@ export default function PublicacoesFeed() {
 
                 {/* Responsável */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Responsável</Label>
+                  <Label className="text-sm font-medium">Responsável (Criador)</Label>
                   {loadingUsers ? (
                     <p className="text-sm text-muted-foreground">Carregando responsáveis...</p>
                   ) : advboxUsers.length > 0 ? (
@@ -1256,29 +1296,173 @@ export default function PublicacoesFeed() {
                   )}
                 </div>
 
-                {/* Data de Vencimento */}
+                {/* Participantes */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Data de Vencimento</Label>
-                  <Input
-                    type="date"
-                    value={taskDueDate}
-                    onChange={(e) => setTaskDueDate(e.target.value)}
-                  />
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Participantes
+                  </Label>
+                  {advboxUsers.length > 0 ? (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {selectedGuests.map(guestId => {
+                          const user = advboxUsers.find(u => u.id === guestId);
+                          return (
+                            <Badge key={guestId} variant="secondary" className="gap-1">
+                              {user?.name || `ID: ${guestId}`}
+                              <X 
+                                className="h-3 w-3 cursor-pointer" 
+                                onClick={() => toggleGuest(guestId)}
+                              />
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                      <ScrollArea className="h-24 border rounded-md p-2">
+                        <div className="space-y-2">
+                          {advboxUsers.map((user) => (
+                            <div key={user.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`guest-pub-${user.id}`}
+                                checked={selectedGuests.includes(user.id)}
+                                onCheckedChange={() => toggleGuest(user.id)}
+                              />
+                              <label htmlFor={`guest-pub-${user.id}`} className="text-sm cursor-pointer">
+                                {user.name}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Os participantes serão definidos automaticamente.
+                    </p>
+                  )}
                 </div>
 
-                {/* Status */}
+                {/* Data e Hora de Início */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <CalendarIcon className="h-4 w-4" />
+                      Data *
+                    </Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !startDate && "text-muted-foreground"
+                          )}
+                        >
+                          {startDate ? format(startDate, "dd/MM/yyyy") : "Selecionar"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={startDate}
+                          onSelect={setStartDate}
+                          locale={ptBR}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Hora
+                    </Label>
+                    <Input
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Data e Hora de Término */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Data Término</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !endDate && "text-muted-foreground"
+                          )}
+                        >
+                          {endDate ? format(endDate, "dd/MM/yyyy") : "Opcional"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={endDate}
+                          onSelect={setEndDate}
+                          locale={ptBR}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Hora Término</Label>
+                    <Input
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      placeholder="HH:MM"
+                    />
+                  </div>
+                </div>
+
+                {/* Prazo Fatal */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Status</Label>
-                  <Select value={taskStatus} onValueChange={setTaskStatus}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pendente</SelectItem>
-                      <SelectItem value="in_progress">Em Andamento</SelectItem>
-                      <SelectItem value="completed">Concluída</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-sm font-medium text-destructive flex items-center gap-2">
+                    <CalendarIcon className="h-4 w-4" />
+                    Prazo Fatal
+                  </Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !deadlineDate && "text-muted-foreground"
+                        )}
+                      >
+                        {deadlineDate ? format(deadlineDate, "dd/MM/yyyy") : "Selecionar prazo fatal"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={deadlineDate}
+                        onSelect={setDeadlineDate}
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Local */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    Local do Evento
+                  </Label>
+                  <Input
+                    value={taskLocal}
+                    onChange={(e) => setTaskLocal(e.target.value)}
+                    placeholder="Ex: Sala de reuniões, Fórum, etc."
+                  />
                 </div>
 
                 {/* Observações */}
@@ -1290,6 +1474,46 @@ export default function PublicacoesFeed() {
                     placeholder="Observações adicionais"
                     rows={2}
                   />
+                </div>
+
+                {/* Flags: Urgente, Importante, Mostrar na Agenda */}
+                <div className="space-y-3 pt-2 border-t">
+                  <Label className="text-sm font-medium">Opções</Label>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="urgent-pub"
+                        checked={isUrgent}
+                        onCheckedChange={(checked) => setIsUrgent(checked as boolean)}
+                      />
+                      <label htmlFor="urgent-pub" className="text-sm cursor-pointer font-medium text-orange-600">
+                        Urgente
+                      </label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="important-pub"
+                        checked={isImportant}
+                        onCheckedChange={(checked) => setIsImportant(checked as boolean)}
+                      />
+                      <label htmlFor="important-pub" className="text-sm cursor-pointer font-medium text-blue-600">
+                        Importante
+                      </label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="display_schedule-pub"
+                        checked={displaySchedule}
+                        onCheckedChange={(checked) => setDisplaySchedule(checked as boolean)}
+                      />
+                      <label htmlFor="display_schedule-pub" className="text-sm cursor-pointer">
+                        Mostrar na Agenda
+                      </label>
+                    </div>
+                  </div>
                 </div>
                 
                 <Button 
