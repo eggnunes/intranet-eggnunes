@@ -751,6 +751,36 @@ export type Database = {
         }
         Relationships: []
       }
+      publication_reads: {
+        Row: {
+          created_at: string
+          id: string
+          lawsuit_id: number
+          movement_date: string
+          movement_title: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lawsuit_id: number
+          movement_date: string
+          movement_title: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lawsuit_id?: number
+          movement_date?: string
+          movement_title?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       suggestion_comments: {
         Row: {
           content: string

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Bell, Search, Calendar, Filter, FileDown, FileText, ListTodo } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Bell, Search, Calendar, Filter, FileDown, FileText, ListTodo, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, subDays, startOfDay, startOfMonth, isAfter, parseISO } from 'date-fns';
@@ -27,6 +28,20 @@ interface Publication {
   title?: string;
   header?: string;
   customers?: string;
+  lawsuit_id?: number;
+}
+
+interface ReadPublication {
+  lawsuit_id: number;
+  movement_date: string;
+  movement_title: string;
+}
+
+// Extrair código do tribunal do header (ex: "TJMG - Tribunal..." -> "TJMG")
+function extractCourtCode(header: string | undefined): string {
+  if (!header) return 'Desconhecido';
+  const match = header.match(/^([A-Z0-9]+)\s*-/);
+  return match ? match[1] : header.split(' ')[0] || 'Desconhecido';
 }
 
 export default function PublicacoesFeed() {
@@ -35,13 +50,161 @@ export default function PublicacoesFeed() {
   const [allPublications, setAllPublications] = useState<Publication[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingRecent, setLoadingRecent] = useState(true);
-  const [periodFilter, setPeriodFilter] = useState<string>('week');
+  const [periodFilter, setPeriodFilter] = useState<string>('all');
   const [movementTypeFilter, setMovementTypeFilter] = useState<string>('all');
+  const [courtFilter, setCourtFilter] = useState<string>('all');
+  const [readFilter, setReadFilter] = useState<string>('all');
   const [metadata, setMetadata] = useState<any>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [selectedPublication, setSelectedPublication] = useState<Publication | null>(null);
+  const [readPublications, setReadPublications] = useState<Set<string>>(new Set());
+  const [userId, setUserId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Obter ID do usuário logado
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setUserId(user.id);
+    };
+    getUser();
+  }, []);
+
+  // Buscar publicações lidas do banco
+  useEffect(() => {
+    if (userId) {
+      fetchReadPublications();
+    }
+  }, [userId]);
+
+  const fetchReadPublications = async () => {
+    if (!userId) return;
+    
+    const { data, error } = await supabase
+      .from('publication_reads')
+      .select('lawsuit_id, movement_date, movement_title')
+      .eq('user_id', userId);
+
+    if (!error && data) {
+      const readSet = new Set(
+        data.map((r: any) => `${r.lawsuit_id}-${r.movement_date}-${r.movement_title}`)
+      );
+      setReadPublications(readSet);
+    }
+  };
+
+  const getPublicationKey = (pub: Publication): string => {
+    return `${pub.lawsuit_id || 0}-${pub.date}-${pub.title || ''}`;
+  };
+
+  const isPublicationRead = (pub: Publication): boolean => {
+    return readPublications.has(getPublicationKey(pub));
+  };
+
+  const toggleReadStatus = async (pub: Publication, markAsRead: boolean) => {
+    if (!userId) {
+      toast({
+        title: 'Erro',
+        description: 'Você precisa estar autenticado.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      if (markAsRead) {
+        const { error } = await supabase
+          .from('publication_reads')
+          .insert({
+            user_id: userId,
+            lawsuit_id: pub.lawsuit_id || 0,
+            movement_date: pub.date,
+            movement_title: pub.title || '',
+          });
+
+        if (error) throw error;
+
+        setReadPublications(prev => new Set([...prev, getPublicationKey(pub)]));
+        toast({
+          title: 'Marcado como lido',
+          description: 'Publicação marcada como lida.',
+        });
+      } else {
+        const { error } = await supabase
+          .from('publication_reads')
+          .delete()
+          .eq('user_id', userId)
+          .eq('lawsuit_id', pub.lawsuit_id || 0)
+          .eq('movement_date', pub.date)
+          .eq('movement_title', pub.title || '');
+
+        if (error) throw error;
+
+        setReadPublications(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(getPublicationKey(pub));
+          return newSet;
+        });
+        toast({
+          title: 'Marcado como não lido',
+          description: 'Publicação marcada como não lida.',
+        });
+      }
+    } catch (error) {
+      console.error('Error toggling read status:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível atualizar o status de leitura.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const markAllAsRead = async () => {
+    if (!userId || publications.length === 0) return;
+
+    try {
+      const unreadPubs = publications.filter(pub => !isPublicationRead(pub));
+      
+      if (unreadPubs.length === 0) {
+        toast({
+          title: 'Nenhuma publicação',
+          description: 'Todas as publicações já estão marcadas como lidas.',
+        });
+        return;
+      }
+
+      const records = unreadPubs.map(pub => ({
+        user_id: userId,
+        lawsuit_id: pub.lawsuit_id || 0,
+        movement_date: pub.date,
+        movement_title: pub.title || '',
+      }));
+
+      const { error } = await supabase
+        .from('publication_reads')
+        .upsert(records, { onConflict: 'user_id,lawsuit_id,movement_date,movement_title' });
+
+      if (error) throw error;
+
+      const newReadSet = new Set(readPublications);
+      unreadPubs.forEach(pub => newReadSet.add(getPublicationKey(pub)));
+      setReadPublications(newReadSet);
+
+      toast({
+        title: 'Publicações marcadas',
+        description: `${unreadPubs.length} publicações marcadas como lidas.`,
+      });
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível marcar todas como lidas.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const openTaskDialog = (publication: Publication) => {
     setSelectedPublication(publication);
@@ -52,7 +215,6 @@ export default function PublicacoesFeed() {
     if (!selectedPublication) return;
 
     try {
-      // Buscar todos os processos para encontrar o ID
       const { data: lawsuitsData, error: lawsuitsError } = await supabase.functions.invoke('advbox-integration/lawsuits');
       
       if (lawsuitsError) throw lawsuitsError;
@@ -61,7 +223,6 @@ export default function PublicacoesFeed() {
       const lawsuits = apiResponse?.data || [];
       const processNumber = selectedPublication.process_number || selectedPublication.lawsuit_number || '';
       
-      // Buscar o processo correspondente
       const lawsuit = lawsuits.find((l: any) => l.process_number === processNumber);
       
       if (!lawsuit) {
@@ -73,7 +234,6 @@ export default function PublicacoesFeed() {
         return;
       }
 
-      // Buscar o usuário atual
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
@@ -85,15 +245,14 @@ export default function PublicacoesFeed() {
         return;
       }
 
-      // Preparar dados no formato esperado pela API do Advbox
       const taskData = {
         lawsuits_id: lawsuit.id,
         start_date: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
         title: `Intimação: ${selectedPublication.title || 'Publicação'}`,
         description: selectedPublication.description || selectedPublication.header || '',
-        from: lawsuit.responsible_id, // ID do responsável pelo processo
-        tasks_id: 1, // ID padrão do tipo de tarefa
-        guests: [lawsuit.responsible_id], // Atribuir ao responsável do processo
+        from: lawsuit.responsible_id,
+        tasks_id: 1,
+        guests: [lawsuit.responsible_id],
       };
 
       const { error } = await supabase.functions.invoke('advbox-integration/create-task', {
@@ -119,10 +278,16 @@ export default function PublicacoesFeed() {
     }
   };
 
-  // Extract unique movement types from all publications
-  const movementTypes = Array.from(
-    new Set(allPublications.map(pub => pub.title).filter(Boolean))
-  ).sort();
+  // Extrair tipos de movimento e tribunais únicos
+  const movementTypes = useMemo(() => 
+    Array.from(new Set(allPublications.map(pub => pub.title).filter(Boolean))).sort(),
+    [allPublications]
+  );
+
+  const courts = useMemo(() => 
+    Array.from(new Set(allPublications.map(pub => extractCourtCode(pub.header)))).sort(),
+    [allPublications]
+  );
 
   // Buscar publicações recentes ao carregar a página
   useEffect(() => {
@@ -138,8 +303,6 @@ export default function PublicacoesFeed() {
 
       if (error) throw error;
 
-      // Extrair corretamente os dados da resposta
-      // A resposta tem formato: { data: [...], metadata: {...}, totalCount: ... }
       const allPubs = Array.isArray(data?.data) ? data.data : [];
       setMetadata(data?.metadata);
       setLastUpdate(new Date());
@@ -153,6 +316,7 @@ export default function PublicacoesFeed() {
         title: movement.title,
         header: movement.header,
         customers: movement.customers,
+        lawsuit_id: movement.lawsuit_id,
       }));
 
       setAllPublications(mappedPubs);
@@ -179,59 +343,65 @@ export default function PublicacoesFeed() {
   const applyFilters = (pubs: Publication[]) => {
     let filtered = [...pubs];
 
-    // Apply period filter
-    const now = new Date();
-    let startDate: Date;
-    
-    switch (periodFilter) {
-      case 'today':
-        startDate = startOfDay(now);
-        break;
-      case 'week':
-        startDate = subDays(now, 7);
-        break;
-      case 'month':
-        startDate = startOfMonth(now);
-        break;
-      default:
-        startDate = subDays(now, 7);
+    // Filtro de período
+    if (periodFilter !== 'all') {
+      const now = new Date();
+      let startDate: Date;
+      
+      switch (periodFilter) {
+        case 'today':
+          startDate = startOfDay(now);
+          break;
+        case 'week':
+          startDate = subDays(now, 7);
+          break;
+        case 'month':
+          startDate = startOfMonth(now);
+          break;
+        default:
+          startDate = subDays(now, 365);
+      }
+
+      filtered = filtered.filter((pub) => {
+        try {
+          const pubDate = parseISO(pub.date);
+          return isAfter(pubDate, startDate);
+        } catch {
+          return true;
+        }
+      });
     }
 
-    filtered = filtered.filter((pub) => {
-      try {
-        const pubDate = parseISO(pub.date);
-        return isAfter(pubDate, startDate);
-      } catch {
-        return false;
-      }
-    });
-
-    // Apply movement type filter
+    // Filtro de tipo de movimento
     if (movementTypeFilter !== 'all') {
       filtered = filtered.filter(pub => pub.title === movementTypeFilter);
     }
 
-    setPublications(filtered);
-
-    if (filtered.length === 0) {
-      toast({
-        title: 'Nenhuma publicação encontrada',
-        description: 'Não há publicações com os filtros selecionados.',
-      });
+    // Filtro de tribunal
+    if (courtFilter !== 'all') {
+      filtered = filtered.filter(pub => extractCourtCode(pub.header) === courtFilter);
     }
+
+    // Filtro de lido/não lido
+    if (readFilter === 'read') {
+      filtered = filtered.filter(pub => isPublicationRead(pub));
+    } else if (readFilter === 'unread') {
+      filtered = filtered.filter(pub => !isPublicationRead(pub));
+    }
+
+    setPublications(filtered);
   };
 
-  // Re-apply filters when filter values change
+  // Reaplicar filtros quando os valores mudarem
   useEffect(() => {
     if (allPublications.length > 0) {
       applyFilters(allPublications);
     }
-  }, [periodFilter, movementTypeFilter]);
+  }, [periodFilter, movementTypeFilter, courtFilter, readFilter, readPublications]);
 
   const handleSearch = async () => {
     if (!lawsuitNumber.trim()) {
-      // Se não tem número de processo, volta para as publicações recentes
-      setPublications(allPublications);
+      applyFilters(allPublications);
       return;
     }
 
@@ -287,13 +457,13 @@ export default function PublicacoesFeed() {
       return;
     }
 
-    const headers = ['Data', 'Número do Processo', 'Título/Descrição', 'Cliente(s)', 'Tribunal'];
+    const headers = ['Data do Evento', 'Número do Processo', 'Título/Descrição', 'Cliente(s)', 'Tribunal'];
     const rows = publications.map(pub => [
       format(new Date(pub.date), 'dd/MM/yyyy', { locale: ptBR }),
       pub.lawsuit_number || pub.process_number || 'Sem número',
       pub.description || pub.title || pub.header || '',
       pub.customers || '',
-      pub.court || pub.header || '',
+      extractCourtCode(pub.header),
     ]);
 
     const csvContent = [
@@ -332,12 +502,11 @@ export default function PublicacoesFeed() {
       const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
       const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
       
-      let page = pdfDoc.addPage([595, 842]); // A4 size
+      let page = pdfDoc.addPage([595, 842]);
       const { width, height } = page.getSize();
       const margin = 50;
       let yPosition = height - margin;
 
-      // Title
       page.drawText('Feed de Publicações', {
         x: margin,
         y: yPosition,
@@ -347,10 +516,7 @@ export default function PublicacoesFeed() {
       });
       yPosition -= 30;
 
-      // Subtitle
-      const periodText = periodFilter === 'today' ? 'Hoje' : 
-                        periodFilter === 'week' ? 'Última Semana' : 'Último Mês';
-      page.drawText(`Período: ${periodText} | Total: ${publications.length} publicações`, {
+      page.drawText(`Total: ${publications.length} publicações`, {
         x: margin,
         y: yPosition,
         size: 12,
@@ -359,17 +525,14 @@ export default function PublicacoesFeed() {
       });
       yPosition -= 30;
 
-      // Publications
       for (const pub of publications) {
-        // Check if we need a new page
         if (yPosition < 100) {
           page = pdfDoc.addPage([595, 842]);
           yPosition = height - margin;
         }
 
-        // Date
         const dateText = format(new Date(pub.date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-        page.drawText(dateText, {
+        page.drawText(`Data do Evento: ${dateText}`, {
           x: margin,
           y: yPosition,
           size: 10,
@@ -378,7 +541,6 @@ export default function PublicacoesFeed() {
         });
         yPosition -= 15;
 
-        // Process number
         const processNumber = pub.lawsuit_number || pub.process_number || 'Sem número';
         page.drawText(`Processo: ${processNumber}`, {
           x: margin,
@@ -389,7 +551,6 @@ export default function PublicacoesFeed() {
         });
         yPosition -= 15;
 
-        // Title/Description
         if (pub.description || pub.title || pub.header) {
           const titleText = pub.description || pub.title || pub.header || '';
           const maxWidth = width - (margin * 2);
@@ -432,7 +593,6 @@ export default function PublicacoesFeed() {
           }
         }
 
-        // Clients
         if (pub.customers) {
           page.drawText(`Cliente(s): ${pub.customers}`, {
             x: margin,
@@ -444,21 +604,15 @@ export default function PublicacoesFeed() {
           yPosition -= 12;
         }
 
-        // Court
-        if (pub.court || pub.header) {
-          page.drawText(pub.court || pub.header || '', {
-            x: margin,
-            y: yPosition,
-            size: 8,
-            font: font,
-            color: rgb(0.5, 0.5, 0.5),
-          });
-          yPosition -= 20;
-        } else {
-          yPosition -= 10;
-        }
+        page.drawText(`Tribunal: ${extractCourtCode(pub.header)}`, {
+          x: margin,
+          y: yPosition,
+          size: 8,
+          font: font,
+          color: rgb(0.5, 0.5, 0.5),
+        });
+        yPosition -= 20;
 
-        // Separator line
         page.drawLine({
           start: { x: margin, y: yPosition },
           end: { x: width - margin, y: yPosition },
@@ -493,6 +647,8 @@ export default function PublicacoesFeed() {
     }
   };
 
+  const unreadCount = publications.filter(pub => !isPublicationRead(pub)).length;
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -503,11 +659,17 @@ export default function PublicacoesFeed() {
               Feed de Publicações
             </h1>
             <p className="text-muted-foreground mt-2">
-              Publicações recentes do Advbox
+              Movimentações recentes do Advbox
             </p>
             <div className="mt-2">
               <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
             </div>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={markAllAsRead} variant="outline" size="sm" disabled={unreadCount === 0}>
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              Marcar todas como lidas ({unreadCount})
+            </Button>
           </div>
         </div>
 
@@ -552,11 +714,11 @@ export default function PublicacoesFeed() {
                 Filtros
               </CardTitle>
               <CardDescription>
-                Refine as publicações por período e tipo de movimento
+                Refine as publicações por período, tipo, tribunal e status
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-3">
+              <div className="grid gap-3 grid-cols-2">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Período</label>
                   <Select value={periodFilter} onValueChange={setPeriodFilter}>
@@ -564,9 +726,27 @@ export default function PublicacoesFeed() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
                       <SelectItem value="today">Hoje</SelectItem>
                       <SelectItem value="week">Última Semana</SelectItem>
                       <SelectItem value="month">Último Mês</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Tribunal</label>
+                  <Select value={courtFilter} onValueChange={setCourtFilter}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {courts.map((court) => (
+                        <SelectItem key={court} value={court}>
+                          {court}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -581,9 +761,23 @@ export default function PublicacoesFeed() {
                       <SelectItem value="all">Todos</SelectItem>
                       {movementTypes.map((type) => (
                         <SelectItem key={type} value={type!}>
-                          {type}
+                          {type!.substring(0, 50)}{type!.length > 50 ? '...' : ''}
                         </SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Status de Leitura</label>
+                  <Select value={readFilter} onValueChange={setReadFilter}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="unread">Não lidas</SelectItem>
+                      <SelectItem value="read">Lidas</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -618,6 +812,7 @@ export default function PublicacoesFeed() {
                   </CardTitle>
                   <CardDescription>
                     {publications.length} {publications.length === 1 ? 'publicação encontrada' : 'publicações encontradas'}
+                    {unreadCount > 0 && ` (${unreadCount} não lida${unreadCount > 1 ? 's' : ''})`}
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -635,47 +830,75 @@ export default function PublicacoesFeed() {
             <CardContent>
               <ScrollArea className="h-[600px]">
                 <div className="space-y-4">
-                  {publications.map((publication) => (
-                    <Card key={publication.id} className="hover:shadow-md transition-shadow">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-4 mb-3">
-                          <div className="flex-1">
-                            <Badge variant="outline">
-                              {format(new Date(publication.date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                            </Badge>
+                  {publications.map((publication) => {
+                    const isRead = isPublicationRead(publication);
+                    return (
+                      <Card 
+                        key={publication.id} 
+                        className={`hover:shadow-md transition-shadow ${isRead ? 'opacity-60 bg-muted/30' : ''}`}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4 mb-3">
+                            <div className="flex-1 flex items-center gap-3">
+                              <Checkbox
+                                checked={isRead}
+                                onCheckedChange={(checked) => toggleReadStatus(publication, !!checked)}
+                                className="mt-1"
+                              />
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Badge variant="outline" className="text-xs">
+                                    <Calendar className="h-3 w-3 mr-1" />
+                                    {format(new Date(publication.date), "dd/MM/yyyy", { locale: ptBR })}
+                                  </Badge>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {extractCourtCode(publication.header)}
+                                  </Badge>
+                                  {isRead && (
+                                    <Badge variant="outline" className="text-xs text-green-600 border-green-600">
+                                      <Eye className="h-3 w-3 mr-1" />
+                                      Lida
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge>
+                                {publication.lawsuit_number || publication.process_number || 'Sem número'}
+                              </Badge>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => toggleReadStatus(publication, !isRead)}
+                                title={isRead ? 'Marcar como não lida' : 'Marcar como lida'}
+                              >
+                                {isRead ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openTaskDialog(publication)}
+                              >
+                                <ListTodo className="h-4 w-4 mr-2" />
+                                Criar Tarefa
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Badge>
-                              {publication.lawsuit_number || publication.process_number || 'Sem número'}
-                            </Badge>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => openTaskDialog(publication)}
-                            >
-                              <ListTodo className="h-4 w-4 mr-2" />
-                              Criar Tarefa
-                            </Button>
-                          </div>
-                        </div>
-                        {(publication.description || publication.title || publication.header) && (
-                          <p className="text-sm font-semibold mb-2">
-                            {publication.description || publication.title || publication.header}
-                          </p>
-                        )}
-                        {publication.customers && (
-                          <p className="text-sm text-muted-foreground mb-2">
-                            <span className="font-medium">Cliente(s):</span> {publication.customers}
-                          </p>
-                        )}
-                        {(publication.court || publication.header) && (
-                          <p className="text-xs text-muted-foreground">
-                            {publication.court || publication.header}
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
+                          {(publication.description || publication.title || publication.header) && (
+                            <p className="text-sm font-semibold mb-2 ml-8">
+                              {publication.description || publication.title || publication.header}
+                            </p>
+                          )}
+                          {publication.customers && (
+                            <p className="text-sm text-muted-foreground mb-2 ml-8">
+                              <span className="font-medium">Cliente(s):</span> {publication.customers}
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </ScrollArea>
             </CardContent>
@@ -704,7 +927,7 @@ export default function PublicacoesFeed() {
               <div className="space-y-4">
                 <div className="bg-muted/30 p-3 rounded-md text-sm space-y-2">
                   <p>
-                    <span className="font-medium">Data:</span>{' '}
+                    <span className="font-medium">Data do Evento:</span>{' '}
                     {format(new Date(selectedPublication.date), "dd 'de' MMMM 'de' yyyy", {
                       locale: ptBR,
                     })}
@@ -712,6 +935,10 @@ export default function PublicacoesFeed() {
                   <p>
                     <span className="font-medium">Processo:</span>{' '}
                     {selectedPublication.process_number || selectedPublication.lawsuit_number || 'Sem número'}
+                  </p>
+                  <p>
+                    <span className="font-medium">Tribunal:</span>{' '}
+                    {extractCourtCode(selectedPublication.header)}
                   </p>
                   <p>
                     <span className="font-medium">Título:</span>{' '}
@@ -743,4 +970,3 @@ export default function PublicacoesFeed() {
     </Layout>
   );
 }
-
