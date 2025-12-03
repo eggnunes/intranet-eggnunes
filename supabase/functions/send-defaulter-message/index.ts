@@ -6,8 +6,108 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Template aprovado pela Meta para cobrança
+// Dialog ID do template "boletoematraso" aprovado pela Meta
+const DIALOG_ID = '679a5d753968d5272a54d207';
 const TEMPLATE_NAME = 'boletoematraso';
+
+async function sendWhatsAppMessage(phone: string, customerName: string) {
+  const CHATGURU_API_KEY = Deno.env.get('CHATGURU_API_KEY');
+  const CHATGURU_ACCOUNT_ID = Deno.env.get('CHATGURU_ACCOUNT_ID');
+  const CHATGURU_PHONE_ID = Deno.env.get('CHATGURU_PHONE_ID');
+
+  console.log(`Sending collection message to ${phone} for ${customerName}`);
+  
+  // Remove formatting from phone number
+  const cleanPhone = phone.replace(/\D/g, '');
+  
+  // Verificar se o telefone é válido
+  if (cleanPhone.length < 10 || cleanPhone.length > 13) {
+    throw new Error(`Número de telefone inválido: ${cleanPhone} (${cleanPhone.length} dígitos)`);
+  }
+  
+  // Adiciona código do país se não tiver (número brasileiro)
+  let fullPhone = cleanPhone;
+  if (cleanPhone.length <= 11) {
+    fullPhone = `55${cleanPhone}`;
+  }
+  
+  console.log(`Formatted phone number: ${fullPhone}`);
+  console.log(`Using Dialog ID: ${DIALOG_ID}`);
+  
+  // Primeiro, tentar dialog_execute (para chats existentes)
+  console.log('Attempting dialog_execute for existing chat...');
+  const dialogParams = new URLSearchParams({
+    key: CHATGURU_API_KEY!,
+    account_id: CHATGURU_ACCOUNT_ID!,
+    phone_id: CHATGURU_PHONE_ID!,
+    action: 'dialog_execute',
+    chat_number: fullPhone,
+    dialog_id: DIALOG_ID,
+  });
+  
+  const dialogUrl = `https://s17.chatguru.app/api/v1?${dialogParams.toString()}`;
+  console.log('Full URL (redacted key):', dialogUrl.replace(CHATGURU_API_KEY!, 'REDACTED'));
+  
+  const dialogResponse = await fetch(dialogUrl, { method: 'POST' });
+  const dialogResponseText = await dialogResponse.text();
+  console.log('ChatGuru dialog_execute response:', dialogResponseText);
+  
+  let dialogData;
+  try {
+    dialogData = JSON.parse(dialogResponseText);
+  } catch (e) {
+    console.error('Failed to parse dialog response as JSON:', dialogResponseText.substring(0, 200));
+    throw new Error(`ChatGuru returned invalid response: ${dialogResponseText.substring(0, 100)}`);
+  }
+  
+  // Se dialog_execute funcionou, retornar
+  if (dialogData.result === 'success') {
+    console.log('Message sent successfully via dialog_execute');
+    return dialogData;
+  }
+  
+  // Se o erro for "Chat não encontrado", tentar chat_add com dialog_id
+  if (dialogData.description?.includes('Chat não encontrado') || dialogData.code === 400) {
+    console.log('Chat not found, attempting chat_add with dialog_id and template text...');
+    
+    // Para WABA/API oficial do WhatsApp, usar o nome do template como texto inicial
+    const chatAddParams = new URLSearchParams({
+      key: CHATGURU_API_KEY!,
+      account_id: CHATGURU_ACCOUNT_ID!,
+      phone_id: CHATGURU_PHONE_ID!,
+      action: 'chat_add',
+      chat_number: fullPhone,
+      name: customerName,
+      text: TEMPLATE_NAME, // Nome do template WABA aprovado pela Meta
+      dialog_id: DIALOG_ID,
+    });
+    
+    const chatAddUrl = `https://s17.chatguru.app/api/v1?${chatAddParams.toString()}`;
+    console.log('Calling chat_add with dialog_id and text=boletoematraso...');
+    console.log('Full URL (redacted key):', chatAddUrl.replace(CHATGURU_API_KEY!, 'REDACTED'));
+    
+    const chatAddResponse = await fetch(chatAddUrl, { method: 'POST' });
+    const chatAddResponseText = await chatAddResponse.text();
+    console.log('ChatGuru chat_add response:', chatAddResponseText);
+    
+    let chatAddData;
+    try {
+      chatAddData = JSON.parse(chatAddResponseText);
+    } catch (e) {
+      console.error('Failed to parse chat_add response as JSON:', chatAddResponseText.substring(0, 200));
+      throw new Error(`ChatGuru chat_add returned invalid response: ${chatAddResponseText.substring(0, 100)}`);
+    }
+    
+    if (chatAddData.result === 'success') {
+      console.log('Chat created and dialog scheduled successfully');
+      return chatAddData;
+    }
+    
+    throw new Error(`ChatGuru chat_add error: ${chatAddData.description || JSON.stringify(chatAddData)}`);
+  }
+  
+  throw new Error(`ChatGuru API error: ${dialogData.description || JSON.stringify(dialogData)}`);
+}
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -25,6 +125,15 @@ serve(async (req) => {
 
     console.log('Sending defaulter message:', { customerId, customerName, customerPhone, amount, daysOverdue });
 
+    // Verificar credenciais
+    const CHATGURU_API_KEY = Deno.env.get('CHATGURU_API_KEY');
+    const CHATGURU_ACCOUNT_ID = Deno.env.get('CHATGURU_ACCOUNT_ID');
+    const CHATGURU_PHONE_ID = Deno.env.get('CHATGURU_PHONE_ID');
+
+    if (!CHATGURU_API_KEY || !CHATGURU_ACCOUNT_ID || !CHATGURU_PHONE_ID) {
+      throw new Error('Credenciais do ChatGuru não configuradas');
+    }
+
     // Verificar se o cliente está na lista de exclusões
     const { data: exclusion } = await supabase
       .from('defaulter_exclusions')
@@ -37,7 +146,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Cliente está na lista de exclusão e não receberá mensagens automáticas.' 
+          error: 'Cliente está na lista de exclusão e não receberá mensagens de cobrança.' 
         }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -46,56 +155,8 @@ serve(async (req) => {
       );
     }
 
-    // Normalizar telefone (remover caracteres especiais)
-    const normalizedPhone = customerPhone.replace(/\D/g, '');
-    
-    // Verificar se o telefone é válido (deve ter 10 ou 11 dígitos)
-    if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
-      throw new Error('Número de telefone inválido');
-    }
-
-    console.log('Sending collection message using template:', TEMPLATE_NAME);
-
-    // Enviar mensagem via ChatGuru usando template aprovado
-    const chatguruResponse = await fetch('https://api.chatguru.app/api/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${Deno.env.get('CHATGURU_API_KEY')}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        account_id: Deno.env.get('CHATGURU_ACCOUNT_ID'),
-        phone_id: Deno.env.get('CHATGURU_PHONE_ID'),
-        to: `55${normalizedPhone}`, // Adiciona código do Brasil
-        type: 'template',
-        template: {
-          name: TEMPLATE_NAME,
-          language: {
-            code: 'pt_BR'
-          },
-          components: [
-            {
-              type: 'body',
-              parameters: [
-                {
-                  type: 'text',
-                  text: customerName
-                }
-              ]
-            }
-          ]
-        }
-      }),
-    });
-
-    if (!chatguruResponse.ok) {
-      const errorData = await chatguruResponse.text();
-      console.error('ChatGuru API error:', errorData);
-      throw new Error(`Erro ao enviar mensagem: ${errorData}`);
-    }
-
-    const chatguruData = await chatguruResponse.json();
-    console.log('ChatGuru response:', chatguruData);
+    // Enviar mensagem via ChatGuru
+    const chatguruResponse = await sendWhatsAppMessage(customerPhone, customerName);
 
     // Obter o usuário autenticado
     const authHeader = req.headers.get('Authorization')!;
@@ -112,12 +173,12 @@ serve(async (req) => {
       .insert({
         customer_id: customerId,
         customer_name: customerName,
-        customer_phone: normalizedPhone,
+        customer_phone: customerPhone.replace(/\D/g, ''),
         days_overdue: daysOverdue,
         message_template: TEMPLATE_NAME,
-        message_text: `Template: ${TEMPLATE_NAME} | Cliente: ${customerName}`,
+        message_text: `Template: ${TEMPLATE_NAME} | Cliente: ${customerName} | Valor: R$ ${amount} | Dias em atraso: ${daysOverdue}`,
         status: 'sent',
-        chatguru_message_id: chatguruData.id || null,
+        chatguru_message_id: chatguruResponse?.message_id || null,
         sent_at: new Date().toISOString(),
         sent_by: user.id,
       });
@@ -129,7 +190,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        messageId: chatguruData.id,
+        messageId: chatguruResponse?.message_id,
         template: TEMPLATE_NAME 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
