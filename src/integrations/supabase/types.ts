@@ -32,6 +32,7 @@ export type Database = {
           perm_forum: string
           perm_home_office: string
           perm_onboarding: string
+          perm_recruitment: string
           perm_suggestions: string
           perm_task_rules: string
           perm_users: string
@@ -55,6 +56,7 @@ export type Database = {
           perm_forum?: string
           perm_home_office?: string
           perm_onboarding?: string
+          perm_recruitment?: string
           perm_suggestions?: string
           perm_task_rules?: string
           perm_users?: string
@@ -78,6 +80,7 @@ export type Database = {
           perm_forum?: string
           perm_home_office?: string
           perm_onboarding?: string
+          perm_recruitment?: string
           perm_suggestions?: string
           perm_task_rules?: string
           perm_users?: string

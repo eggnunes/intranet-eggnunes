@@ -36,6 +36,7 @@ interface AdminPermissionRecord {
   perm_collection: string;
   perm_admin_requests: string;
   perm_task_rules: string;
+  perm_recruitment: string;
 }
 
 const PERMISSION_FEATURES = [
@@ -55,6 +56,7 @@ const PERMISSION_FEATURES = [
   { key: 'collection', label: 'Cobranças', description: 'Sistema de cobranças' },
   { key: 'admin_requests', label: 'Solicitações Admin', description: 'Solicitações administrativas' },
   { key: 'task_rules', label: 'Regras de Tarefas', description: 'Regras automáticas de tarefas' },
+  { key: 'recruitment', label: 'Contratação', description: 'Gestão de currículos e contratação' },
 ];
 
 const PERMISSION_LEVELS = [
