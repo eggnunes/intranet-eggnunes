@@ -39,12 +39,11 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
   console.log(`Using Account ID: ${CHATGURU_ACCOUNT_ID}`);
   console.log(`Using Phone ID: ${CHATGURU_PHONE_ID}`);
   
-  // Para API oficial do WhatsApp com templates aprovados pela Meta
-  // Usar action=dialog_execute com o dialog_id do diálogo configurado
-  // O diálogo já contém a ação de envio do template "aniversario"
   const DIALOG_ID = '679a5d753968d5272a54d203';
   
-  const params = new URLSearchParams({
+  // Primeiro, tentar dialog_execute (para chats existentes)
+  console.log('Attempting dialog_execute for existing chat...');
+  const dialogParams = new URLSearchParams({
     key: CHATGURU_API_KEY!,
     account_id: CHATGURU_ACCOUNT_ID!,
     phone_id: CHATGURU_PHONE_ID!,
@@ -53,35 +52,67 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
     dialog_id: DIALOG_ID,
   });
   
-  const url = `https://s17.chatguru.app/api/v1?${params.toString()}`;
-  console.log('Calling ChatGuru API with dialog_execute...');
+  const dialogUrl = `https://s17.chatguru.app/api/v1?${dialogParams.toString()}`;
   console.log('Dialog ID:', DIALOG_ID);
-  console.log('Full URL (redacted key):', url.replace(CHATGURU_API_KEY!, 'REDACTED'));
+  console.log('Full URL (redacted key):', dialogUrl.replace(CHATGURU_API_KEY!, 'REDACTED'));
   
-  const response = await fetch(url, {
-    method: 'POST',
-  });
-
-  const responseText = await response.text();
-  console.log('ChatGuru API raw response:', responseText);
+  const dialogResponse = await fetch(dialogUrl, { method: 'POST' });
+  const dialogResponseText = await dialogResponse.text();
+  console.log('ChatGuru dialog_execute response:', dialogResponseText);
   
-  // Tentar parsear como JSON
-  let data;
+  let dialogData;
   try {
-    data = JSON.parse(responseText);
+    dialogData = JSON.parse(dialogResponseText);
   } catch (e) {
-    console.error('Failed to parse response as JSON:', responseText.substring(0, 200));
-    throw new Error(`ChatGuru returned invalid response: ${responseText.substring(0, 100)}`);
+    console.error('Failed to parse dialog response as JSON:', dialogResponseText.substring(0, 200));
+    throw new Error(`ChatGuru returned invalid response: ${dialogResponseText.substring(0, 100)}`);
   }
   
-  console.log('ChatGuru API response:', JSON.stringify(data));
-  
-  if (data.result === 'success') {
-    console.log('Message sent successfully');
-    return data;
+  // Se dialog_execute funcionou, retornar
+  if (dialogData.result === 'success') {
+    console.log('Message sent successfully via dialog_execute');
+    return dialogData;
   }
   
-  throw new Error(`ChatGuru API error: ${data.description || JSON.stringify(data)}`);
+  // Se o erro for "Chat não encontrado", tentar chat_add com dialog_id
+  if (dialogData.description?.includes('Chat não encontrado') || dialogData.code === 400) {
+    console.log('Chat not found, attempting chat_add with dialog_id...');
+    
+    const chatAddParams = new URLSearchParams({
+      key: CHATGURU_API_KEY!,
+      account_id: CHATGURU_ACCOUNT_ID!,
+      phone_id: CHATGURU_PHONE_ID!,
+      action: 'chat_add',
+      chat_number: fullPhone,
+      name: customerName,
+      dialog_id: DIALOG_ID,
+    });
+    
+    const chatAddUrl = `https://s17.chatguru.app/api/v1?${chatAddParams.toString()}`;
+    console.log('Calling chat_add with dialog_id...');
+    console.log('Full URL (redacted key):', chatAddUrl.replace(CHATGURU_API_KEY!, 'REDACTED'));
+    
+    const chatAddResponse = await fetch(chatAddUrl, { method: 'POST' });
+    const chatAddResponseText = await chatAddResponse.text();
+    console.log('ChatGuru chat_add response:', chatAddResponseText);
+    
+    let chatAddData;
+    try {
+      chatAddData = JSON.parse(chatAddResponseText);
+    } catch (e) {
+      console.error('Failed to parse chat_add response as JSON:', chatAddResponseText.substring(0, 200));
+      throw new Error(`ChatGuru chat_add returned invalid response: ${chatAddResponseText.substring(0, 100)}`);
+    }
+    
+    if (chatAddData.result === 'success') {
+      console.log('Chat created and dialog scheduled successfully');
+      return chatAddData;
+    }
+    
+    throw new Error(`ChatGuru chat_add error: ${chatAddData.description || JSON.stringify(chatAddData)}`);
+  }
+  
+  throw new Error(`ChatGuru API error: ${dialogData.description || JSON.stringify(dialogData)}`);
 }
 
 Deno.serve(async (req) => {
