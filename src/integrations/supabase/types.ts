@@ -1570,7 +1570,9 @@ export type Database = {
       }
       saved_jurisprudence: {
         Row: {
+          category: string | null
           content: string
+          court: string | null
           created_at: string
           id: string
           notes: string | null
@@ -1581,7 +1583,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          category?: string | null
           content: string
+          court?: string | null
           created_at?: string
           id?: string
           notes?: string | null
@@ -1592,7 +1596,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          category?: string | null
           content?: string
+          court?: string | null
           created_at?: string
           id?: string
           notes?: string | null
