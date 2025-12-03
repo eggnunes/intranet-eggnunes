@@ -241,6 +241,9 @@ export default function Admin() {
   };
 
   const handleApprove = async (userId: string) => {
+    // Remove imediatamente da lista local para feedback instantâneo
+    setPendingUsers(prev => prev.filter(u => u.id !== userId));
+    
     const { error } = await supabase
       .from('profiles')
       .update({
@@ -255,12 +258,15 @@ export default function Admin() {
         description: 'Erro ao aprovar usuário',
         variant: 'destructive',
       });
+      // Recarregar em caso de erro
+      fetchPendingUsers();
     } else {
       toast({
         title: 'Usuário aprovado',
         description: 'O usuário já pode acessar o sistema',
       });
-      fetchPendingUsers();
+      // Atualizar lista de aprovados também
+      fetchApprovedUsers();
     }
   };
 
