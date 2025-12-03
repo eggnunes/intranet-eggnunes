@@ -569,6 +569,7 @@ export type Database = {
       }
       food_items: {
         Row: {
+          category: string | null
           created_at: string
           created_by: string
           id: string
@@ -576,6 +577,7 @@ export type Database = {
           normalized_name: string
         }
         Insert: {
+          category?: string | null
           created_at?: string
           created_by: string
           id?: string
@@ -583,6 +585,7 @@ export type Database = {
           normalized_name: string
         }
         Update: {
+          category?: string | null
           created_at?: string
           created_by?: string
           id?: string
@@ -590,6 +593,50 @@ export type Database = {
           normalized_name?: string
         }
         Relationships: []
+      }
+      food_purchase_status: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          food_item_id: string
+          id: string
+          notes: string | null
+          status: string
+          updated_at: string
+          week_start: string
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          food_item_id: string
+          id?: string
+          notes?: string | null
+          status?: string
+          updated_at?: string
+          week_start: string
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          food_item_id?: string
+          id?: string
+          notes?: string | null
+          status?: string
+          updated_at?: string
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "food_purchase_status_food_item_id_fkey"
+            columns: ["food_item_id"]
+            isOneToOne: false
+            referencedRelation: "food_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       food_suggestions: {
         Row: {
