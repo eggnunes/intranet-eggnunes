@@ -914,6 +914,30 @@ export type Database = {
         }
         Relationships: []
       }
+      jurisprudence_searches: {
+        Row: {
+          created_at: string
+          id: string
+          query: string
+          response: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          query: string
+          response: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          query?: string
+          response?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       meeting_room_bookings: {
         Row: {
           booking_date: string
@@ -1540,6 +1564,50 @@ export type Database = {
             columns: ["candidate_id"]
             isOneToOne: false
             referencedRelation: "recruitment_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_jurisprudence: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          notes: string | null
+          search_id: string | null
+          source: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          search_id?: string | null
+          source?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          search_id?: string | null
+          source?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_jurisprudence_search_id_fkey"
+            columns: ["search_id"]
+            isOneToOne: false
+            referencedRelation: "jurisprudence_searches"
             referencedColumns: ["id"]
           },
         ]
