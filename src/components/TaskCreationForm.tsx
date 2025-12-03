@@ -33,6 +33,10 @@ export interface TaskFormData {
   title: string;
   description: string;
   customerName?: string;
+  // Pre-fill fields from suggestion rules
+  prefillTaskTypeId?: number;
+  prefillResponsibleId?: string | null;
+  prefillDeadline?: string;
 }
 
 interface TaskCreationFormProps {
@@ -83,6 +87,21 @@ export function TaskCreationForm({
   useEffect(() => {
     setTaskTitle(initialData.title || '');
     setComments(initialData.description || '');
+    
+    // Apply pre-filled values from suggestion rules
+    if (initialData.prefillTaskTypeId) {
+      setTaskTypeId(String(initialData.prefillTaskTypeId));
+    }
+    if (initialData.prefillResponsibleId) {
+      setFromUserId(String(initialData.prefillResponsibleId));
+    }
+    if (initialData.prefillDeadline) {
+      try {
+        setDeadlineDate(new Date(initialData.prefillDeadline));
+      } catch (e) {
+        console.warn('Could not parse prefill deadline date');
+      }
+    }
   }, [initialData]);
 
   const suggestTaskWithAI = async () => {

@@ -1728,14 +1728,7 @@ export default function ProcessosDashboard() {
                         process_number: m.process_number,
                         lawsuit_id: m.lawsuit_id,
                       }))}
-                      onCreateTask={(suggestion) => {
-                        const movement = filteredMovements.find(m => 
-                          `${m.lawsuit_id}-${m.date}` === suggestion.item.id
-                        );
-                        if (movement) {
-                          openTaskDialog(movement);
-                        }
-                      }}
+                      lawsuits={lawsuits}
                     />
 
                     <ScrollArea className="h-[400px]">

@@ -17,8 +17,47 @@ interface ImageAnalysis {
   rotation: number;
   documentType: string;
   confidence: number;
-  text?: string; // OCR text
+  text?: string;
+  isLegible: boolean;
+  legibilityScore: number;
+  suggestedName: string;
+  warnings: string[];
 }
+
+// Document type mapping for auto-naming
+const DOCUMENT_TYPE_NAMES: Record<string, string> = {
+  'relatorio_medico': 'Relatorio_Medico',
+  'relatório médico': 'Relatorio_Medico',
+  'laudo_medico': 'Laudo_Medico',
+  'laudo médico': 'Laudo_Medico',
+  'atestado': 'Atestado',
+  'atestado_medico': 'Atestado_Medico',
+  'receita': 'Receita_Medica',
+  'receita_medica': 'Receita_Medica',
+  'procuracao': 'Procuracao',
+  'procuração': 'Procuracao',
+  'contrato': 'Contrato',
+  'rg': 'RG',
+  'cpf': 'CPF',
+  'cnh': 'CNH',
+  'identidade': 'Documento_Identidade',
+  'comprovante': 'Comprovante',
+  'comprovante_residencia': 'Comprovante_Residencia',
+  'nota_fiscal': 'Nota_Fiscal',
+  'boleto': 'Boleto',
+  'certidao': 'Certidao',
+  'certidão': 'Certidao',
+  'declaracao': 'Declaracao',
+  'declaração': 'Declaracao',
+  'exame': 'Exame',
+  'resultado_exame': 'Resultado_Exame',
+  'termo': 'Termo',
+  'peticao': 'Peticao',
+  'petição': 'Peticao',
+  'sentenca': 'Sentenca',
+  'sentença': 'Sentenca',
+  'documento': 'Documento',
+};
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -26,62 +65,69 @@ serve(async (req) => {
   }
 
   try {
-    const { images, mergeAll = false } = await req.json();
+    const { files, mergeAll = false } = await req.json();
 
-    if (!images || !Array.isArray(images) || images.length === 0) {
-      throw new Error('Nenhuma imagem fornecida');
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      throw new Error('Nenhum arquivo fornecido');
     }
 
-    // Usar Lovable AI (Google Gemini) - provisionado automaticamente
     const apiKey = Deno.env.get('LOVABLE_API_KEY');
     if (!apiKey) {
       throw new Error('API Key não configurada no servidor');
     }
 
-    console.log(`Processando ${images.length} imagens com Lovable AI`);
+    console.log(`Processando ${files.length} arquivos com Lovable AI`);
 
-    // Analisar cada imagem com GPT-4 Vision
+    // Analyze each file
     const analyses: ImageAnalysis[] = [];
+    const legibilityWarnings: string[] = [];
     
-    for (const image of images) {
-      const analysis = await analyzeImage(image, apiKey);
+    for (const file of files) {
+      const analysis = await analyzeImage(file, apiKey);
       analyses.push(analysis);
-      console.log(`Imagem ${image.name} analisada:`, analysis);
+      console.log(`Arquivo ${file.name} analisado:`, {
+        type: analysis.documentType,
+        rotation: analysis.rotation,
+        legible: analysis.isLegible,
+        suggestedName: analysis.suggestedName,
+      });
+      
+      // Collect legibility warnings
+      if (!analysis.isLegible || analysis.legibilityScore < 0.7) {
+        legibilityWarnings.push(`${file.name}: ${analysis.warnings.join(', ')}`);
+      }
     }
 
-    // Agrupar documentos por tipo ou mesclar tudo
+    // Group documents by type or merge all
     const groupedDocs = mergeAll 
-      ? [{ type: 'documento_completo', images, analyses }]
-      : groupDocumentsByType(images, analyses);
+      ? [{ type: 'documento_completo', files, analyses }]
+      : groupDocumentsByType(files, analyses);
     console.log(`Agrupados em ${groupedDocs.length} documentos`);
 
-    // Gerar PDFs reais
+    // Generate PDFs
     const documents = [];
     
     for (let i = 0; i < groupedDocs.length; i++) {
       const group = groupedDocs[i];
       const pdfDoc = await PDFDocument.create();
       
-      for (let j = 0; j < group.images.length; j++) {
-        const image = group.images[j];
+      for (let j = 0; j < group.files.length; j++) {
+        const file = group.files[j];
         const analysis = group.analyses[j];
         
-        // Processar arquivos PDF - extrair páginas e rotacionar
-        if (image.type === 'application/pdf') {
-          console.log(`Processando PDF: ${image.name}`);
+        // Process PDF files - extract pages and rotate
+        if (file.type === 'application/pdf') {
+          console.log(`Processando PDF: ${file.name}`);
           try {
-            // Decodificar PDF base64
-            const pdfBytes = Uint8Array.from(atob(image.data), c => c.charCodeAt(0));
+            const pdfBytes = Uint8Array.from(atob(file.data), c => c.charCodeAt(0));
             const sourcePdf = await PDFDocument.load(pdfBytes);
             
-            // Copiar todas as páginas do PDF de origem
             const pageCount = sourcePdf.getPageCount();
-            console.log(`PDF ${image.name} tem ${pageCount} página(s)`);
+            console.log(`PDF ${file.name} tem ${pageCount} página(s)`);
             
             for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
               const [copiedPage] = await pdfDoc.copyPages(sourcePdf, [pageIndex]);
               
-              // Aplicar rotação se detectada pela IA
               const rotation = analysis.rotation || 0;
               if (rotation !== 0) {
                 console.log(`Aplicando rotação de ${rotation}° na página ${pageIndex + 1}`);
@@ -91,39 +137,35 @@ serve(async (req) => {
               pdfDoc.addPage(copiedPage);
             }
           } catch (e) {
-            console.error(`Erro ao processar PDF ${image.name}:`, e);
+            console.error(`Erro ao processar PDF ${file.name}:`, e);
           }
           continue;
         }
         
-        // Decodificar base64 para imagens
-        const imageBytes = Uint8Array.from(atob(image.data), c => c.charCodeAt(0));
+        // Decode base64 for images
+        const imageBytes = Uint8Array.from(atob(file.data), c => c.charCodeAt(0));
         
-        // Adicionar imagem ao PDF
         let pdfImage;
         try {
-          if (image.type.includes('png')) {
+          if (file.type.includes('png')) {
             pdfImage = await pdfDoc.embedPng(imageBytes);
           } else {
             pdfImage = await pdfDoc.embedJpg(imageBytes);
           }
         } catch (e) {
-          console.error(`Erro ao processar imagem ${image.name}:`, e);
-          // Tentar como JPEG se PNG falhar
+          console.error(`Erro ao processar imagem ${file.name}:`, e);
           try {
             pdfImage = await pdfDoc.embedJpg(imageBytes);
           } catch (e2) {
-            console.error(`Falha ao processar ${image.name} como JPEG também`);
+            console.error(`Falha ao processar ${file.name} como JPEG também`);
             continue;
           }
         }
         
-        // Determinar dimensões e rotação
         const imgWidth = pdfImage.width;
         const imgHeight = pdfImage.height;
         const rotation = analysis.rotation || 0;
         
-        // Criar página com dimensões corretas considerando rotação
         let page;
         if (rotation === 90 || rotation === 270) {
           page = pdfDoc.addPage([imgHeight, imgWidth]);
@@ -131,7 +173,6 @@ serve(async (req) => {
           page = pdfDoc.addPage([imgWidth, imgHeight]);
         }
         
-        // Desenhar imagem com rotação apropriada
         const { width: pageWidth, height: pageHeight } = page.getSize();
         
         if (rotation === 0) {
@@ -168,37 +209,44 @@ serve(async (req) => {
         }
       }
       
-      // Verificar se o PDF tem pelo menos uma página antes de salvar
-      // Se todos os arquivos foram PDFs (e foram pulados), não gerar PDF vazio
       if (pdfDoc.getPageCount() === 0) {
         console.log(`Grupo ${group.type} não tem páginas válidas, pulando`);
         continue;
       }
       
-      // Salvar PDF
       const pdfBytes = await pdfDoc.save();
       
-      // Converter para base64 sem causar stack overflow
-      // Processar em chunks para evitar "Maximum call stack size exceeded"
       let pdfBase64 = '';
       const chunkSize = 8192;
-      for (let i = 0; i < pdfBytes.length; i += chunkSize) {
-        const chunk = pdfBytes.slice(i, i + chunkSize);
+      for (let k = 0; k < pdfBytes.length; k += chunkSize) {
+        const chunk = pdfBytes.slice(k, k + chunkSize);
         pdfBase64 += String.fromCharCode(...chunk);
       }
       pdfBase64 = btoa(pdfBase64);
       
+      // Generate auto-named filename
+      const suggestedName = group.analyses[0]?.suggestedName || group.type;
+      const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const fileName = `${suggestedName}_${timestamp}_${i + 1}.pdf`;
+      
       documents.push({
-        name: `${group.type}_${i + 1}.pdf`,
+        name: fileName,
         url: `data:application/pdf;base64,${pdfBase64}`,
         pageCount: pdfDoc.getPageCount(),
+        documentType: group.type,
+        legibilityWarnings: group.analyses
+          .filter(a => !a.isLegible || a.legibilityScore < 0.7)
+          .flatMap(a => a.warnings),
       });
     }
 
     console.log(`${documents.length} PDFs gerados com sucesso`);
 
     return new Response(
-      JSON.stringify({ documents }),
+      JSON.stringify({ 
+        documents,
+        legibilityWarnings: legibilityWarnings.length > 0 ? legibilityWarnings : undefined,
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
@@ -215,22 +263,23 @@ serve(async (req) => {
 });
 
 async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnalysis> {
-  // Verificar se é uma imagem ou PDF válido para análise
   const isImage = image.type.startsWith('image/');
   const isPDF = image.type === 'application/pdf';
   
   if (!isImage && !isPDF) {
-    // Para outros arquivos (DOCX, etc), retornar valores padrão
     console.log(`Arquivo ${image.name} não é imagem nem PDF (${image.type}), usando valores padrão`);
     return {
       rotation: 0,
       documentType: 'documento',
       confidence: 0.5,
-      text: ''
+      text: '',
+      isLegible: true,
+      legibilityScore: 1.0,
+      suggestedName: 'Documento',
+      warnings: [],
     };
   }
 
-  // Validar tipo MIME de imagem suportado (PDFs são sempre suportados)
   if (isImage) {
     const supportedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!supportedTypes.includes(image.type)) {
@@ -239,12 +288,15 @@ async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnal
         rotation: 0,
         documentType: 'documento',
         confidence: 0.5,
-        text: ''
+        text: '',
+        isLegible: true,
+        legibilityScore: 1.0,
+        suggestedName: 'Documento',
+        warnings: [],
       };
     }
   }
 
-  // Usar Lovable AI (Google Gemini 2.5 Flash) para análise rápida
   const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -256,14 +308,40 @@ async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnal
       messages: [
         {
           role: 'system',
-          content: 'Você é um especialista em análise de documentos jurídicos e médicos. Analise a imagem e determine: 1) Se está rotacionada e em quantos graus (0, 90, 180, 270), 2) Que tipo de documento é (relatório médico, procuração, contrato, receita, atestado, etc), 3) Extraia todo o texto visível na imagem. Responda APENAS em formato JSON válido com as chaves: rotation (número), documentType (string), confidence (número 0-1), text (string com o texto extraído).'
+          content: `Você é um especialista em análise de documentos jurídicos e médicos. Analise a imagem e determine:
+
+1. ROTAÇÃO: Se o documento está rotacionado e em quantos graus (0, 90, 180, 270). Considere a orientação do texto.
+
+2. TIPO DE DOCUMENTO: Identifique precisamente o tipo (exemplos: relatório médico, laudo médico, atestado, procuração, contrato, RG, CPF, CNH, comprovante de residência, nota fiscal, certidão, declaração, exame, petição, sentença, termo).
+
+3. LEGIBILIDADE: Avalie se o documento é legível considerando:
+   - Qualidade da imagem (foco, nitidez)
+   - Contraste entre texto e fundo
+   - Se há partes cortadas ou obscurecidas
+   - Se o texto é lido corretamente
+   Dê uma pontuação de 0 a 1 (1 = perfeitamente legível, 0 = ilegível)
+
+4. TEXTO: Extraia o texto principal visível.
+
+5. ALERTAS: Liste problemas específicos (ex: "imagem borrada", "texto cortado", "baixo contraste", "documento de cabeça para baixo").
+
+Responda APENAS em formato JSON válido:
+{
+  "rotation": número (0, 90, 180 ou 270),
+  "documentType": string (tipo identificado),
+  "confidence": número 0-1,
+  "text": string (texto extraído),
+  "isLegible": boolean,
+  "legibilityScore": número 0-1,
+  "warnings": array de strings (problemas encontrados)
+}`
         },
         {
           role: 'user',
           content: [
             {
               type: 'text',
-              text: 'Analise este documento e retorne o JSON solicitado com a rotação correta, tipo de documento e texto extraído.'
+              text: 'Analise este documento e retorne o JSON com rotação, tipo, legibilidade e alertas.'
             },
             {
               type: 'image_url',
@@ -286,48 +364,84 @@ async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnal
   const data = await response.json();
   const content = data.choices[0].message.content;
   
-  // Extrair JSON da resposta
-  const jsonMatch = content.match(/\{[^}]+\}/);
+  // Extract JSON from response - handle multi-line JSON
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     console.warn('Resposta sem JSON válido, usando valores padrão');
     return {
       rotation: 0,
       documentType: 'documento',
       confidence: 0.5,
-      text: ''
+      text: '',
+      isLegible: true,
+      legibilityScore: 0.5,
+      suggestedName: 'Documento',
+      warnings: ['Não foi possível analisar o documento automaticamente'],
     };
   }
 
-  const result = JSON.parse(jsonMatch[0]);
-  return {
-    rotation: result.rotation || 0,
-    documentType: result.documentType || 'documento',
-    confidence: result.confidence || 0.5,
-    text: result.text || ''
-  };
+  try {
+    const result = JSON.parse(jsonMatch[0]);
+    
+    // Generate suggested name based on document type
+    const docType = (result.documentType || 'documento').toLowerCase().replace(/\s+/g, '_');
+    const suggestedName = DOCUMENT_TYPE_NAMES[docType] || 
+                          DOCUMENT_TYPE_NAMES[result.documentType?.toLowerCase()] ||
+                          formatDocumentTypeName(result.documentType || 'Documento');
+    
+    return {
+      rotation: result.rotation || 0,
+      documentType: result.documentType || 'documento',
+      confidence: result.confidence || 0.5,
+      text: result.text || '',
+      isLegible: result.isLegible !== false,
+      legibilityScore: result.legibilityScore || 0.5,
+      suggestedName,
+      warnings: result.warnings || [],
+    };
+  } catch (e) {
+    console.error('Erro ao fazer parse do JSON:', e);
+    return {
+      rotation: 0,
+      documentType: 'documento',
+      confidence: 0.5,
+      text: '',
+      isLegible: true,
+      legibilityScore: 0.5,
+      suggestedName: 'Documento',
+      warnings: ['Erro ao processar análise do documento'],
+    };
+  }
+}
+
+function formatDocumentTypeName(docType: string): string {
+  return docType
+    .split(/[\s_-]+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join('_');
 }
 
 function groupDocumentsByType(
-  images: ImageData[],
+  files: ImageData[],
   analyses: ImageAnalysis[]
-): Array<{ type: string; images: ImageData[]; analyses: ImageAnalysis[] }> {
-  const groups: Map<string, { images: ImageData[]; analyses: ImageAnalysis[] }> = new Map();
+): Array<{ type: string; files: ImageData[]; analyses: ImageAnalysis[] }> {
+  const groups: Map<string, { files: ImageData[]; analyses: ImageAnalysis[] }> = new Map();
   
-  images.forEach((image, index) => {
+  files.forEach((file, index) => {
     const analysis = analyses[index];
     const docType = analysis.documentType.toLowerCase().replace(/\s+/g, '_');
     
     if (!groups.has(docType)) {
-      groups.set(docType, { images: [], analyses: [] });
+      groups.set(docType, { files: [], analyses: [] });
     }
     const group = groups.get(docType)!;
-    group.images.push(image);
+    group.files.push(file);
     group.analyses.push(analysis);
   });
 
   return Array.from(groups.entries()).map(([type, data]) => ({
     type,
-    images: data.images,
+    files: data.files,
     analyses: data.analyses
   }));
 }

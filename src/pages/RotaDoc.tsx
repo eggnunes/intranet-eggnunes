@@ -10,11 +10,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
 
 interface ProcessedDocument {
   name: string;
   url: string;
   pageCount: number;
+  documentType?: string;
+  legibilityWarnings?: string[];
 }
 
 export default function RotaDoc() {
@@ -23,6 +27,7 @@ export default function RotaDoc() {
   const [processedDocuments, setProcessedDocuments] = useState<ProcessedDocument[]>([]);
   const [mergeAll, setMergeAll] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0, startTime: 0, estimatedTimeRemaining: 0 });
+  const [legibilityWarnings, setLegibilityWarnings] = useState<string[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -41,6 +46,7 @@ export default function RotaDoc() {
     }
 
     setProcessing(true);
+    setLegibilityWarnings([]);
     const startTime = Date.now();
     setProgress({ current: 0, total: files.length, startTime, estimatedTimeRemaining: 0 });
 
@@ -74,6 +80,11 @@ export default function RotaDoc() {
       if (error) throw error;
 
       setProcessedDocuments(data.documents || []);
+      
+      // Set legibility warnings if any
+      if (data.legibilityWarnings && data.legibilityWarnings.length > 0) {
+        setLegibilityWarnings(data.legibilityWarnings);
+      }
       
       const processingTime = Math.round((Date.now() - startTime) / 1000);
 
@@ -124,6 +135,7 @@ export default function RotaDoc() {
   const handleReset = () => {
     setFiles([]);
     setProcessedDocuments([]);
+    setLegibilityWarnings([]);
     setProgress({ current: 0, total: 0, startTime: 0, estimatedTimeRemaining: 0 });
     toast({
       title: 'Nova tarefa iniciada',
@@ -201,6 +213,24 @@ export default function RotaDoc() {
               </CardContent>
             </Card>
           </>
+        )}
+
+        {/* Legibility Warnings */}
+        {legibilityWarnings.length > 0 && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Problemas de Legibilidade Detectados</AlertTitle>
+            <AlertDescription>
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                {legibilityWarnings.map((warning, index) => (
+                  <li key={index} className="text-sm">{warning}</li>
+                ))}
+              </ul>
+              <p className="mt-2 text-sm">
+                Considere digitalizar novamente os documentos com melhor qualidade.
+              </p>
+            </AlertDescription>
+          </Alert>
         )}
 
         <ProcessingStatus
