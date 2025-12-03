@@ -986,6 +986,81 @@ export type Database = {
         }
         Relationships: []
       }
+      position_permission_defaults: {
+        Row: {
+          created_at: string
+          id: string
+          is_admin_group: boolean | null
+          perm_admin_requests: string
+          perm_advbox: string
+          perm_announcements: string
+          perm_birthdays: string
+          perm_collection: string
+          perm_copa_cozinha: string
+          perm_documents: string
+          perm_events: string
+          perm_financial: string
+          perm_forum: string
+          perm_home_office: string
+          perm_onboarding: string
+          perm_recruitment: string
+          perm_suggestions: string
+          perm_task_rules: string
+          perm_users: string
+          perm_vacation: string
+          position: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_admin_group?: boolean | null
+          perm_admin_requests?: string
+          perm_advbox?: string
+          perm_announcements?: string
+          perm_birthdays?: string
+          perm_collection?: string
+          perm_copa_cozinha?: string
+          perm_documents?: string
+          perm_events?: string
+          perm_financial?: string
+          perm_forum?: string
+          perm_home_office?: string
+          perm_onboarding?: string
+          perm_recruitment?: string
+          perm_suggestions?: string
+          perm_task_rules?: string
+          perm_users?: string
+          perm_vacation?: string
+          position: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_admin_group?: boolean | null
+          perm_admin_requests?: string
+          perm_advbox?: string
+          perm_announcements?: string
+          perm_birthdays?: string
+          perm_collection?: string
+          perm_copa_cozinha?: string
+          perm_documents?: string
+          perm_events?: string
+          perm_financial?: string
+          perm_forum?: string
+          perm_home_office?: string
+          perm_onboarding?: string
+          perm_recruitment?: string
+          perm_suggestions?: string
+          perm_task_rules?: string
+          perm_users?: string
+          perm_vacation?: string
+          position?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           approval_status: Database["public"]["Enums"]["approval_status"]
