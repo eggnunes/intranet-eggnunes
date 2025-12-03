@@ -18,7 +18,10 @@ import { TaskSuggestionsPanel } from '@/components/TaskSuggestionsPanel';
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
 import { format, subDays, subMonths, isAfter, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Briefcase, TrendingUp, BarChart, Search, Filter, AlertCircle, Calendar, ListTodo, RefreshCw, MessageSquare } from 'lucide-react';
+import { Briefcase, TrendingUp, BarChart, Search, Filter, AlertCircle, Calendar, ListTodo, RefreshCw, MessageSquare, Send, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 interface Lawsuit {
   id: number;
@@ -117,6 +120,8 @@ export default function ProcessosDashboard() {
   const [isLoadingFullData, setIsLoadingFullData] = useState(false);
   const [hasCompleteData, setHasCompleteData] = useState(cachedData?.isComplete || false);
   const [sendingDocRequest, setSendingDocRequest] = useState<number | null>(null);
+  const [messageDialogLawsuit, setMessageDialogLawsuit] = useState<Lawsuit | null>(null);
+  const [selectedMessageType, setSelectedMessageType] = useState<string>('');
   
   // Filtros para gráficos de evolução
   const [selectedEvolutionTypes, setSelectedEvolutionTypes] = useState<string[]>([]);
@@ -216,6 +221,30 @@ export default function ProcessosDashboard() {
     } finally {
       setSendingDocRequest(null);
     }
+  };
+
+  // Abrir diálogo de seleção de mensagem
+  const openMessageDialog = (lawsuit: Lawsuit) => {
+    setMessageDialogLawsuit(lawsuit);
+    setSelectedMessageType('');
+  };
+
+  // Fechar diálogo de mensagem
+  const closeMessageDialog = () => {
+    setMessageDialogLawsuit(null);
+    setSelectedMessageType('');
+  };
+
+  // Enviar mensagem baseada no tipo selecionado
+  const handleSendMessage = async () => {
+    if (!messageDialogLawsuit || !selectedMessageType) return;
+
+    if (selectedMessageType === 'cobranca_documentos') {
+      await sendDocumentRequest(messageDialogLawsuit);
+    }
+    // Adicionar outros tipos de mensagem aqui no futuro
+
+    closeMessageDialog();
   };
 
   const openTaskDialog = (movement: Movement) => {
@@ -1546,12 +1575,11 @@ export default function ProcessosDashboard() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => sendDocumentRequest(lawsuit)}
+                                  onClick={() => openMessageDialog(lawsuit)}
                                   disabled={sendingDocRequest === lawsuit.id}
-                                  title="Cobrar documentos via WhatsApp"
                                 >
-                                  <MessageSquare className="h-4 w-4" />
-                                  {sendingDocRequest === lawsuit.id ? '...' : ''}
+                                  <MessageSquare className="h-4 w-4 mr-1" />
+                                  {sendingDocRequest === lawsuit.id ? 'Enviando...' : 'Enviar Mensagem'}
                                 </Button>
                                 <Button
                                   size="sm"
@@ -1903,6 +1931,49 @@ export default function ProcessosDashboard() {
             });
           }}
         />
+
+        {/* Dialog de Envio de Mensagem */}
+        <Dialog open={!!messageDialogLawsuit} onOpenChange={(open) => !open && closeMessageDialog()}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Enviar Mensagem</DialogTitle>
+              <DialogDescription>
+                Selecione o tipo de mensagem que deseja enviar para o cliente do processo{' '}
+                <span className="font-semibold">{messageDialogLawsuit?.process_number}</span>
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-4">
+              <Label className="text-sm font-medium mb-3 block">Tipo de Mensagem</Label>
+              <RadioGroup value={selectedMessageType} onValueChange={setSelectedMessageType}>
+                <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-accent/50 cursor-pointer">
+                  <RadioGroupItem value="cobranca_documentos" id="cobranca_documentos" />
+                  <Label htmlFor="cobranca_documentos" className="flex-1 cursor-pointer">
+                    <span className="font-medium">Cobrança de Documentos</span>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Solicita ao cliente os documentos necessários para o processo
+                    </p>
+                  </Label>
+                </div>
+                {/* Adicionar mais tipos de mensagem aqui no futuro */}
+              </RadioGroup>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={closeMessageDialog}>
+                <X className="h-4 w-4 mr-1" />
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleSendMessage} 
+                disabled={!selectedMessageType || sendingDocRequest === messageDialogLawsuit?.id}
+              >
+                <Send className="h-4 w-4 mr-1" />
+                {sendingDocRequest === messageDialogLawsuit?.id ? 'Enviando...' : 'Enviar'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

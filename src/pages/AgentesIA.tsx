@@ -13,6 +13,11 @@ export default function AgentesIA() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [loadingFavorites, setLoadingFavorites] = useState<string[]>([]);
 
+  // Scroll para o topo ao montar a página
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   useEffect(() => {
     if (user) {
       loadFavorites();
