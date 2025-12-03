@@ -13,7 +13,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Home, Calendar, Users, ArrowRightLeft, Check, X, Clock,
-  Plus, Trash2, Bell, AlertCircle
+  Plus, Trash2, Bell, AlertCircle, BarChart3
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -437,20 +437,31 @@ const HomeOffice = () => {
   const myAvailableDates = user ? getAvailableDatesForUser(user.id) : [];
   const otherLawyers = lawyers.filter(l => l.id !== user?.id);
 
-  // Check if user has access (is lawyer or admin)
-  if (!isAdmin && !isLawyer) {
-    return (
-      <Layout>
-        <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
-          <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
-          <h1 className="text-2xl font-bold text-foreground mb-2">Acesso Restrito</h1>
-          <p className="text-muted-foreground">
-            Esta página é exclusiva para advogados e administradores.
-          </p>
-        </div>
-      </Layout>
-    );
-  }
+  // Calculate statistics for the current month
+  const getStatistics = () => {
+    const lawyerStats = lawyers.map(lawyer => {
+      const lawyerSchedule = schedules.filter(s => s.user_id === lawyer.id);
+      const daysCount = lawyerSchedule.length;
+      
+      return {
+        lawyer,
+        daysCount,
+        days: lawyerSchedule.map(s => DAYS_OF_WEEK.find(d => d.value === s.day_of_week)?.label || '')
+      };
+    });
+
+    const totalScheduledDays = schedules.length;
+    const lawyersWithSchedule = [...new Set(schedules.map(s => s.user_id))].length;
+    
+    return {
+      lawyerStats,
+      totalScheduledDays,
+      lawyersWithSchedule,
+      totalLawyers: lawyers.length
+    };
+  };
+
+  const stats = getStatistics();
 
   return (
     <Layout>
@@ -486,19 +497,27 @@ const HomeOffice = () => {
         </div>
 
         <Tabs defaultValue="board" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : isLawyer ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <TabsTrigger value="board">Mural da Semana</TabsTrigger>
-            <TabsTrigger value="swap" className="flex items-center gap-2">
-              <ArrowRightLeft className="h-4 w-4" />
-              Trocar Dias
-              {pendingRequestsForMe.length > 0 && (
-                <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 justify-center">
-                  {pendingRequestsForMe.length}
-                </Badge>
-              )}
-            </TabsTrigger>
+            {isLawyer && (
+              <TabsTrigger value="swap" className="flex items-center gap-2">
+                <ArrowRightLeft className="h-4 w-4" />
+                Trocar Dias
+                {pendingRequestsForMe.length > 0 && (
+                  <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 justify-center">
+                    {pendingRequestsForMe.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            )}
             {isAdmin && (
-              <TabsTrigger value="manage">Gerenciar Escala</TabsTrigger>
+              <>
+                <TabsTrigger value="manage">Gerenciar Escala</TabsTrigger>
+                <TabsTrigger value="stats">
+                  <BarChart3 className="h-4 w-4 mr-1" />
+                  Estatísticas
+                </TabsTrigger>
+              </>
             )}
           </TabsList>
 
@@ -582,7 +601,8 @@ const HomeOffice = () => {
             )}
           </TabsContent>
 
-          {/* Swap Tab */}
+          {/* Swap Tab - Only for lawyers */}
+          {isLawyer && (
           <TabsContent value="swap" className="space-y-6">
             {/* Pending requests for me */}
             {pendingRequestsForMe.length > 0 && (
@@ -770,9 +790,11 @@ const HomeOffice = () => {
               </CardContent>
             </Card>
           </TabsContent>
+          )}
 
           {/* Manage Tab (Admin Only) */}
           {isAdmin && (
+            <>
             <TabsContent value="manage" className="space-y-6">
               <Card>
                 <CardHeader>
@@ -901,6 +923,127 @@ const HomeOffice = () => {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {/* Statistics Tab */}
+            <TabsContent value="stats" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Total de Advogados
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.totalLawyers}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Advogados com Escala
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.lawyersWithSchedule}</div>
+                    <p className="text-xs text-muted-foreground">
+                      {stats.totalLawyers > 0 
+                        ? `${Math.round((stats.lawyersWithSchedule / stats.totalLawyers) * 100)}% do total`
+                        : '0% do total'}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Dias de HO Cadastrados
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.totalScheduledDays}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Média de {stats.lawyersWithSchedule > 0 
+                        ? (stats.totalScheduledDays / stats.lawyersWithSchedule).toFixed(1) 
+                        : '0'} dias por advogado
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5" />
+                    Utilização por Advogado - {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
+                  </CardTitle>
+                  <CardDescription>
+                    Detalhamento dos dias de home office de cada advogado
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {stats.lawyerStats.length === 0 ? (
+                    <p className="text-muted-foreground">Nenhum advogado cadastrado.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {stats.lawyerStats.map(({ lawyer, daysCount, days }) => (
+                        <div key={lawyer.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border">
+                          <div className="flex items-center gap-3">
+                            <Avatar>
+                              <AvatarImage src={lawyer.avatar_url || ''} />
+                              <AvatarFallback>{lawyer.full_name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium">{lawyer.full_name}</p>
+                              {daysCount === 0 ? (
+                                <p className="text-sm text-muted-foreground">Sem home office cadastrado</p>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">{days.join(', ')}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-semibold">{daysCount} {daysCount === 1 ? 'dia' : 'dias'}</div>
+                            <div className="text-xs text-muted-foreground">por semana</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Swap Statistics */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ArrowRightLeft className="h-5 w-5" />
+                    Estatísticas de Trocas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="text-center p-4 rounded-lg bg-muted/30">
+                      <div className="text-2xl font-bold text-primary">
+                        {swapRequests.filter(r => r.status === 'pending').length}
+                      </div>
+                      <p className="text-sm text-muted-foreground">Pendentes</p>
+                    </div>
+                    <div className="text-center p-4 rounded-lg bg-muted/30">
+                      <div className="text-2xl font-bold text-green-600">
+                        {swapRequests.filter(r => r.status === 'accepted').length}
+                      </div>
+                      <p className="text-sm text-muted-foreground">Aceitas</p>
+                    </div>
+                    <div className="text-center p-4 rounded-lg bg-muted/30">
+                      <div className="text-2xl font-bold text-red-600">
+                        {swapRequests.filter(r => r.status === 'rejected').length}
+                      </div>
+                      <p className="text-sm text-muted-foreground">Recusadas</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            </>
           )}
         </Tabs>
       </div>
