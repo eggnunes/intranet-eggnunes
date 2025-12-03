@@ -507,7 +507,8 @@ const CopaCozinha = () => {
                   <li>• Cadastre novos alimentos que você gostaria de ver na copa</li>
                   <li>• Clique nos alimentos existentes para votar/sugerir sua compra</li>
                   <li>• As sugestões são renovadas toda segunda-feira</li>
-                  <li>• A auxiliar administrativa verá os alimentos mais votados para compra</li>
+                  <li>• A auxiliar administrativo verá os alimentos mais votados e verificará a possibilidade de compra</li>
+                  <li className="text-xs italic mt-2">* As sugestões servem como referência para a equipe administrativa. A compra dos itens depende da disponibilidade e aprovação do setor responsável.</li>
                 </ul>
               </div>
             </div>
