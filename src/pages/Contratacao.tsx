@@ -20,7 +20,7 @@ import {
   MessageSquare, Trash2, Eye, Filter, Briefcase, Plus,
   TrendingUp, BarChart3, Video, MapPin, Star, Paperclip,
   CalendarDays, FolderOpen, Sparkles, Loader2, Download, 
-  Database, UserCheck, Archive
+  Database, UserCheck, Archive, GitCompare, Check
 } from 'lucide-react';
 import { format, differenceInDays, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -244,6 +244,10 @@ export default function Contratacao() {
   const [showScheduleInterview, setShowScheduleInterview] = useState(false);
   const [showAddDocument, setShowAddDocument] = useState(false);
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+  
+  // Comparison state
+  const [compareList, setCompareList] = useState<string[]>([]);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
   
   // Form states
@@ -956,6 +960,25 @@ export default function Contratacao() {
     i.status === 'scheduled' && new Date(i.scheduled_date) >= new Date()
   ).slice(0, 5);
 
+  // Comparison functions
+  const toggleCompareCandidate = (candidateId: string) => {
+    setCompareList(prev => 
+      prev.includes(candidateId) 
+        ? prev.filter(id => id !== candidateId)
+        : prev.length < 4 ? [...prev, candidateId] : prev
+    );
+  };
+
+  const candidatesForComparison = candidates.filter(c => compareList.includes(c.id));
+
+  // Get average feedback rating for a candidate
+  const getCandidateAverageRating = (candidateId: string) => {
+    const candidateInterviewsList = interviews.filter(i => i.candidate_id === candidateId && i.rating);
+    if (candidateInterviewsList.length === 0) return null;
+    const sum = candidateInterviewsList.reduce((acc, i) => acc + (i.rating || 0), 0);
+    return (sum / candidateInterviewsList.length).toFixed(1);
+  };
+
   if (roleLoading || permLoading) {
     return <Layout><div className="flex items-center justify-center h-64"><div className="text-muted-foreground">Carregando...</div></div></Layout>;
   }
@@ -1115,6 +1138,16 @@ export default function Contratacao() {
                   <Button asChild><label className="cursor-pointer"><Upload className="h-4 w-4 mr-2" />{uploading ? 'Processando...' : 'Upload'}<input type="file" accept=".pdf" multiple onChange={(e) => handleFileUpload(e)} className="hidden" disabled={uploading} /></label></Button>
                 </div>
               )}
+              {compareList.length >= 2 && (
+                <Button onClick={() => setShowComparison(true)} className="bg-purple-600 hover:bg-purple-700">
+                  <GitCompare className="h-4 w-4 mr-2" />Comparar ({compareList.length})
+                </Button>
+              )}
+              {compareList.length > 0 && compareList.length < 2 && (
+                <Badge variant="outline" className="py-2 px-3">
+                  Selecione mais {2 - compareList.length} para comparar
+                </Badge>
+              )}
             </div>
 
             <div className="grid gap-4">
@@ -1127,27 +1160,46 @@ export default function Contratacao() {
                 filteredCandidates.map(candidate => {
                   const jo = jobOpenings.find(j => j.id === candidate.job_opening_id);
                   const nextStages = getNextStages(candidate.current_stage);
+                  const isSelected = compareList.includes(candidate.id);
+                  const avgRating = getCandidateAverageRating(candidate.id);
                   return (
-                    <Card key={candidate.id} className={!candidate.is_active ? 'opacity-60' : ''}>
+                    <Card key={candidate.id} className={`${!candidate.is_active ? 'opacity-60' : ''} ${isSelected ? 'ring-2 ring-purple-500' : ''}`}>
                       <CardContent className="p-4">
                         <div className="flex flex-col sm:flex-row justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-semibold">{candidate.full_name}</h3>
-                              <Badge className={STAGE_COLORS[candidate.current_stage]}>{STAGE_LABELS[candidate.current_stage]}</Badge>
-                              {jo ? (
-                                <Badge variant="outline"><FolderOpen className="h-3 w-3 mr-1" />{jo.title}</Badge>
-                              ) : (
-                                <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300">
-                                  <Database className="h-3 w-3 mr-1" />Banco de Talentos
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="text-sm text-muted-foreground mt-1">
-                              {candidate.email && <p>{candidate.email}</p>}
-                              {candidate.phone && <p>{candidate.phone}</p>}
-                              {candidate.position_applied && <p>Cargo: {candidate.position_applied}</p>}
-                              <p className="text-xs">Cadastrado em {format(new Date(candidate.created_at), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => toggleCompareCandidate(candidate.id)}
+                              className={`h-6 w-6 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+                                isSelected 
+                                  ? 'bg-purple-600 border-purple-600 text-white' 
+                                  : 'border-muted-foreground/30 hover:border-purple-400'
+                              }`}
+                            >
+                              {isSelected && <Check className="h-4 w-4" />}
+                            </button>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-semibold">{candidate.full_name}</h3>
+                                <Badge className={STAGE_COLORS[candidate.current_stage]}>{STAGE_LABELS[candidate.current_stage]}</Badge>
+                                {avgRating && (
+                                  <Badge variant="outline" className="gap-1">
+                                    <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />{avgRating}
+                                  </Badge>
+                                )}
+                                {jo ? (
+                                  <Badge variant="outline"><FolderOpen className="h-3 w-3 mr-1" />{jo.title}</Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300">
+                                    <Database className="h-3 w-3 mr-1" />Banco de Talentos
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-sm text-muted-foreground mt-1">
+                                {candidate.email && <p>{candidate.email}</p>}
+                                {candidate.phone && <p>{candidate.phone}</p>}
+                                {candidate.position_applied && <p>Cargo: {candidate.position_applied}</p>}
+                                <p className="text-xs">Cadastrado em {format(new Date(candidate.created_at), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                              </div>
                             </div>
                           </div>
                           <div className="flex flex-wrap gap-2 items-start">
@@ -1820,6 +1872,142 @@ export default function Contratacao() {
                 <Button variant="outline" onClick={() => setShowFeedbackDialog(false)}>Cancelar</Button>
                 <Button onClick={handleSaveFeedback}>Salvar Avaliação</Button>
               </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Candidate Comparison Dialog */}
+        <Dialog open={showComparison} onOpenChange={setShowComparison}>
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <GitCompare className="h-5 w-5" />
+                Comparação de Candidatos
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex justify-end mb-4">
+              <Button variant="outline" size="sm" onClick={() => setCompareList([])}>
+                Limpar Seleção
+              </Button>
+            </div>
+            <div className={`grid gap-4 ${candidatesForComparison.length === 2 ? 'grid-cols-2' : candidatesForComparison.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
+              {candidatesForComparison.map(candidate => {
+                const jo = jobOpenings.find(j => j.id === candidate.job_opening_id);
+                const avgRating = getCandidateAverageRating(candidate.id);
+                const candidateInterviewsList = interviews.filter(i => i.candidate_id === candidate.id);
+                return (
+                  <Card key={candidate.id} className="relative">
+                    <button 
+                      onClick={() => toggleCompareCandidate(candidate.id)}
+                      className="absolute top-2 right-2 h-6 w-6 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 text-xs"
+                    >
+                      ✕
+                    </button>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">{candidate.full_name}</CardTitle>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        <Badge className={`${STAGE_COLORS[candidate.current_stage]} text-xs`}>
+                          {STAGE_LABELS[candidate.current_stage]}
+                        </Badge>
+                        {avgRating && (
+                          <Badge variant="outline" className="gap-1 text-xs">
+                            <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />{avgRating}
+                          </Badge>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm">
+                      {/* Contact Info */}
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground uppercase">Contato</p>
+                        <p>{candidate.email || '-'}</p>
+                        <p>{candidate.phone || '-'}</p>
+                      </div>
+
+                      {/* Position */}
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground uppercase">Cargo Pretendido</p>
+                        <p>{candidate.position_applied || '-'}</p>
+                      </div>
+
+                      {/* Job Opening */}
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground uppercase">Vaga</p>
+                        <p>{jo?.title || 'Banco de Talentos'}</p>
+                      </div>
+
+                      {/* Registration Date */}
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground uppercase">Cadastro</p>
+                        <p>{format(new Date(candidate.created_at), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                      </div>
+
+                      {/* Test Score */}
+                      {candidate.test_score !== null && (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground uppercase">Nota da Prova</p>
+                          <p className="text-lg font-bold">{candidate.test_score}</p>
+                        </div>
+                      )}
+
+                      {/* Interview Count */}
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground uppercase">Entrevistas</p>
+                        <p>{candidateInterviewsList.length} realizada(s)</p>
+                      </div>
+
+                      {/* Resume */}
+                      {candidate.resume_url && (
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="w-full mt-2"
+                          onClick={() => downloadFile(candidate.resume_url!, candidate.resume_file_name || 'curriculo.pdf')}
+                        >
+                          <FileText className="h-4 w-4 mr-2" />Currículo
+                        </Button>
+                      )}
+
+                      {/* Summary */}
+                      {candidate.extracted_data?.summary && (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground uppercase">Resumo</p>
+                          <p className="text-xs bg-muted p-2 rounded-md line-clamp-4">{candidate.extracted_data.summary}</p>
+                        </div>
+                      )}
+
+                      {/* Skills from extracted data */}
+                      {candidate.extracted_data?.skills && candidate.extracted_data.skills.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground uppercase">Habilidades</p>
+                          <div className="flex flex-wrap gap-1">
+                            {candidate.extracted_data.skills.slice(0, 5).map((skill: string, i: number) => (
+                              <Badge key={i} variant="secondary" className="text-xs">{skill}</Badge>
+                            ))}
+                            {candidate.extracted_data.skills.length > 5 && (
+                              <Badge variant="outline" className="text-xs">+{candidate.extracted_data.skills.length - 5}</Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* View Details Button */}
+                      <Button 
+                        size="sm" 
+                        variant="default" 
+                        className="w-full"
+                        onClick={() => { 
+                          setShowComparison(false);
+                          setSelectedCandidate(candidate); 
+                          fetchCandidateDetails(candidate.id); 
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />Ver Detalhes
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </DialogContent>
         </Dialog>
