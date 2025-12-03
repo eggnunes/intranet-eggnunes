@@ -20,7 +20,8 @@ import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
 
 interface Publication {
   id: string | number;
-  date: string;
+  date: string; // data de publicação (created_at)
+  event_date?: string; // data do evento (date)
   created_at?: string;
   description?: string;
   lawsuit_number?: string;
@@ -427,7 +428,8 @@ export default function PublicacoesFeed() {
       
       const mappedPubs: Publication[] = allPubs.map((movement: any, index: number) => ({
         id: movement.id ?? `${movement.lawsuit_id ?? 'movement'}-${movement.date ?? movement.created_at}-${index}`,
-        date: movement.date || movement.created_at,
+        date: movement.created_at || movement.date, // Data de publicação (created_at como prioridade)
+        event_date: movement.date, // Data do evento
         created_at: movement.created_at,
         process_number: movement.process_number,
         title: movement.title,
@@ -574,9 +576,10 @@ export default function PublicacoesFeed() {
       return;
     }
 
-    const headers = ['Data do Evento', 'Número do Processo', 'Título/Descrição', 'Cliente(s)', 'Tribunal'];
+    const headers = ['Data Publicação', 'Data Evento', 'Número do Processo', 'Título/Descrição', 'Cliente(s)', 'Tribunal'];
     const rows = publications.map(pub => [
       format(new Date(pub.date), 'dd/MM/yyyy', { locale: ptBR }),
+      pub.event_date ? format(new Date(pub.event_date), 'dd/MM/yyyy', { locale: ptBR }) : '',
       pub.lawsuit_number || pub.process_number || 'Sem número',
       pub.description || pub.title || pub.header || '',
       pub.customers || '',
@@ -649,7 +652,7 @@ export default function PublicacoesFeed() {
         }
 
         const dateText = format(new Date(pub.date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-        page.drawText(`Data do Evento: ${dateText}`, {
+        page.drawText(`Data de Publicação: ${dateText}`, {
           x: margin,
           y: yPosition,
           size: 10,
@@ -964,16 +967,15 @@ export default function PublicacoesFeed() {
                               />
                               <div>
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  {publication.created_at && publication.created_at !== publication.date && (
-                                    <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-900/20">
-                                      <Calendar className="h-3 w-3 mr-1" />
-                                      Publicado: {format(new Date(publication.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                                  <Badge variant="outline" className="text-xs text-blue-700 bg-blue-50 dark:bg-blue-900/20">
+                                    <Calendar className="h-3 w-3 mr-1" />
+                                    Publicado: {format(new Date(publication.date), "dd/MM/yyyy", { locale: ptBR })}
+                                  </Badge>
+                                  {publication.event_date && (
+                                    <Badge variant="outline" className="text-xs text-muted-foreground">
+                                      Evento: {format(new Date(publication.event_date), "dd/MM/yyyy", { locale: ptBR })}
                                     </Badge>
                                   )}
-                                  <Badge variant="outline" className="text-xs">
-                                    <Calendar className="h-3 w-3 mr-1" />
-                                    Evento: {format(new Date(publication.date), "dd/MM/yyyy", { locale: ptBR })}
-                                  </Badge>
                                   <Badge variant="secondary" className="text-xs">
                                     {extractCourtCode(publication.header)}
                                   </Badge>
@@ -1050,11 +1052,19 @@ export default function PublicacoesFeed() {
               <div className="space-y-4">
                 <div className="bg-muted/30 p-3 rounded-md text-sm space-y-2">
                   <p>
-                    <span className="font-medium">Data do Evento:</span>{' '}
+                    <span className="font-medium">Data de Publicação:</span>{' '}
                     {format(new Date(selectedPublication.date), "dd 'de' MMMM 'de' yyyy", {
                       locale: ptBR,
                     })}
                   </p>
+                  {selectedPublication.event_date && (
+                    <p>
+                      <span className="font-medium">Data do Evento:</span>{' '}
+                      {format(new Date(selectedPublication.event_date), "dd 'de' MMMM 'de' yyyy", {
+                        locale: ptBR,
+                      })}
+                    </p>
+                  )}
                   <p>
                     <span className="font-medium">Processo:</span>{' '}
                     {selectedPublication.process_number || selectedPublication.lawsuit_number || 'Sem número'}
