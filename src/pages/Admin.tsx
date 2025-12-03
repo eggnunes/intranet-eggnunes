@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, ThumbsUp, ChevronDown, ChevronUp, Filter } from 'lucide-react';
+import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Select,
@@ -31,6 +31,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { SuggestionComments } from '@/components/SuggestionComments';
 import { SuggestionTagManager } from '@/components/SuggestionTagManager';
 import { useNavigate } from 'react-router-dom';
+import { Calendar } from '@/components/ui/calendar';
+import { format, parse } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface PendingUser {
   id: string;
@@ -39,6 +42,15 @@ interface PendingUser {
   created_at: string;
   avatar_url: string | null;
   position: string | null;
+}
+
+interface ApprovedUser {
+  id: string;
+  email: string;
+  full_name: string;
+  avatar_url: string | null;
+  position: string | null;
+  join_date: string | null;
 }
 
 interface AdminUser {
@@ -79,6 +91,7 @@ interface Suggestion {
 export default function Admin() {
   const { isAdmin, loading } = useUserRole();
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+  const [approvedUsers, setApprovedUsers] = useState<ApprovedUser[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [usageHistory, setUsageHistory] = useState<UsageHistoryItem[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -89,6 +102,9 @@ export default function Admin() {
   const [sortBy, setSortBy] = useState<string>("newest");
   const [openSuggestions, setOpenSuggestions] = useState<Set<string>>(new Set());
   const [allTags, setAllTags] = useState<any[]>([]);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editingJoinDate, setEditingJoinDate] = useState<Date | undefined>(undefined);
+  const [userSearchQuery, setUserSearchQuery] = useState<string>("");
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -101,6 +117,7 @@ export default function Admin() {
   useEffect(() => {
     if (isAdmin) {
       fetchPendingUsers();
+      fetchApprovedUsers();
       fetchAdminUsers();
       fetchUsageHistory();
       fetchSuggestions();
@@ -116,6 +133,45 @@ export default function Admin() {
       .order('created_at', { ascending: false });
     setPendingUsers(data || []);
   };
+
+  const fetchApprovedUsers = async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, avatar_url, position, join_date')
+      .eq('approval_status', 'approved')
+      .order('full_name');
+    setApprovedUsers(data || []);
+  };
+
+  const handleUpdateJoinDate = async (userId: string, joinDate: Date | undefined) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        join_date: joinDate ? format(joinDate, 'yyyy-MM-dd') : null,
+      })
+      .eq('id', userId);
+
+    if (error) {
+      toast({
+        title: 'Erro',
+        description: 'Erro ao atualizar data de ingresso',
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Atualizado',
+        description: 'Data de ingresso atualizada com sucesso',
+      });
+      fetchApprovedUsers();
+      setEditingUserId(null);
+      setEditingJoinDate(undefined);
+    }
+  };
+
+  const filteredApprovedUsers = approvedUsers.filter(user => 
+    user.full_name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+    user.email.toLowerCase().includes(userSearchQuery.toLowerCase())
+  );
 
   const fetchAdminUsers = async () => {
     const { data } = await supabase
@@ -507,13 +563,17 @@ export default function Admin() {
         </div>
 
         <Tabs defaultValue="pending" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="pending" className="gap-2">
               <UserPlus className="w-4 h-4" />
               Aprovações
               {pendingUsers.length > 0 && (
                 <Badge variant="destructive" className="ml-2">{pendingUsers.length}</Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="users" className="gap-2">
+              <Users className="w-4 h-4" />
+              Usuários
             </TabsTrigger>
             <TabsTrigger value="suggestions" className="gap-2">
               <Lightbulb className="w-4 h-4" />
@@ -597,6 +657,132 @@ export default function Admin() {
                             <X className="w-4 h-4" />
                             Rejeitar
                           </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="users">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  Gerenciar Usuários
+                </CardTitle>
+                <CardDescription>
+                  Edite a data de ingresso dos colaboradores
+                </CardDescription>
+                <div className="pt-4">
+                  <Input
+                    placeholder="Buscar por nome ou email..."
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    className="max-w-sm"
+                  />
+                </div>
+              </CardHeader>
+              <CardContent>
+                {filteredApprovedUsers.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">
+                    Nenhum usuário encontrado
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredApprovedUsers.map((user) => (
+                      <div
+                        key={user.id}
+                        className="flex items-center justify-between p-4 border border-border rounded-lg"
+                      >
+                        <div className="flex items-center gap-4 flex-1">
+                          <Avatar className="h-12 w-12 border-2 border-primary/20">
+                            <AvatarImage src={user.avatar_url || undefined} />
+                            <AvatarFallback className="bg-primary/10 text-primary">
+                              {user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <p className="font-medium">{user.full_name}</p>
+                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                            {user.position && (
+                              <Badge variant="secondary" className="text-xs mt-1">
+                                {user.position === 'socio' && 'Sócio'}
+                                {user.position === 'advogado' && 'Advogado'}
+                                {user.position === 'estagiario' && 'Estagiário'}
+                                {user.position === 'comercial' && 'Comercial'}
+                                {user.position === 'administrativo' && 'Administrativo'}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {editingUserId === user.id ? (
+                            <div className="flex items-center gap-2">
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button variant="outline" size="sm" className="gap-2">
+                                    <CalendarCheck className="w-4 h-4" />
+                                    {editingJoinDate 
+                                      ? format(editingJoinDate, 'dd/MM/yyyy', { locale: ptBR })
+                                      : 'Selecionar'}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="end">
+                                  <Calendar
+                                    mode="single"
+                                    selected={editingJoinDate}
+                                    onSelect={setEditingJoinDate}
+                                    initialFocus
+                                    disabled={(date) => date > new Date() || date < new Date('1900-01-01')}
+                                    locale={ptBR}
+                                    className="pointer-events-auto"
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                              <Button
+                                size="sm"
+                                onClick={() => handleUpdateJoinDate(user.id, editingJoinDate)}
+                              >
+                                <Check className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setEditingUserId(null);
+                                  setEditingJoinDate(undefined);
+                                }}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-3">
+                              <div className="text-sm text-right">
+                                <span className="text-muted-foreground">Ingresso: </span>
+                                <span className="font-medium">
+                                  {user.join_date 
+                                    ? format(parse(user.join_date, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy', { locale: ptBR })
+                                    : 'Não informado'}
+                                </span>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditingUserId(user.id);
+                                  setEditingJoinDate(user.join_date 
+                                    ? parse(user.join_date, 'yyyy-MM-dd', new Date()) 
+                                    : undefined);
+                                }}
+                              >
+                                Editar
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
