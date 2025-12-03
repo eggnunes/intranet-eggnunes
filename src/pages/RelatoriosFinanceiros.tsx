@@ -25,7 +25,6 @@ import { FinancialDistribution } from '@/components/FinancialDistribution';
 import { CashFlowProjection } from '@/components/CashFlowProjection';
 import { ExecutiveDashboard } from '@/components/ExecutiveDashboard';
 import { FinancialDefaulters } from '@/components/FinancialDefaulters';
-import { CollectionMessagesHistory } from '@/components/CollectionMessagesHistory';
 import { Link } from 'react-router-dom';
 
 interface Transaction {
@@ -710,9 +709,6 @@ export default function RelatoriosFinanceiros() {
 
         {/* Inadimplentes */}
         <FinancialDefaulters transactions={filteredTransactions} />
-
-        {/* Histórico de Mensagens de Cobrança */}
-        <CollectionMessagesHistory />
 
         {/* Link para Gestão de Cobranças */}
         <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
