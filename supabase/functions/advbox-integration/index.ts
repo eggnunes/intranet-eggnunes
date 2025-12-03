@@ -791,22 +791,45 @@ Deno.serve(async (req) => {
         try {
           const settingsResult = await makeAdvboxRequest({ endpoint: '/settings' });
           console.log('Settings response keys:', Object.keys(settingsResult));
-          console.log('Settings response preview:', JSON.stringify(settingsResult).substring(0, 1000));
           
           // Verificar se settings contém tasks ou task_types
           const settings = settingsResult.data || settingsResult;
-          let taskTypes = [];
+          let taskTypes: { id: number | string; name: string }[] = [];
           
           // Tentar extrair tipos de tarefa de diferentes locais possíveis
-          if (settings.tasks) {
-            console.log('Found tasks in settings');
-            taskTypes = Array.isArray(settings.tasks) ? settings.tasks : [];
-          } else if (settings.task_types) {
+          if (settings.tasks && Array.isArray(settings.tasks)) {
+            console.log('Found tasks in settings, count:', settings.tasks.length);
+            // Log sample item to debug structure
+            if (settings.tasks.length > 0) {
+              console.log('Sample task type from settings:', JSON.stringify(settings.tasks[0]));
+              console.log('All task type keys:', Object.keys(settings.tasks[0]));
+            }
+            
+            // Map task types correctly - Advbox settings.tasks usa campo 'id' como identificador
+            // mas pode ter outro campo como o identificador real de tipo
+            taskTypes = settings.tasks.map((t: any) => {
+              // Priorizar tasks_id se existir, senão usar id
+              const taskTypeId = t.tasks_id ?? t.task_id ?? t.id;
+              return {
+                id: taskTypeId,
+                name: t.task || t.name || t.title || `Tipo ${taskTypeId}`,
+              };
+            }).filter((t: any) => t.id != null && t.name);
+            
+            console.log('Mapped task types (first 5):', JSON.stringify(taskTypes.slice(0, 5)));
+          } else if (settings.task_types && Array.isArray(settings.task_types)) {
             console.log('Found task_types in settings');
-            taskTypes = Array.isArray(settings.task_types) ? settings.task_types : [];
+            taskTypes = settings.task_types.map((t: any) => ({
+              id: t.tasks_id ?? t.task_id ?? t.id,
+              name: t.task || t.name || t.title || `Tipo ${t.id}`,
+            })).filter((t: any) => t.id != null && t.name);
           } else if (settings.account?.tasks) {
             console.log('Found account.tasks in settings');
-            taskTypes = Array.isArray(settings.account.tasks) ? settings.account.tasks : [];
+            const accountTasks = Array.isArray(settings.account.tasks) ? settings.account.tasks : [];
+            taskTypes = accountTasks.map((t: any) => ({
+              id: t.tasks_id ?? t.task_id ?? t.id,
+              name: t.task || t.name || t.title || `Tipo ${t.id}`,
+            })).filter((t: any) => t.id != null && t.name);
           } else if (settings.account) {
             console.log('Settings account keys:', Object.keys(settings.account));
           }
