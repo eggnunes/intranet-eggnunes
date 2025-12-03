@@ -124,6 +124,49 @@ interface CandidateNote {
   created_at: string;
 }
 
+interface PositionTemplate {
+  id: string;
+  position: string;
+  description: string | null;
+  requirements: string | null;
+  created_at: string;
+}
+
+interface InterviewFeedback {
+  id: string;
+  interview_id: string;
+  evaluator_id: string;
+  technical_skills: number | null;
+  communication: number | null;
+  cultural_fit: number | null;
+  problem_solving: number | null;
+  experience: number | null;
+  motivation: number | null;
+  overall_rating: number | null;
+  recommendation: string | null;
+  strengths: string | null;
+  weaknesses: string | null;
+  additional_notes: string | null;
+  created_at: string;
+}
+
+const RECOMMENDATION_LABELS: Record<string, string> = {
+  strong_yes: 'Fortemente Recomendado',
+  yes: 'Recomendado',
+  maybe: 'Talvez',
+  no: 'Não Recomendado',
+  strong_no: 'Fortemente Não Recomendado'
+};
+
+const EVALUATION_CRITERIA = [
+  { key: 'technical_skills', label: 'Conhecimentos Técnicos' },
+  { key: 'communication', label: 'Comunicação' },
+  { key: 'cultural_fit', label: 'Fit Cultural' },
+  { key: 'problem_solving', label: 'Resolução de Problemas' },
+  { key: 'experience', label: 'Experiência' },
+  { key: 'motivation', label: 'Motivação' },
+];
+
 const STAGE_LABELS: Record<RecruitmentStage, string> = {
   curriculo_recebido: 'Currículo Recebido',
   entrevista_agendada: 'Entrevista Agendada',
@@ -176,6 +219,7 @@ export default function Contratacao() {
   const [jobOpenings, setJobOpenings] = useState<JobOpening[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [positionTemplates, setPositionTemplates] = useState<PositionTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   
   // UI states
@@ -192,19 +236,35 @@ export default function Contratacao() {
   const [candidateNotes, setCandidateNotes] = useState<CandidateNote[]>([]);
   const [candidateDocuments, setCandidateDocuments] = useState<CandidateDocument[]>([]);
   const [candidateInterviews, setCandidateInterviews] = useState<Interview[]>([]);
+  const [interviewFeedbacks, setInterviewFeedbacks] = useState<Record<string, InterviewFeedback[]>>({});
   
   // Dialog states
   const [showAddJobOpening, setShowAddJobOpening] = useState(false);
   const [showAddCandidate, setShowAddCandidate] = useState(false);
   const [showScheduleInterview, setShowScheduleInterview] = useState(false);
   const [showAddDocument, setShowAddDocument] = useState(false);
+  const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
+  const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
   
   // Form states
-  const [newJobOpening, setNewJobOpening] = useState({ title: '', position: '', description: '', requirements: '' });
+  const [newJobOpening, setNewJobOpening] = useState({ title: '', position: '', description: '', requirements: '', saveAsTemplate: false });
   const [newCandidate, setNewCandidate] = useState({ full_name: '', email: '', phone: '', position_applied: '', job_opening_id: '' });
   const [newInterview, setNewInterview] = useState({ interview_type: 'online', scheduled_date: '', duration_minutes: 60, location: '', meeting_link: '', notes: '' });
   const [newNote, setNewNote] = useState('');
   const [suggestingJobOpening, setSuggestingJobOpening] = useState(false);
+  const [feedbackForm, setFeedbackForm] = useState({
+    technical_skills: 3,
+    communication: 3,
+    cultural_fit: 3,
+    problem_solving: 3,
+    experience: 3,
+    motivation: 3,
+    overall_rating: 3,
+    recommendation: 'maybe',
+    strengths: '',
+    weaknesses: '',
+    additional_notes: ''
+  });
 
   const isAdmin = role === 'admin';
   const canView = isAdmin && hasPermission('recruitment', 'view');
@@ -221,7 +281,8 @@ export default function Contratacao() {
     await Promise.all([
       fetchJobOpenings(),
       fetchCandidates(),
-      fetchInterviews()
+      fetchInterviews(),
+      fetchPositionTemplates()
     ]);
     setLoading(false);
   };
@@ -250,14 +311,48 @@ export default function Contratacao() {
     if (!error) setInterviews(data || []);
   };
 
+  const fetchPositionTemplates = async () => {
+    const { data, error } = await supabase
+      .from('recruitment_position_templates')
+      .select('*')
+      .order('position', { ascending: true });
+    if (!error) setPositionTemplates(data || []);
+  };
+
   const handleCreateJobOpening = async () => {
     if (!user || !newJobOpening.title || !newJobOpening.position) {
       toast.error('Título e cargo são obrigatórios');
       return;
     }
 
+    // Save template if requested
+    if (newJobOpening.saveAsTemplate && (newJobOpening.description || newJobOpening.requirements)) {
+      const existingTemplate = positionTemplates.find(t => t.position === newJobOpening.position);
+      if (existingTemplate) {
+        await supabase.from('recruitment_position_templates')
+          .update({ 
+            description: newJobOpening.description, 
+            requirements: newJobOpening.requirements,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingTemplate.id);
+      } else {
+        await supabase.from('recruitment_position_templates').insert({
+          position: newJobOpening.position,
+          description: newJobOpening.description,
+          requirements: newJobOpening.requirements,
+          created_by: user.id
+        });
+      }
+      fetchPositionTemplates();
+    }
+
+    const { title, position, description, requirements } = newJobOpening;
     const { error } = await supabase.from('recruitment_job_openings').insert({
-      ...newJobOpening,
+      title,
+      position,
+      description,
+      requirements,
       created_by: user.id
     });
 
@@ -268,8 +363,75 @@ export default function Contratacao() {
 
     toast.success('Vaga criada com sucesso');
     setShowAddJobOpening(false);
-    setNewJobOpening({ title: '', position: '', description: '', requirements: '' });
+    setNewJobOpening({ title: '', position: '', description: '', requirements: '', saveAsTemplate: false });
     fetchJobOpenings();
+  };
+
+  const handleLoadTemplate = (position: string) => {
+    const template = positionTemplates.find(t => t.position === position);
+    if (template) {
+      setNewJobOpening(prev => ({
+        ...prev,
+        description: template.description || '',
+        requirements: template.requirements || ''
+      }));
+      toast.success('Template carregado');
+    }
+  };
+
+  const handleSaveFeedback = async () => {
+    if (!user || !selectedInterview) return;
+
+    const { error } = await supabase.from('recruitment_interview_feedback').insert({
+      interview_id: selectedInterview.id,
+      evaluator_id: user.id,
+      ...feedbackForm
+    });
+
+    if (error) {
+      if (error.code === '23505') {
+        // Update existing feedback
+        const { error: updateError } = await supabase
+          .from('recruitment_interview_feedback')
+          .update(feedbackForm)
+          .eq('interview_id', selectedInterview.id)
+          .eq('evaluator_id', user.id);
+        if (updateError) {
+          toast.error('Erro ao atualizar avaliação');
+          return;
+        }
+      } else {
+        toast.error('Erro ao salvar avaliação');
+        return;
+      }
+    }
+
+    // Update interview status
+    await supabase.from('recruitment_interviews')
+      .update({ status: 'completed', rating: feedbackForm.overall_rating, feedback: feedbackForm.additional_notes })
+      .eq('id', selectedInterview.id);
+
+    toast.success('Avaliação salva com sucesso');
+    setShowFeedbackDialog(false);
+    setSelectedInterview(null);
+    if (selectedCandidate) fetchCandidateDetails(selectedCandidate.id);
+    fetchInterviews();
+  };
+
+  const fetchInterviewFeedbacks = async (interviewIds: string[]) => {
+    if (interviewIds.length === 0) return;
+    const { data } = await supabase
+      .from('recruitment_interview_feedback')
+      .select('*')
+      .in('interview_id', interviewIds);
+    if (data) {
+      const grouped = data.reduce((acc, fb) => {
+        if (!acc[fb.interview_id]) acc[fb.interview_id] = [];
+        acc[fb.interview_id].push(fb);
+        return acc;
+      }, {} as Record<string, InterviewFeedback[]>);
+      setInterviewFeedbacks(grouped);
+    }
   };
 
   const handleSuggestJobOpening = async () => {
@@ -487,6 +649,11 @@ export default function Contratacao() {
     setCandidateNotes(notesRes.data || []);
     setCandidateDocuments(docsRes.data || []);
     setCandidateInterviews(interviewsRes.data || []);
+    
+    // Fetch feedbacks for interviews
+    if (interviewsRes.data && interviewsRes.data.length > 0) {
+      fetchInterviewFeedbacks(interviewsRes.data.map(i => i.id));
+    }
   };
 
   const handleScheduleInterview = async () => {
@@ -1260,7 +1427,7 @@ export default function Contratacao() {
 
         {/* Add Job Opening Dialog */}
         <Dialog open={showAddJobOpening} onOpenChange={setShowAddJobOpening}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Abrir Nova Vaga</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div>
@@ -1280,6 +1447,23 @@ export default function Contratacao() {
                   </SelectContent>
                 </Select>
               </div>
+              
+              {/* Template loading section */}
+              {newJobOpening.position && positionTemplates.find(t => t.position === newJobOpening.position) && (
+                <div className="p-3 bg-muted rounded-md">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Template salvo para este cargo</span>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleLoadTemplate(newJobOpening.position)}
+                    >
+                      <FolderOpen className="h-4 w-4 mr-2" />Carregar Template
+                    </Button>
+                  </div>
+                </div>
+              )}
               
               <div className="flex items-center justify-between pt-2">
                 <span className="text-sm text-muted-foreground">Usar IA para sugerir descrição e requisitos</span>
@@ -1316,6 +1500,21 @@ export default function Contratacao() {
                   rows={4}
                 />
               </div>
+              
+              {/* Save as template checkbox */}
+              <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md">
+                <input 
+                  type="checkbox" 
+                  id="saveAsTemplate"
+                  checked={newJobOpening.saveAsTemplate}
+                  onChange={(e) => setNewJobOpening({ ...newJobOpening, saveAsTemplate: e.target.checked })}
+                  className="h-4 w-4"
+                />
+                <label htmlFor="saveAsTemplate" className="text-sm cursor-pointer">
+                  Salvar descrição e requisitos como template para o cargo "{newJobOpening.position || '...'}"
+                </label>
+              </div>
+              
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setShowAddJobOpening(false)}>Cancelar</Button>
                 <Button onClick={handleCreateJobOpening}>Criar Vaga</Button>
@@ -1396,22 +1595,43 @@ export default function Contratacao() {
                       <p className="text-muted-foreground text-center py-4">Nenhuma entrevista agendada</p>
                     ) : (
                       <div className="space-y-3">
-                        {candidateInterviews.map(interview => (
+                        {candidateInterviews.map(interview => {
+                          const feedbacks = interviewFeedbacks[interview.id] || [];
+                          return (
                           <div key={interview.id} className="p-3 bg-muted rounded-md">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               {interview.interview_type === 'online' ? <Video className="h-4 w-4" /> : <MapPin className="h-4 w-4" />}
                               <span className="font-medium">{interview.interview_type === 'online' ? 'Online' : 'Presencial'}</span>
                               <Badge variant={interview.status === 'scheduled' ? 'default' : interview.status === 'completed' ? 'secondary' : 'destructive'}>
                                 {interview.status === 'scheduled' ? 'Agendada' : interview.status === 'completed' ? 'Realizada' : interview.status === 'cancelled' ? 'Cancelada' : 'Não compareceu'}
                               </Badge>
-                              {interview.rating && <div className="flex items-center gap-1 ml-auto"><Star className="h-4 w-4 text-yellow-500" />{interview.rating}/5</div>}
+                              {interview.rating && <div className="flex items-center gap-1"><Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />{interview.rating}/5</div>}
+                              {canEdit && (
+                                <Button size="sm" variant="outline" className="ml-auto" onClick={() => { setSelectedInterview(interview); setShowFeedbackDialog(true); }}>
+                                  <Star className="h-4 w-4 mr-1" />Avaliar
+                                </Button>
+                              )}
                             </div>
                             <p className="text-sm text-muted-foreground mt-1">
                               {format(new Date(interview.scheduled_date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })} - {interview.duration_minutes} min
                             </p>
-                            {interview.feedback && <p className="text-sm mt-2">{interview.feedback}</p>}
+                            {feedbacks.length > 0 && (
+                              <div className="mt-3 p-2 bg-background rounded-md">
+                                <p className="text-xs font-medium mb-1">Avaliação:</p>
+                                {feedbacks.map(fb => (
+                                  <div key={fb.id} className="text-sm">
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant="outline">{RECOMMENDATION_LABELS[fb.recommendation || ''] || fb.recommendation}</Badge>
+                                      {fb.overall_rating && <span className="flex items-center gap-1"><Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />{fb.overall_rating}/5</span>}
+                                    </div>
+                                    {fb.strengths && <p className="text-xs mt-1"><strong>Pontos fortes:</strong> {fb.strengths}</p>}
+                                    {fb.weaknesses && <p className="text-xs"><strong>A melhorar:</strong> {fb.weaknesses}</p>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        ))}
+                        )})}
                       </div>
                     )}
                   </TabsContent>
@@ -1520,6 +1740,85 @@ export default function Contratacao() {
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setShowScheduleInterview(false)}>Cancelar</Button>
                 <Button onClick={handleScheduleInterview}>Agendar</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Interview Feedback Dialog */}
+        <Dialog open={showFeedbackDialog} onOpenChange={setShowFeedbackDialog}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Avaliação da Entrevista</DialogTitle></DialogHeader>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                {EVALUATION_CRITERIA.map(({ key, label }) => (
+                  <div key={key} className="space-y-2">
+                    <Label>{label}</Label>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map(rating => (
+                        <button
+                          key={rating}
+                          type="button"
+                          onClick={() => setFeedbackForm({ ...feedbackForm, [key]: rating })}
+                          className={`p-2 rounded-md transition-colors ${(feedbackForm as any)[key] >= rating ? 'bg-yellow-400 text-yellow-900' : 'bg-muted hover:bg-muted/80'}`}
+                        >
+                          <Star className={`h-5 w-5 ${(feedbackForm as any)[key] >= rating ? 'fill-current' : ''}`} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Avaliação Geral</Label>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map(rating => (
+                    <button
+                      key={rating}
+                      type="button"
+                      onClick={() => setFeedbackForm({ ...feedbackForm, overall_rating: rating })}
+                      className={`p-2 rounded-md transition-colors ${feedbackForm.overall_rating >= rating ? 'bg-yellow-400 text-yellow-900' : 'bg-muted hover:bg-muted/80'}`}
+                    >
+                      <Star className={`h-6 w-6 ${feedbackForm.overall_rating >= rating ? 'fill-current' : ''}`} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <Label>Recomendação</Label>
+                <Select value={feedbackForm.recommendation} onValueChange={(v) => setFeedbackForm({ ...feedbackForm, recommendation: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="strong_yes">Fortemente Recomendado</SelectItem>
+                    <SelectItem value="yes">Recomendado</SelectItem>
+                    <SelectItem value="maybe">Talvez</SelectItem>
+                    <SelectItem value="no">Não Recomendado</SelectItem>
+                    <SelectItem value="strong_no">Fortemente Não Recomendado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Pontos Fortes</Label>
+                  <Textarea value={feedbackForm.strengths} onChange={(e) => setFeedbackForm({ ...feedbackForm, strengths: e.target.value })} rows={3} />
+                </div>
+                <div>
+                  <Label>Pontos a Melhorar</Label>
+                  <Textarea value={feedbackForm.weaknesses} onChange={(e) => setFeedbackForm({ ...feedbackForm, weaknesses: e.target.value })} rows={3} />
+                </div>
+              </div>
+
+              <div>
+                <Label>Observações Adicionais</Label>
+                <Textarea value={feedbackForm.additional_notes} onChange={(e) => setFeedbackForm({ ...feedbackForm, additional_notes: e.target.value })} rows={3} />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowFeedbackDialog(false)}>Cancelar</Button>
+                <Button onClick={handleSaveFeedback}>Salvar Avaliação</Button>
               </div>
             </div>
           </DialogContent>

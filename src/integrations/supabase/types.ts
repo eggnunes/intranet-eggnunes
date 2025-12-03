@@ -1161,6 +1161,71 @@ export type Database = {
           },
         ]
       }
+      recruitment_interview_feedback: {
+        Row: {
+          additional_notes: string | null
+          communication: number | null
+          created_at: string
+          cultural_fit: number | null
+          evaluator_id: string
+          experience: number | null
+          id: string
+          interview_id: string
+          motivation: number | null
+          overall_rating: number | null
+          problem_solving: number | null
+          recommendation: string | null
+          strengths: string | null
+          technical_skills: number | null
+          updated_at: string
+          weaknesses: string | null
+        }
+        Insert: {
+          additional_notes?: string | null
+          communication?: number | null
+          created_at?: string
+          cultural_fit?: number | null
+          evaluator_id: string
+          experience?: number | null
+          id?: string
+          interview_id: string
+          motivation?: number | null
+          overall_rating?: number | null
+          problem_solving?: number | null
+          recommendation?: string | null
+          strengths?: string | null
+          technical_skills?: number | null
+          updated_at?: string
+          weaknesses?: string | null
+        }
+        Update: {
+          additional_notes?: string | null
+          communication?: number | null
+          created_at?: string
+          cultural_fit?: number | null
+          evaluator_id?: string
+          experience?: number | null
+          id?: string
+          interview_id?: string
+          motivation?: number | null
+          overall_rating?: number | null
+          problem_solving?: number | null
+          recommendation?: string | null
+          strengths?: string | null
+          technical_skills?: number | null
+          updated_at?: string
+          weaknesses?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_interview_feedback_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_interviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recruitment_interviews: {
         Row: {
           candidate_id: string
@@ -1299,6 +1364,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      recruitment_position_templates: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          position: string
+          requirements: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          position: string
+          requirements?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          position?: string
+          requirements?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       recruitment_stage_history: {
         Row: {
