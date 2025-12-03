@@ -36,6 +36,7 @@ import HistoricoMensagensAniversario from "./pages/HistoricoMensagensAniversario
 import CollectionManagement from "./pages/CollectionManagement";
 import CopaCozinha from "./pages/CopaCozinha";
 import HomeOffice from "./pages/HomeOffice";
+import Contratacao from "./pages/Contratacao";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -286,6 +287,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <HomeOffice />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/contratacao"
+              element={
+                <ProtectedRoute>
+                  <Contratacao />
                 </ProtectedRoute>
               }
             />

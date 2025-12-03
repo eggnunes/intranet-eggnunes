@@ -23,3 +23,9 @@ verify_jwt = false
 
 [functions.send-document-request]
 verify_jwt = true
+
+[functions.suggest-food-category]
+verify_jwt = true
+
+[functions.parse-resume]
+verify_jwt = true

@@ -21,7 +21,8 @@ export type PermissionFeature =
   | 'advbox'
   | 'collection'
   | 'admin_requests'
-  | 'task_rules';
+  | 'task_rules'
+  | 'recruitment';
 
 export interface AdminPermissions {
   perm_financial: PermissionLevel;
@@ -40,6 +41,7 @@ export interface AdminPermissions {
   perm_collection: PermissionLevel;
   perm_admin_requests: PermissionLevel;
   perm_task_rules: PermissionLevel;
+  perm_recruitment: PermissionLevel;
 }
 
 export const useAdminPermissions = () => {
@@ -83,6 +85,7 @@ export const useAdminPermissions = () => {
           perm_collection: 'edit',
           perm_admin_requests: 'edit',
           perm_task_rules: 'edit',
+          perm_recruitment: 'edit',
         };
         setPermissions(fullPermissions);
         setLoading(false);
@@ -124,6 +127,7 @@ export const useAdminPermissions = () => {
           perm_collection: data.perm_collection as PermissionLevel,
           perm_admin_requests: data.perm_admin_requests as PermissionLevel,
           perm_task_rules: data.perm_task_rules as PermissionLevel,
+          perm_recruitment: (data as any).perm_recruitment as PermissionLevel || 'none',
         });
       } else {
         // No permissions record, default to none
