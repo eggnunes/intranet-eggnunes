@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { Users, User, Briefcase, GraduationCap, Building2, UserCog, Mail, IdCard, Cake, CalendarCheck } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import { format, parse } from 'date-fns';
+import { format, parse, differenceInMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface TeamMember {
@@ -100,6 +100,19 @@ export default function Equipe() {
       setTeam(grouped);
     }
     setLoading(false);
+  };
+
+  const calculateTenure = (joinDate: string | null) => {
+    if (!joinDate) return null;
+    const join = parse(joinDate, 'yyyy-MM-dd', new Date());
+    const totalMonths = differenceInMonths(new Date(), join);
+    const years = Math.floor(totalMonths / 12);
+    const months = totalMonths % 12;
+    
+    if (years === 0 && months === 0) return 'Menos de 1 mês';
+    if (years === 0) return `${months} ${months === 1 ? 'mês' : 'meses'}`;
+    if (months === 0) return `${years} ${years === 1 ? 'ano' : 'anos'}`;
+    return `${years} ${years === 1 ? 'ano' : 'anos'} e ${months} ${months === 1 ? 'mês' : 'meses'}`;
   };
 
   const getPositionInfo = (position: keyof GroupedTeam) => {
@@ -228,6 +241,7 @@ export default function Equipe() {
                                 <CalendarCheck className="h-3 w-3 flex-shrink-0" />
                                 <span>
                                   Desde {format(parse(member.join_date, 'yyyy-MM-dd', new Date()), "MMMM 'de' yyyy", { locale: ptBR })}
+                                  {' '}({calculateTenure(member.join_date)})
                                 </span>
                               </div>
                             )}
