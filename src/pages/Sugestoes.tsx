@@ -51,6 +51,7 @@ import { SuggestionComments } from "@/components/SuggestionComments";
 import { SuggestionVotes } from "@/components/SuggestionVotes";
 import { SuggestionTagManager } from "@/components/SuggestionTagManager";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 
 const suggestionSchema = z.object({
   title: z
@@ -85,6 +86,7 @@ const statusMap = {
 export default function Sugestoes() {
   const { toast } = useToast();
   const { isAdmin } = useUserRole();
+  const { canEdit, isSocioOrRafael } = useAdminPermissions();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedSuggestion, setSelectedSuggestion] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -92,6 +94,9 @@ export default function Sugestoes() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [sortBy, setSortBy] = useState<string>("newest");
+  
+  // Check if user can manage suggestions
+  const canManageSuggestions = isSocioOrRafael || canEdit('suggestions');
 
   const form = useForm<SuggestionForm>({
     resolver: zodResolver(suggestionSchema),

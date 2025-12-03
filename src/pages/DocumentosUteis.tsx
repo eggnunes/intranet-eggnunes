@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Layout } from '@/components/Layout';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ interface Document {
 
 export default function DocumentosUteis() {
   const { isApproved, isAdmin, loading } = useUserRole();
+  const { canEdit, isSocioOrRafael } = useAdminPermissions();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -32,6 +34,9 @@ export default function DocumentosUteis() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
+  
+  // Check if user can manage documents
+  const canManageDocuments = isAdmin && (isSocioOrRafael || canEdit('documents'));
 
   useEffect(() => {
     if (isApproved) {
@@ -177,7 +182,7 @@ export default function DocumentosUteis() {
               Manuais, escalas e documentos importantes do escritório
             </p>
           </div>
-          {isAdmin && (
+          {canManageDocuments && (
             <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
               <DialogTrigger asChild>
                 <Button className="gap-2">
@@ -286,7 +291,7 @@ export default function DocumentosUteis() {
                       <Download className="w-4 h-4 mr-2" />
                       Baixar
                     </Button>
-                    {isAdmin && (
+                    {canManageDocuments && (
                       <Button
                         variant="destructive"
                         size="sm"
