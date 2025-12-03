@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Layout } from '@/components/Layout';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
@@ -19,11 +19,16 @@ import {
   CheckCircle, XCircle, Clock, AlertTriangle, History,
   MessageSquare, Trash2, Eye, Filter, Briefcase, Plus,
   TrendingUp, BarChart3, Video, MapPin, Star, Paperclip,
-  CalendarDays, FolderOpen, Sparkles, Loader2
+  CalendarDays, FolderOpen, Sparkles, Loader2, Download, 
+  Database, UserCheck, Archive
 } from 'lucide-react';
-import { format, differenceInDays } from 'date-fns';
+import { format, differenceInDays, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/hooks/useAuth';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 type RecruitmentStage = 
   | 'curriculo_recebido'
@@ -604,9 +609,180 @@ export default function Contratacao() {
       c.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.position_applied?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStage = stageFilter === 'all' || c.current_stage === stageFilter;
-    const matchesJobOpening = jobOpeningFilter === 'all' || c.job_opening_id === jobOpeningFilter;
+    const matchesJobOpening = 
+      jobOpeningFilter === 'all' || 
+      (jobOpeningFilter === 'banco_talentos' && !c.job_opening_id) ||
+      c.job_opening_id === jobOpeningFilter;
     return matchesSearch && matchesStage && matchesJobOpening;
   });
+
+  // Talent pool count
+  const talentPoolCount = candidates.filter(c => !c.job_opening_id).length;
+
+  // Chart data calculations
+  const chartData = useMemo(() => {
+    const last12Months = eachMonthOfInterval({
+      start: subMonths(new Date(), 11),
+      end: new Date()
+    });
+
+    const hiringEvolution = last12Months.map(month => {
+      const monthStart = startOfMonth(month);
+      const monthEnd = endOfMonth(month);
+      
+      const hired = candidates.filter(c => 
+        c.current_stage === 'contratado' && 
+        c.hired_date &&
+        new Date(c.hired_date) >= monthStart && 
+        new Date(c.hired_date) <= monthEnd
+      ).length;
+
+      const newCandidates = candidates.filter(c =>
+        new Date(c.created_at) >= monthStart &&
+        new Date(c.created_at) <= monthEnd
+      ).length;
+
+      return {
+        month: format(month, 'MMM/yy', { locale: ptBR }),
+        contratados: hired,
+        candidatos: newCandidates
+      };
+    });
+
+    const stageDistribution = Object.entries(STAGE_LABELS).map(([stage, label]) => ({
+      name: label,
+      value: candidates.filter(c => c.current_stage === stage).length,
+      stage
+    })).filter(s => s.value > 0);
+
+    const positionDistribution = candidates.reduce((acc, c) => {
+      const pos = c.position_applied || 'Não informado';
+      acc[pos] = (acc[pos] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const positionData = Object.entries(positionDistribution).map(([name, value]) => ({ name, value }));
+
+    return { hiringEvolution, stageDistribution, positionData };
+  }, [candidates]);
+
+  const CHART_COLORS = ['#3b82f6', '#22c55e', '#eab308', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#6366f1'];
+
+  // Export functions
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFontSize(18);
+    doc.text('Relatório de Processo Seletivo', 14, 22);
+    doc.setFontSize(10);
+    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, 30);
+
+    // Metrics summary
+    doc.setFontSize(14);
+    doc.text('Resumo', 14, 45);
+    doc.setFontSize(10);
+    doc.text(`Total de Candidatos: ${metrics.total}`, 14, 55);
+    doc.text(`Contratados: ${metrics.hired}`, 14, 62);
+    doc.text(`Taxa de Conversão: ${metrics.conversionRate}%`, 14, 69);
+    doc.text(`Tempo Médio de Contratação: ${metrics.avgDaysToHire} dias`, 14, 76);
+    doc.text(`Banco de Talentos: ${talentPoolCount}`, 14, 83);
+
+    // Candidates table
+    doc.setFontSize(14);
+    doc.text('Candidatos', 14, 98);
+
+    const tableData = candidates.map(c => [
+      c.full_name,
+      c.email || '-',
+      c.position_applied || '-',
+      STAGE_LABELS[c.current_stage],
+      jobOpenings.find(j => j.id === c.job_opening_id)?.title || 'Banco de Talentos',
+      format(new Date(c.created_at), 'dd/MM/yyyy')
+    ]);
+
+    autoTable(doc, {
+      startY: 105,
+      head: [['Nome', 'Email', 'Cargo', 'Estágio', 'Vaga', 'Data']],
+      body: tableData,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [59, 130, 246] }
+    });
+
+    // Job openings
+    const finalY = (doc as any).lastAutoTable.finalY + 15;
+    doc.setFontSize(14);
+    doc.text('Vagas', 14, finalY);
+
+    const jobsData = jobOpenings.map(jo => [
+      jo.title,
+      jo.position,
+      jo.status === 'open' ? 'Aberta' : jo.status === 'paused' ? 'Pausada' : 'Encerrada',
+      candidates.filter(c => c.job_opening_id === jo.id).length.toString(),
+      format(new Date(jo.opened_at), 'dd/MM/yyyy')
+    ]);
+
+    autoTable(doc, {
+      startY: finalY + 7,
+      head: [['Título', 'Cargo', 'Status', 'Candidatos', 'Abertura']],
+      body: jobsData,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [34, 197, 94] }
+    });
+
+    doc.save(`relatorio-processo-seletivo-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    toast.success('Relatório PDF gerado');
+  };
+
+  const exportToExcel = () => {
+    const wb = XLSX.utils.book_new();
+
+    // Candidates sheet
+    const candidatesData = candidates.map(c => ({
+      'Nome': c.full_name,
+      'Email': c.email || '',
+      'Telefone': c.phone || '',
+      'Cargo Pretendido': c.position_applied || '',
+      'Estágio': STAGE_LABELS[c.current_stage],
+      'Vaga': jobOpenings.find(j => j.id === c.job_opening_id)?.title || 'Banco de Talentos',
+      'Data Cadastro': format(new Date(c.created_at), 'dd/MM/yyyy'),
+      'Data Contratação': c.hired_date ? format(new Date(c.hired_date), 'dd/MM/yyyy') : '',
+      'Ativo': c.is_active ? 'Sim' : 'Não'
+    }));
+    const wsCandidates = XLSX.utils.json_to_sheet(candidatesData);
+    XLSX.utils.book_append_sheet(wb, wsCandidates, 'Candidatos');
+
+    // Job openings sheet
+    const jobsData = jobOpenings.map(jo => ({
+      'Título': jo.title,
+      'Cargo': jo.position,
+      'Descrição': jo.description || '',
+      'Requisitos': jo.requirements || '',
+      'Status': jo.status === 'open' ? 'Aberta' : jo.status === 'paused' ? 'Pausada' : 'Encerrada',
+      'Data Abertura': format(new Date(jo.opened_at), 'dd/MM/yyyy'),
+      'Data Encerramento': jo.closed_at ? format(new Date(jo.closed_at), 'dd/MM/yyyy') : '',
+      'Total Candidatos': candidates.filter(c => c.job_opening_id === jo.id).length,
+      'Contratados': candidates.filter(c => c.job_opening_id === jo.id && c.current_stage === 'contratado').length
+    }));
+    const wsJobs = XLSX.utils.json_to_sheet(jobsData);
+    XLSX.utils.book_append_sheet(wb, wsJobs, 'Vagas');
+
+    // Metrics sheet
+    const metricsData = [
+      { 'Métrica': 'Total de Candidatos', 'Valor': metrics.total },
+      { 'Métrica': 'Candidatos Ativos', 'Valor': metrics.active },
+      { 'Métrica': 'Contratados', 'Valor': metrics.hired },
+      { 'Métrica': 'Eliminados', 'Valor': metrics.eliminated },
+      { 'Métrica': 'Taxa de Conversão (%)', 'Valor': metrics.conversionRate },
+      { 'Métrica': 'Tempo Médio de Contratação (dias)', 'Valor': metrics.avgDaysToHire },
+      { 'Métrica': 'Banco de Talentos', 'Valor': talentPoolCount }
+    ];
+    const wsMetrics = XLSX.utils.json_to_sheet(metricsData);
+    XLSX.utils.book_append_sheet(wb, wsMetrics, 'Métricas');
+
+    XLSX.writeFile(wb, `relatorio-processo-seletivo-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    toast.success('Relatório Excel gerado');
+  };
 
   // Upcoming interviews
   const upcomingInterviews = interviews.filter(i => 
@@ -652,12 +828,21 @@ export default function Contratacao() {
             <h1 className="text-2xl font-bold">Gestão de Contratação</h1>
             <p className="text-muted-foreground">Processos seletivos e banco de currículos</p>
           </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={exportToPDF}>
+              <Download className="h-4 w-4 mr-2" />PDF
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportToExcel}>
+              <Download className="h-4 w-4 mr-2" />Excel
+            </Button>
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="vagas" className="gap-2"><Briefcase className="h-4 w-4" />Vagas</TabsTrigger>
             <TabsTrigger value="candidatos" className="gap-2"><Users className="h-4 w-4" />Candidatos</TabsTrigger>
+            <TabsTrigger value="banco" className="gap-2"><Database className="h-4 w-4" />Banco ({talentPoolCount})</TabsTrigger>
             <TabsTrigger value="agenda" className="gap-2"><CalendarDays className="h-4 w-4" />Agenda</TabsTrigger>
             <TabsTrigger value="metricas" className="gap-2"><BarChart3 className="h-4 w-4" />Métricas</TabsTrigger>
           </TabsList>
@@ -746,9 +931,14 @@ export default function Contratacao() {
                 </SelectContent>
               </Select>
               <Select value={jobOpeningFilter} onValueChange={setJobOpeningFilter}>
-                <SelectTrigger className="w-[180px]"><SelectValue placeholder="Vaga" /></SelectTrigger>
+                <SelectTrigger className="w-[200px]"><SelectValue placeholder="Vaga" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as vagas</SelectItem>
+                  <SelectItem value="banco_talentos">
+                    <span className="flex items-center gap-2">
+                      <Database className="h-3 w-3" />Banco de Talentos
+                    </span>
+                  </SelectItem>
                   {jobOpenings.map(jo => <SelectItem key={jo.id} value={jo.id}>{jo.title}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -778,7 +968,13 @@ export default function Contratacao() {
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-semibold">{candidate.full_name}</h3>
                               <Badge className={STAGE_COLORS[candidate.current_stage]}>{STAGE_LABELS[candidate.current_stage]}</Badge>
-                              {jo && <Badge variant="outline"><FolderOpen className="h-3 w-3 mr-1" />{jo.title}</Badge>}
+                              {jo ? (
+                                <Badge variant="outline"><FolderOpen className="h-3 w-3 mr-1" />{jo.title}</Badge>
+                              ) : (
+                                <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300">
+                                  <Database className="h-3 w-3 mr-1" />Banco de Talentos
+                                </Badge>
+                              )}
                             </div>
                             <div className="text-sm text-muted-foreground mt-1">
                               {candidate.email && <p>{candidate.email}</p>}
@@ -810,6 +1006,104 @@ export default function Contratacao() {
                     </Card>
                   );
                 })
+              )}
+            </div>
+          </TabsContent>
+
+          {/* BANCO DE TALENTOS TAB */}
+          <TabsContent value="banco" className="space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  Banco de Talentos
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Currículos disponíveis para futuros processos seletivos ({talentPoolCount} candidatos)
+                </p>
+              </div>
+              {canEdit && (
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setShowAddCandidate(true)}>
+                    <UserPlus className="h-4 w-4 mr-2" />Adicionar Manual
+                  </Button>
+                  <Button asChild>
+                    <label className="cursor-pointer">
+                      <Upload className="h-4 w-4 mr-2" />{uploading ? 'Processando...' : 'Upload Currículo'}
+                      <input type="file" accept=".pdf" multiple onChange={(e) => handleFileUpload(e)} className="hidden" disabled={uploading} />
+                    </label>
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="grid gap-4">
+              {candidates.filter(c => !c.job_opening_id).length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <Database className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Nenhum currículo no banco de talentos</p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Faça upload de currículos sem vinculá-los a uma vaga específica
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                candidates.filter(c => !c.job_opening_id).map(candidate => (
+                  <Card key={candidate.id} className="border-amber-200 bg-amber-50/30">
+                    <CardContent className="p-4">
+                      <div className="flex flex-col sm:flex-row justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-semibold">{candidate.full_name}</h3>
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300">
+                              <Database className="h-3 w-3 mr-1" />Banco de Talentos
+                            </Badge>
+                            <Badge className={STAGE_COLORS[candidate.current_stage]}>{STAGE_LABELS[candidate.current_stage]}</Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-1">
+                            {candidate.email && <p>{candidate.email}</p>}
+                            {candidate.phone && <p>{candidate.phone}</p>}
+                            {candidate.position_applied && <p>Cargo pretendido: {candidate.position_applied}</p>}
+                            <p className="text-xs">Cadastrado em {format(new Date(candidate.created_at), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 items-start">
+                          {candidate.resume_url && (
+                            <Button size="sm" variant="outline" onClick={() => downloadFile(candidate.resume_url!, candidate.resume_file_name || 'curriculo.pdf')}>
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" onClick={() => { setSelectedCandidate(candidate); fetchCandidateDetails(candidate.id); }}>
+                            <Eye className="h-4 w-4 mr-1" />Detalhes
+                          </Button>
+                          {canEdit && jobOpenings.filter(j => j.status === 'open').length > 0 && (
+                            <Select onValueChange={(jobId) => {
+                              if (jobId) {
+                                supabase.from('recruitment_candidates')
+                                  .update({ job_opening_id: jobId })
+                                  .eq('id', candidate.id)
+                                  .then(() => {
+                                    toast.success('Candidato vinculado à vaga');
+                                    fetchCandidates();
+                                  });
+                              }
+                            }}>
+                              <SelectTrigger className="w-[160px] h-9">
+                                <SelectValue placeholder="Vincular à vaga" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {jobOpenings.filter(j => j.status === 'open').map(jo => (
+                                  <SelectItem key={jo.id} value={jo.id}>{jo.title}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
               )}
             </div>
           </TabsContent>
@@ -851,7 +1145,7 @@ export default function Contratacao() {
 
           {/* MÉTRICAS TAB */}
           <TabsContent value="metricas" className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <Card><CardContent className="pt-6">
                 <div className="flex items-center gap-2"><Users className="h-5 w-5 text-blue-500" /><div><p className="text-2xl font-bold">{metrics.total}</p><p className="text-sm text-muted-foreground">Total Candidatos</p></div></div>
               </CardContent></Card>
@@ -864,6 +1158,87 @@ export default function Contratacao() {
               <Card><CardContent className="pt-6">
                 <div className="flex items-center gap-2"><TrendingUp className="h-5 w-5 text-purple-500" /><div><p className="text-2xl font-bold">{metrics.conversionRate}%</p><p className="text-sm text-muted-foreground">Taxa Conversão</p></div></div>
               </CardContent></Card>
+              <Card><CardContent className="pt-6">
+                <div className="flex items-center gap-2"><Database className="h-5 w-5 text-amber-500" /><div><p className="text-2xl font-bold">{talentPoolCount}</p><p className="text-sm text-muted-foreground">Banco Talentos</p></div></div>
+              </CardContent></Card>
+            </div>
+
+            {/* Evolução de Contratações */}
+            <Card>
+              <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5" />Evolução de Contratações (12 meses)</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={chartData.hiringEvolution}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="month" className="text-xs" />
+                    <YAxis className="text-xs" />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                      labelStyle={{ color: 'hsl(var(--foreground))' }}
+                    />
+                    <Legend />
+                    <Line type="monotone" dataKey="candidatos" name="Novos Candidatos" stroke="#3b82f6" strokeWidth={2} />
+                    <Line type="monotone" dataKey="contratados" name="Contratados" stroke="#22c55e" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              {/* Distribuição por Estágio */}
+              <Card>
+                <CardHeader><CardTitle>Distribuição por Estágio</CardTitle></CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                      <Pie
+                        data={chartData.stageDistribution}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={90}
+                        paddingAngle={2}
+                        dataKey="value"
+                        label={({ name, value }) => `${value}`}
+                      >
+                        {chartData.stageDistribution.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex flex-wrap gap-2 justify-center mt-2">
+                    {chartData.stageDistribution.map((entry, index) => (
+                      <div key={entry.stage} className="flex items-center gap-1 text-xs">
+                        <div className="w-3 h-3 rounded" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                        <span>{entry.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Candidatos por Vaga */}
+              <Card>
+                <CardHeader><CardTitle>Candidatos por Vaga</CardTitle></CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={jobOpenings.map(jo => ({
+                      name: jo.title.length > 20 ? jo.title.substring(0, 20) + '...' : jo.title,
+                      candidatos: candidates.filter(c => c.job_opening_id === jo.id).length,
+                      contratados: candidates.filter(c => c.job_opening_id === jo.id && c.current_stage === 'contratado').length
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} className="text-xs" />
+                      <YAxis className="text-xs" />
+                      <Tooltip />
+                      <Bar dataKey="candidatos" name="Candidatos" fill="#3b82f6" />
+                      <Bar dataKey="contratados" name="Contratados" fill="#22c55e" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
             </div>
 
             <Card>
