@@ -138,10 +138,13 @@ export default function PublicacoesFeed() {
 
       if (error) throw error;
 
-      const apiResponse = data?.data || data;
-      const allPubs = apiResponse?.data || [];
-      setMetadata(data?.metadata || apiResponse?.metadata);
+      // Extrair corretamente os dados da resposta
+      // A resposta tem formato: { data: [...], metadata: {...}, totalCount: ... }
+      const allPubs = Array.isArray(data?.data) ? data.data : [];
+      setMetadata(data?.metadata);
       setLastUpdate(new Date());
+      
+      console.log(`Fetched ${allPubs.length} movements from API`);
       
       const mappedPubs: Publication[] = allPubs.map((movement: any, index: number) => ({
         id: movement.id ?? `${movement.lawsuit_id ?? 'movement'}-${movement.date ?? movement.created_at}-${index}`,
@@ -158,7 +161,7 @@ export default function PublicacoesFeed() {
       if (forceRefresh) {
         toast({
           title: 'Dados atualizados',
-          description: 'As publicações foram recarregadas.',
+          description: `${mappedPubs.length} publicações carregadas.`,
         });
       }
     } catch (error) {
