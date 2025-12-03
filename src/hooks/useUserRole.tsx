@@ -17,6 +17,7 @@ export interface UserProfile {
   birth_date: string | null;
   oab_number: string | null;
   oab_state: string | null;
+  join_date: string | null;
 }
 
 export const useUserRole = () => {

@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { User, Lock, Calendar, Upload, IdCard, History } from 'lucide-react';
+import { User, Lock, Calendar, Upload, IdCard, History, Building } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format, parse } from 'date-fns';
@@ -33,7 +33,7 @@ interface UsageHistoryItem {
 
 export default function Profile() {
   const { user } = useAuth();
-  const { profile, loading } = useUserRole();
+  const { profile, loading, isAdmin } = useUserRole();
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
@@ -41,6 +41,7 @@ export default function Profile() {
   // Campos do perfil
   const [fullName, setFullName] = useState('');
   const [birthDate, setBirthDate] = useState<Date | undefined>(undefined);
+  const [joinDate, setJoinDate] = useState<Date | undefined>(undefined);
   const [oabNumber, setOabNumber] = useState('');
   const [oabState, setOabState] = useState('');
   const [position, setPosition] = useState('');
@@ -63,6 +64,9 @@ export default function Profile() {
       setOabState((profile as any).oab_state || '');
       if (profile.birth_date) {
         setBirthDate(parse(profile.birth_date, 'yyyy-MM-dd', new Date()));
+      }
+      if ((profile as any).join_date) {
+        setJoinDate(parse((profile as any).join_date, 'yyyy-MM-dd', new Date()));
       }
       fetchUsageHistory();
     }
@@ -157,6 +161,11 @@ export default function Profile() {
         oab_state: oabState || null,
         updated_at: new Date().toISOString(),
       };
+
+      // Só admins podem editar a data de ingresso
+      if (isAdmin) {
+        updateData.join_date = joinDate ? format(joinDate, 'yyyy-MM-dd') : null;
+      }
 
       console.log('Salvando perfil com dados:', updateData);
 
@@ -392,6 +401,48 @@ export default function Profile() {
                   />
                 </PopoverContent>
               </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Building className="w-4 h-4" />
+                Data de Ingresso no Escritório
+              </Label>
+              {isAdmin ? (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {joinDate ? format(joinDate, 'PPP', { locale: ptBR }) : 'Selecione a data'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={joinDate}
+                      onSelect={setJoinDate}
+                      initialFocus
+                      disabled={(date) => date > new Date() || date < new Date('1900-01-01')}
+                      locale={ptBR}
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              ) : (
+                <Input
+                  value={joinDate ? format(joinDate, 'PPP', { locale: ptBR }) : 'Não informado'}
+                  disabled
+                  className="bg-muted"
+                />
+              )}
+              {!isAdmin && (
+                <p className="text-xs text-muted-foreground">
+                  Este campo só pode ser editado por administradores
+                </p>
+              )}
             </div>
 
             {showOabFields && (
