@@ -132,18 +132,113 @@ export default function AdvboxAnalytics() {
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
 
-  // Monthly timeline data
-  const monthlyData = lawsuits.reduce((acc, lawsuit) => {
-    if (lawsuit.created_at) {
-      const month = format(new Date(lawsuit.created_at), 'MMM/yyyy', { locale: ptBR });
-      acc[month] = (acc[month] || 0) + 1;
-    }
-    return acc;
-  }, {} as Record<string, number>);
+  // Monthly timeline data with new and archived counts
+  const getEvolutionTimelineData = () => {
+    const monthsData: { [key: string]: { novos: number; arquivados: number } } = {};
 
-  const timelineData = Object.entries(monthlyData)
-    .map(([month, count]) => ({ month, count }))
-    .slice(-12);
+    // Create last 12 months
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthKey = format(date, 'MMM/yy', { locale: ptBR });
+      monthsData[monthKey] = { novos: 0, arquivados: 0 };
+    }
+
+    // Count new processes by month
+    lawsuits.forEach((lawsuit) => {
+      if (lawsuit.created_at) {
+        const monthKey = format(new Date(lawsuit.created_at), 'MMM/yy', { locale: ptBR });
+        if (monthsData[monthKey]) {
+          monthsData[monthKey].novos++;
+        }
+      }
+    });
+
+    // Count archived processes by month
+    lawsuits.forEach((lawsuit) => {
+      if (lawsuit.status_closure) {
+        const monthKey = format(new Date(lawsuit.status_closure), 'MMM/yy', { locale: ptBR });
+        if (monthsData[monthKey]) {
+          monthsData[monthKey].arquivados++;
+        }
+      }
+    });
+
+    return Object.entries(monthsData).map(([mês, data]) => ({
+      mês,
+      novos: data.novos,
+      arquivados: data.arquivados,
+    }));
+  };
+
+  // Monthly growth rate data
+  const getMonthlyGrowthRateData = () => {
+    const timeline = getEvolutionTimelineData();
+    let cumulativeActive = 0;
+
+    return timeline.map((item, index) => {
+      const novos = item.novos ?? 0;
+      const arquivados = item.arquivados ?? 0;
+      const net = novos - arquivados;
+      const previousActive = cumulativeActive;
+      cumulativeActive += net;
+
+      let growthPercent: number | null = null;
+      if (index > 0 && previousActive > 0) {
+        growthPercent = (net / previousActive) * 100;
+        growthPercent = Math.round(growthPercent * 10) / 10;
+      }
+
+      return {
+        ...item,
+        crescimentoPercentual: growthPercent,
+      };
+    });
+  };
+
+  // Top 5 action types evolution (last 6 months)
+  const getTypeEvolutionData = () => {
+    // Find top 5 types
+    const topTypes = Object.entries(lawsuitsByType)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name]) => name);
+
+    const monthsData: { [key: string]: { [type: string]: number } } = {};
+
+    // Create last 6 months
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthKey = format(date, 'MMM/yy', { locale: ptBR });
+      monthsData[monthKey] = {};
+      topTypes.forEach(type => {
+        monthsData[monthKey][type] = 0;
+      });
+    }
+
+    // Count by type and month
+    lawsuits.forEach((lawsuit) => {
+      if (lawsuit.created_at && topTypes.includes(lawsuit.type || '')) {
+        const monthKey = format(new Date(lawsuit.created_at), 'MMM/yy', { locale: ptBR });
+        if (monthsData[monthKey]) {
+          monthsData[monthKey][lawsuit.type] = (monthsData[monthKey][lawsuit.type] || 0) + 1;
+        }
+      }
+    });
+
+    return {
+      types: topTypes,
+      data: Object.entries(monthsData).map(([mês, types]) => ({
+        mês,
+        ...types,
+      })),
+    };
+  };
+
+  const evolutionTimelineData = getEvolutionTimelineData();
+  const growthRateData = getMonthlyGrowthRateData();
+  const typeEvolutionData = getTypeEvolutionData();
 
   const handleExportToPDF = async () => {
     try {
@@ -627,20 +722,103 @@ export default function AdvboxAnalytics() {
 
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Top 10 Process Types */}
+          {/* Evolução de Processos (Novos vs Arquivados) */}
           <Card>
             <CardHeader>
-              <CardTitle>Top 10 Tipos de Processo</CardTitle>
-              <CardDescription>Distribuição por tipo de processo</CardDescription>
+              <CardTitle>Evolução de Processos</CardTitle>
+              <CardDescription>Processos novos vs arquivados (últimos 12 meses)</CardDescription>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={typeChartData}>
+                <LineChart data={evolutionTimelineData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} fontSize={12} />
+                  <XAxis dataKey="mês" />
                   <YAxis />
                   <Tooltip />
-                  <Bar dataKey="value" fill="#3b82f6" />
+                  <Legend />
+                  <Line type="monotone" dataKey="novos" stroke="#10b981" name="Novos" strokeWidth={2} />
+                  <Line type="monotone" dataKey="arquivados" stroke="#8b5cf6" name="Arquivados" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Taxa de Crescimento Mensal */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Taxa de Crescimento Mensal (%)</CardTitle>
+              <CardDescription>Variação percentual mês a mês</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={growthRateData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="mês" />
+                  <YAxis tickFormatter={(value) => `${value}%`} />
+                  <Tooltip
+                    formatter={(value) =>
+                      value != null
+                        ? [`${(value as number).toFixed(1)}%`, 'Crescimento']
+                        : ['Sem dados', 'Crescimento']
+                    }
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="crescimentoPercentual"
+                    name="Crescimento %"
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                    connectNulls
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Evolução por Tipo de Ação (Top 5) */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Evolução por Tipo de Ação (Top 5)</CardTitle>
+              <CardDescription>Últimos 6 meses</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={typeEvolutionData.data}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="mês" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  {typeEvolutionData.types.map((type, index) => (
+                    <Line 
+                      key={type}
+                      type="monotone" 
+                      dataKey={type} 
+                      stroke={COLORS[index % COLORS.length]} 
+                      name={type}
+                      strokeWidth={2}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Top 10 Process Types */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Tipos de Ação Mais Frequentes (Top 10)</CardTitle>
+              <CardDescription>Distribuição por tipo de ação</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={typeChartData} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis dataKey="name" type="category" width={150} fontSize={11} />
+                  <Tooltip />
+                  <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -665,51 +843,21 @@ export default function AdvboxAnalytics() {
             </CardContent>
           </Card>
 
-          {/* Processes by Group */}
+          {/* Processes by Group (Área) */}
           <Card>
             <CardHeader>
-              <CardTitle>Processos por Grupo</CardTitle>
-              <CardDescription>Distribuição por área do direito</CardDescription>
+              <CardTitle>Processos por Área (Top 10)</CardTitle>
+              <CardDescription>Distribuição por área de atuação</CardDescription>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={groupChartData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    label
-                  >
-                    {groupChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Timeline */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Evolução de Processos</CardTitle>
-              <CardDescription>Processos criados ao longo do tempo (últimos 12 meses)</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={timelineData}>
+                <BarChart data={groupChartData.slice(0, 10)} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
+                  <XAxis type="number" />
+                  <YAxis dataKey="name" type="category" width={150} fontSize={11} />
                   <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="count" stroke="#8b5cf6" strokeWidth={2} name="Processos" />
-                </LineChart>
+                  <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
