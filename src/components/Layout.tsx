@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
-import { LogOut, Home, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, MoreHorizontal, Coffee } from 'lucide-react';
+import { LogOut, Home as HomeIcon, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, MoreHorizontal, Coffee, Home } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
@@ -220,6 +220,7 @@ export const Layout = ({ children }: LayoutProps) => {
     { icon: Cake, path: '/aniversarios', label: 'Aniversários', description: 'Aniversários da equipe' },
     { icon: Users, path: '/equipe', label: 'Equipe', description: 'Membros da equipe' },
     { icon: CalendarDays, path: '/ferias', label: 'Férias', description: 'Gestão de férias' },
+    { icon: Home, path: '/home-office', label: 'Home Office', description: 'Escala de home office' },
     { icon: BookOpen, path: '/onboarding', label: 'Onboarding', description: 'Materiais de integração' },
     { icon: Coffee, path: '/copa-cozinha', label: 'Copa/Cozinha', description: 'Sugestões de alimentos' },
   ];
@@ -242,7 +243,7 @@ export const Layout = ({ children }: LayoutProps) => {
         onClick={() => { navigate('/dashboard'); setMobileMenuOpen(false); }}
         className="gap-2 justify-start"
       >
-        <Home className="w-4 h-4" />
+        <HomeIcon className="w-4 h-4" />
         Dashboard
       </Button>
       {isAdmin && (
@@ -335,7 +336,7 @@ export const Layout = ({ children }: LayoutProps) => {
                   onClick={() => navigate('/dashboard')}
                   className="gap-2"
                 >
-                  <Home className="w-4 h-4" />
+                  <HomeIcon className="w-4 h-4" />
                   Dashboard
                 </Button>
                 {isAdmin && (

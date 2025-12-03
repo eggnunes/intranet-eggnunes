@@ -35,6 +35,7 @@ import SolicitacoesAdministrativas from "./pages/SolicitacoesAdministrativas";
 import HistoricoMensagensAniversario from "./pages/HistoricoMensagensAniversario";
 import CollectionManagement from "./pages/CollectionManagement";
 import CopaCozinha from "./pages/CopaCozinha";
+import HomeOffice from "./pages/HomeOffice";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -277,6 +278,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <CopaCozinha />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/home-office"
+              element={
+                <ProtectedRoute>
+                  <HomeOffice />
                 </ProtectedRoute>
               }
             />
