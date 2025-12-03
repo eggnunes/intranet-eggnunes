@@ -263,17 +263,18 @@ export default function TarefasAdvbox() {
         return;
       }
 
+      // Garantir formato correto para API Advbox
       const taskData = {
-        lawsuits_id: lawsuit.id,
-        start_date: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
+        lawsuits_id: parseInt(String(lawsuit.id), 10),
+        start_date: format(new Date(), 'yyyy-MM-dd'),
         title: newTask.title,
         description:
           newTask.description ||
           newTask.notes ||
           `Tarefa criada pela intranet para o processo ${processNumber}`,
-        from: lawsuit.responsible_id,
+        from: parseInt(String(lawsuit.responsible_id), 10),
         tasks_id: 1,
-        guests: [lawsuit.responsible_id],
+        guests: [parseInt(String(lawsuit.responsible_id), 10)],
         status: newTask.status,
         due_date: newTask.due_date || undefined,
       };

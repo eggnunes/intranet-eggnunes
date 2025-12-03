@@ -303,14 +303,18 @@ export default function PublicacoesFeed() {
         return;
       }
 
+      // Garantir formato correto para API Advbox (data sem hora, IDs como inteiros)
+      const parsedLawsuitId = parseInt(String(lawsuitId), 10);
+      const parsedResponsibleId = responsibleId ? parseInt(String(responsibleId), 10) : 1;
+      
       const taskData = {
-        lawsuits_id: lawsuitId,
-        start_date: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
+        lawsuits_id: parsedLawsuitId,
+        start_date: format(new Date(), 'yyyy-MM-dd'),
         title: `Intimação: ${selectedPublication.title || 'Publicação'}`,
         description: selectedPublication.description || selectedPublication.header || '',
-        from: responsibleId || 1,
+        from: parsedResponsibleId,
         tasks_id: 1,
-        guests: responsibleId ? [responsibleId] : [],
+        guests: parsedResponsibleId > 1 ? [parsedResponsibleId] : [],
       };
 
       const { error } = await supabase.functions.invoke('advbox-integration/create-task', {
