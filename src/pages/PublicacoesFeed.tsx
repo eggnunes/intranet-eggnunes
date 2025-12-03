@@ -63,6 +63,9 @@ export default function PublicacoesFeed() {
   const [userId, setUserId] = useState<string | null>(null);
   const [isSuggestingTask, setIsSuggestingTask] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<any>(null);
+  const [taskTypes, setTaskTypes] = useState<{ id: string | number; name: string }[]>([]);
+  const [selectedTaskType, setSelectedTaskType] = useState<string>('');
+  const [loadingTaskTypes, setLoadingTaskTypes] = useState(false);
   const { toast } = useToast();
 
   // Obter ID do usuário logado
@@ -212,7 +215,32 @@ export default function PublicacoesFeed() {
   const openTaskDialog = (publication: Publication) => {
     setSelectedPublication(publication);
     setAiSuggestion(null);
+    setSelectedTaskType('');
     setTaskDialogOpen(true);
+    // Buscar tipos de tarefa ao abrir o diálogo
+    if (taskTypes.length === 0) {
+      fetchTaskTypes();
+    }
+  };
+
+  const fetchTaskTypes = async () => {
+    setLoadingTaskTypes(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('advbox-integration/task-types');
+      if (error) throw error;
+      
+      const rawData = data?.data || [];
+      const types = Array.isArray(rawData) ? rawData.map((t: any) => ({
+        id: t.id || t.tasks_id,
+        name: t.task || t.name || t.title || `Tipo ${t.id || t.tasks_id}`,
+      })).filter((t: any) => t.id && t.name) : [];
+      
+      setTaskTypes(types);
+    } catch (err) {
+      console.error('Erro ao buscar tipos de tarefa:', err);
+    } finally {
+      setLoadingTaskTypes(false);
+    }
   };
 
   const suggestTaskWithAI = async () => {
@@ -226,12 +254,27 @@ export default function PublicacoesFeed() {
           processNumber: selectedPublication.process_number || selectedPublication.lawsuit_number,
           customerName: selectedPublication.customers,
           court: extractCourtCode(selectedPublication.header),
+          taskTypes: taskTypes.map(t => ({ id: t.id, name: t.name })),
         },
       });
 
       if (error) throw error;
       if (data && !data.error) {
         setAiSuggestion(data);
+        
+        // Auto-selecionar tipo de tarefa se sugerido pela IA
+        if (data.suggestedTaskTypeId) {
+          setSelectedTaskType(String(data.suggestedTaskTypeId));
+        } else if (data.suggestedTaskType && taskTypes.length > 0) {
+          const matchingType = taskTypes.find(t => 
+            t.name.toLowerCase().includes(data.suggestedTaskType.toLowerCase()) ||
+            data.suggestedTaskType.toLowerCase().includes(t.name.toLowerCase())
+          );
+          if (matchingType) {
+            setSelectedTaskType(String(matchingType.id));
+          }
+        }
+        
         toast({ title: 'Sugestão gerada', description: 'A IA analisou a publicação e sugeriu uma tarefa.' });
       }
     } catch (error) {
@@ -243,6 +286,16 @@ export default function PublicacoesFeed() {
 
   const createTaskFromPublication = async () => {
     if (!selectedPublication) return;
+
+    // Validar tipo de tarefa selecionado
+    if (!selectedTaskType) {
+      toast({
+        title: 'Tipo de tarefa obrigatório',
+        description: 'Selecione um tipo de tarefa antes de criar.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     try {
       let lawsuitId = selectedPublication.lawsuit_id;
@@ -286,7 +339,7 @@ export default function PublicacoesFeed() {
       if (!lawsuitId) {
         toast({
           title: 'Processo não encontrado',
-          description: 'Não foi possível localizar o processo para criar a tarefa. Tente usar o diálogo completo de tarefas.',
+          description: 'Não foi possível localizar o processo para criar a tarefa.',
           variant: 'destructive',
         });
         return;
@@ -306,14 +359,15 @@ export default function PublicacoesFeed() {
       // Garantir formato correto para API Advbox (data sem hora, IDs como inteiros)
       const parsedLawsuitId = parseInt(String(lawsuitId), 10);
       const parsedResponsibleId = responsibleId ? parseInt(String(responsibleId), 10) : 1;
+      const parsedTaskTypeId = parseInt(String(selectedTaskType), 10);
       
       const taskData = {
         lawsuits_id: parsedLawsuitId,
         start_date: format(new Date(), 'yyyy-MM-dd'),
-        title: `Intimação: ${selectedPublication.title || 'Publicação'}`,
-        description: selectedPublication.description || selectedPublication.header || '',
+        title: aiSuggestion?.taskTitle || `Intimação: ${selectedPublication.title || 'Publicação'}`,
+        description: aiSuggestion?.taskDescription || selectedPublication.description || selectedPublication.header || '',
         from: parsedResponsibleId,
-        tasks_id: 1,
+        tasks_id: parsedTaskTypeId,
         guests: parsedResponsibleId > 1 ? [parsedResponsibleId] : [],
       };
 
@@ -1037,9 +1091,32 @@ export default function PublicacoesFeed() {
                     {aiSuggestion.reasoning && <p className="mt-2 text-muted-foreground">{aiSuggestion.reasoning}</p>}
                   </div>
                 )}
+
+                {/* Seleção de Tipo de Tarefa */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Tipo de Tarefa *</label>
+                  {loadingTaskTypes ? (
+                    <p className="text-sm text-muted-foreground">Carregando tipos...</p>
+                  ) : taskTypes.length > 0 ? (
+                    <Select value={selectedTaskType} onValueChange={setSelectedTaskType}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o tipo de tarefa" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {taskTypes.map((type) => (
+                          <SelectItem key={type.id} value={String(type.id)}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Nenhum tipo de tarefa disponível</p>
+                  )}
+                </div>
                 
                 <div className="flex gap-2">
-                  <Button onClick={createTaskFromPublication} className="flex-1">
+                  <Button onClick={createTaskFromPublication} className="flex-1" disabled={!selectedTaskType}>
                     Criar Tarefa
                   </Button>
                   <Button
