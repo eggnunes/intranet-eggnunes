@@ -37,6 +37,7 @@ import CollectionManagement from "./pages/CollectionManagement";
 import CopaCozinha from "./pages/CopaCozinha";
 import HomeOffice from "./pages/HomeOffice";
 import Contratacao from "./pages/Contratacao";
+import SalaReuniao from "./pages/SalaReuniao";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -295,6 +296,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Contratacao />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sala-reuniao"
+              element={
+                <ProtectedRoute>
+                  <SalaReuniao />
                 </ProtectedRoute>
               }
             />
