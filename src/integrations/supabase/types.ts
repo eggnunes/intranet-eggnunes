@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_permissions: {
+        Row: {
+          admin_user_id: string
+          created_at: string
+          created_by: string
+          id: string
+          perm_admin_requests: string
+          perm_advbox: string
+          perm_announcements: string
+          perm_birthdays: string
+          perm_collection: string
+          perm_copa_cozinha: string
+          perm_documents: string
+          perm_events: string
+          perm_financial: string
+          perm_forum: string
+          perm_home_office: string
+          perm_onboarding: string
+          perm_suggestions: string
+          perm_task_rules: string
+          perm_users: string
+          perm_vacation: string
+          updated_at: string
+        }
+        Insert: {
+          admin_user_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          perm_admin_requests?: string
+          perm_advbox?: string
+          perm_announcements?: string
+          perm_birthdays?: string
+          perm_collection?: string
+          perm_copa_cozinha?: string
+          perm_documents?: string
+          perm_events?: string
+          perm_financial?: string
+          perm_forum?: string
+          perm_home_office?: string
+          perm_onboarding?: string
+          perm_suggestions?: string
+          perm_task_rules?: string
+          perm_users?: string
+          perm_vacation?: string
+          updated_at?: string
+        }
+        Update: {
+          admin_user_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          perm_admin_requests?: string
+          perm_advbox?: string
+          perm_announcements?: string
+          perm_birthdays?: string
+          perm_collection?: string
+          perm_copa_cozinha?: string
+          perm_documents?: string
+          perm_events?: string
+          perm_financial?: string
+          perm_forum?: string
+          perm_home_office?: string
+          perm_onboarding?: string
+          perm_suggestions?: string
+          perm_task_rules?: string
+          perm_users?: string
+          perm_vacation?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       admin_task_notification_recipients: {
         Row: {
           admin_user_id: string
@@ -1478,6 +1550,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_admin_permission: {
+        Args: { _feature: string; _user_id: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1486,6 +1562,7 @@ export type Database = {
         Returns: boolean
       }
       is_approved: { Args: { _user_id: string }; Returns: boolean }
+      is_socio_or_rafael: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "user"

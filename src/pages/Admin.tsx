@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck } from 'lucide-react';
+import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck, Lock } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Select,
@@ -30,7 +30,9 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { SuggestionComments } from '@/components/SuggestionComments';
 import { SuggestionTagManager } from '@/components/SuggestionTagManager';
+import { AdminPermissionsManager } from '@/components/AdminPermissionsManager';
 import { useNavigate } from 'react-router-dom';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { Calendar } from '@/components/ui/calendar';
 import { format, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -107,6 +109,7 @@ export default function Admin() {
   const [userSearchQuery, setUserSearchQuery] = useState<string>("");
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { isSocioOrRafael } = useAdminPermissions();
 
   useEffect(() => {
     if (!loading && !isAdmin) {
@@ -563,7 +566,7 @@ export default function Admin() {
         </div>
 
         <Tabs defaultValue="pending" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className={`grid w-full ${isSocioOrRafael ? 'grid-cols-6' : 'grid-cols-5'}`}>
             <TabsTrigger value="pending" className="gap-2">
               <UserPlus className="w-4 h-4" />
               Aprovações
@@ -588,6 +591,12 @@ export default function Admin() {
               <Shield className="w-4 h-4" />
               Administradores
             </TabsTrigger>
+            {isSocioOrRafael && (
+              <TabsTrigger value="permissions" className="gap-2">
+                <Lock className="w-4 h-4" />
+                Permissões
+              </TabsTrigger>
+            )}
             <TabsTrigger value="history" className="gap-2">
               <History className="w-4 h-4" />
               Histórico Geral
@@ -1108,6 +1117,13 @@ export default function Admin() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Permissions Tab - Only for Sócios and Rafael */}
+          {isSocioOrRafael && (
+            <TabsContent value="permissions">
+              <AdminPermissionsManager />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </Layout>

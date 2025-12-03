@@ -13,10 +13,13 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Home, Calendar, Users, ArrowRightLeft, Check, X, Clock,
-  Plus, Trash2, Bell, AlertCircle, BarChart3
+  Plus, Trash2, Bell, AlertCircle, BarChart3, FileSpreadsheet, FileText, Download
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface Profile {
   id: string;
@@ -463,6 +466,87 @@ const HomeOffice = () => {
 
   const stats = getStatistics();
 
+  // Export functions
+  const exportToExcel = () => {
+    const data = lawyers.map(lawyer => {
+      const lawyerSchedule = schedules.filter(s => s.user_id === lawyer.id);
+      const days = lawyerSchedule.map(s => DAYS_OF_WEEK.find(d => d.value === s.day_of_week)?.label || '').join(', ');
+      return {
+        'Advogado': lawyer.full_name,
+        'Dias de Home Office': days || 'Sem escala',
+        'Quantidade': lawyerSchedule.length
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Escala Home Office');
+    
+    ws['!cols'] = [
+      { wch: 30 },
+      { wch: 40 },
+      { wch: 12 }
+    ];
+
+    XLSX.writeFile(wb, `escala-home-office-${format(currentMonth, 'yyyy-MM')}.xlsx`);
+    
+    toast({
+      title: 'Exportado com sucesso',
+      description: 'Escala exportada para Excel.',
+    });
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    
+    doc.setFontSize(18);
+    doc.text(`Escala de Home Office - ${format(currentMonth, 'MMMM yyyy', { locale: ptBR })}`, 14, 20);
+    
+    doc.setFontSize(10);
+    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 14, 28);
+
+    // Schedule by day
+    const scheduleByDay = DAYS_OF_WEEK.map(day => {
+      const daySchedules = schedules.filter(s => s.day_of_week === day.value);
+      return {
+        'Dia': day.label,
+        'Advogados': daySchedules.map(s => s.profile?.full_name || 'Desconhecido').join(', ') || 'Ninguém escalado'
+      };
+    });
+
+    autoTable(doc, {
+      startY: 35,
+      head: [['Dia da Semana', 'Advogados de Home Office']],
+      body: scheduleByDay.map(row => [row['Dia'], row['Advogados']]),
+      headStyles: { fillColor: [59, 130, 246] },
+    });
+
+    // Individual schedules
+    const tableEndY = (doc as any).lastAutoTable.finalY + 15;
+    doc.setFontSize(14);
+    doc.text('Escala Individual', 14, tableEndY);
+
+    const individualData = lawyers.map(lawyer => {
+      const lawyerSchedule = schedules.filter(s => s.user_id === lawyer.id);
+      const days = lawyerSchedule.map(s => DAYS_OF_WEEK.find(d => d.value === s.day_of_week)?.label || '').join(', ');
+      return [lawyer.full_name, days || 'Sem escala', lawyerSchedule.length.toString()];
+    });
+
+    autoTable(doc, {
+      startY: tableEndY + 5,
+      head: [['Advogado', 'Dias de Home Office', 'Qtd']],
+      body: individualData,
+      headStyles: { fillColor: [59, 130, 246] },
+    });
+
+    doc.save(`escala-home-office-${format(currentMonth, 'yyyy-MM')}.pdf`);
+    
+    toast({
+      title: 'Exportado com sucesso',
+      description: 'Escala exportada para PDF.',
+    });
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -486,14 +570,26 @@ const HomeOffice = () => {
         </div>
 
         {/* Month Navigation */}
-        <div className="flex items-center justify-center gap-4">
-          <Button variant="outline" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
-            Mês Anterior
-          </Button>
-          <span className="text-lg font-semibold capitalize">{monthLabel}</span>
-          <Button variant="outline" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
-            Próximo Mês
-          </Button>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
+              Mês Anterior
+            </Button>
+            <span className="text-lg font-semibold capitalize">{monthLabel}</span>
+            <Button variant="outline" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
+              Próximo Mês
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={exportToExcel}>
+              <FileSpreadsheet className="h-4 w-4 mr-1" />
+              Excel
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportToPDF}>
+              <FileText className="h-4 w-4 mr-1" />
+              PDF
+            </Button>
+          </div>
         </div>
 
         <Tabs defaultValue="board" className="w-full">
