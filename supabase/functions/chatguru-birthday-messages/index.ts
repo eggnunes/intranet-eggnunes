@@ -40,19 +40,22 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
   console.log(`Using Phone ID: ${CHATGURU_PHONE_ID}`);
   
   // Para API oficial do WhatsApp com templates aprovados pela Meta
-  // Usar action=message_send com o parâmetro template
-  // O ChatGuru identifica que é um template e envia via API oficial
+  // Usar action=dialog_execute com o dialog_id do diálogo configurado
+  // O diálogo já contém a ação de envio do template "aniversario"
+  const DIALOG_ID = '679a5d753968d5272a54d203';
+  
   const params = new URLSearchParams({
     key: CHATGURU_API_KEY!,
     account_id: CHATGURU_ACCOUNT_ID!,
     phone_id: CHATGURU_PHONE_ID!,
-    action: 'message_send',
+    action: 'dialog_execute',
     chat_number: fullPhone,
-    template: 'aniversario',
+    dialog_id: DIALOG_ID,
   });
   
   const url = `https://s17.chatguru.app/api/v1?${params.toString()}`;
-  console.log('Calling ChatGuru API with message_send + template...');
+  console.log('Calling ChatGuru API with dialog_execute...');
+  console.log('Dialog ID:', DIALOG_ID);
   console.log('Full URL (redacted key):', url.replace(CHATGURU_API_KEY!, 'REDACTED'));
   
   const response = await fetch(url, {
