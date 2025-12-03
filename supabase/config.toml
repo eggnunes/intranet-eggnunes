@@ -29,3 +29,6 @@ verify_jwt = true
 
 [functions.parse-resume]
 verify_jwt = true
+
+[functions.suggest-job-opening]
+verify_jwt = true
