@@ -18,7 +18,7 @@ import { TaskSuggestionsPanel } from '@/components/TaskSuggestionsPanel';
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
 import { format, subDays, subMonths, isAfter, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Briefcase, TrendingUp, BarChart, Search, Filter, AlertCircle, Calendar, ListTodo, RefreshCw } from 'lucide-react';
+import { Briefcase, TrendingUp, BarChart, Search, Filter, AlertCircle, Calendar, ListTodo, RefreshCw, MessageSquare } from 'lucide-react';
 
 interface Lawsuit {
   id: number;
@@ -116,6 +116,7 @@ export default function ProcessosDashboard() {
   const [selectedMovement, setSelectedMovement] = useState<Movement | null>(null);
   const [isLoadingFullData, setIsLoadingFullData] = useState(false);
   const [hasCompleteData, setHasCompleteData] = useState(cachedData?.isComplete || false);
+  const [sendingDocRequest, setSendingDocRequest] = useState<number | null>(null);
   
   // Filtros para gráficos de evolução
   const [selectedEvolutionTypes, setSelectedEvolutionTypes] = useState<string[]>([]);
@@ -124,6 +125,98 @@ export default function ProcessosDashboard() {
   const [showAllEvolutionAreas, setShowAllEvolutionAreas] = useState(true);
   
   const { toast } = useToast();
+
+  // Função para enviar cobrança de documentos via ChatGuru
+  const sendDocumentRequest = async (lawsuit: Lawsuit) => {
+    // Extrair dados do cliente
+    let customerName = '';
+    let customerPhone = '';
+    let customerId = '';
+
+    if (lawsuit.customers) {
+      if (typeof lawsuit.customers === 'string') {
+        customerName = lawsuit.customers;
+      } else if (Array.isArray(lawsuit.customers) && lawsuit.customers.length > 0) {
+        const firstCustomer = lawsuit.customers[0];
+        customerName = firstCustomer.name || '';
+        customerId = firstCustomer.customer_id?.toString() || '';
+      } else if (typeof lawsuit.customers === 'object') {
+        const customer = lawsuit.customers as { name: string; customer_id?: number };
+        customerName = customer.name || '';
+        customerId = customer.customer_id?.toString() || '';
+      }
+    }
+
+    // Buscar telefone do cliente via Advbox API
+    try {
+      setSendingDocRequest(lawsuit.id);
+
+      // Primeiro, buscar os dados do cliente para obter o telefone
+      const { data: customerData, error: customerError } = await supabase.functions.invoke(
+        'advbox-integration/customers',
+        { body: { force_refresh: false } }
+      );
+
+      if (customerError) {
+        throw new Error('Erro ao buscar dados do cliente');
+      }
+
+      // Encontrar o cliente nos dados
+      let customers: any[] = [];
+      if (Array.isArray(customerData)) {
+        customers = customerData;
+      } else if (customerData?.data?.data) {
+        customers = customerData.data.data;
+      } else if (customerData?.data) {
+        customers = customerData.data;
+      }
+
+      // Procurar pelo cliente do processo
+      const customerInfo = customers.find((c: any) => {
+        if (customerId && c.id?.toString() === customerId) return true;
+        if (customerName && c.name?.toLowerCase() === customerName.toLowerCase()) return true;
+        return false;
+      });
+
+      if (!customerInfo) {
+        throw new Error(`Cliente não encontrado: ${customerName || customerId}`);
+      }
+
+      customerPhone = customerInfo.cellphone || customerInfo.phone || '';
+      
+      if (!customerPhone) {
+        throw new Error('Cliente não possui telefone cadastrado');
+      }
+
+      // Enviar mensagem de cobrança de documentos
+      const { data: response, error } = await supabase.functions.invoke('send-document-request', {
+        body: {
+          customerId: customerInfo.id?.toString() || customerId,
+          customerName: customerInfo.name || customerName,
+          customerPhone,
+          processNumber: lawsuit.process_number,
+          processId: lawsuit.id,
+        },
+      });
+
+      if (error) throw error;
+      if (!response?.success) throw new Error(response?.error || 'Erro ao enviar mensagem');
+
+      toast({
+        title: 'Mensagem enviada',
+        description: `Cobrança de documentos enviada para ${customerInfo.name}`,
+      });
+    } catch (error: any) {
+      console.error('Erro ao enviar cobrança de documentos:', error);
+      toast({
+        title: 'Erro ao enviar mensagem',
+        description: error.message || 'Não foi possível enviar a cobrança de documentos',
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingDocRequest(null);
+    }
+  };
 
   const openTaskDialog = (movement: Movement) => {
     setSelectedMovement(movement);
@@ -1449,15 +1542,26 @@ export default function ProcessosDashboard() {
                                   </Badge>
                                 </div>
                               </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openTaskDialogFromLawsuit(lawsuit)}
-                                className="shrink-0"
-                              >
-                                <ListTodo className="h-4 w-4 mr-1" />
-                                Criar Tarefa
-                              </Button>
+                              <div className="flex gap-2 shrink-0">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => sendDocumentRequest(lawsuit)}
+                                  disabled={sendingDocRequest === lawsuit.id}
+                                  title="Cobrar documentos via WhatsApp"
+                                >
+                                  <MessageSquare className="h-4 w-4" />
+                                  {sendingDocRequest === lawsuit.id ? '...' : ''}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openTaskDialogFromLawsuit(lawsuit)}
+                                >
+                                  <ListTodo className="h-4 w-4 mr-1" />
+                                  Criar Tarefa
+                                </Button>
+                              </div>
                             </div>
                             
                             {lawsuit.responsible && (

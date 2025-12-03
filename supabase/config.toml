@@ -20,3 +20,6 @@ verify_jwt = true
 
 [functions.process-automatic-collections]
 verify_jwt = false
+
+[functions.send-document-request]
+verify_jwt = true
