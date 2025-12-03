@@ -16,6 +16,38 @@ interface Customer {
   birthday: string;
 }
 
+async function setChatStatusToAttending(phone: string) {
+  console.log(`Setting chat status to "em atendimento" for ${phone}`);
+
+  const params = new URLSearchParams({
+    key: CHATGURU_API_KEY!,
+    account_id: CHATGURU_ACCOUNT_ID!,
+    phone_id: CHATGURU_PHONE_ID!,
+    action: 'chat_edit',
+    chat_number: phone,
+    status: 'em atendimento',
+  });
+
+  const url = `https://s17.chatguru.app/api/v1?${params.toString()}`;
+  
+  try {
+    const response = await fetch(url, { method: 'POST' });
+    const responseText = await response.text();
+    console.log('ChatGuru chat_edit (status) response:', responseText);
+    
+    const data = JSON.parse(responseText);
+    if (data.result === 'success') {
+      console.log('Chat status changed to "em atendimento" successfully');
+      return true;
+    }
+    console.warn('Failed to change chat status:', data);
+    return false;
+  } catch (error) {
+    console.error('Error changing chat status:', error);
+    return false;
+  }
+}
+
 async function sendWhatsAppMessage(phone: string, customerName: string) {
   console.log(`Sending birthday message to ${phone} for ${customerName}`);
   
@@ -68,9 +100,10 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
     throw new Error(`ChatGuru returned invalid response: ${dialogResponseText.substring(0, 100)}`);
   }
   
-  // Se dialog_execute funcionou, retornar
+  // Se dialog_execute funcionou, alterar status para "em atendimento"
   if (dialogData.result === 'success') {
     console.log('Message sent successfully via dialog_execute');
+    await setChatStatusToAttending(fullPhone);
     return dialogData;
   }
   
@@ -110,6 +143,7 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
     
     if (chatAddData.result === 'success') {
       console.log('Chat created and dialog scheduled successfully');
+      await setChatStatusToAttending(fullPhone);
       return chatAddData;
     }
     

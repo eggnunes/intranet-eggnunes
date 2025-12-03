@@ -6,9 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Dialog ID do template "boletoematraso" aprovado pela Meta
-const DIALOG_ID = '679a5d753968d5272a54d207';
-const TEMPLATE_NAME = 'boletoematraso';
+// Dialog ID do template "cobrancadocumentosparaacao" aprovado pela Meta
+const DIALOG_ID = '679a5d763968d5272a54d22b';
+const TEMPLATE_NAME = 'cobrancadocumentosparaacao';
 
 async function setChatStatusToAttending(phone: string) {
   const CHATGURU_API_KEY = Deno.env.get('CHATGURU_API_KEY');
@@ -51,7 +51,7 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
   const CHATGURU_ACCOUNT_ID = Deno.env.get('CHATGURU_ACCOUNT_ID');
   const CHATGURU_PHONE_ID = Deno.env.get('CHATGURU_PHONE_ID');
 
-  console.log(`Sending collection message to ${phone} for ${customerName}`);
+  console.log(`Sending document request message to ${phone} for ${customerName}`);
   
   // Remove formatting from phone number
   const cleanPhone = phone.replace(/\D/g, '');
@@ -120,7 +120,7 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
     });
     
     const chatAddUrl = `https://s17.chatguru.app/api/v1?${chatAddParams.toString()}`;
-    console.log('Calling chat_add with dialog_id and text=boletoematraso...');
+    console.log('Calling chat_add with dialog_id and text=' + TEMPLATE_NAME + '...');
     console.log('Full URL (redacted key):', chatAddUrl.replace(CHATGURU_API_KEY!, 'REDACTED'));
     
     const chatAddResponse = await fetch(chatAddUrl, { method: 'POST' });
@@ -159,9 +159,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { customerId, customerName, customerPhone, amount, daysOverdue } = await req.json();
+    const { customerId, customerName, customerPhone, processNumber, processId } = await req.json();
 
-    console.log('Sending defaulter message:', { customerId, customerName, customerPhone, amount, daysOverdue });
+    console.log('Sending document request message:', { customerId, customerName, customerPhone, processNumber, processId });
 
     // Verificar credenciais
     const CHATGURU_API_KEY = Deno.env.get('CHATGURU_API_KEY');
@@ -172,25 +172,8 @@ serve(async (req) => {
       throw new Error('Credenciais do ChatGuru não configuradas');
     }
 
-    // Verificar se o cliente está na lista de exclusões
-    const { data: exclusion } = await supabase
-      .from('defaulter_exclusions')
-      .select('*')
-      .eq('customer_id', customerId)
-      .single();
-
-    if (exclusion) {
-      console.log('Customer is in exclusion list, skipping message');
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Cliente está na lista de exclusão e não receberá mensagens de cobrança.' 
-        }),
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400 
-        }
-      );
+    if (!customerPhone) {
+      throw new Error('Cliente não possui telefone cadastrado');
     }
 
     // Enviar mensagem via ChatGuru
@@ -205,16 +188,16 @@ serve(async (req) => {
       throw new Error('Usuário não autenticado');
     }
 
-    // Registrar no log
+    // Registrar no log (usando a tabela existente de mensagens de cobrança)
     const { error: logError } = await supabase
       .from('defaulter_messages_log')
       .insert({
-        customer_id: customerId,
+        customer_id: customerId || 'unknown',
         customer_name: customerName,
         customer_phone: customerPhone.replace(/\D/g, ''),
-        days_overdue: daysOverdue,
+        days_overdue: 0, // Não é uma cobrança de atraso
         message_template: TEMPLATE_NAME,
-        message_text: `Template: ${TEMPLATE_NAME} | Cliente: ${customerName} | Valor: R$ ${amount} | Dias em atraso: ${daysOverdue}`,
+        message_text: `Template: ${TEMPLATE_NAME} | Cliente: ${customerName} | Processo: ${processNumber || 'N/A'} | Tipo: Cobrança de Documentos`,
         status: 'sent',
         chatguru_message_id: chatguruResponse?.message_id || null,
         sent_at: new Date().toISOString(),
@@ -235,7 +218,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in send-defaulter-message function:', error);
+    console.error('Error in send-document-request function:', error);
     
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     
