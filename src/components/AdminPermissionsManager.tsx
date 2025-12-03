@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Shield, Save, Users, Eye, Edit3, Ban } from 'lucide-react';
+import { Shield, Save, Users, Eye, Edit3, Ban, Search, UserCheck, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface Profile {
   id: string;
@@ -66,38 +68,44 @@ const PERMISSION_LEVELS = [
 ];
 
 export const AdminPermissionsManager = () => {
-  const [admins, setAdmins] = useState<Profile[]>([]);
+  const [allUsers, setAllUsers] = useState<Profile[]>([]);
+  const [adminUserIds, setAdminUserIds] = useState<Set<string>>(new Set());
   const [permissions, setPermissions] = useState<Record<string, AdminPermissionRecord>>({});
   const [editingPermissions, setEditingPermissions] = useState<Record<string, Record<string, string>>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterGroup, setFilterGroup] = useState<'all' | 'admin' | 'user'>('all');
   const { toast } = useToast();
   const { user } = useAuth();
 
   useEffect(() => {
-    fetchAdmins();
+    fetchAllUsers();
+    fetchAdminUserIds();
     fetchPermissions();
   }, []);
 
-  const fetchAdmins = async () => {
-    // Get all admins who are not sócios
+  const fetchAllUsers = async () => {
+    // Get all approved users except sócios and Rafael
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, avatar_url, position')
+      .eq('approval_status', 'approved')
+      .neq('position', 'socio')
+      .neq('email', 'rafael@eggnunes.com.br')
+      .order('full_name');
+
+    setAllUsers(profiles || []);
+  };
+
+  const fetchAdminUserIds = async () => {
     const { data: adminRoles } = await supabase
       .from('user_roles')
       .select('user_id')
       .eq('role', 'admin');
 
-    if (!adminRoles) return;
-
-    const adminIds = adminRoles.map(r => r.user_id);
-
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, full_name, email, avatar_url, position')
-      .in('id', adminIds)
-      .neq('position', 'socio')
-      .neq('email', 'rafael@eggnunes.com.br')
-      .order('full_name');
-
-    setAdmins(profiles || []);
+    if (adminRoles) {
+      setAdminUserIds(new Set(adminRoles.map(r => r.user_id)));
+    }
   };
 
   const fetchPermissions = async () => {
@@ -125,36 +133,93 @@ export const AdminPermissionsManager = () => {
     }
   };
 
-  const initializeAdminPermissions = (adminId: string) => {
+  const initializeUserPermissions = (userId: string) => {
     setEditingPermissions(prev => ({
       ...prev,
-      [adminId]: PERMISSION_FEATURES.reduce((acc, f) => {
+      [userId]: PERMISSION_FEATURES.reduce((acc, f) => {
         acc[f.key] = 'none';
         return acc;
       }, {} as Record<string, string>)
     }));
   };
 
-  const handlePermissionChange = (adminId: string, feature: string, value: string) => {
+  const handlePermissionChange = (userId: string, feature: string, value: string) => {
     setEditingPermissions(prev => ({
       ...prev,
-      [adminId]: {
-        ...(prev[adminId] || {}),
+      [userId]: {
+        ...(prev[userId] || {}),
         [feature]: value
       }
     }));
   };
 
-  const handleSave = async (adminId: string) => {
-    setSaving(adminId);
+  const handleMakeAdmin = async (userId: string) => {
+    const { error } = await supabase
+      .from('user_roles')
+      .insert({
+        user_id: userId,
+        role: 'admin',
+      });
 
-    const permsToSave = editingPermissions[adminId] || {};
+    if (error) {
+      toast({
+        title: 'Erro',
+        description: 'Erro ao promover usuário a admin',
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Admin adicionado',
+        description: 'Usuário agora tem privilégios de administrador',
+      });
+      setAdminUserIds(prev => new Set([...prev, userId]));
+    }
+  };
+
+  const handleRemoveAdmin = async (userId: string) => {
+    const { error } = await supabase
+      .from('user_roles')
+      .delete()
+      .eq('user_id', userId)
+      .eq('role', 'admin');
+
+    if (error) {
+      if (error.message.includes('criador da intranet')) {
+        toast({
+          title: 'Operação não permitida',
+          description: 'Rafael Egg Nunes não pode ter seus privilégios removidos',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Erro',
+          description: error.message,
+          variant: 'destructive',
+        });
+      }
+    } else {
+      toast({
+        title: 'Admin removido',
+        description: 'Privilégios de administrador removidos',
+      });
+      setAdminUserIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleSave = async (userId: string) => {
+    setSaving(userId);
+
+    const permsToSave = editingPermissions[userId] || {};
     const permRecord: Record<string, string> = {};
     PERMISSION_FEATURES.forEach(f => {
       permRecord[`perm_${f.key}`] = permsToSave[f.key] || 'none';
     });
 
-    const existingPerm = permissions[adminId];
+    const existingPerm = permissions[userId];
 
     try {
       if (existingPerm) {
@@ -162,7 +227,7 @@ export const AdminPermissionsManager = () => {
         const { error } = await supabase
           .from('admin_permissions')
           .update(permRecord)
-          .eq('admin_user_id', adminId);
+          .eq('admin_user_id', userId);
 
         if (error) throw error;
       } else {
@@ -170,7 +235,7 @@ export const AdminPermissionsManager = () => {
         const { error } = await supabase
           .from('admin_permissions')
           .insert({
-            admin_user_id: adminId,
+            admin_user_id: userId,
             created_by: user?.id,
             ...permRecord
           });
@@ -196,15 +261,43 @@ export const AdminPermissionsManager = () => {
     }
   };
 
-  const setAllPermissions = (adminId: string, level: string) => {
+  const setAllPermissions = (userId: string, level: string) => {
     const newPerms: Record<string, string> = {};
     PERMISSION_FEATURES.forEach(f => {
       newPerms[f.key] = level;
     });
     setEditingPermissions(prev => ({
       ...prev,
-      [adminId]: newPerms
+      [userId]: newPerms
     }));
+  };
+
+  // Filter users based on search and group
+  const filteredUsers = allUsers.filter(u => {
+    const matchesSearch = searchQuery === '' || 
+      u.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const isAdmin = adminUserIds.has(u.id);
+    const matchesGroup = filterGroup === 'all' || 
+      (filterGroup === 'admin' && isAdmin) ||
+      (filterGroup === 'user' && !isAdmin);
+    
+    return matchesSearch && matchesGroup;
+  });
+
+  const adminCount = allUsers.filter(u => adminUserIds.has(u.id)).length;
+  const userCount = allUsers.filter(u => !adminUserIds.has(u.id)).length;
+
+  const getPositionLabel = (position: string | null) => {
+    switch (position) {
+      case 'socio': return 'Sócio';
+      case 'advogado': return 'Advogado';
+      case 'estagiario': return 'Estagiário';
+      case 'comercial': return 'Comercial';
+      case 'administrativo': return 'Administrativo';
+      default: return position || 'Não definido';
+    }
   };
 
   return (
@@ -212,107 +305,180 @@ export const AdminPermissionsManager = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Shield className="h-5 w-5" />
-          Permissões de Administradores
+          Gerenciamento de Permissões
         </CardTitle>
         <CardDescription>
-          Gerencie as permissões de cada administrador. Sócios têm acesso total automaticamente.
+          Defina o grupo (Admin/Usuário) e as permissões específicas de cada colaborador. Sócios têm acesso total automaticamente.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {admins.length === 0 ? (
+        {/* Search and Filter */}
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nome ou email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Tabs value={filterGroup} onValueChange={(v) => setFilterGroup(v as typeof filterGroup)} className="w-full sm:w-auto">
+            <TabsList>
+              <TabsTrigger value="all" className="gap-2">
+                <Users className="h-4 w-4" />
+                Todos ({allUsers.length})
+              </TabsTrigger>
+              <TabsTrigger value="admin" className="gap-2">
+                <Shield className="h-4 w-4" />
+                Admins ({adminCount})
+              </TabsTrigger>
+              <TabsTrigger value="user" className="gap-2">
+                <User className="h-4 w-4" />
+                Usuários ({userCount})
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {filteredUsers.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">
-            Nenhum administrador (não-sócio) cadastrado para gerenciar permissões.
+            Nenhum usuário encontrado com os filtros selecionados.
           </p>
         ) : (
-          admins.map(admin => (
-            <Card key={admin.id} className="border-muted">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar>
-                      <AvatarImage src={admin.avatar_url || ''} />
-                      <AvatarFallback>{admin.full_name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{admin.full_name}</p>
-                      <p className="text-sm text-muted-foreground">{admin.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setAllPermissions(admin.id, 'none')}
-                    >
-                      Nenhum
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setAllPermissions(admin.id, 'view')}
-                    >
-                      Todos Visualizar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setAllPermissions(admin.id, 'edit')}
-                    >
-                      Todos Editar
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {PERMISSION_FEATURES.map(feature => {
-                    const currentValue = editingPermissions[admin.id]?.[feature.key] || 
-                                        (permissions[admin.id] as any)?.[`perm_${feature.key}`] || 
-                                        'none';
-                    
-                    if (!editingPermissions[admin.id]) {
-                      initializeAdminPermissions(admin.id);
-                    }
-
-                    return (
-                      <div key={feature.key} className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border">
-                        <div className="flex-1 min-w-0 mr-2">
-                          <p className="text-sm font-medium truncate">{feature.label}</p>
+          <div className="space-y-6">
+            {filteredUsers.map(userItem => {
+              const isAdmin = adminUserIds.has(userItem.id);
+              
+              return (
+                <Card key={userItem.id} className="border-muted">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between flex-wrap gap-4">
+                      <div className="flex items-center gap-3">
+                        <Avatar>
+                          <AvatarImage src={userItem.avatar_url || ''} />
+                          <AvatarFallback>{userItem.full_name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{userItem.full_name}</p>
+                            {isAdmin && (
+                              <Badge variant="default" className="gap-1">
+                                <Shield className="w-3 h-3" />
+                                Admin
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">{userItem.email}</p>
+                          {userItem.position && (
+                            <Badge variant="secondary" className="text-xs mt-1">
+                              {getPositionLabel(userItem.position)}
+                            </Badge>
+                          )}
                         </div>
-                        <Select
-                          value={currentValue}
-                          onValueChange={(value) => handlePermissionChange(admin.id, feature.key, value)}
-                        >
-                          <SelectTrigger className="w-[130px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {PERMISSION_LEVELS.map(level => {
-                              const Icon = level.icon;
-                              return (
-                                <SelectItem key={level.value} value={level.value}>
-                                  <div className="flex items-center gap-2">
-                                    <Icon className={`h-4 w-4 ${level.color}`} />
-                                    <span>{level.label}</span>
-                                  </div>
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
                       </div>
-                    );
-                  })}
-                </div>
-                <div className="flex justify-end mt-4">
-                  <Button onClick={() => handleSave(admin.id)} disabled={saving === admin.id}>
-                    <Save className="h-4 w-4 mr-2" />
-                    {saving === admin.id ? 'Salvando...' : 'Salvar Permissões'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                      
+                      <div className="flex flex-wrap gap-2">
+                        {/* Grupo: Admin ou Usuário */}
+                        {isAdmin ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRemoveAdmin(userItem.id)}
+                            className="gap-2 text-destructive hover:text-destructive"
+                          >
+                            <User className="h-4 w-4" />
+                            Tornar Usuário Comum
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => handleMakeAdmin(userItem.id)}
+                            className="gap-2"
+                          >
+                            <Shield className="h-4 w-4" />
+                            Tornar Administrador
+                          </Button>
+                        )}
+                        
+                        {/* Quick permission buttons */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setAllPermissions(userItem.id, 'none')}
+                        >
+                          Nenhum
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setAllPermissions(userItem.id, 'view')}
+                        >
+                          Todos Visualizar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setAllPermissions(userItem.id, 'edit')}
+                        >
+                          Todos Editar
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {PERMISSION_FEATURES.map(feature => {
+                        const currentValue = editingPermissions[userItem.id]?.[feature.key] || 
+                                            (permissions[userItem.id] as any)?.[`perm_${feature.key}`] || 
+                                            'none';
+                        
+                        if (!editingPermissions[userItem.id]) {
+                          initializeUserPermissions(userItem.id);
+                        }
+
+                        return (
+                          <div key={feature.key} className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border">
+                            <div className="flex-1 min-w-0 mr-2">
+                              <p className="text-sm font-medium truncate">{feature.label}</p>
+                            </div>
+                            <Select
+                              value={currentValue}
+                              onValueChange={(value) => handlePermissionChange(userItem.id, feature.key, value)}
+                            >
+                              <SelectTrigger className="w-[130px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PERMISSION_LEVELS.map(level => {
+                                  const Icon = level.icon;
+                                  return (
+                                    <SelectItem key={level.value} value={level.value}>
+                                      <div className="flex items-center gap-2">
+                                        <Icon className={`h-4 w-4 ${level.color}`} />
+                                        <span>{level.label}</span>
+                                      </div>
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex justify-end mt-4">
+                      <Button onClick={() => handleSave(userItem.id)} disabled={saving === userItem.id}>
+                        <Save className="h-4 w-4 mr-2" />
+                        {saving === userItem.id ? 'Salvando...' : 'Salvar Permissões'}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         )}
       </CardContent>
     </Card>

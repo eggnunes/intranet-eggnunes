@@ -738,6 +738,14 @@ export default function Admin() {
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
+                          {/* Admin badge */}
+                          {adminUsers.some(a => a.id === user.id) && (
+                            <Badge variant="default" className="gap-1">
+                              <Shield className="w-3 h-3" />
+                              Admin
+                            </Badge>
+                          )}
+                          
                           {editingUserId === user.id ? (
                             <div className="flex items-center gap-2">
                               <Popover>
@@ -798,8 +806,31 @@ export default function Admin() {
                                     : undefined);
                                 }}
                               >
-                                Editar
+                                Editar Data
                               </Button>
+                              {/* Botão Tornar/Remover Admin */}
+                              {isSocioOrRafael && user.email !== 'rafael@eggnunes.com.br' && (
+                                adminUsers.some(a => a.id === user.id) ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleRemoveAdmin(user.id)}
+                                    className="text-destructive hover:text-destructive"
+                                  >
+                                    <Shield className="w-4 h-4 mr-1" />
+                                    Remover Admin
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    onClick={() => handleMakeAdmin(user.id)}
+                                  >
+                                    <Shield className="w-4 h-4 mr-1" />
+                                    Tornar Admin
+                                  </Button>
+                                )
+                              )}
                             </div>
                           )}
                         </div>
