@@ -59,8 +59,9 @@ export default function AdvboxAnalytics() {
     try {
       const refreshParam = forceRefresh ? '?force_refresh=true' : '';
       
+      // Usar lawsuits-full para buscar TODOS os processos (sem limite de 100)
       const [lawsuitsRes, publicationsRes, tasksRes, transactionsRes] = await Promise.all([
-        supabase.functions.invoke(`advbox-integration/lawsuits${refreshParam}`),
+        supabase.functions.invoke(`advbox-integration/lawsuits-full${refreshParam}`),
         supabase.functions.invoke(`advbox-integration/last-movements${refreshParam}`),
         supabase.functions.invoke(`advbox-integration/tasks${refreshParam}`),
         supabase.functions.invoke(`advbox-integration/transactions${refreshParam}`),
@@ -72,6 +73,8 @@ export default function AdvboxAnalytics() {
       const tasksArray = (tasksRes.data as any)?.data || [];
       const transactionsArray = (transactionsRes.data as any)?.data || [];
 
+      console.log(`Analytics loaded: ${lawsuitsArray.length} lawsuits, ${publicationsArray.length} publications`);
+
       setLawsuits(lawsuitsArray);
       setPublications(publicationsArray);
       setTasks(tasksArray);
@@ -82,7 +85,7 @@ export default function AdvboxAnalytics() {
       if (forceRefresh) {
         toast({
           title: 'Dados atualizados',
-          description: 'Todos os dados foram recarregados.',
+          description: `${lawsuitsArray.length} processos carregados.`,
         });
       }
     } catch (error) {
