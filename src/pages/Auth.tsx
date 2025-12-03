@@ -23,6 +23,7 @@ export default function Auth() {
   const [fullName, setFullName] = useState('');
   const [position, setPosition] = useState('');
   const [birthDate, setBirthDate] = useState<Date>();
+  const [joinDate, setJoinDate] = useState<Date>();
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -121,7 +122,7 @@ export default function Auth() {
           }
         }
 
-        // Atualizar profile com cargo, avatar e data de nascimento
+        // Atualizar profile com cargo, avatar, data de nascimento e data de ingresso
         if (data.user) {
           await supabase
             .from('profiles')
@@ -129,6 +130,7 @@ export default function Auth() {
               position: position as any,
               avatar_url: avatarUrl || null,
               birth_date: birthDate ? format(birthDate, 'yyyy-MM-dd') : null,
+              join_date: joinDate ? format(joinDate, 'yyyy-MM-dd') : null,
             })
             .eq('id', data.user.id);
         }
@@ -220,6 +222,36 @@ export default function Auth() {
                         mode="single"
                         selected={birthDate}
                         onSelect={setBirthDate}
+                        initialFocus
+                        disabled={(date) =>
+                          date > new Date() || date < new Date("1900-01-01")
+                        }
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="joinDate">Data de Ingresso no Escritório</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !joinDate && "text-muted-foreground"
+                        )}
+                        disabled={loading}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {joinDate ? format(joinDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione a data de ingresso"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={joinDate}
+                        onSelect={setJoinDate}
                         initialFocus
                         disabled={(date) =>
                           date > new Date() || date < new Date("1900-01-01")
