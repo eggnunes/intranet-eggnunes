@@ -279,11 +279,23 @@ export function TaskCreationDialog({
         throw new Error('Processo não encontrado');
       }
 
+      // Garantir que IDs são enviados como números inteiros (requisito da API Advbox)
+      const parsedTaskTypeId = parseInt(String(taskTypeId), 10);
+      const parsedFromUserId = parseInt(String(fromUserId || lawsuit.responsible_id), 10);
+      const parsedLawsuitId = parseInt(String(selectedMovement.lawsuit_id || lawsuit.id), 10);
+      const parsedGuests = selectedGuests.length > 0 
+        ? selectedGuests.map(g => parseInt(String(g), 10))
+        : [parsedFromUserId];
+
+      if (isNaN(parsedTaskTypeId) || parsedTaskTypeId <= 0) {
+        throw new Error('Tipo de tarefa inválido. Selecione um tipo válido.');
+      }
+
       const taskData: Record<string, any> = {
-        lawsuits_id: selectedMovement.lawsuit_id || lawsuit.id,
-        tasks_id: taskTypeId,
-        from: fromUserId || lawsuit.responsible_id,
-        guests: selectedGuests.length > 0 ? selectedGuests : [lawsuit.responsible_id],
+        lawsuits_id: parsedLawsuitId,
+        tasks_id: parsedTaskTypeId,
+        from: parsedFromUserId,
+        guests: parsedGuests,
         start_date: startDate ? format(startDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
         comments: comments || selectedMovement.header || selectedMovement.title,
       };
@@ -294,9 +306,9 @@ export function TaskCreationDialog({
       if (endTime) taskData.end_time = endTime;
       if (deadlineDate) taskData.date_deadline = format(deadlineDate, 'yyyy-MM-dd');
       if (local) taskData.local = local;
-      if (isUrgent) taskData.urgent = true;
-      if (isImportant) taskData.important = true;
-      taskData.display_schedule = displaySchedule;
+      if (isUrgent) taskData.urgent = 1;
+      if (isImportant) taskData.important = 1;
+      taskData.display_schedule = displaySchedule ? 1 : 0;
 
       console.log('Creating task with data:', taskData);
 
