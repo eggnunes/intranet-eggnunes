@@ -258,6 +258,8 @@ export default function Dashboard() {
     { icon: Mail, url: 'https://outlook.office.com/mail/', label: 'E-mail', description: 'Outlook' },
     { icon: Video, url: 'https://teams.microsoft.com/v2/', label: 'Microsoft Teams', description: 'Arquivos, Reuniões e Chat' },
     { icon: Building2, url: 'https://credlocaliza.com.br/', label: 'Credlocaliza', description: 'Consultas' },
+    { icon: Gavel, url: 'https://www.jusbrasil.com.br/', label: 'JusBrasil', description: 'Pesquisa Jurídica' },
+    { icon: MessageSquare, url: 'https://chat.openai.com/', label: 'ChatGPT', description: 'Inteligência Artificial' },
   ];
 
   const advboxIntegrations = [
@@ -493,13 +495,13 @@ export default function Dashboard() {
 
         <Separator className="my-8" />
 
-        {/* Ferramentas do Escritório */}
+        {/* Links Úteis */}
         <section>
           <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
             <div className="p-2 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20">
-              <Building2 className="h-5 w-5 text-primary" />
+              <ExternalLink className="h-5 w-5 text-primary" />
             </div>
-            Ferramentas do Escritório
+            Links Úteis
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {toolLinks.map((tool) => (
