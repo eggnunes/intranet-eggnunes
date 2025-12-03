@@ -19,7 +19,7 @@ import {
   CheckCircle, XCircle, Clock, AlertTriangle, History,
   MessageSquare, Trash2, Eye, Filter, Briefcase, Plus,
   TrendingUp, BarChart3, Video, MapPin, Star, Paperclip,
-  CalendarDays, FolderOpen
+  CalendarDays, FolderOpen, Sparkles, Loader2
 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -199,6 +199,7 @@ export default function Contratacao() {
   const [newCandidate, setNewCandidate] = useState({ full_name: '', email: '', phone: '', position_applied: '', job_opening_id: '' });
   const [newInterview, setNewInterview] = useState({ interview_type: 'online', scheduled_date: '', duration_minutes: 60, location: '', meeting_link: '', notes: '' });
   const [newNote, setNewNote] = useState('');
+  const [suggestingJobOpening, setSuggestingJobOpening] = useState(false);
 
   const isAdmin = role === 'admin';
   const canView = isAdmin && hasPermission('recruitment', 'view');
@@ -264,6 +265,38 @@ export default function Contratacao() {
     setShowAddJobOpening(false);
     setNewJobOpening({ title: '', position: '', description: '', requirements: '' });
     fetchJobOpenings();
+  };
+
+  const handleSuggestJobOpening = async () => {
+    if (!newJobOpening.title && !newJobOpening.position) {
+      toast.error('Preencha o título ou cargo para gerar sugestões');
+      return;
+    }
+
+    setSuggestingJobOpening(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('suggest-job-opening', {
+        body: { title: newJobOpening.title, position: newJobOpening.position }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.description || data?.requirements) {
+        setNewJobOpening(prev => ({
+          ...prev,
+          description: data.description || prev.description,
+          requirements: data.requirements || prev.requirements
+        }));
+        toast.success('Sugestões geradas com IA');
+      }
+    } catch (error) {
+      console.error('Error suggesting job opening:', error);
+      toast.error('Erro ao gerar sugestões');
+    } finally {
+      setSuggestingJobOpening(false);
+    }
   };
 
   const handleCloseJobOpening = async (id: string) => {
@@ -852,14 +885,63 @@ export default function Contratacao() {
 
         {/* Add Job Opening Dialog */}
         <Dialog open={showAddJobOpening} onOpenChange={setShowAddJobOpening}>
-          <DialogContent>
+          <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>Abrir Nova Vaga</DialogTitle></DialogHeader>
             <div className="space-y-4">
-              <div><Label>Título da Vaga *</Label><Input value={newJobOpening.title} onChange={(e) => setNewJobOpening({ ...newJobOpening, title: e.target.value })} placeholder="Ex: Processo Seletivo - Advogado Jr" /></div>
-              <div><Label>Cargo *</Label><Input value={newJobOpening.position} onChange={(e) => setNewJobOpening({ ...newJobOpening, position: e.target.value })} placeholder="Ex: Advogado" /></div>
-              <div><Label>Descrição</Label><Textarea value={newJobOpening.description} onChange={(e) => setNewJobOpening({ ...newJobOpening, description: e.target.value })} placeholder="Descrição da vaga..." /></div>
-              <div><Label>Requisitos</Label><Textarea value={newJobOpening.requirements} onChange={(e) => setNewJobOpening({ ...newJobOpening, requirements: e.target.value })} placeholder="Requisitos..." /></div>
-              <div className="flex justify-end gap-2">
+              <div>
+                <Label>Título da Vaga *</Label>
+                <Input value={newJobOpening.title} onChange={(e) => setNewJobOpening({ ...newJobOpening, title: e.target.value })} placeholder="Ex: Processo Seletivo - Advogado Jr" />
+              </div>
+              <div>
+                <Label>Cargo *</Label>
+                <Select value={newJobOpening.position} onValueChange={(v) => setNewJobOpening({ ...newJobOpening, position: v })}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o cargo" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="socio">Sócio</SelectItem>
+                    <SelectItem value="advogado">Advogado</SelectItem>
+                    <SelectItem value="estagiario">Estagiário</SelectItem>
+                    <SelectItem value="comercial">Comercial</SelectItem>
+                    <SelectItem value="administrativo">Administrativo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-sm text-muted-foreground">Usar IA para sugerir descrição e requisitos</span>
+                <Button 
+                  type="button" 
+                  variant="secondary" 
+                  size="sm" 
+                  onClick={handleSuggestJobOpening}
+                  disabled={suggestingJobOpening || (!newJobOpening.title && !newJobOpening.position)}
+                >
+                  {suggestingJobOpening ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Gerando...</>
+                  ) : (
+                    <><Sparkles className="h-4 w-4 mr-2" />Sugerir com IA</>
+                  )}
+                </Button>
+              </div>
+
+              <div>
+                <Label>Descrição</Label>
+                <Textarea 
+                  value={newJobOpening.description} 
+                  onChange={(e) => setNewJobOpening({ ...newJobOpening, description: e.target.value })} 
+                  placeholder="Descrição da vaga..." 
+                  rows={4}
+                />
+              </div>
+              <div>
+                <Label>Requisitos</Label>
+                <Textarea 
+                  value={newJobOpening.requirements} 
+                  onChange={(e) => setNewJobOpening({ ...newJobOpening, requirements: e.target.value })} 
+                  placeholder="Requisitos..." 
+                  rows={4}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setShowAddJobOpening(false)}>Cancelar</Button>
                 <Button onClick={handleCreateJobOpening}>Criar Vaga</Button>
               </div>
