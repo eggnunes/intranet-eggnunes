@@ -6,10 +6,14 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 import { supabase } from '@/integrations/supabase/client';
-import { Coffee, Plus, ShoppingCart, Trash2, Check, RefreshCw, Sparkles, Users } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, addDays } from 'date-fns';
+import { Coffee, Plus, ShoppingCart, Check, RefreshCw, Sparkles, Users, Download, FileSpreadsheet, FileText } from 'lucide-react';
+import { format, startOfWeek, endOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface FoodItem {
   id: string;
@@ -43,6 +47,7 @@ const CopaCozinha = () => {
   const [userSuggestions, setUserSuggestions] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const { user } = useAuth();
+  const { isAdmin } = useUserRole();
 
   // Calcular início da semana atual (segunda-feira)
   const currentWeekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
@@ -265,6 +270,68 @@ const CopaCozinha = () => {
     return Object.values(counts).sort((a, b) => b.count - a.count);
   };
 
+  // Funções de exportação
+  const exportToExcel = () => {
+    const data = suggestionCounts.map(item => ({
+      'Alimento': item.food_name,
+      'Votos': item.count,
+      'Solicitantes': item.users.join(', ')
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sugestões Copa');
+    
+    // Ajustar largura das colunas
+    ws['!cols'] = [
+      { wch: 30 },
+      { wch: 10 },
+      { wch: 50 }
+    ];
+
+    XLSX.writeFile(wb, `sugestoes-copa-${weekLabel.replace(/\//g, '-')}.xlsx`);
+    
+    toast({
+      title: 'Exportado com sucesso',
+      description: 'Lista de sugestões exportada para Excel.',
+    });
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    
+    // Título
+    doc.setFontSize(18);
+    doc.text('Lista de Compras - Copa/Cozinha', 14, 22);
+    
+    // Período
+    doc.setFontSize(12);
+    doc.text(`Semana: ${weekLabel}`, 14, 32);
+    doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, 14, 40);
+
+    // Tabela
+    const tableData = suggestionCounts.map(item => [
+      item.food_name,
+      item.count.toString(),
+      item.users.join(', ')
+    ]);
+
+    autoTable(doc, {
+      head: [['Alimento', 'Votos', 'Solicitantes']],
+      body: tableData,
+      startY: 50,
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [59, 130, 246] },
+    });
+
+    doc.save(`sugestoes-copa-${weekLabel.replace(/\//g, '-')}.pdf`);
+    
+    toast({
+      title: 'Exportado com sucesso',
+      description: 'Lista de sugestões exportada para PDF.',
+    });
+  };
+
   const filteredFoodItems = foodItems.filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -354,16 +421,32 @@ const CopaCozinha = () => {
           {/* Quadro de Sugestões da Semana */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ShoppingCart className="h-5 w-5" />
-                Sugestões da Semana
-              </CardTitle>
-              <CardDescription className="flex items-center gap-2">
-                <Badge variant="outline" className="font-normal">
-                  {weekLabel}
-                </Badge>
-                <span>• Renova toda segunda-feira</span>
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <ShoppingCart className="h-5 w-5" />
+                    Sugestões da Semana
+                  </CardTitle>
+                  <CardDescription className="flex items-center gap-2 mt-2">
+                    <Badge variant="outline" className="font-normal">
+                      {weekLabel}
+                    </Badge>
+                    <span>• Renova toda segunda-feira</span>
+                  </CardDescription>
+                </div>
+                {isAdmin && suggestionCounts.length > 0 && (
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={exportToExcel}>
+                      <FileSpreadsheet className="h-4 w-4 mr-1" />
+                      Excel
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={exportToPDF}>
+                      <FileText className="h-4 w-4 mr-1" />
+                      PDF
+                    </Button>
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {suggestionCounts.length === 0 ? (
