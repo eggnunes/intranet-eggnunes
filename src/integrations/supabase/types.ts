@@ -770,6 +770,75 @@ export type Database = {
         }
         Relationships: []
       }
+      home_office_schedules: {
+        Row: {
+          created_at: string
+          created_by: string
+          day_of_week: number
+          id: string
+          month: number
+          updated_at: string
+          user_id: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          day_of_week: number
+          id?: string
+          month: number
+          updated_at?: string
+          user_id: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          day_of_week?: number
+          id?: string
+          month?: number
+          updated_at?: string
+          user_id?: string
+          year?: number
+        }
+        Relationships: []
+      }
+      home_office_swap_requests: {
+        Row: {
+          created_at: string
+          id: string
+          requester_id: string
+          requester_original_date: string
+          responded_at: string | null
+          status: string
+          target_id: string
+          target_original_date: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          requester_id: string
+          requester_original_date: string
+          responded_at?: string | null
+          status?: string
+          target_id: string
+          target_original_date: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          requester_id?: string
+          requester_original_date?: string
+          responded_at?: string | null
+          status?: string
+          target_id?: string
+          target_original_date?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       onboarding_materials: {
         Row: {
           category: string
