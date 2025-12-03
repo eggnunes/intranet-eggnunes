@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowDownToLine, ArrowUpFromLine, TrendingUp, Wallet } from 'lucide-react';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { format, addMonths, startOfMonth, endOfMonth, parseISO, isValid } from 'date-fns';
+import { format, addMonths, parseISO, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Transaction {
@@ -25,7 +25,7 @@ export function CashFlowProjection({ transactions }: CashFlowProjectionProps) {
       if (!t.date) return false;
       try {
         const d = parseISO(t.date);
-        return !isNaN(d.getTime());
+        return isValid(d) && !isNaN(d.getTime());
       } catch {
         return false;
       }
@@ -41,7 +41,7 @@ export function CashFlowProjection({ transactions }: CashFlowProjectionProps) {
 
     validTransactions.forEach((t) => {
       const date = parseISO(t.date);
-      const monthKey = format(date, 'MM/yyyy');
+      const monthKey = format(date, 'yyyy-MM'); // Usar formato sortável
 
       if (!monthlyData[monthKey]) {
         monthlyData[monthKey] = { income: 0, expense: 0, balance: 0, date };
@@ -55,13 +55,15 @@ export function CashFlowProjection({ transactions }: CashFlowProjectionProps) {
       monthlyData[monthKey].balance = monthlyData[monthKey].income - monthlyData[monthKey].expense;
     });
 
+    // Ordenar por data e pegar os últimos 6 meses com dados reais
     const sortedMonths = Object.entries(monthlyData)
-      .sort(([, a], [, b]) => a.date.getTime() - b.date.getTime())
-      .slice(-6); // Últimos 6 meses
+      .sort(([a], [b]) => a.localeCompare(b))
+      .filter(([, data]) => data.income > 0 || data.expense > 0) // Apenas meses com transações
+      .slice(-6);
 
     if (sortedMonths.length < 2) return null;
 
-    // Calcular médias para projeção
+    // Calcular médias para projeção (últimos 3 meses reais)
     const recentMonths = sortedMonths.slice(-3);
     const avgIncome = recentMonths.reduce((sum, [, data]) => sum + data.income, 0) / recentMonths.length;
     const avgExpense = recentMonths.reduce((sum, [, data]) => sum + data.expense, 0) / recentMonths.length;
@@ -69,16 +71,17 @@ export function CashFlowProjection({ transactions }: CashFlowProjectionProps) {
     // Calcular tendência (crescimento/declínio)
     const firstMonthIncome = recentMonths[0][1].income;
     const lastMonthIncome = recentMonths[recentMonths.length - 1][1].income;
-    const incomeGrowthRate = firstMonthIncome > 0 ? (lastMonthIncome - firstMonthIncome) / firstMonthIncome : 0;
+    const incomeGrowthRate = firstMonthIncome > 0 ? (lastMonthIncome - firstMonthIncome) / firstMonthIncome / recentMonths.length : 0;
 
     const firstMonthExpense = recentMonths[0][1].expense;
     const lastMonthExpense = recentMonths[recentMonths.length - 1][1].expense;
-    const expenseGrowthRate = firstMonthExpense > 0 ? (lastMonthExpense - firstMonthExpense) / firstMonthExpense : 0;
+    const expenseGrowthRate = firstMonthExpense > 0 ? (lastMonthExpense - firstMonthExpense) / firstMonthExpense / recentMonths.length : 0;
 
-    // Criar projeção para os próximos 3 meses
+    // Usar o último mês com dados como base para projeção
     const lastMonth = sortedMonths[sortedMonths.length - 1][1].date;
     let cumulativeBalance = sortedMonths.reduce((sum, [, data]) => sum + data.balance, 0);
 
+    // Criar projeção para os próximos 3 meses (a partir do último mês real)
     const projections = [];
     for (let i = 1; i <= 3; i++) {
       const futureMonth = addMonths(lastMonth, i);
@@ -103,7 +106,7 @@ export function CashFlowProjection({ transactions }: CashFlowProjectionProps) {
       entradas: data.income,
       saidas: data.expense,
       saldo: data.balance,
-      saldoAcumulado: 0, // Calculado abaixo
+      saldoAcumulado: 0,
       tipo: 'real' as const,
     }));
 
@@ -121,8 +124,8 @@ export function CashFlowProjection({ transactions }: CashFlowProjectionProps) {
         avgIncome,
         avgExpense,
         projectedCumulativeBalance: cumulativeBalance,
-        incomeGrowthRate,
-        expenseGrowthRate,
+        incomeGrowthRate: incomeGrowthRate * 100,
+        expenseGrowthRate: expenseGrowthRate * 100,
       },
     };
   };
@@ -182,7 +185,7 @@ export function CashFlowProjection({ transactions }: CashFlowProjectionProps) {
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {cashFlowData.summary.incomeGrowthRate > 0 ? '+' : ''}
-                {(cashFlowData.summary.incomeGrowthRate * 100).toFixed(1)}% tendência
+                {cashFlowData.summary.incomeGrowthRate.toFixed(1)}% tendência/mês
               </p>
             </CardContent>
           </Card>
@@ -200,7 +203,7 @@ export function CashFlowProjection({ transactions }: CashFlowProjectionProps) {
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {cashFlowData.summary.expenseGrowthRate > 0 ? '+' : ''}
-                {(cashFlowData.summary.expenseGrowthRate * 100).toFixed(1)}% tendência
+                {cashFlowData.summary.expenseGrowthRate.toFixed(1)}% tendência/mês
               </p>
             </CardContent>
           </Card>
@@ -230,23 +233,19 @@ export function CashFlowProjection({ transactions }: CashFlowProjectionProps) {
           config={{
             entradas: {
               label: 'Entradas',
-              color: 'hsl(var(--chart-1))',
+              color: 'hsl(152, 60%, 45%)',
             },
             saidas: {
               label: 'Saídas',
-              color: 'hsl(var(--chart-2))',
-            },
-            saldoAcumulado: {
-              label: 'Saldo Acumulado',
-              color: 'hsl(var(--chart-3))',
+              color: 'hsl(0, 70%, 55%)',
             },
           }}
-          className="h-[400px]"
+          className="h-[350px]"
         >
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={cashFlowData.chartData}>
+            <BarChart data={cashFlowData.chartData} barGap={2}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={80} />
+              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`} />
               <ChartTooltip
                 content={<ChartTooltipContent />}
@@ -254,9 +253,8 @@ export function CashFlowProjection({ transactions }: CashFlowProjectionProps) {
               />
               <Legend />
               <ReferenceLine y={0} stroke="hsl(var(--border))" />
-              <Bar dataKey="entradas" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="saidas" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="saldoAcumulado" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="entradas" fill="hsl(152, 60%, 45%)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="saidas" fill="hsl(0, 70%, 55%)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartContainer>
@@ -321,7 +319,7 @@ export function CashFlowProjection({ transactions }: CashFlowProjectionProps) {
         </div>
 
         <p className="text-xs text-muted-foreground text-center">
-          * Projeções baseadas na média e tendência dos últimos 3 meses. Resultados reais podem variar.
+          * Projeções baseadas na média e tendência dos últimos 3 meses com dados reais. Resultados podem variar.
         </p>
       </CardContent>
     </Card>
