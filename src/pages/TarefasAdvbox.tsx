@@ -112,6 +112,70 @@ export default function TarefasAdvbox() {
   // Hook para notificações push - DEVE ser chamado antes de qualquer return condicional
   useTaskNotifications(tasks);
 
+  // TODOS OS useMemo DEVEM VIR ANTES DOS RETURNS CONDICIONAIS
+  // Tarefas visíveis de acordo com o papel do usuário
+  const visibleTasks = useMemo(() => {
+    if (isAdmin) return tasks;
+    if (!profile?.full_name) return [];
+    const currentName = profile.full_name.toLowerCase();
+    return tasks.filter((task) =>
+      task.assigned_to && task.assigned_to.toLowerCase().includes(currentName)
+    );
+  }, [tasks, isAdmin, profile?.full_name]);
+
+  // Extrair lista única de responsáveis (usado apenas por admins)
+  const assignedUsers = useMemo(() => {
+    const users = new Set<string>();
+    visibleTasks.forEach((task) => {
+      if (task.assigned_to) {
+        users.add(task.assigned_to);
+      }
+    });
+    return Array.from(users).sort();
+  }, [visibleTasks]);
+
+  // Filtrar e ordenar tarefas
+  const filteredTasks = useMemo(() => {
+    let filtered = visibleTasks.filter((task) => {
+      if (statusFilter !== 'all' && task.status !== statusFilter) return false;
+      if (assignedFilter !== 'all' && task.assigned_to !== assignedFilter) return false;
+      if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false;
+      
+      if (dueDateFilter !== 'all' && task.due_date) {
+        const dueDate = new Date(task.due_date);
+        const today = startOfDay(new Date());
+        
+        switch (dueDateFilter) {
+          case 'overdue':
+            if (!isBefore(dueDate, today)) return false;
+            break;
+          case 'today':
+            if (!isToday(dueDate)) return false;
+            break;
+          case 'week':
+            if (!isThisWeek(dueDate, { weekStartsOn: 0 })) return false;
+            break;
+          case 'month':
+            if (!isThisMonth(dueDate)) return false;
+            break;
+        }
+      } else if (dueDateFilter !== 'all' && !task.due_date) {
+        return false;
+      }
+      
+      return true;
+    });
+
+    const priorityOrder = { alta: 0, media: 1, baixa: 2 };
+    filtered.sort((a, b) => {
+      const aPriority = a.priority ? priorityOrder[a.priority] : 999;
+      const bPriority = b.priority ? priorityOrder[b.priority] : 999;
+      return aPriority - bPriority;
+    });
+
+    return filtered;
+  }, [visibleTasks, statusFilter, assignedFilter, priorityFilter, dueDateFilter]);
+
   // TODAS AS FUNÇÕES DEVEM SER DEFINIDAS ANTES DOS RETURNS CONDICIONAIS
   const fetchUsers = async () => {
     try {
@@ -561,75 +625,6 @@ export default function TarefasAdvbox() {
     setSelectedTask(task);
     setDetailsOpen(true);
   };
-
-  // Tarefas visíveis de acordo com o papel do usuário
-  const visibleTasks = useMemo(() => {
-    if (isAdmin) return tasks;
-
-    // Usuários comuns só veem tarefas atribuídas a eles
-    if (!profile?.full_name) return [];
-
-    const currentName = profile.full_name.toLowerCase();
-
-    return tasks.filter((task) =>
-      task.assigned_to && task.assigned_to.toLowerCase().includes(currentName)
-    );
-  }, [tasks, isAdmin, profile?.full_name]);
-
-  // Extrair lista única de responsáveis (usado apenas por admins)
-  const assignedUsers = useMemo(() => {
-    const users = new Set<string>();
-    visibleTasks.forEach((task) => {
-      if (task.assigned_to) {
-        users.add(task.assigned_to);
-      }
-    });
-    return Array.from(users).sort();
-  }, [visibleTasks]);
-
-  // Filtrar e ordenar tarefas
-  const filteredTasks = useMemo(() => {
-    let filtered = visibleTasks.filter((task) => {
-      if (statusFilter !== 'all' && task.status !== statusFilter) return false;
-      if (assignedFilter !== 'all' && task.assigned_to !== assignedFilter) return false;
-      if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false;
-      
-      // Filtro por data de vencimento
-      if (dueDateFilter !== 'all' && task.due_date) {
-        const dueDate = new Date(task.due_date);
-        const today = startOfDay(new Date());
-        
-        switch (dueDateFilter) {
-          case 'overdue':
-            if (!isBefore(dueDate, today)) return false;
-            break;
-          case 'today':
-            if (!isToday(dueDate)) return false;
-            break;
-          case 'week':
-            if (!isThisWeek(dueDate, { weekStartsOn: 0 })) return false;
-            break;
-          case 'month':
-            if (!isThisMonth(dueDate)) return false;
-            break;
-        }
-      } else if (dueDateFilter !== 'all' && !task.due_date) {
-        return false;
-      }
-      
-      return true;
-    });
-
-    // Ordenar por prioridade (alta > média > baixa > sem prioridade)
-    const priorityOrder = { alta: 0, media: 1, baixa: 2 };
-    filtered.sort((a, b) => {
-      const aPriority = a.priority ? priorityOrder[a.priority] : 999;
-      const bPriority = b.priority ? priorityOrder[b.priority] : 999;
-      return aPriority - bPriority;
-    });
-
-    return filtered;
-  }, [visibleTasks, statusFilter, assignedFilter, priorityFilter, dueDateFilter]);
 
   const getStatusIcon = (status?: string) => {
     const normalized = status?.toLowerCase() ?? '';
