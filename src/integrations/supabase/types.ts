@@ -1096,6 +1096,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          is_active: boolean
           join_date: string | null
           oab_number: string | null
           oab_state: string | null
@@ -1112,6 +1113,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          is_active?: boolean
           join_date?: string | null
           oab_number?: string | null
           oab_state?: string | null
@@ -1128,6 +1130,7 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          is_active?: boolean
           join_date?: string | null
           oab_number?: string | null
           oab_state?: string | null

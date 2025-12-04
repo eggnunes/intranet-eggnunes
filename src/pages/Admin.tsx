@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck, Lock, Pencil } from 'lucide-react';
+import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck, Lock, Pencil, Key, UserX, UserCheck } from 'lucide-react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -59,6 +59,7 @@ interface ApprovedUser {
   birth_date: string | null;
   oab_number: string | null;
   oab_state: string | null;
+  is_active: boolean;
 }
 
 interface AdminUser {
@@ -124,6 +125,10 @@ export default function Admin() {
     oab_number: string | null;
     oab_state: string | null;
   } | null>(null);
+  const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
+  const [resetPasswordUser, setResetPasswordUser] = useState<{ id: string; email: string; full_name: string } | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [resettingPassword, setResettingPassword] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { isSocioOrRafael } = useAdminPermissions();
@@ -163,7 +168,7 @@ export default function Admin() {
   const fetchApprovedUsers = async () => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, email, full_name, avatar_url, position, join_date, birth_date, oab_number, oab_state')
+      .select('id, email, full_name, avatar_url, position, join_date, birth_date, oab_number, oab_state, is_active')
       .eq('approval_status', 'approved')
       .order('full_name');
     setApprovedUsers(data || []);
@@ -247,6 +252,94 @@ export default function Admin() {
       fetchApprovedUsers();
       setEditUserDialogOpen(false);
       setEditingUserData(null);
+    }
+  };
+
+  const handleOpenResetPassword = (user: ApprovedUser) => {
+    setResetPasswordUser({ id: user.id, email: user.email, full_name: user.full_name });
+    setNewPassword('');
+    setResetPasswordDialogOpen(true);
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordUser || !newPassword) return;
+
+    if (newPassword.length < 6) {
+      toast({
+        title: 'Erro',
+        description: 'A senha deve ter pelo menos 6 caracteres',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setResettingPassword(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-reset-password', {
+        body: { userId: resetPasswordUser.id, newPassword }
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        toast({
+          title: 'Erro',
+          description: data.error,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Sucesso',
+          description: `Senha de ${resetPasswordUser.full_name} redefinida com sucesso`,
+        });
+        setResetPasswordDialogOpen(false);
+        setResetPasswordUser(null);
+        setNewPassword('');
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao redefinir senha',
+        variant: 'destructive',
+      });
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
+  const handleToggleUserActive = async (user: ApprovedUser) => {
+    // Prevent deactivating Rafael
+    if (user.email === 'rafael@eggnunes.com.br') {
+      toast({
+        title: 'Operação não permitida',
+        description: 'O criador da intranet não pode ser inativado',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const newActiveStatus = !user.is_active;
+    
+    const { error } = await supabase
+      .from('profiles')
+      .update({ is_active: newActiveStatus })
+      .eq('id', user.id);
+
+    if (error) {
+      toast({
+        title: 'Erro',
+        description: 'Erro ao atualizar status do usuário',
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: newActiveStatus ? 'Usuário Reativado' : 'Usuário Inativado',
+        description: newActiveStatus 
+          ? `${user.full_name} agora pode acessar o sistema novamente`
+          : `${user.full_name} não poderá mais acessar o sistema`,
+      });
+      fetchApprovedUsers();
     }
   };
 
@@ -812,6 +905,13 @@ export default function Admin() {
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
+                          {/* Inactive badge */}
+                          {!user.is_active && (
+                            <Badge variant="destructive" className="gap-1">
+                              <UserX className="w-3 h-3" />
+                              Inativo
+                            </Badge>
+                          )}
                           {/* Admin badge */}
                           {adminUsers.some(a => a.id === user.id) && (
                             <Badge variant="default" className="gap-1">
@@ -912,6 +1012,36 @@ export default function Admin() {
                                     Tornar Admin
                                   </Button>
                                 )
+                              )}
+                              {/* Reset Password Button */}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleOpenResetPassword(user)}
+                              >
+                                <Key className="w-4 h-4 mr-1" />
+                                Redefinir Senha
+                              </Button>
+                              {/* Toggle Active Button */}
+                              {user.email !== 'rafael@eggnunes.com.br' && (
+                                <Button
+                                  size="sm"
+                                  variant={user.is_active ? 'outline' : 'default'}
+                                  onClick={() => handleToggleUserActive(user)}
+                                  className={user.is_active ? 'text-destructive hover:text-destructive' : ''}
+                                >
+                                  {user.is_active ? (
+                                    <>
+                                      <UserX className="w-4 h-4 mr-1" />
+                                      Inativar
+                                    </>
+                                  ) : (
+                                    <>
+                                      <UserCheck className="w-4 h-4 mr-1" />
+                                      Reativar
+                                    </>
+                                  )}
+                                </Button>
                               )}
                             </div>
                           )}
@@ -1357,6 +1487,40 @@ export default function Admin() {
               </Button>
               <Button onClick={handleSaveUserEdit}>
                 Salvar Alterações
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog de Redefinição de Senha */}
+        <Dialog open={resetPasswordDialogOpen} onOpenChange={setResetPasswordDialogOpen}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Redefinir Senha</DialogTitle>
+              <DialogDescription>
+                {resetPasswordUser && (
+                  <>Definir nova senha para <strong>{resetPasswordUser.full_name}</strong> ({resetPasswordUser.email})</>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-password">Nova Senha</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setResetPasswordDialogOpen(false)} disabled={resettingPassword}>
+                Cancelar
+              </Button>
+              <Button onClick={handleResetPassword} disabled={resettingPassword || !newPassword || newPassword.length < 6}>
+                {resettingPassword ? 'Redefinindo...' : 'Redefinir Senha'}
               </Button>
             </DialogFooter>
           </DialogContent>
