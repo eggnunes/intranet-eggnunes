@@ -9,7 +9,7 @@ import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import logoEggNunes from '@/assets/logo-eggnunes.png';
 
 interface LayoutProps {
@@ -314,7 +314,7 @@ export const Layout = ({ children }: LayoutProps) => {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       <header className="border-b border-border bg-card sticky top-0 z-50 backdrop-blur-sm bg-card/95">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-20">
@@ -467,8 +467,8 @@ export const Layout = ({ children }: LayoutProps) => {
                     {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                   </Button>
                 </DrawerTrigger>
-                <DrawerContent className="h-[90vh] flex flex-col px-4">
-                  <div className="flex items-center gap-3 py-4 border-b">
+                <DrawerContent className="h-[85vh] max-h-[85vh] flex flex-col px-4">
+                  <div className="flex items-center gap-3 py-4 border-b flex-shrink-0">
                     {profile?.avatar_url && (
                       <img
                         src={profile.avatar_url} 
@@ -481,15 +481,15 @@ export const Layout = ({ children }: LayoutProps) => {
                       <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                     </div>
                   </div>
-                  <ScrollArea className="flex-1 overflow-y-auto">
-                    <div className="flex flex-col gap-4 mt-4">
+                  <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y pb-safe">
+                    <div className="flex flex-col gap-4 mt-4 pb-8">
                       <NavItems />
-                      <Button variant="outline" onClick={signOut} className="gap-2 mt-4">
+                      <Button variant="outline" onClick={signOut} className="gap-2 mt-4 mb-4">
                         <LogOut className="w-4 h-4" />
                         Sair
                       </Button>
                     </div>
-                  </ScrollArea>
+                  </div>
                 </DrawerContent>
               </Drawer>
             </div>

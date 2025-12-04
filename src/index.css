@@ -68,7 +68,38 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
   body {
     @apply bg-background text-foreground;
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
+  }
+}
+
+/* Mobile scroll improvements */
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .touch-pan-y {
+    touch-action: pan-y;
+  }
+  
+  .overscroll-contain {
+    overscroll-behavior: contain;
+  }
+  
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 20px);
   }
 }

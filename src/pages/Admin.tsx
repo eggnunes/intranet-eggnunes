@@ -748,42 +748,49 @@ export default function Admin() {
         </div>
 
         <Tabs defaultValue="pending" className="space-y-6">
-          <TabsList className={`grid w-full ${isSocioOrRafael ? 'grid-cols-6' : 'grid-cols-5'}`}>
-            <TabsTrigger value="pending" className="gap-2">
-              <UserPlus className="w-4 h-4" />
-              Aprovações
-              {pendingUsers.length > 0 && (
-                <Badge variant="destructive" className="ml-2">{pendingUsers.length}</Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="users" className="gap-2">
-              <Users className="w-4 h-4" />
-              Usuários
-            </TabsTrigger>
-            <TabsTrigger value="suggestions" className="gap-2">
-              <Lightbulb className="w-4 h-4" />
-              Sugestões
-              {suggestions.filter(s => s.status === 'pending').length > 0 && (
-                <Badge variant="secondary" className="ml-2">
-                  {suggestions.filter(s => s.status === 'pending').length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="admins" className="gap-2">
-              <Shield className="w-4 h-4" />
-              Administradores
-            </TabsTrigger>
-            {isSocioOrRafael && (
-              <TabsTrigger value="permissions" className="gap-2">
-                <Lock className="w-4 h-4" />
-                Permissões
+          <div className="overflow-x-auto -mx-4 px-4 pb-2 scrollbar-hide">
+            <TabsList className="inline-flex w-auto min-w-full md:grid md:w-full md:grid-cols-5 lg:grid-cols-6 gap-1">
+              <TabsTrigger value="pending" className="gap-2 flex-shrink-0 px-3 py-2 text-xs sm:text-sm">
+                <UserPlus className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Aprovações</span>
+                <span className="sm:hidden">Aprov.</span>
+                {pendingUsers.length > 0 && (
+                  <Badge variant="destructive" className="ml-1 text-xs">{pendingUsers.length}</Badge>
+                )}
               </TabsTrigger>
-            )}
-            <TabsTrigger value="history" className="gap-2">
-              <History className="w-4 h-4" />
-              Histórico Geral
-            </TabsTrigger>
-          </TabsList>
+              <TabsTrigger value="users" className="gap-2 flex-shrink-0 px-3 py-2 text-xs sm:text-sm">
+                <Users className="w-4 h-4 flex-shrink-0" />
+                Usuários
+              </TabsTrigger>
+              <TabsTrigger value="suggestions" className="gap-2 flex-shrink-0 px-3 py-2 text-xs sm:text-sm">
+                <Lightbulb className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Sugestões</span>
+                <span className="sm:hidden">Sug.</span>
+                {suggestions.filter(s => s.status === 'pending').length > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {suggestions.filter(s => s.status === 'pending').length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="admins" className="gap-2 flex-shrink-0 px-3 py-2 text-xs sm:text-sm">
+                <Shield className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Administradores</span>
+                <span className="sm:hidden">Admin</span>
+              </TabsTrigger>
+              {isSocioOrRafael && (
+                <TabsTrigger value="permissions" className="gap-2 flex-shrink-0 px-3 py-2 text-xs sm:text-sm">
+                  <Lock className="w-4 h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">Permissões</span>
+                  <span className="sm:hidden">Perm.</span>
+                </TabsTrigger>
+              )}
+              <TabsTrigger value="history" className="gap-2 flex-shrink-0 px-3 py-2 text-xs sm:text-sm">
+                <History className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Histórico Geral</span>
+                <span className="sm:hidden">Hist.</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="pending">
             <Card>
