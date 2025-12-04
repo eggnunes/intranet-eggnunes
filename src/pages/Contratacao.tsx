@@ -20,7 +20,8 @@ import {
   MessageSquare, Trash2, Eye, Filter, Briefcase, Plus,
   TrendingUp, BarChart3, Video, MapPin, Star, Paperclip,
   CalendarDays, FolderOpen, Sparkles, Loader2, Download, 
-  Database, UserCheck, Archive, GitCompare, Check, Edit, Mail, Phone
+  Database, UserCheck, Archive, GitCompare, Check, Edit, Mail, Phone,
+  LayoutGrid, List
 } from 'lucide-react';
 import { format, differenceInDays, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -29,6 +30,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { RecruitmentKanban } from '@/components/RecruitmentKanban';
 
 type RecruitmentStage = 
   | 'curriculo_recebido'
@@ -234,6 +236,8 @@ export default function Contratacao() {
   const [talentPoolSearch, setTalentPoolSearch] = useState('');
   const [talentPoolSort, setTalentPoolSort] = useState<string>('date_desc');
   const [talentPoolPositionFilter, setTalentPoolPositionFilter] = useState<string>('all');
+  const [candidatesViewMode, setCandidatesViewMode] = useState<'list' | 'kanban'>('list');
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [uploading, setUploading] = useState(false);
   
   // Selected items
@@ -564,44 +568,87 @@ export default function Contratacao() {
     const files = e.target.files;
     if (!files || files.length === 0 || !user) return;
 
-    setUploading(true);
-    let successCount = 0;
-
-    for (const file of Array.from(files)) {
+    const fileList = Array.from(files).filter(file => {
       if (file.type !== 'application/pdf') {
         toast.error(`${file.name} não é um arquivo PDF`);
-        continue;
+        return false;
       }
+      return true;
+    });
 
+    if (fileList.length === 0) return;
+
+    setUploading(true);
+    setUploadProgress({ current: 0, total: fileList.length });
+    let successCount = 0;
+
+    // Process files sequentially with delay to avoid overwhelming the API
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      setUploadProgress({ current: i + 1, total: fileList.length });
+      
       try {
+        // Add delay between requests (except for the first one)
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+
         const base64 = await fileToBase64(file);
+        
+        console.log(`Processing file ${i + 1}/${fileList.length}: ${file.name}`);
+        
         const { data: extractedData, error: parseError } = await supabase.functions.invoke('parse-resume', {
           body: { fileBase64: base64, fileName: file.name }
         });
 
-        if (parseError) continue;
+        if (parseError) {
+          console.error(`Error parsing ${file.name}:`, parseError);
+          toast.error(`Erro ao processar ${file.name}`);
+          continue;
+        }
+
+        if (!extractedData) {
+          console.error(`No data returned for ${file.name}`);
+          toast.error(`Não foi possível extrair dados de ${file.name}`);
+          continue;
+        }
 
         // Check for duplicates in entire database
-        const { data: existing } = await supabase
-          .from('recruitment_candidates')
-          .select('id, full_name, current_stage, job_opening_id, created_at')
-          .or(`email.eq.${extractedData.email},full_name.ilike.%${extractedData.full_name}%`);
+        const searchEmail = extractedData.email || '';
+        const searchName = extractedData.full_name || '';
+        
+        if (searchEmail || searchName) {
+          const orConditions = [];
+          if (searchEmail) orConditions.push(`email.eq.${searchEmail}`);
+          if (searchName) orConditions.push(`full_name.ilike.%${searchName}%`);
+          
+          const { data: existing } = await supabase
+            .from('recruitment_candidates')
+            .select('id, full_name, current_stage, job_opening_id, created_at')
+            .or(orConditions.join(','));
 
-        if (existing && existing.length > 0) {
-          const previousProcesses = existing.map(c => {
-            const jo = jobOpenings.find(j => j.id === c.job_opening_id);
-            return jo ? jo.title : 'Processo anterior';
-          });
-          toast.warning(
-            `${extractedData.full_name} já participou de processo(s) anterior(es): ${previousProcesses.join(', ')}`,
-            { duration: 8000 }
-          );
+          if (existing && existing.length > 0) {
+            const previousProcesses = existing.map(c => {
+              const jo = jobOpenings.find(j => j.id === c.job_opening_id);
+              return jo ? jo.title : 'Processo anterior';
+            });
+            toast.warning(
+              `${extractedData.full_name || file.name} já participou de processo(s) anterior(es): ${previousProcesses.join(', ')}`,
+              { duration: 8000 }
+            );
+          }
         }
 
         const filePath = `${crypto.randomUUID()}_${file.name}`;
-        await supabase.storage.from('resumes').upload(filePath, file);
+        const { error: uploadError } = await supabase.storage.from('resumes').upload(filePath, file);
+        
+        if (uploadError) {
+          console.error(`Error uploading ${file.name}:`, uploadError);
+          toast.error(`Erro ao fazer upload de ${file.name}`);
+          continue;
+        }
 
-        await supabase.from('recruitment_candidates').insert({
+        const { error: insertError } = await supabase.from('recruitment_candidates').insert({
           full_name: extractedData.full_name || 'Nome não identificado',
           email: extractedData.email || null,
           phone: extractedData.phone || null,
@@ -613,17 +660,29 @@ export default function Contratacao() {
           created_by: user.id
         });
 
+        if (insertError) {
+          console.error(`Error inserting candidate ${file.name}:`, insertError);
+          toast.error(`Erro ao salvar candidato de ${file.name}`);
+          continue;
+        }
+
         successCount++;
+        toast.success(`✓ ${extractedData.full_name || file.name} processado`);
       } catch (error) {
-        console.error('Error processing file:', error);
+        console.error('Error processing file:', file.name, error);
+        toast.error(`Erro ao processar ${file.name}`);
       }
     }
 
     if (successCount > 0) {
-      toast.success(`${successCount} currículo(s) processado(s)`);
+      toast.success(`${successCount} de ${fileList.length} currículo(s) processado(s) com sucesso!`);
       fetchCandidates();
+    } else if (fileList.length > 0) {
+      toast.error('Nenhum currículo foi processado com sucesso');
     }
+    
     setUploading(false);
+    setUploadProgress({ current: 0, total: 0 });
     e.target.value = '';
   };
 
@@ -1380,48 +1439,112 @@ export default function Contratacao() {
 
           {/* CANDIDATOS TAB */}
           <TabsContent value="candidatos" className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Buscar por nome, email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
-              </div>
-              <Select value={stageFilter} onValueChange={setStageFilter}>
-                <SelectTrigger className="w-[180px]"><SelectValue placeholder="Estágio" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {Object.entries(STAGE_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={jobOpeningFilter} onValueChange={setJobOpeningFilter}>
-                <SelectTrigger className="w-[200px]"><SelectValue placeholder="Vaga" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as vagas</SelectItem>
-                  <SelectItem value="banco_talentos">
-                    <span className="flex items-center gap-2">
-                      <Database className="h-3 w-3" />Banco de Talentos
-                    </span>
-                  </SelectItem>
-                  {jobOpenings.map(jo => <SelectItem key={jo.id} value={jo.id}>{jo.title}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              {canEdit && (
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setShowAddCandidate(true)}><UserPlus className="h-4 w-4 mr-2" />Manual</Button>
-                  <Button asChild><label className="cursor-pointer"><Upload className="h-4 w-4 mr-2" />{uploading ? 'Processando...' : 'Upload'}<input type="file" accept=".pdf" multiple onChange={(e) => handleFileUpload(e)} className="hidden" disabled={uploading} /></label></Button>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="Buscar por nome, email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
                 </div>
-              )}
-              {compareList.length >= 2 && (
-                <Button onClick={() => setShowComparison(true)} className="bg-purple-600 hover:bg-purple-700">
-                  <GitCompare className="h-4 w-4 mr-2" />Comparar ({compareList.length})
-                </Button>
-              )}
-              {compareList.length > 0 && compareList.length < 2 && (
-                <Badge variant="outline" className="py-2 px-3">
-                  Selecione mais {2 - compareList.length} para comparar
-                </Badge>
+                <Select value={stageFilter} onValueChange={setStageFilter}>
+                  <SelectTrigger className="w-[180px]"><SelectValue placeholder="Estágio" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {Object.entries(STAGE_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={jobOpeningFilter} onValueChange={setJobOpeningFilter}>
+                  <SelectTrigger className="w-[200px]"><SelectValue placeholder="Vaga" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as vagas</SelectItem>
+                    <SelectItem value="banco_talentos">
+                      <span className="flex items-center gap-2">
+                        <Database className="h-3 w-3" />Banco de Talentos
+                      </span>
+                    </SelectItem>
+                    {jobOpenings.map(jo => <SelectItem key={jo.id} value={jo.id}>{jo.title}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {canEdit && (
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setShowAddCandidate(true)}><UserPlus className="h-4 w-4 mr-2" />Manual</Button>
+                    <Button asChild>
+                      <label className="cursor-pointer">
+                        <Upload className="h-4 w-4 mr-2" />
+                        {uploading ? `Processando ${uploadProgress.current}/${uploadProgress.total}...` : 'Upload'}
+                        <input type="file" accept=".pdf" multiple onChange={(e) => handleFileUpload(e)} className="hidden" disabled={uploading} />
+                      </label>
+                    </Button>
+                  </div>
+                )}
+                {compareList.length >= 2 && (
+                  <Button onClick={() => setShowComparison(true)} className="bg-purple-600 hover:bg-purple-700">
+                    <GitCompare className="h-4 w-4 mr-2" />Comparar ({compareList.length})
+                  </Button>
+                )}
+                {compareList.length > 0 && compareList.length < 2 && (
+                  <Badge variant="outline" className="py-2 px-3">
+                    Selecione mais {2 - compareList.length} para comparar
+                  </Badge>
+                )}
+              </div>
+              
+              {/* View Mode Toggle */}
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  {filteredCandidates.length} candidato(s) encontrado(s)
+                </div>
+                <div className="flex items-center gap-2 border rounded-lg p-1">
+                  <Button
+                    variant={candidatesViewMode === 'list' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => setCandidatesViewMode('list')}
+                    className="h-8"
+                  >
+                    <List className="h-4 w-4 mr-1" />
+                    Lista
+                  </Button>
+                  <Button
+                    variant={candidatesViewMode === 'kanban' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    onClick={() => setCandidatesViewMode('kanban')}
+                    className="h-8"
+                  >
+                    <LayoutGrid className="h-4 w-4 mr-1" />
+                    Kanban
+                  </Button>
+                </div>
+              </div>
+
+              {/* Upload Progress */}
+              {uploading && uploadProgress.total > 0 && (
+                <Card>
+                  <CardContent className="py-3">
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <div className="flex-1">
+                        <Progress value={(uploadProgress.current / uploadProgress.total) * 100} className="h-2" />
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        {uploadProgress.current}/{uploadProgress.total}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
             </div>
 
+            {/* Kanban View */}
+            {candidatesViewMode === 'kanban' ? (
+              <RecruitmentKanban
+                candidates={filteredCandidates}
+                onStageChange={handleStageChange}
+                onViewCandidate={(candidate) => {
+                  setSelectedCandidate(candidate as Candidate);
+                  fetchCandidateDetails(candidate.id);
+                }}
+                canEdit={canEdit}
+              />
+            ) : (
             <div className="grid gap-4">
               {filteredCandidates.length === 0 ? (
                 <Card><CardContent className="py-12 text-center">
@@ -1529,6 +1652,7 @@ export default function Contratacao() {
                 })
               )}
             </div>
+            )}
           </TabsContent>
 
           {/* BANCO DE TALENTOS TAB */}
