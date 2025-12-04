@@ -374,7 +374,7 @@ export default function DocumentosUteis() {
             <div className="flex-1 p-4 pt-0 h-[calc(90vh-80px)]">
               {previewDoc && (
                 <iframe
-                  src={previewDoc.file_url}
+                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewDoc.file_url)}&embedded=true`}
                   className="w-full h-full border rounded-lg"
                   title={previewDoc.title}
                 />
