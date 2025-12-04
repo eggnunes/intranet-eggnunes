@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState, useLayoutEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -28,13 +28,6 @@ export const Layout = ({ children }: LayoutProps) => {
   const { toast } = useToast();
   const showBackButton = location.pathname !== '/dashboard' && location.pathname !== '/';
   
-  // Restaurar posição do scroll ao voltar
-  useLayoutEffect(() => {
-    const scrollPosition = location.state?.scrollPosition;
-    if (scrollPosition) {
-      window.scrollTo(0, scrollPosition);
-    }
-  }, [location]);
   
   const handleBack = () => {
     navigate(-1);
