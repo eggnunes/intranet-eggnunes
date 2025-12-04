@@ -21,12 +21,18 @@ export interface UserProfile {
 }
 
 export const useUserRole = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [role, setRole] = useState<UserRole>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Aguardar auth carregar antes de verificar usuário
+    if (authLoading) {
+      setLoading(true);
+      return;
+    }
+    
     if (!user) {
       setRole(null);
       setProfile(null);
@@ -56,7 +62,7 @@ export const useUserRole = () => {
     };
 
     fetchRoleAndProfile();
-  }, [user]);
+  }, [user, authLoading]);
 
   return { role, profile, loading, isAdmin: role === 'admin', isApproved: profile?.approval_status === 'approved' };
 };
