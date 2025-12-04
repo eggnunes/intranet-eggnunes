@@ -14,13 +14,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Calendar as CalendarIcon, Clock, CheckCircle, XCircle, Plus, User, Info } from 'lucide-react';
-import { format, differenceInBusinessDays, differenceInCalendarDays, parseISO, addYears, isBefore, isAfter } from 'date-fns';
+import { Calendar as CalendarIcon, Clock, CheckCircle, XCircle, Plus, User, Info, Users, FileText } from 'lucide-react';
+import { format, differenceInBusinessDays, differenceInCalendarDays, parseISO, addYears, isBefore, isAfter, eachDayOfInterval, isWithinInterval, startOfMonth, endOfMonth, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 interface VacationRequest {
   id: string;
   user_id: string;
@@ -125,7 +127,10 @@ export default function Ferias() {
   const [adminSelectedUser, setAdminSelectedUser] = useState<string>('');
   const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile | null>(null);
   const [selectedUserProfile, setSelectedUserProfile] = useState<UserProfile | null>(null);
-  
+  const [reportStartDate, setReportStartDate] = useState<Date>(startOfMonth(new Date()));
+  const [reportEndDate, setReportEndDate] = useState<Date>(endOfMonth(addMonths(new Date(), 2)));
+  const [allApprovedRequests, setAllApprovedRequests] = useState<VacationRequest[]>([]);
+  const [activeTab, setActiveTab] = useState<string>('requests');
   // Check if user can manage vacations
   const canManageVacations = isAdmin && (isSocioOrRafael || canEdit('vacation'));
 
@@ -135,6 +140,7 @@ export default function Ferias() {
       fetchCurrentUserProfile();
       if (canManageVacations) {
         fetchProfiles();
+        fetchAllApprovedRequests();
       }
     }
   }, [user, canManageVacations, selectedUser]);
@@ -217,6 +223,48 @@ export default function Ferias() {
 
     setBalance(balanceData);
     setLoading(false);
+  };
+
+  const fetchAllApprovedRequests = async () => {
+    const { data } = await supabase
+      .from('vacation_requests')
+      .select(`
+        *,
+        profiles:user_id (full_name, avatar_url, position),
+        approver:approved_by (full_name)
+      `)
+      .eq('status', 'approved')
+      .order('start_date', { ascending: true });
+    
+    if (data) {
+      setAllApprovedRequests(data as any);
+    }
+  };
+
+  // Get vacations that overlap with a specific period
+  const getVacationsInPeriod = () => {
+    return allApprovedRequests.filter(request => {
+      const vacationStart = parseISO(request.start_date);
+      const vacationEnd = parseISO(request.end_date);
+      
+      // Check if vacation overlaps with report period
+      return !(vacationEnd < reportStartDate || vacationStart > reportEndDate);
+    });
+  };
+
+  // Get people on vacation for a specific date
+  const getPeopleOnVacation = (date: Date) => {
+    return allApprovedRequests.filter(request => {
+      const vacationStart = parseISO(request.start_date);
+      const vacationEnd = parseISO(request.end_date);
+      return isWithinInterval(date, { start: vacationStart, end: vacationEnd });
+    });
+  };
+
+  // Generate days array for the report period
+  const getReportDays = () => {
+    if (!reportStartDate || !reportEndDate) return [];
+    return eachDayOfInterval({ start: reportStartDate, end: reportEndDate });
   };
 
   // Calculate days based on position (CLT = consecutive, others = business days)
@@ -844,6 +892,258 @@ export default function Ferias() {
             </Tabs>
           </CardContent>
         </Card>
+
+        {/* Report Section - Only for admins */}
+        {canManageVacations && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Relatório de Férias - Planejamento da Equipe
+              </CardTitle>
+              <CardDescription>
+                Visualize quem estará de férias em determinado período
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Period Selection */}
+              <div className="flex flex-wrap gap-4 items-end">
+                <div>
+                  <Label>Data Inicial</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-[200px] justify-start text-left font-normal",
+                          !reportStartDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {reportStartDate ? format(reportStartDate, 'dd/MM/yyyy') : 'Selecione'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={reportStartDate}
+                        onSelect={(date) => date && setReportStartDate(date)}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div>
+                  <Label>Data Final</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-[200px] justify-start text-left font-normal",
+                          !reportEndDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {reportEndDate ? format(reportEndDate, 'dd/MM/yyyy') : 'Selecione'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={reportEndDate}
+                        onSelect={(date) => date && setReportEndDate(date)}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setReportStartDate(startOfMonth(new Date()));
+                      setReportEndDate(endOfMonth(new Date()));
+                    }}
+                  >
+                    Este mês
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setReportStartDate(startOfMonth(addMonths(new Date(), 1)));
+                      setReportEndDate(endOfMonth(addMonths(new Date(), 1)));
+                    }}
+                  >
+                    Próximo mês
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setReportStartDate(startOfMonth(new Date()));
+                      setReportEndDate(endOfMonth(addMonths(new Date(), 2)));
+                    }}
+                  >
+                    Próx. 3 meses
+                  </Button>
+                </div>
+              </div>
+
+              {/* Summary Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">Período</p>
+                      <p className="text-lg font-semibold">
+                        {format(reportStartDate, 'dd/MM')} - {format(reportEndDate, 'dd/MM/yyyy')}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">Férias no período</p>
+                      <p className="text-2xl font-bold">{getVacationsInPeriod().length}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">De férias hoje</p>
+                      <p className="text-2xl font-bold text-primary">{getPeopleOnVacation(new Date()).length}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Vacation List for Period */}
+              <div>
+                <h4 className="font-semibold mb-3">Férias Aprovadas no Período</h4>
+                {getVacationsInPeriod().length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">
+                    Nenhuma férias aprovada para este período
+                  </p>
+                ) : (
+                  <ScrollArea className="h-[400px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Colaborador</TableHead>
+                          <TableHead>Início</TableHead>
+                          <TableHead>Fim</TableHead>
+                          <TableHead>Duração</TableHead>
+                          <TableHead>Tipo</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {getVacationsInPeriod().map((request) => {
+                          const isOnVacationNow = isWithinInterval(new Date(), { 
+                            start: parseISO(request.start_date), 
+                            end: parseISO(request.end_date) 
+                          });
+                          return (
+                            <TableRow key={request.id} className={cn(isOnVacationNow && "bg-primary/5")}>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Avatar className="h-8 w-8">
+                                    <AvatarImage src={request.profiles.avatar_url || ''} />
+                                    <AvatarFallback>
+                                      {request.profiles.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                    <p className="font-medium">{request.profiles.full_name}</p>
+                                    {isOnVacationNow && (
+                                      <Badge variant="default" className="text-xs">De férias agora</Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {format(parseISO(request.start_date), 'dd/MM/yyyy')}
+                              </TableCell>
+                              <TableCell>
+                                {format(parseISO(request.end_date), 'dd/MM/yyyy')}
+                              </TableCell>
+                              <TableCell>
+                                {request.business_days} {request.profiles.position === 'administrativo' ? 'dias' : 'dias úteis'}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={request.profiles.position === 'administrativo' ? 'secondary' : 'outline'}>
+                                  {request.profiles.position === 'administrativo' ? 'CLT' : 'Padrão'}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                )}
+              </div>
+
+              {/* Daily View */}
+              {getVacationsInPeriod().length > 0 && (
+                <div>
+                  <h4 className="font-semibold mb-3">Visualização por Data</h4>
+                  <ScrollArea className="h-[300px]">
+                    <div className="space-y-2">
+                      {getReportDays().map((day) => {
+                        const peopleOnVacation = getPeopleOnVacation(day);
+                        if (peopleOnVacation.length === 0) return null;
+                        
+                        const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+                        const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                        
+                        return (
+                          <div 
+                            key={day.toISOString()} 
+                            className={cn(
+                              "flex items-start gap-4 p-3 rounded-lg border",
+                              isToday && "bg-primary/10 border-primary",
+                              isWeekend && "bg-muted/50"
+                            )}
+                          >
+                            <div className="min-w-[120px]">
+                              <p className={cn("font-medium", isToday && "text-primary")}>
+                                {format(day, 'EEEE', { locale: ptBR })}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {format(day, 'dd/MM/yyyy')}
+                              </p>
+                              {isToday && <Badge className="mt-1">Hoje</Badge>}
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {peopleOnVacation.map((request) => (
+                                <div key={request.id} className="flex items-center gap-1 bg-background px-2 py-1 rounded-md border">
+                                  <Avatar className="h-5 w-5">
+                                    <AvatarImage src={request.profiles.avatar_url || ''} />
+                                    <AvatarFallback className="text-[10px]">
+                                      {request.profiles.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="text-sm">{request.profiles.full_name}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </Layout>
   );
