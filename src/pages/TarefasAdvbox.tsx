@@ -63,10 +63,12 @@ const loadFromCache = () => {
   return null;
 };
 
+// Carregar cache FORA do componente para evitar recálculos
+const initialCache = loadFromCache();
+
 export default function TarefasAdvbox() {
-  const cachedData = loadFromCache();
-  const [tasks, setTasks] = useState<Task[]>(cachedData?.tasks || []);
-  const [loading, setLoading] = useState(!cachedData);
+  const [tasks, setTasks] = useState<Task[]>(initialCache?.tasks || []);
+  const [loading, setLoading] = useState(!initialCache);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [newTask, setNewTask] = useState({
@@ -86,7 +88,7 @@ export default function TarefasAdvbox() {
   const [loadingTaskTypes, setLoadingTaskTypes] = useState(false);
   const [loadingAdvboxUsers, setLoadingAdvboxUsers] = useState(false);
   const [metadata, setMetadata] = useState<any>(null);
-  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(cachedData?.lastUpdate);
+  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(initialCache?.lastUpdate);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [assignedFilter, setAssignedFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
@@ -107,40 +109,7 @@ export default function TarefasAdvbox() {
   // Hook para notificações push - DEVE ser chamado antes de qualquer return condicional
   useTaskNotifications(tasks);
 
-  // useEffect DEVE ser chamado antes de qualquer return condicional
-  useEffect(() => {
-    if (!roleLoading && !permLoading && hasAdvboxAccess) {
-      fetchTasks();
-      fetchUsers();
-      fetchAdvboxTaskTypes();
-      fetchAdvboxUsers();
-    }
-  }, [roleLoading, permLoading, hasAdvboxAccess]);
-
-  if (roleLoading || permLoading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <p className="text-muted-foreground">Carregando...</p>
-        </div>
-      </Layout>
-    );
-  }
-
-  if (!hasAdvboxAccess) {
-    return (
-      <Layout>
-        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-          <Lock className="h-16 w-16 text-muted-foreground" />
-          <h2 className="text-xl font-semibold">Acesso Restrito</h2>
-          <p className="text-muted-foreground text-center max-w-md">
-            Você não tem permissão para acessar as tarefas do Advbox.
-          </p>
-        </div>
-      </Layout>
-    );
-  }
-
+  // TODAS AS FUNÇÕES DEVEM SER DEFINIDAS ANTES DOS RETURNS CONDICIONAIS
   const fetchUsers = async () => {
     try {
       const { data, error } = await supabase
@@ -197,8 +166,8 @@ export default function TarefasAdvbox() {
   };
 
   const fetchTasks = async (forceRefresh = false) => {
-    // Só mostrar loading se não tiver cache
-    if (!cachedData) {
+    // Só mostrar loading se não tiver dados
+    if (tasks.length === 0) {
       setLoading(true);
     }
     
@@ -297,6 +266,41 @@ export default function TarefasAdvbox() {
       setLoading(false);
     }
   };
+
+  // useEffect DEVE vir DEPOIS das definições de funções
+  useEffect(() => {
+    if (!roleLoading && !permLoading && hasAdvboxAccess) {
+      fetchTasks();
+      fetchUsers();
+      fetchAdvboxTaskTypes();
+      fetchAdvboxUsers();
+    }
+  }, [roleLoading, permLoading, hasAdvboxAccess]);
+
+  // CONDITIONAL RETURNS - apenas APÓS todas as funções e hooks
+  if (roleLoading || permLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!hasAdvboxAccess) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+          <Lock className="h-16 w-16 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">Acesso Restrito</h2>
+          <p className="text-muted-foreground text-center max-w-md">
+            Você não tem permissão para acessar as tarefas do Advbox.
+          </p>
+        </div>
+      </Layout>
+    );
+  }
 
   const handleCreateTask = async () => {
     if (!newTask.title.trim()) {
@@ -660,17 +664,7 @@ export default function TarefasAdvbox() {
     }
   };
 
-  if (loading || roleLoading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-muted-foreground">Carregando tarefas...</div>
-        </div>
-      </Layout>
-    );
-  }
-
-  if (loading || roleLoading) {
+  if (loading && tasks.length === 0) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[400px]">
