@@ -114,6 +114,7 @@ export default function Admin() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingJoinDate, setEditingJoinDate] = useState<Date | undefined>(undefined);
   const [userSearchQuery, setUserSearchQuery] = useState<string>("");
+  const [userStatusFilter, setUserStatusFilter] = useState<string>("all");
   const [editUserDialogOpen, setEditUserDialogOpen] = useState(false);
   const [editingUserData, setEditingUserData] = useState<{
     id: string;
@@ -199,10 +200,14 @@ export default function Admin() {
     }
   };
 
-  const filteredApprovedUsers = approvedUsers.filter(user => 
-    user.full_name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
-    user.email.toLowerCase().includes(userSearchQuery.toLowerCase())
-  );
+  const filteredApprovedUsers = approvedUsers.filter(user => {
+    const matchesSearch = user.full_name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+      user.email.toLowerCase().includes(userSearchQuery.toLowerCase());
+    const matchesStatus = userStatusFilter === 'all' || 
+      (userStatusFilter === 'active' && user.is_active) ||
+      (userStatusFilter === 'inactive' && !user.is_active);
+    return matchesSearch && matchesStatus;
+  });
 
   const handleOpenEditUser = (user: ApprovedUser) => {
     setEditingUserData({
@@ -860,15 +865,26 @@ export default function Admin() {
                   Gerenciar Usuários
                 </CardTitle>
                 <CardDescription>
-                  Edite a data de ingresso dos colaboradores
+                  Gerencie os perfis dos colaboradores
                 </CardDescription>
-                <div className="pt-4">
+                <div className="pt-4 flex gap-4 flex-wrap">
                   <Input
                     placeholder="Buscar por nome ou email..."
                     value={userSearchQuery}
                     onChange={(e) => setUserSearchQuery(e.target.value)}
                     className="max-w-sm"
                   />
+                  <Select value={userStatusFilter} onValueChange={setUserStatusFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <Filter className="w-4 h-4 mr-2" />
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="active">Ativos</SelectItem>
+                      <SelectItem value="inactive">Inativos</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </CardHeader>
               <CardContent>
@@ -920,69 +936,16 @@ export default function Admin() {
                             </Badge>
                           )}
                           
-                          {editingUserId === user.id ? (
-                            <div className="flex items-center gap-2">
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <Button variant="outline" size="sm" className="gap-2">
-                                    <CalendarCheck className="w-4 h-4" />
-                                    {editingJoinDate 
-                                      ? format(editingJoinDate, 'dd/MM/yyyy', { locale: ptBR })
-                                      : 'Selecionar'}
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="end">
-                                  <Calendar
-                                    mode="single"
-                                    selected={editingJoinDate}
-                                    onSelect={setEditingJoinDate}
-                                    initialFocus
-                                    disabled={(date) => date > new Date() || date < new Date('1900-01-01')}
-                                    locale={ptBR}
-                                    className="pointer-events-auto"
-                                  />
-                                </PopoverContent>
-                              </Popover>
-                              <Button
-                                size="sm"
-                                onClick={() => handleUpdateJoinDate(user.id, editingJoinDate)}
-                              >
-                                <Check className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                  setEditingUserId(null);
-                                  setEditingJoinDate(undefined);
-                                }}
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
+                          <div className="flex items-center gap-3">
+                            <div className="text-sm text-right">
+                              <span className="text-muted-foreground">Ingresso: </span>
+                              <span className="font-medium">
+                                {user.join_date 
+                                  ? format(parse(user.join_date, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy', { locale: ptBR })
+                                  : 'Não informado'}
+                              </span>
                             </div>
-                          ) : (
-                            <div className="flex items-center gap-3">
-                              <div className="text-sm text-right">
-                                <span className="text-muted-foreground">Ingresso: </span>
-                                <span className="font-medium">
-                                  {user.join_date 
-                                    ? format(parse(user.join_date, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy', { locale: ptBR })
-                                    : 'Não informado'}
-                                </span>
-                              </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setEditingUserId(user.id);
-                                  setEditingJoinDate(user.join_date 
-                                    ? parse(user.join_date, 'yyyy-MM-dd', new Date()) 
-                                    : undefined);
-                                }}
-                              >
-                                Editar Data
-                              </Button>
-                              <Button
+                            <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleOpenEditUser(user)}
@@ -990,29 +953,29 @@ export default function Admin() {
                                 <Pencil className="w-4 h-4 mr-1" />
                                 Editar Perfil
                               </Button>
-                              {/* Botão Tornar/Remover Admin */}
-                              {isSocioOrRafael && user.email !== 'rafael@eggnunes.com.br' && (
-                                adminUsers.some(a => a.id === user.id) ? (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleRemoveAdmin(user.id)}
-                                    className="text-destructive hover:text-destructive"
-                                  >
-                                    <Shield className="w-4 h-4 mr-1" />
-                                    Remover Admin
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    variant="default"
-                                    onClick={() => handleMakeAdmin(user.id)}
-                                  >
-                                    <Shield className="w-4 h-4 mr-1" />
-                                    Tornar Admin
-                                  </Button>
-                                )
-                              )}
+                            {/* Botão Tornar/Remover Admin - Apenas Sócios */}
+                            {isSocioOrRafael && user.email !== 'rafael@eggnunes.com.br' && (
+                              adminUsers.some(a => a.id === user.id) ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleRemoveAdmin(user.id)}
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <Shield className="w-4 h-4 mr-1" />
+                                  Remover Admin
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  onClick={() => handleMakeAdmin(user.id)}
+                                >
+                                  <Shield className="w-4 h-4 mr-1" />
+                                  Tornar Admin
+                                </Button>
+                              )
+                            )}
                               {/* Reset Password Button */}
                               <Button
                                 size="sm"
@@ -1043,8 +1006,7 @@ export default function Admin() {
                                   )}
                                 </Button>
                               )}
-                            </div>
-                          )}
+                          </div>
                         </div>
                       </div>
                     ))}

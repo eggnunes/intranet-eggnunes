@@ -1225,14 +1225,17 @@ export type Database = {
           email: string | null
           extracted_data: Json | null
           full_name: string
+          future_hire_notes: string | null
           hired_date: string | null
           id: string
           in_person_interview_date: string | null
           interview_date: string | null
           is_active: boolean
+          is_future_hire_candidate: boolean | null
           job_opening_id: string | null
           phone: string | null
           position_applied: string | null
+          previous_job_opening_id: string | null
           resume_file_name: string | null
           resume_url: string | null
           test_date: string | null
@@ -1250,14 +1253,17 @@ export type Database = {
           email?: string | null
           extracted_data?: Json | null
           full_name: string
+          future_hire_notes?: string | null
           hired_date?: string | null
           id?: string
           in_person_interview_date?: string | null
           interview_date?: string | null
           is_active?: boolean
+          is_future_hire_candidate?: boolean | null
           job_opening_id?: string | null
           phone?: string | null
           position_applied?: string | null
+          previous_job_opening_id?: string | null
           resume_file_name?: string | null
           resume_url?: string | null
           test_date?: string | null
@@ -1275,14 +1281,17 @@ export type Database = {
           email?: string | null
           extracted_data?: Json | null
           full_name?: string
+          future_hire_notes?: string | null
           hired_date?: string | null
           id?: string
           in_person_interview_date?: string | null
           interview_date?: string | null
           is_active?: boolean
+          is_future_hire_candidate?: boolean | null
           job_opening_id?: string | null
           phone?: string | null
           position_applied?: string | null
+          previous_job_opening_id?: string | null
           resume_file_name?: string | null
           resume_url?: string | null
           test_date?: string | null
@@ -1293,6 +1302,13 @@ export type Database = {
           {
             foreignKeyName: "recruitment_candidates_job_opening_id_fkey"
             columns: ["job_opening_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_job_openings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruitment_candidates_previous_job_opening_id_fkey"
+            columns: ["previous_job_opening_id"]
             isOneToOne: false
             referencedRelation: "recruitment_job_openings"
             referencedColumns: ["id"]

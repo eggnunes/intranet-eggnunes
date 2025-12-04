@@ -80,6 +80,9 @@ interface Candidate {
   hired_date: string | null;
   extracted_data: any;
   job_opening_id: string | null;
+  previous_job_opening_id: string | null;
+  is_future_hire_candidate: boolean;
+  future_hire_notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -245,6 +248,9 @@ export default function Contratacao() {
   const [showAddDocument, setShowAddDocument] = useState(false);
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
+  const [showSendToTalentPool, setShowSendToTalentPool] = useState(false);
+  const [talentPoolCandidate, setTalentPoolCandidate] = useState<Candidate | null>(null);
+  const [talentPoolNotes, setTalentPoolNotes] = useState('');
   
   // Comparison state
   const [compareList, setCompareList] = useState<string[]>([]);
@@ -699,6 +705,33 @@ export default function Contratacao() {
     }).eq('id', candidateId);
 
     toast.success('Candidato eliminado');
+    fetchCandidates();
+  };
+
+  const handleSendToTalentPool = async () => {
+    if (!talentPoolCandidate) return;
+
+    const { error } = await supabase
+      .from('recruitment_candidates')
+      .update({
+        previous_job_opening_id: talentPoolCandidate.job_opening_id,
+        job_opening_id: null,
+        is_future_hire_candidate: true,
+        future_hire_notes: talentPoolNotes || null,
+        current_stage: 'curriculo_recebido',
+        is_active: true
+      })
+      .eq('id', talentPoolCandidate.id);
+
+    if (error) {
+      toast.error('Erro ao enviar para banco de talentos');
+      return;
+    }
+
+    toast.success(`${talentPoolCandidate.full_name} enviado ao banco de talentos`);
+    setShowSendToTalentPool(false);
+    setTalentPoolCandidate(null);
+    setTalentPoolNotes('');
     fetchCandidates();
   };
 
@@ -1314,6 +1347,22 @@ export default function Contratacao() {
                                   <Button key={stage} size="sm" onClick={() => handleStageChange(candidate.id, stage)}>{STAGE_LABELS[stage]}</Button>
                                 ))}
                                 <EliminateDialog candidateId={candidate.id} onEliminate={handleEliminate} />
+                                {/* Send to Talent Pool button - only show for candidates with a job opening */}
+                                {candidate.job_opening_id && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100"
+                                    onClick={() => {
+                                      setTalentPoolCandidate(candidate);
+                                      setTalentPoolNotes('');
+                                      setShowSendToTalentPool(true);
+                                    }}
+                                  >
+                                    <Archive className="h-4 w-4 mr-1" />
+                                    Banco de Talentos
+                                  </Button>
+                                )}
                               </>
                             )}
                             {canEdit && (
@@ -1389,12 +1438,25 @@ export default function Contratacao() {
                             <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300">
                               <Database className="h-3 w-3 mr-1" />Banco de Talentos
                             </Badge>
+                            {candidate.is_future_hire_candidate && (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                                <UserCheck className="h-3 w-3 mr-1" />Viável para contratação
+                              </Badge>
+                            )}
                             <Badge className={STAGE_COLORS[candidate.current_stage]}>{STAGE_LABELS[candidate.current_stage]}</Badge>
                           </div>
                           <div className="text-sm text-muted-foreground mt-1">
                             {candidate.email && <p>{candidate.email}</p>}
                             {candidate.phone && <p>{candidate.phone}</p>}
                             {candidate.position_applied && <p>Cargo pretendido: {candidate.position_applied}</p>}
+                            {candidate.previous_job_opening_id && (
+                              <p className="text-xs text-amber-700">
+                                Participou de: {jobOpenings.find(j => j.id === candidate.previous_job_opening_id)?.title || 'Processo anterior'}
+                              </p>
+                            )}
+                            {candidate.future_hire_notes && (
+                              <p className="text-xs italic mt-1">"{candidate.future_hire_notes}"</p>
+                            )}
                             <p className="text-xs">Cadastrado em {format(new Date(candidate.created_at), 'dd/MM/yyyy', { locale: ptBR })}</p>
                           </div>
                         </div>
@@ -2149,6 +2211,55 @@ export default function Contratacao() {
                 );
               })}
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Send to Talent Pool Dialog */}
+        <Dialog open={showSendToTalentPool} onOpenChange={setShowSendToTalentPool}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Archive className="h-5 w-5 text-amber-600" />
+                Enviar ao Banco de Talentos
+              </DialogTitle>
+            </DialogHeader>
+            {talentPoolCandidate && (
+              <div className="space-y-4">
+                <p className="text-muted-foreground">
+                  Confirma que deseja enviar <span className="font-semibold">{talentPoolCandidate.full_name}</span> para o banco de talentos como candidato viável para futura contratação?
+                </p>
+                
+                {talentPoolCandidate.job_opening_id && (
+                  <div className="bg-muted p-3 rounded-md text-sm">
+                    <p className="font-medium mb-1">Vaga de origem:</p>
+                    <p className="text-muted-foreground">
+                      {jobOpenings.find(j => j.id === talentPoolCandidate.job_opening_id)?.title || 'Não identificada'}
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="talent-pool-notes">Observações (opcional)</Label>
+                  <Textarea
+                    id="talent-pool-notes"
+                    placeholder="Ex: Segunda opção no processo seletivo. Excelente candidato para futura oportunidade..."
+                    value={talentPoolNotes}
+                    onChange={(e) => setTalentPoolNotes(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" onClick={() => setShowSendToTalentPool(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleSendToTalentPool} className="bg-amber-600 hover:bg-amber-700">
+                    <Archive className="h-4 w-4 mr-2" />
+                    Confirmar
+                  </Button>
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>
