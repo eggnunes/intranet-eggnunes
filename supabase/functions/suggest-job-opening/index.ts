@@ -35,14 +35,11 @@ serve(async (req) => {
 
     const positionLabel = positionLabels[position] || position;
 
-    const systemPrompt = `Você é um especialista em RH de um escritório de advocacia brasileiro especializado em direito imobiliário, do consumidor e bancário.
+    const systemPrompt = `Você é um especialista em RH de um escritório de advocacia brasileiro.
 
-Sua tarefa é gerar uma descrição de vaga e requisitos profissionais para uma vaga de emprego.
+Sua tarefa é gerar uma descrição de vaga e requisitos profissionais para uma vaga de emprego em um escritório de advocacia.
 
-O escritório é o Egg Nunes Advogados, localizado em Goiânia-GO, com foco em:
-- Direito Imobiliário (especialmente multipropriedade/timeshare, rescisão de multas abusivas, atrasos em obras)
-- Direito do Consumidor
-- Direito Bancário
+IMPORTANTE: NÃO mencione localização específica, cidade ou estado. NÃO mencione áreas de atuação específicas a menos que sejam explicitamente informadas pelo usuário. Mantenha a descrição genérica o suficiente para se aplicar a qualquer escritório de advocacia.
 
 Responda APENAS em formato JSON válido com a seguinte estrutura:
 {
@@ -50,7 +47,7 @@ Responda APENAS em formato JSON válido com a seguinte estrutura:
   "requirements": "Lista de requisitos e qualificações necessárias"
 }
 
-Seja profissional, objetivo e específico para o contexto de um escritório de advocacia.`;
+Seja profissional e objetivo. Foque nas competências e responsabilidades típicas do cargo sem fazer suposições sobre o escritório.`;
 
     const userPrompt = `Gere descrição e requisitos para a seguinte vaga:
 
@@ -58,11 +55,11 @@ Título da Vaga: ${title || 'Não especificado'}
 Cargo: ${positionLabel}
 
 Considere:
-- Para cargos jurídicos (advogado, estagiário): inclua conhecimentos em direito imobiliário, do consumidor e bancário
+- Para cargos jurídicos (advogado, estagiário): foque em competências gerais da advocacia como pesquisa jurídica, redação de peças, atendimento a clientes, prazos processuais
 - Para cargos administrativos: foque em organização, atendimento e suporte ao escritório
 - Para cargos comerciais: foque em captação de clientes e relacionamento
 
-Gere uma descrição atraente e requisitos realistas para o mercado jurídico de Goiânia.`;
+NÃO mencione localização, cidade ou áreas específicas de atuação do escritório.`;
 
     console.log('Calling Lovable AI for job opening suggestions...');
 
