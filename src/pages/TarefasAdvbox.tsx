@@ -104,8 +104,18 @@ export default function TarefasAdvbox() {
   
   const hasAdvboxAccess = canView('advbox');
   
-  // Hook para notificações push
+  // Hook para notificações push - DEVE ser chamado antes de qualquer return condicional
   useTaskNotifications(tasks);
+
+  // useEffect DEVE ser chamado antes de qualquer return condicional
+  useEffect(() => {
+    if (!roleLoading && !permLoading && hasAdvboxAccess) {
+      fetchTasks();
+      fetchUsers();
+      fetchAdvboxTaskTypes();
+      fetchAdvboxUsers();
+    }
+  }, [roleLoading, permLoading, hasAdvboxAccess]);
 
   if (roleLoading || permLoading) {
     return (
@@ -130,13 +140,6 @@ export default function TarefasAdvbox() {
       </Layout>
     );
   }
-
-  useEffect(() => {
-    fetchTasks();
-    fetchUsers();
-    fetchAdvboxTaskTypes();
-    fetchAdvboxUsers();
-  }, []);
 
   const fetchUsers = async () => {
     try {
