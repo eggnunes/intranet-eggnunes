@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { FileText, Plus, Download, Trash2, Upload, Eye } from 'lucide-react';
+import { FileText, Plus, Download, Trash2, Upload, Eye, X, ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 
@@ -27,6 +27,7 @@ export default function DocumentosUteis() {
   const { canEdit, isSocioOrRafael } = useAdminPermissions();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -301,7 +302,7 @@ export default function DocumentosUteis() {
                       variant="outline"
                       size="sm"
                       className="flex-1"
-                      onClick={() => window.open(doc.file_url, '_blank')}
+                      onClick={() => setPreviewDoc(doc)}
                     >
                       <Eye className="w-4 h-4 mr-2" />
                       Visualizar
@@ -333,6 +334,54 @@ export default function DocumentosUteis() {
             ))
           )}
         </div>
+
+        {/* Preview Dialog */}
+        <Dialog open={!!previewDoc} onOpenChange={(open) => !open && setPreviewDoc(null)}>
+          <DialogContent className="max-w-5xl h-[90vh] p-0">
+            <DialogHeader className="p-4 pb-2 flex flex-row items-center justify-between">
+              <div className="flex-1">
+                <DialogTitle>{previewDoc?.title}</DialogTitle>
+                {previewDoc?.description && (
+                  <DialogDescription>{previewDoc.description}</DialogDescription>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(previewDoc?.file_url, '_blank')}
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Abrir em nova aba
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (previewDoc) {
+                      const link = document.createElement('a');
+                      link.href = previewDoc.file_url;
+                      link.download = previewDoc.title;
+                      link.click();
+                    }
+                  }}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Baixar
+                </Button>
+              </div>
+            </DialogHeader>
+            <div className="flex-1 p-4 pt-0 h-[calc(90vh-80px)]">
+              {previewDoc && (
+                <iframe
+                  src={previewDoc.file_url}
+                  className="w-full h-full border rounded-lg"
+                  title={previewDoc.title}
+                />
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
