@@ -349,26 +349,31 @@ export default function Admin() {
   };
 
   const fetchAdminUsers = async () => {
-    const { data } = await supabase
+    // First fetch admin user_ids from user_roles
+    const { data: rolesData } = await supabase
       .from('user_roles')
-      .select(`
-        user_id,
-        profiles (
-          id,
-          email,
-          full_name,
-          avatar_url,
-          position
-        )
-      `)
+      .select('user_id')
       .eq('role', 'admin');
 
-    const admins = data?.map((item: any) => ({
-      id: item.profiles.id,
-      email: item.profiles.email,
-      full_name: item.profiles.full_name,
-      avatar_url: item.profiles.avatar_url,
-      position: item.profiles.position,
+    if (!rolesData || rolesData.length === 0) {
+      setAdminUsers([]);
+      return;
+    }
+
+    const adminUserIds = rolesData.map(r => r.user_id);
+
+    // Then fetch profiles for those users
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, avatar_url, position')
+      .in('id', adminUserIds);
+
+    const admins = profilesData?.map((profile) => ({
+      id: profile.id,
+      email: profile.email,
+      full_name: profile.full_name,
+      avatar_url: profile.avatar_url,
+      position: profile.position,
     })) || [];
     
     setAdminUsers(admins);
