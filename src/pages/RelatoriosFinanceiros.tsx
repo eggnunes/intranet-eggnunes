@@ -506,6 +506,19 @@ export default function RelatoriosFinanceiros() {
     );
   }
 
+  // Mostrar loading quando não há dados e está buscando
+  if (isRefreshing && transactions.length === 0) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+          <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Carregando dados financeiros...</p>
+          <p className="text-xs text-muted-foreground">Isso pode levar alguns minutos na primeira vez</p>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="space-y-6">
