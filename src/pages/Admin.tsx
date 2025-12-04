@@ -8,7 +8,10 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck, Lock } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck, Lock, Pencil } from 'lucide-react';
+
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Select,
@@ -53,6 +56,9 @@ interface ApprovedUser {
   avatar_url: string | null;
   position: string | null;
   join_date: string | null;
+  birth_date: string | null;
+  oab_number: string | null;
+  oab_state: string | null;
 }
 
 interface AdminUser {
@@ -107,9 +113,26 @@ export default function Admin() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingJoinDate, setEditingJoinDate] = useState<Date | undefined>(undefined);
   const [userSearchQuery, setUserSearchQuery] = useState<string>("");
+  const [editUserDialogOpen, setEditUserDialogOpen] = useState(false);
+  const [editingUserData, setEditingUserData] = useState<{
+    id: string;
+    full_name: string;
+    email: string;
+    position: string | null;
+    birth_date: string | null;
+    join_date: string | null;
+    oab_number: string | null;
+    oab_state: string | null;
+  } | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { isSocioOrRafael } = useAdminPermissions();
+
+  const BRAZILIAN_STATES = [
+    'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS',
+    'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC',
+    'SP', 'SE', 'TO'
+  ];
 
   useEffect(() => {
     if (!loading && !isAdmin) {
@@ -140,7 +163,7 @@ export default function Admin() {
   const fetchApprovedUsers = async () => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, email, full_name, avatar_url, position, join_date')
+      .select('id, email, full_name, avatar_url, position, join_date, birth_date, oab_number, oab_state')
       .eq('approval_status', 'approved')
       .order('full_name');
     setApprovedUsers(data || []);
@@ -175,6 +198,57 @@ export default function Admin() {
     user.full_name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(userSearchQuery.toLowerCase())
   );
+
+  const handleOpenEditUser = (user: ApprovedUser) => {
+    setEditingUserData({
+      id: user.id,
+      full_name: user.full_name,
+      email: user.email,
+      position: user.position,
+      birth_date: user.birth_date,
+      join_date: user.join_date,
+      oab_number: user.oab_number,
+      oab_state: user.oab_state,
+    });
+    setEditUserDialogOpen(true);
+  };
+
+  const handleSaveUserEdit = async () => {
+    if (!editingUserData) return;
+
+    const updateData: any = {
+      full_name: editingUserData.full_name,
+      birth_date: editingUserData.birth_date || null,
+      join_date: editingUserData.join_date || null,
+      oab_number: editingUserData.oab_number || null,
+      oab_state: editingUserData.oab_state || null,
+    };
+
+    if (editingUserData.position) {
+      updateData.position = editingUserData.position;
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update(updateData)
+      .eq('id', editingUserData.id);
+
+    if (error) {
+      toast({
+        title: 'Erro',
+        description: 'Erro ao atualizar dados do usuário',
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Atualizado',
+        description: 'Dados do usuário atualizados com sucesso',
+      });
+      fetchApprovedUsers();
+      setEditUserDialogOpen(false);
+      setEditingUserData(null);
+    }
+  };
 
   const fetchAdminUsers = async () => {
     const { data } = await supabase
@@ -808,6 +882,14 @@ export default function Admin() {
                               >
                                 Editar Data
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleOpenEditUser(user)}
+                              >
+                                <Pencil className="w-4 h-4 mr-1" />
+                                Editar Perfil
+                              </Button>
                               {/* Botão Tornar/Remover Admin */}
                               {isSocioOrRafael && user.email !== 'rafael@eggnunes.com.br' && (
                                 adminUsers.some(a => a.id === user.id) ? (
@@ -1166,6 +1248,119 @@ export default function Admin() {
             </TabsContent>
           )}
         </Tabs>
+
+        {/* Dialog de Edição de Usuário */}
+        <Dialog open={editUserDialogOpen} onOpenChange={setEditUserDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Editar Usuário</DialogTitle>
+              <DialogDescription>
+                Atualize os dados do colaborador
+              </DialogDescription>
+            </DialogHeader>
+            {editingUserData && (
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Nome Completo</Label>
+                  <Input
+                    id="edit-name"
+                    value={editingUserData.full_name}
+                    onChange={(e) => setEditingUserData({ ...editingUserData, full_name: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">Email</Label>
+                  <Input
+                    id="edit-email"
+                    value={editingUserData.email}
+                    disabled
+                    className="bg-muted"
+                  />
+                  <p className="text-xs text-muted-foreground">O email não pode ser alterado</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-position">Cargo</Label>
+                  <Select
+                    value={editingUserData.position || ''}
+                    onValueChange={(value) => setEditingUserData({ ...editingUserData, position: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o cargo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="socio">Sócio</SelectItem>
+                      <SelectItem value="advogado">Advogado</SelectItem>
+                      <SelectItem value="estagiario">Estagiário</SelectItem>
+                      <SelectItem value="comercial">Comercial</SelectItem>
+                      <SelectItem value="administrativo">Administrativo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-birth-date">Data de Nascimento</Label>
+                    <Input
+                      id="edit-birth-date"
+                      type="date"
+                      value={editingUserData.birth_date || ''}
+                      onChange={(e) => setEditingUserData({ ...editingUserData, birth_date: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-join-date">Data de Ingresso</Label>
+                    <Input
+                      id="edit-join-date"
+                      type="date"
+                      value={editingUserData.join_date || ''}
+                      onChange={(e) => setEditingUserData({ ...editingUserData, join_date: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {(editingUserData.position === 'advogado' || editingUserData.position === 'estagiario' || editingUserData.position === 'socio') && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-oab-number">Número OAB</Label>
+                      <Input
+                        id="edit-oab-number"
+                        value={editingUserData.oab_number || ''}
+                        onChange={(e) => setEditingUserData({ ...editingUserData, oab_number: e.target.value })}
+                        placeholder="Ex: 123456"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-oab-state">Estado OAB</Label>
+                      <Select
+                        value={editingUserData.oab_state || ''}
+                        onValueChange={(value) => setEditingUserData({ ...editingUserData, oab_state: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="UF" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BRAZILIAN_STATES.map((state) => (
+                            <SelectItem key={state} value={state}>{state}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditUserDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveUserEdit}>
+                Salvar Alterações
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

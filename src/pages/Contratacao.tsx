@@ -794,32 +794,33 @@ export default function Contratacao() {
 
   const downloadFile = async (fileUrl: string, fileName: string) => {
     try {
-      // Try to get signed URL first (works for private buckets)
-      const { data: signedData, error: signedError } = await supabase.storage
-        .from('resumes')
-        .createSignedUrl(fileUrl, 60);
-      
-      if (signedData?.signedUrl) {
-        const a = document.createElement('a');
-        a.href = signedData.signedUrl;
-        a.download = fileName;
-        a.target = '_blank';
-        a.click();
-        return;
-      }
-
-      // Fallback to direct download
+      // Use direct download method which handles encoding properly
       const { data, error } = await supabase.storage.from('resumes').download(fileUrl);
+      
       if (error) {
         console.error('Download error:', error);
+        
+        // Try with signed URL as fallback
+        const { data: signedData } = await supabase.storage
+          .from('resumes')
+          .createSignedUrl(fileUrl, 60);
+        
+        if (signedData?.signedUrl) {
+          window.open(signedData.signedUrl, '_blank');
+          return;
+        }
+        
         toast.error('Erro ao baixar arquivo. Verifique se o arquivo existe.');
         return;
       }
+      
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');
       a.href = url;
       a.download = fileName;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Download error:', error);
