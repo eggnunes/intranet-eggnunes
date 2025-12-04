@@ -482,6 +482,67 @@ export default function Contratacao() {
     }
   };
 
+  const handleDeleteJobOpening = async (id: string) => {
+    const joCandidates = candidates.filter(c => c.job_opening_id === id);
+    if (joCandidates.length > 0) {
+      toast.error(`Não é possível excluir. Existem ${joCandidates.length} candidato(s) vinculados a esta vaga.`);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('recruitment_job_openings')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      toast.error('Erro ao excluir vaga');
+      return;
+    }
+
+    toast.success('Vaga excluída');
+    fetchJobOpenings();
+  };
+
+  const handleDeleteCandidate = async (candidate: Candidate) => {
+    // Delete resume from storage if exists
+    if (candidate.resume_url) {
+      await supabase.storage.from('resumes').remove([candidate.resume_url]);
+    }
+
+    // Delete candidate documents from storage
+    const { data: docs } = await supabase
+      .from('recruitment_candidate_documents')
+      .select('file_url')
+      .eq('candidate_id', candidate.id);
+    
+    if (docs && docs.length > 0) {
+      await supabase.storage.from('resumes').remove(docs.map(d => d.file_url));
+    }
+
+    // Delete related records
+    await Promise.all([
+      supabase.from('recruitment_candidate_documents').delete().eq('candidate_id', candidate.id),
+      supabase.from('recruitment_notes').delete().eq('candidate_id', candidate.id),
+      supabase.from('recruitment_stage_history').delete().eq('candidate_id', candidate.id),
+      supabase.from('recruitment_interviews').delete().eq('candidate_id', candidate.id)
+    ]);
+
+    // Delete candidate
+    const { error } = await supabase
+      .from('recruitment_candidates')
+      .delete()
+      .eq('id', candidate.id);
+
+    if (error) {
+      toast.error('Erro ao excluir candidato');
+      return;
+    }
+
+    toast.success('Candidato excluído');
+    setSelectedCandidate(null);
+    fetchCandidates();
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, jobOpeningId?: string) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !user) return;
@@ -732,17 +793,38 @@ export default function Contratacao() {
   };
 
   const downloadFile = async (fileUrl: string, fileName: string) => {
-    const { data, error } = await supabase.storage.from('resumes').download(fileUrl);
-    if (error) {
+    try {
+      // Try to get signed URL first (works for private buckets)
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from('resumes')
+        .createSignedUrl(fileUrl, 60);
+      
+      if (signedData?.signedUrl) {
+        const a = document.createElement('a');
+        a.href = signedData.signedUrl;
+        a.download = fileName;
+        a.target = '_blank';
+        a.click();
+        return;
+      }
+
+      // Fallback to direct download
+      const { data, error } = await supabase.storage.from('resumes').download(fileUrl);
+      if (error) {
+        console.error('Download error:', error);
+        toast.error('Erro ao baixar arquivo. Verifique se o arquivo existe.');
+        return;
+      }
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download error:', error);
       toast.error('Erro ao baixar arquivo');
-      return;
     }
-    const url = URL.createObjectURL(data);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   // Metrics calculation
@@ -1084,6 +1166,20 @@ export default function Contratacao() {
                                 </Button>
                               </>
                             )}
+                            {canEdit && (
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => {
+                                  if (confirm(`Tem certeza que deseja excluir a vaga "${jo.title}"?`)) {
+                                    handleDeleteJobOpening(jo.id);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </CardHeader>
@@ -1219,6 +1315,20 @@ export default function Contratacao() {
                                 <EliminateDialog candidateId={candidate.id} onEliminate={handleEliminate} />
                               </>
                             )}
+                            {canEdit && (
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => {
+                                  if (confirm(`Tem certeza que deseja excluir o candidato "${candidate.full_name}"? Esta ação não pode ser desfeita.`)) {
+                                    handleDeleteCandidate(candidate);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </CardContent>
@@ -1317,6 +1427,20 @@ export default function Contratacao() {
                                 ))}
                               </SelectContent>
                             </Select>
+                          )}
+                          {canEdit && (
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => {
+                                if (confirm(`Tem certeza que deseja excluir o candidato "${candidate.full_name}"? Esta ação não pode ser desfeita.`)) {
+                                  handleDeleteCandidate(candidate);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           )}
                         </div>
                       </div>
@@ -1607,10 +1731,25 @@ export default function Contratacao() {
             {selectedCandidate && (
               <>
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    {selectedCandidate.full_name}
-                    <Badge className={STAGE_COLORS[selectedCandidate.current_stage]}>{STAGE_LABELS[selectedCandidate.current_stage]}</Badge>
-                  </DialogTitle>
+                  <div className="flex items-center justify-between">
+                    <DialogTitle className="flex items-center gap-2">
+                      {selectedCandidate.full_name}
+                      <Badge className={STAGE_COLORS[selectedCandidate.current_stage]}>{STAGE_LABELS[selectedCandidate.current_stage]}</Badge>
+                    </DialogTitle>
+                    {canEdit && (
+                      <Button 
+                        size="sm" 
+                        variant="destructive"
+                        onClick={() => {
+                          if (confirm(`Tem certeza que deseja excluir o candidato "${selectedCandidate.full_name}"? Esta ação não pode ser desfeita.`)) {
+                            handleDeleteCandidate(selectedCandidate);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />Excluir
+                      </Button>
+                    )}
+                  </div>
                 </DialogHeader>
 
                 <Tabs defaultValue="info">
