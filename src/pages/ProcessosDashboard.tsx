@@ -1934,7 +1934,7 @@ export default function ProcessosDashboard() {
 
         {/* Dialog de Envio de Mensagem */}
         <Dialog open={!!messageDialogLawsuit} onOpenChange={(open) => !open && closeMessageDialog()}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Enviar Mensagem</DialogTitle>
               <DialogDescription>
