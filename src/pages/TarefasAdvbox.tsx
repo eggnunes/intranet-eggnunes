@@ -81,6 +81,10 @@ export default function TarefasAdvbox() {
   });
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [allUsers, setAllUsers] = useState<Array<{ id: string; full_name: string }>>([]);
+  const [advboxTaskTypes, setAdvboxTaskTypes] = useState<Array<{ id: number; name: string }>>([]);
+  const [advboxUsers, setAdvboxUsers] = useState<Array<{ id: number; name: string }>>([]);
+  const [loadingTaskTypes, setLoadingTaskTypes] = useState(false);
+  const [loadingAdvboxUsers, setLoadingAdvboxUsers] = useState(false);
   const [metadata, setMetadata] = useState<any>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | undefined>(cachedData?.lastUpdate);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -130,6 +134,8 @@ export default function TarefasAdvbox() {
   useEffect(() => {
     fetchTasks();
     fetchUsers();
+    fetchAdvboxTaskTypes();
+    fetchAdvboxUsers();
   }, []);
 
   const fetchUsers = async () => {
@@ -144,6 +150,46 @@ export default function TarefasAdvbox() {
       setAllUsers(data || []);
     } catch (error) {
       console.error('Error fetching users:', error);
+    }
+  };
+
+  const fetchAdvboxTaskTypes = async () => {
+    setLoadingTaskTypes(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('advbox-integration/task-types');
+      if (error) throw error;
+      
+      const rawData = data?.data || [];
+      const types = Array.isArray(rawData) ? rawData.map((t: any) => ({
+        id: t.id || t.tasks_id,
+        name: t.task || t.name || t.title || `Tipo ${t.id || t.tasks_id}`,
+      })).filter((t: any) => t.id && t.name) : [];
+      
+      setAdvboxTaskTypes(types);
+    } catch (err) {
+      console.error('Erro ao buscar tipos de tarefa:', err);
+    } finally {
+      setLoadingTaskTypes(false);
+    }
+  };
+
+  const fetchAdvboxUsers = async () => {
+    setLoadingAdvboxUsers(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('advbox-integration/users');
+      if (error) throw error;
+      
+      const rawData = data?.data || data?.users || [];
+      const users = Array.isArray(rawData) ? rawData.map((u: any) => ({
+        id: u.id || u.user_id,
+        name: u.name || u.full_name || u.email || `Usuário ${u.id}`,
+      })).filter((u: any) => u.id) : [];
+      
+      setAdvboxUsers(users);
+    } catch (err) {
+      console.error('Erro ao buscar usuários Advbox:', err);
+    } finally {
+      setLoadingAdvboxUsers(false);
     }
   };
 
@@ -268,6 +314,15 @@ export default function TarefasAdvbox() {
       return;
     }
 
+    if (!newTask.category) {
+      toast({
+        title: 'Categoria obrigatória',
+        description: 'Selecione uma categoria para a tarefa.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       // Buscar o processo correspondente no Advbox para obter os IDs necessários
       const { data: lawsuitsData, error: lawsuitsError } = await supabase.functions.invoke(
@@ -292,20 +347,20 @@ export default function TarefasAdvbox() {
         return;
       }
 
+      // Usar responsável selecionado ou do processo
+      const responsibleId = newTask.assigned_to 
+        ? parseInt(String(newTask.assigned_to), 10) 
+        : parseInt(String(lawsuit.responsible_id), 10);
+
       // Garantir formato correto para API Advbox
       const taskData = {
         lawsuits_id: parseInt(String(lawsuit.id), 10),
         start_date: format(new Date(), 'yyyy-MM-dd'),
-        title: newTask.title,
-        description:
-          newTask.description ||
-          newTask.notes ||
-          `Tarefa criada pela intranet para o processo ${processNumber}`,
-        from: parseInt(String(lawsuit.responsible_id), 10),
-        tasks_id: 1,
-        guests: [parseInt(String(lawsuit.responsible_id), 10)],
-        status: newTask.status,
-        due_date: newTask.due_date || undefined,
+        comments: `${newTask.title}\n\n${newTask.description || ''}${newTask.notes ? '\n\nObservações: ' + newTask.notes : ''}`,
+        from: responsibleId,
+        tasks_id: parseInt(String(newTask.category), 10),
+        guests: [responsibleId],
+        date_deadline: newTask.due_date || undefined,
       };
 
       const { error } = await supabase.functions.invoke('advbox-integration/create-task', {
@@ -704,72 +759,83 @@ export default function TarefasAdvbox() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="category">Categoria</Label>
-                  <Select
-                    value={newTask.category}
-                    onValueChange={(value) => setNewTask({ ...newTask, category: value === 'none' ? '' : value })}
-                  >
-                    <SelectTrigger id="category">
-                      <SelectValue placeholder="Selecione a categoria" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhuma</SelectItem>
-                      <SelectItem value="intimacao">Intimação</SelectItem>
-                      <SelectItem value="audiencia">Audiência</SelectItem>
-                      <SelectItem value="prazo">Prazo</SelectItem>
-                      <SelectItem value="recurso">Recurso</SelectItem>
-                      <SelectItem value="sentenca">Sentença</SelectItem>
-                      <SelectItem value="despacho">Despacho</SelectItem>
-                      <SelectItem value="peticao">Petição</SelectItem>
-                      <SelectItem value="outro">Outro</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="category">Categoria *</Label>
+                  {loadingTaskTypes ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                      <span className="animate-spin">⟳</span> Carregando categorias...
+                    </div>
+                  ) : advboxTaskTypes.length > 0 ? (
+                    <Select
+                      value={newTask.category}
+                      onValueChange={(value) => setNewTask({ ...newTask, category: value })}
+                    >
+                      <SelectTrigger id="category">
+                        <SelectValue placeholder="Selecione a categoria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {advboxTaskTypes.map((type) => (
+                          <SelectItem key={type.id} value={String(type.id)}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="space-y-2">
+                      <Input
+                        value={newTask.category}
+                        onChange={(e) => setNewTask({ ...newTask, category: e.target.value })}
+                        placeholder="ID da categoria"
+                      />
+                      <Button variant="outline" size="sm" onClick={fetchAdvboxTaskTypes}>
+                        Carregar categorias
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="assigned_to">Responsável</Label>
-                  <Select
-                    value={newTask.assigned_to}
-                    onValueChange={(value) =>
-                      setNewTask({ ...newTask, assigned_to: value === 'none' ? '' : value })
-                    }
-                  >
-                    <SelectTrigger id="assigned_to">
-                      <SelectValue placeholder="Selecione o responsável" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {allUsers.map((user) => (
-                        <SelectItem key={user.id} value={user.full_name}>
-                          {user.full_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {loadingAdvboxUsers ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                      <span className="animate-spin">⟳</span> Carregando responsáveis...
+                    </div>
+                  ) : advboxUsers.length > 0 ? (
+                    <Select
+                      value={newTask.assigned_to}
+                      onValueChange={(value) => setNewTask({ ...newTask, assigned_to: value })}
+                    >
+                      <SelectTrigger id="assigned_to">
+                        <SelectValue placeholder="Selecione o responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {advboxUsers.map((user) => (
+                          <SelectItem key={user.id} value={String(user.id)}>
+                            {user.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="space-y-2">
+                      <Input
+                        value={newTask.assigned_to}
+                        onChange={(e) => setNewTask({ ...newTask, assigned_to: e.target.value })}
+                        placeholder="ID do responsável"
+                      />
+                      <Button variant="outline" size="sm" onClick={fetchAdvboxUsers}>
+                        Carregar responsáveis
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div>
-                  <Label htmlFor="due_date">Data de Vencimento</Label>
+                  <Label htmlFor="due_date">Prazo Fatal</Label>
                   <Input
                     id="due_date"
                     type="date"
                     value={newTask.due_date}
                     onChange={(e) => setNewTask({ ...newTask, due_date: e.target.value })}
                   />
-                </div>
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <Select
-                    value={newTask.status}
-                    onValueChange={(value) => setNewTask({ ...newTask, status: value })}
-                  >
-                    <SelectTrigger id="status">
-                      <SelectValue placeholder="Selecione o status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pendente</SelectItem>
-                      <SelectItem value="in_progress">Em Andamento</SelectItem>
-                      <SelectItem value="completed">Concluída</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="notes">Observações</Label>
