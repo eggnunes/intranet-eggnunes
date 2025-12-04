@@ -82,6 +82,12 @@ const HomeOffice = () => {
   const [mandatoryOfficeDay, setMandatoryOfficeDay] = useState<number>(3); // Default Wednesday
   const [isRandomizing, setIsRandomizing] = useState(false);
   
+  // Move schedule state (admin only)
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [scheduleToMove, setScheduleToMove] = useState<HomeOfficeSchedule | null>(null);
+  const [newDayForSchedule, setNewDayForSchedule] = useState<number | null>(null);
+  const [isMovingSchedule, setIsMovingSchedule] = useState(false);
+  
   const { toast } = useToast();
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
@@ -96,7 +102,7 @@ const HomeOffice = () => {
   // Check if user can manage home office
   const canManageHomeOffice = isAdmin && (canEdit('home_office') || canEdit('users'));
 
-  // Randomize home office schedule
+  // Randomize home office schedule with consecutive days rule
   const handleRandomizeSchedule = async () => {
     if (selectedLawyersForRandom.length === 0) {
       toast({
@@ -110,10 +116,33 @@ const HomeOffice = () => {
     setIsRandomizing(true);
 
     try {
-      // Get available days (excluding mandatory office day)
-      const availableDays = DAYS_OF_WEEK
-        .map(d => d.value)
-        .filter(d => d !== mandatoryOfficeDay);
+      // Rule: Days must be consecutive pairs
+      // If mandatory day is Wed (3), available pairs are: Mon+Tue (1,2) or Thu+Fri (4,5)
+      // Get valid consecutive day pairs (excluding mandatory day)
+      const getValidDayPairs = (mandatoryDay: number): number[][] => {
+        const pairs: number[][] = [];
+        // Pair 1: Monday + Tuesday (1, 2)
+        if (mandatoryDay !== 1 && mandatoryDay !== 2) {
+          pairs.push([1, 2]);
+        }
+        // Pair 2: Thursday + Friday (4, 5)
+        if (mandatoryDay !== 4 && mandatoryDay !== 5) {
+          pairs.push([4, 5]);
+        }
+        return pairs;
+      };
+
+      const validPairs = getValidDayPairs(mandatoryOfficeDay);
+
+      if (validPairs.length === 0) {
+        toast({
+          title: 'Erro',
+          description: 'Não há pares de dias consecutivos válidos com o dia presencial selecionado.',
+          variant: 'destructive',
+        });
+        setIsRandomizing(false);
+        return;
+      }
 
       // Shuffle function
       const shuffle = <T,>(array: T[]): T[] => {
@@ -125,13 +154,13 @@ const HomeOffice = () => {
         return arr;
       };
 
-      // Assign random days to each selected lawyer
+      // Assign random consecutive day pairs to each selected lawyer
       const assignments: { userId: string; days: number[] }[] = [];
       
       for (const lawyerId of selectedLawyersForRandom) {
-        // Shuffle available days and pick 2
-        const shuffledDays = shuffle(availableDays);
-        const assignedDays = shuffledDays.slice(0, 2);
+        // Randomly select one of the valid pairs
+        const shuffledPairs = shuffle(validPairs);
+        const assignedDays = shuffledPairs[0];
         assignments.push({ userId: lawyerId, days: assignedDays });
       }
 
@@ -499,6 +528,47 @@ const HomeOffice = () => {
     }
   };
 
+  // Move schedule to different day (admin only)
+  const handleMoveSchedule = async () => {
+    if (!scheduleToMove || newDayForSchedule === null) return;
+
+    setIsMovingSchedule(true);
+
+    try {
+      const { error } = await supabase
+        .from('home_office_schedules')
+        .update({ day_of_week: newDayForSchedule })
+        .eq('id', scheduleToMove.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Escala movida',
+        description: `${scheduleToMove.profile?.full_name} foi movido para ${DAYS_OF_WEEK.find(d => d.value === newDayForSchedule)?.label}.`,
+      });
+
+      setMoveDialogOpen(false);
+      setScheduleToMove(null);
+      setNewDayForSchedule(null);
+      fetchSchedules();
+    } catch (error: any) {
+      console.error('Error moving schedule:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Não foi possível mover a escala.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsMovingSchedule(false);
+    }
+  };
+
+  const openMoveDialog = (schedule: HomeOfficeSchedule) => {
+    setScheduleToMove(schedule);
+    setNewDayForSchedule(null);
+    setMoveDialogOpen(true);
+  };
+
   const toggleDaySelection = (day: number) => {
     if (selectedDays.includes(day)) {
       setSelectedDays(selectedDays.filter(d => d !== day));
@@ -718,7 +788,7 @@ const HomeOffice = () => {
         <Tabs defaultValue="board" className="w-full">
           <TabsList className={`grid w-full ${canManageHomeOffice ? 'grid-cols-5' : isLawyer ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <TabsTrigger value="board">Mural da Semana</TabsTrigger>
-            {isLawyer && (
+            {(isLawyer || canManageHomeOffice) && (
               <TabsTrigger value="swap" className="flex items-center gap-2">
                 <ArrowRightLeft className="h-4 w-4" />
                 Trocar Dias
@@ -774,17 +844,30 @@ const HomeOffice = () => {
                             {daySchedules.map(schedule => (
                               <div
                                 key={schedule.id}
-                                className="flex items-center gap-2 p-2 rounded-lg bg-primary/10"
+                                className="flex items-center justify-between gap-2 p-2 rounded-lg bg-primary/10 group"
                               >
-                                <Avatar className="h-8 w-8">
-                                  <AvatarImage src={schedule.profile?.avatar_url || ''} />
-                                  <AvatarFallback>
-                                    {schedule.profile?.full_name?.charAt(0) || '?'}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <span className="text-sm font-medium truncate">
-                                  {schedule.profile?.full_name || 'Usuário'}
-                                </span>
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <Avatar className="h-8 w-8 flex-shrink-0">
+                                    <AvatarImage src={schedule.profile?.avatar_url || ''} />
+                                    <AvatarFallback>
+                                      {schedule.profile?.full_name?.charAt(0) || '?'}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="text-sm font-medium truncate">
+                                    {schedule.profile?.full_name || 'Usuário'}
+                                  </span>
+                                </div>
+                                {canManageHomeOffice && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                                    onClick={() => openMoveDialog(schedule)}
+                                    title="Mover para outro dia"
+                                  >
+                                    <ArrowRightLeft className="h-3 w-3" />
+                                  </Button>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -824,8 +907,8 @@ const HomeOffice = () => {
             )}
           </TabsContent>
 
-          {/* Swap Tab - Only for lawyers */}
-          {isLawyer && (
+          {/* Swap Tab - For lawyers and admins */}
+          {(isLawyer || canManageHomeOffice) && (
           <TabsContent value="swap" className="space-y-6">
             {/* Pending requests for me */}
             {pendingRequestsForMe.length > 0 && (
@@ -1141,9 +1224,20 @@ const HomeOffice = () => {
                             <h4 className="font-medium mb-2">Resumo do Sorteio</h4>
                             <ul className="text-sm text-muted-foreground space-y-1">
                               <li>• <strong>{selectedLawyersForRandom.length}</strong> advogado(s) terão suas escalas sorteadas</li>
-                              <li>• Cada um receberá <strong>2 dias</strong> de home office aleatórios</li>
+                              <li>• Cada um receberá <strong>2 dias consecutivos</strong> de home office</li>
                               <li>• <strong>{DAYS_OF_WEEK.find(d => d.value === mandatoryOfficeDay)?.label}</strong> será o dia presencial obrigatório</li>
-                              <li>• Dias disponíveis para sorteio: {DAYS_OF_WEEK.filter(d => d.value !== mandatoryOfficeDay).map(d => d.short).join(', ')}</li>
+                              <li>• Pares de dias possíveis: {
+                                (() => {
+                                  const pairs: string[] = [];
+                                  if (mandatoryOfficeDay !== 1 && mandatoryOfficeDay !== 2) {
+                                    pairs.push('Seg + Ter');
+                                  }
+                                  if (mandatoryOfficeDay !== 4 && mandatoryOfficeDay !== 5) {
+                                    pairs.push('Qui + Sex');
+                                  }
+                                  return pairs.join(' ou ') || 'Nenhum par disponível';
+                                })()
+                              }</li>
                             </ul>
                           </div>
                         )}
@@ -1428,6 +1522,64 @@ const HomeOffice = () => {
             </>
           )}
         </Tabs>
+
+        {/* Move Schedule Dialog (Admin Only) */}
+        <Dialog open={moveDialogOpen} onOpenChange={setMoveDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Mover Escala</DialogTitle>
+              <DialogDescription>
+                Mover {scheduleToMove?.profile?.full_name} para outro dia da semana
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <Avatar>
+                  <AvatarImage src={scheduleToMove?.profile?.avatar_url || ''} />
+                  <AvatarFallback>
+                    {scheduleToMove?.profile?.full_name?.charAt(0) || '?'}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-medium">{scheduleToMove?.profile?.full_name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Atualmente: {DAYS_OF_WEEK.find(d => d.value === scheduleToMove?.day_of_week)?.label}
+                  </p>
+                </div>
+              </div>
+              
+              <div>
+                <Label className="mb-2 block">Novo dia</Label>
+                <Select 
+                  value={newDayForSchedule?.toString() || ''} 
+                  onValueChange={(v) => setNewDayForSchedule(parseInt(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o novo dia" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DAYS_OF_WEEK.filter(d => d.value !== scheduleToMove?.day_of_week).map(day => (
+                      <SelectItem key={day.value} value={day.value.toString()}>
+                        {day.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setMoveDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleMoveSchedule} 
+                disabled={isMovingSchedule || !newDayForSchedule}
+              >
+                {isMovingSchedule ? 'Movendo...' : 'Mover'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
