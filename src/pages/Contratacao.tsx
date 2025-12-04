@@ -233,6 +233,7 @@ export default function Contratacao() {
   const [talentPoolFilter, setTalentPoolFilter] = useState<string>('all');
   const [talentPoolSearch, setTalentPoolSearch] = useState('');
   const [talentPoolSort, setTalentPoolSort] = useState<string>('date_desc');
+  const [talentPoolPositionFilter, setTalentPoolPositionFilter] = useState<string>('all');
   const [uploading, setUploading] = useState(false);
   
   // Selected items
@@ -915,9 +916,12 @@ export default function Contratacao() {
   const filteredTalentPool = talentPoolCandidates
     .filter(c => {
       const matchesSearch = c.full_name.toLowerCase().includes(talentPoolSearch.toLowerCase());
-      if (talentPoolFilter === 'future_hire') return matchesSearch && c.is_future_hire_candidate;
-      if (talentPoolFilter === 'regular') return matchesSearch && !c.is_future_hire_candidate;
-      return matchesSearch;
+      const matchesPosition = talentPoolPositionFilter === 'all' || 
+        (talentPoolPositionFilter === 'unspecified' && !c.position_applied) ||
+        c.position_applied === talentPoolPositionFilter;
+      if (talentPoolFilter === 'future_hire') return matchesSearch && matchesPosition && c.is_future_hire_candidate;
+      if (talentPoolFilter === 'regular') return matchesSearch && matchesPosition && !c.is_future_hire_candidate;
+      return matchesSearch && matchesPosition;
     })
     .sort((a, b) => {
       switch (talentPoolSort) {
@@ -940,7 +944,8 @@ export default function Contratacao() {
     const topPositions = Object.entries(positionCounts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
-    return { total: talentPoolCount, futureHire: futureHireCount, topPositions };
+    const uniquePositions = [...new Set(talentPoolCandidates.map(c => c.position_applied).filter(Boolean))] as string[];
+    return { total: talentPoolCount, futureHire: futureHireCount, topPositions, uniquePositions };
   }, [talentPoolCandidates, talentPoolCount]);
 
   // Talent pool export functions
@@ -1550,8 +1555,21 @@ export default function Contratacao() {
                   <SelectItem value="regular">Regulares</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={talentPoolSort} onValueChange={setTalentPoolSort}>
+              <Select value={talentPoolPositionFilter} onValueChange={setTalentPoolPositionFilter}>
                 <SelectTrigger className="w-[180px]">
+                  <Briefcase className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Cargo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os cargos</SelectItem>
+                  <SelectItem value="unspecified">Não especificado</SelectItem>
+                  {talentPoolStats.uniquePositions.sort().map(pos => (
+                    <SelectItem key={pos} value={pos}>{pos}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={talentPoolSort} onValueChange={setTalentPoolSort}>
+                <SelectTrigger className="w-[150px]">
                   <SelectValue placeholder="Ordenar" />
                 </SelectTrigger>
                 <SelectContent>
