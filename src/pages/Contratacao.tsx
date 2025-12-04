@@ -230,6 +230,7 @@ export default function Contratacao() {
   const [searchTerm, setSearchTerm] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('all');
   const [jobOpeningFilter, setJobOpeningFilter] = useState<string>('all');
+  const [talentPoolFilter, setTalentPoolFilter] = useState<string>('all');
   const [uploading, setUploading] = useState(false);
   
   // Selected items
@@ -1416,8 +1417,27 @@ export default function Contratacao() {
               )}
             </div>
 
+            <div className="flex items-center gap-4 mb-4">
+              <Select value={talentPoolFilter} onValueChange={setTalentPoolFilter}>
+                <SelectTrigger className="w-[220px]">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Filtrar candidatos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os candidatos</SelectItem>
+                  <SelectItem value="future_hire">Viáveis para contratação</SelectItem>
+                  <SelectItem value="regular">Candidatos regulares</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid gap-4">
-              {candidates.filter(c => !c.job_opening_id).length === 0 ? (
+              {candidates.filter(c => {
+                if (c.job_opening_id) return false;
+                if (talentPoolFilter === 'future_hire') return c.is_future_hire_candidate;
+                if (talentPoolFilter === 'regular') return !c.is_future_hire_candidate;
+                return true;
+              }).length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center">
                     <Database className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -1428,7 +1448,12 @@ export default function Contratacao() {
                   </CardContent>
                 </Card>
               ) : (
-                candidates.filter(c => !c.job_opening_id).map(candidate => (
+                candidates.filter(c => {
+                  if (c.job_opening_id) return false;
+                  if (talentPoolFilter === 'future_hire') return c.is_future_hire_candidate;
+                  if (talentPoolFilter === 'regular') return !c.is_future_hire_candidate;
+                  return true;
+                }).map(candidate => (
                   <Card key={candidate.id} className="border-amber-200 bg-amber-50/30">
                     <CardContent className="p-4">
                       <div className="flex flex-col sm:flex-row justify-between gap-4">
