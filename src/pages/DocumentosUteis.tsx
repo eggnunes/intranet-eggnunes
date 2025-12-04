@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { FileText, Plus, Download, Trash2, Upload } from 'lucide-react';
+import { FileText, Plus, Download, Trash2, Upload, Eye } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 
@@ -303,8 +303,20 @@ export default function DocumentosUteis() {
                       className="flex-1"
                       onClick={() => window.open(doc.file_url, '_blank')}
                     >
-                      <Download className="w-4 h-4 mr-2" />
-                      Baixar
+                      <Eye className="w-4 h-4 mr-2" />
+                      Visualizar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const link = document.createElement('a');
+                        link.href = doc.file_url;
+                        link.download = doc.title;
+                        link.click();
+                      }}
+                    >
+                      <Download className="w-4 h-4" />
                     </Button>
                     {canManageDocuments && (
                       <Button
