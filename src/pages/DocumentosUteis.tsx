@@ -19,9 +19,7 @@ interface Document {
   file_url: string;
   created_at: string;
   uploaded_by: string;
-  profiles: {
-    full_name: string;
-  };
+  uploader_name?: string;
 }
 
 export default function DocumentosUteis() {
@@ -45,15 +43,32 @@ export default function DocumentosUteis() {
   }, [isApproved]);
 
   const fetchDocuments = async () => {
-    const { data } = await supabase
+    // Fetch documents
+    const { data: docs, error } = await supabase
       .from('useful_documents')
-      .select(`
-        *,
-        profiles:uploaded_by(full_name)
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
 
-    setDocuments(data as any || []);
+    if (error || !docs) {
+      setDocuments([]);
+      return;
+    }
+
+    // Fetch uploader names
+    const uploaderIds = [...new Set(docs.map(d => d.uploaded_by))];
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', uploaderIds);
+
+    const profileMap = new Map(profiles?.map(p => [p.id, p.full_name]) || []);
+    
+    const documentsWithNames = docs.map(doc => ({
+      ...doc,
+      uploader_name: profileMap.get(doc.uploaded_by) || 'Usuário desconhecido'
+    }));
+
+    setDocuments(documentsWithNames);
   };
 
   const handleUpload = async (e: React.FormEvent) => {
@@ -278,8 +293,8 @@ export default function DocumentosUteis() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-xs text-muted-foreground mb-4">
-                    Enviado por {doc.profiles?.full_name}
+                <div className="text-xs text-muted-foreground mb-4">
+                    Enviado por {doc.uploader_name}
                   </div>
                   <div className="flex gap-2">
                     <Button
