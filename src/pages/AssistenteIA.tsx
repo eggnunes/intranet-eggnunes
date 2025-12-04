@@ -37,8 +37,11 @@ import {
   Zap,
   Brain,
   Cpu,
-  Eye
+  Star,
+  StarOff
 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
@@ -76,6 +79,16 @@ interface AIModel {
   capabilities: string[];
   icon: string;
   badge?: string;
+}
+
+interface FavoriteMessage {
+  id: string;
+  message_id: string;
+  conversation_id: string;
+  content: string;
+  model: string;
+  notes: string | null;
+  created_at: string;
 }
 
 const AI_MODELS: AIModel[] = [
@@ -254,6 +267,11 @@ const AssistenteIA = () => {
   const [showTemplates, setShowTemplates] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   
+  // Favorites
+  const [favorites, setFavorites] = useState<FavoriteMessage[]>([]);
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -273,6 +291,7 @@ const AssistenteIA = () => {
     if (user) {
       loadConversations();
       loadTemplates();
+      loadFavorites();
     }
   }, [user]);
 
@@ -304,6 +323,113 @@ const AssistenteIA = () => {
       setTemplates(data || []);
     } catch (error) {
       console.error('Error loading templates:', error);
+    }
+  };
+
+  const loadFavorites = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('ai_message_favorites')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setFavorites(data || []);
+      setFavoriteIds(new Set((data || []).map((f: FavoriteMessage) => f.message_id)));
+    } catch (error) {
+      console.error('Error loading favorites:', error);
+    }
+  };
+
+  const toggleFavorite = async (message: Message) => {
+    if (!user || !currentConversationId) return;
+    
+    const isFavorited = favoriteIds.has(message.id);
+    
+    if (isFavorited) {
+      // Remove favorite
+      try {
+        const { error } = await supabase
+          .from('ai_message_favorites')
+          .delete()
+          .eq('message_id', message.id);
+        
+        if (error) throw error;
+        
+        setFavorites(prev => prev.filter(f => f.message_id !== message.id));
+        setFavoriteIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(message.id);
+          return newSet;
+        });
+        
+        toast({ title: 'Removido dos favoritos' });
+      } catch (error) {
+        console.error('Error removing favorite:', error);
+        toast({
+          title: 'Erro',
+          description: 'Erro ao remover dos favoritos',
+          variant: 'destructive'
+        });
+      }
+    } else {
+      // Add favorite
+      try {
+        const currentModelInfo = AI_MODELS.find(m => m.id === selectedModel);
+        
+        const { data, error } = await supabase
+          .from('ai_message_favorites')
+          .insert({
+            user_id: user.id,
+            message_id: message.id,
+            conversation_id: currentConversationId,
+            content: message.content,
+            model: currentModelInfo?.name || selectedModel
+          })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        
+        setFavorites(prev => [data, ...prev]);
+        setFavoriteIds(prev => new Set([...prev, message.id]));
+        
+        toast({ title: 'Adicionado aos favoritos!' });
+      } catch (error) {
+        console.error('Error adding favorite:', error);
+        toast({
+          title: 'Erro',
+          description: 'Erro ao adicionar aos favoritos',
+          variant: 'destructive'
+        });
+      }
+    }
+  };
+
+  const removeFavorite = async (favoriteId: string, messageId: string) => {
+    try {
+      const { error } = await supabase
+        .from('ai_message_favorites')
+        .delete()
+        .eq('id', favoriteId);
+      
+      if (error) throw error;
+      
+      setFavorites(prev => prev.filter(f => f.id !== favoriteId));
+      setFavoriteIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(messageId);
+        return newSet;
+      });
+      
+      toast({ title: 'Removido dos favoritos' });
+    } catch (error) {
+      console.error('Error removing favorite:', error);
+      toast({
+        title: 'Erro',
+        description: 'Erro ao remover dos favoritos',
+        variant: 'destructive'
+      });
     }
   };
 
@@ -1010,6 +1136,81 @@ const AssistenteIA = () => {
                   </DialogContent>
                 </Dialog>
 
+                {/* Favorites Button */}
+                <Dialog open={showFavorites} onOpenChange={setShowFavorites}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Star className="w-4 h-4 mr-1" />
+                      Favoritos
+                      {favorites.length > 0 && (
+                        <Badge variant="secondary" className="ml-1 text-xs">
+                          {favorites.length}
+                        </Badge>
+                      )}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl max-h-[80vh]">
+                    <DialogHeader>
+                      <DialogTitle>Respostas Favoritas</DialogTitle>
+                    </DialogHeader>
+                    <ScrollArea className="h-[500px] pr-4">
+                      {favorites.length === 0 ? (
+                        <div className="text-center py-12">
+                          <Star className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                          <p className="text-muted-foreground">
+                            Nenhuma resposta favorita ainda.
+                          </p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Clique na estrela ao lado das respostas para salvá-las.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {favorites.map(fav => (
+                            <Card key={fav.id} className="relative group">
+                              <CardContent className="p-4">
+                                <div className="flex items-start justify-between gap-2 mb-2">
+                                  <Badge variant="outline" className="text-xs">
+                                    {fav.model}
+                                  </Badge>
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
+                                      onClick={() => copyToClipboard(fav.content, fav.id)}
+                                    >
+                                      {copiedId === fav.id ? (
+                                        <Check className="w-3 h-3" />
+                                      ) : (
+                                        <Copy className="w-3 h-3" />
+                                      )}
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 text-destructive opacity-0 group-hover:opacity-100"
+                                      onClick={() => removeFavorite(fav.id, fav.message_id)}
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                                <p className="text-sm whitespace-pre-wrap line-clamp-6">
+                                  {fav.content}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-2">
+                                  {format(new Date(fav.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                                </p>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      )}
+                    </ScrollArea>
+                  </DialogContent>
+                </Dialog>
+
                 {/* Export Dropdown */}
                 {messages.length > 0 && (
                   <div className="flex gap-1">
@@ -1160,18 +1361,34 @@ const AssistenteIA = () => {
                         <div className="flex items-center gap-2 mt-2 text-xs opacity-70">
                           <span>{format(message.timestamp, "HH:mm", { locale: ptBR })}</span>
                           {message.role === 'assistant' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-5 w-5 p-0"
-                              onClick={() => copyToClipboard(message.content, message.id)}
-                            >
-                              {copiedId === message.id ? (
-                                <Check className="w-3 h-3" />
-                              ) : (
-                                <Copy className="w-3 h-3" />
-                              )}
-                            </Button>
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 w-5 p-0"
+                                onClick={() => copyToClipboard(message.content, message.id)}
+                              >
+                                {copiedId === message.id ? (
+                                  <Check className="w-3 h-3" />
+                                ) : (
+                                  <Copy className="w-3 h-3" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`h-5 w-5 p-0 ${favoriteIds.has(message.id) ? 'text-yellow-500' : ''}`}
+                                onClick={() => toggleFavorite(message)}
+                                disabled={!currentConversationId}
+                                title={favoriteIds.has(message.id) ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                              >
+                                {favoriteIds.has(message.id) ? (
+                                  <Star className="w-3 h-3 fill-current" />
+                                ) : (
+                                  <StarOff className="w-3 h-3" />
+                                )}
+                              </Button>
+                            </>
                           )}
                         </div>
                       </CardContent>
