@@ -45,8 +45,8 @@ export interface AdminPermissions {
 }
 
 export const useAdminPermissions = () => {
-  const { user } = useAuth();
-  const { isAdmin, profile } = useUserRole();
+  const { user, loading: authLoading } = useAuth();
+  const { isAdmin, profile, loading: roleLoading } = useUserRole();
   const [permissions, setPermissions] = useState<AdminPermissions | null>(null);
   const [groupPermissions, setGroupPermissions] = useState<AdminPermissions | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,6 +54,12 @@ export const useAdminPermissions = () => {
   const [userGroup, setUserGroup] = useState<string | null>(null);
 
   useEffect(() => {
+    // Aguardar auth e role carregarem antes de verificar permissões
+    if (authLoading || roleLoading) {
+      setLoading(true);
+      return;
+    }
+    
     if (!user) {
       setPermissions(null);
       setGroupPermissions(null);
@@ -200,7 +206,7 @@ export const useAdminPermissions = () => {
     };
 
     checkPermissions();
-  }, [user, isAdmin, profile]);
+  }, [user, isAdmin, profile, authLoading, roleLoading]);
 
   const hasPermission = (feature: PermissionFeature, level: PermissionLevel = 'view'): boolean => {
     if (!permissions) return false;
