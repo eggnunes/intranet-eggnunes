@@ -27,9 +27,20 @@ export const useUserRole = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Safety timeout - se demorar mais de 10 segundos, forçar loading false
+    const safetyTimeout = setTimeout(() => {
+      if (loading) {
+        console.warn('useUserRole: Safety timeout triggered');
+        setLoading(false);
+      }
+    }, 10000);
+
+    return () => clearTimeout(safetyTimeout);
+  }, [loading]);
+
+  useEffect(() => {
     // Aguardar auth carregar antes de verificar usuário
     if (authLoading) {
-      setLoading(true);
       return;
     }
     

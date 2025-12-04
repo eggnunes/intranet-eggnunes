@@ -99,12 +99,15 @@ export default function TarefasAdvbox() {
   const [selectedPriority, setSelectedPriority] = useState<'alta' | 'media' | 'baixa'>('media');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [viewTab, setViewTab] = useState<string>('list');
+  const [dataLoaded, setDataLoaded] = useState(false);
   const { toast } = useToast();
   const { isAdmin, profile, loading: roleLoading } = useUserRole();
-  const { canView, loading: permLoading } = useAdminPermissions();
+  const { canView, canEdit, loading: permLoading } = useAdminPermissions();
   const isMobile = useIsMobile();
   
-  const hasAdvboxAccess = canView('advbox');
+  // Verificar acesso com fallback seguro
+  const hasAdvboxAccess = !permLoading && canView('advbox');
+  const isLoading = roleLoading || permLoading;
   
   // Hook para notificações push - DEVE ser chamado antes de qualquer return condicional
   useTaskNotifications(tasks);
@@ -269,25 +272,33 @@ export default function TarefasAdvbox() {
 
   // useEffect DEVE vir DEPOIS das definições de funções
   useEffect(() => {
-    if (!roleLoading && !permLoading && hasAdvboxAccess) {
+    // Só carregar dados quando permissões estiverem prontas E usuário tiver acesso
+    if (!isLoading && hasAdvboxAccess && !dataLoaded) {
+      console.log('TarefasAdvbox: Carregando dados...');
+      setDataLoaded(true);
       fetchTasks();
       fetchUsers();
       fetchAdvboxTaskTypes();
       fetchAdvboxUsers();
     }
-  }, [roleLoading, permLoading, hasAdvboxAccess]);
+  }, [isLoading, hasAdvboxAccess, dataLoaded]);
 
   // CONDITIONAL RETURNS - apenas APÓS todas as funções e hooks
-  if (roleLoading || permLoading) {
+  // Mostrar loading enquanto verifica permissões
+  if (isLoading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[400px]">
-          <p className="text-muted-foreground">Carregando...</p>
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <p className="text-muted-foreground">Verificando permissões...</p>
+          </div>
         </div>
       </Layout>
     );
   }
 
+  // Verificar acesso após loading completar
   if (!hasAdvboxAccess) {
     return (
       <Layout>

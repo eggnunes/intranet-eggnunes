@@ -54,9 +54,20 @@ export const useAdminPermissions = () => {
   const [userGroup, setUserGroup] = useState<string | null>(null);
 
   useEffect(() => {
+    // Safety timeout - se demorar mais de 10 segundos, forçar loading false
+    const safetyTimeout = setTimeout(() => {
+      if (loading) {
+        console.warn('useAdminPermissions: Safety timeout triggered');
+        setLoading(false);
+      }
+    }, 10000);
+
+    return () => clearTimeout(safetyTimeout);
+  }, [loading]);
+
+  useEffect(() => {
     // Aguardar auth e role carregarem antes de verificar permissões
     if (authLoading || roleLoading) {
-      setLoading(true);
       return;
     }
     
