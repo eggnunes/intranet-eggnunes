@@ -36,12 +36,18 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `Você é um assistente que categoriza alimentos. 
+            content: `Você é um assistente que categoriza alimentos para uma copa/cozinha de escritório. 
 Dado o nome de um alimento, responda APENAS com UMA das seguintes categorias (exatamente como escrito):
-- Bebidas (para água, sucos, refrigerantes, café, chá, etc.)
-- Snacks (para biscoitos, chips, salgadinhos, etc.)
-- Frutas (para frutas frescas ou secas)
-- Lanches (para pães, sanduíches, bolos, etc.)
+- Bebidas (para água, sucos, refrigerantes, energéticos, etc.)
+- Café/Chá (para café, chá, cappuccino, achocolatado, etc.)
+- Laticínios (para leite, queijo, iogurte, manteiga, requeijão, cream cheese, etc.)
+- Snacks (para biscoitos, chips, salgadinhos, amendoim, castanhas, etc.)
+- Frutas (para frutas frescas ou secas, como maçã, banana, uva passa, etc.)
+- Lanches (para sanduíches, wraps, hambúrgueres, etc.)
+- Pães (para pão de forma, pão francês, torradas, bisnaguinha, croissant, etc.)
+- Doces (para chocolate, balas, brigadeiro, sobremesas, sorvete, etc.)
+- Condimentos (para ketchup, maionese, mostarda, sal, açúcar, adoçante, etc.)
+- Cereais/Grãos (para granola, aveia, cereal matinal, arroz, etc.)
 - Outros (para itens que não se encaixam nas categorias anteriores)
 
 Responda APENAS com o nome da categoria, nada mais.`
@@ -80,7 +86,7 @@ Responda APENAS com o nome da categoria, nada mais.`
     let suggestedCategory = data.choices?.[0]?.message?.content?.trim() || "Outros";
 
     // Normalize the response to match our exact categories
-    const validCategories = ["Bebidas", "Snacks", "Frutas", "Lanches", "Outros"];
+    const validCategories = ["Bebidas", "Café/Chá", "Laticínios", "Snacks", "Frutas", "Lanches", "Pães", "Doces", "Condimentos", "Cereais/Grãos", "Outros"];
     const normalizedCategory = validCategories.find(
       cat => suggestedCategory.toLowerCase().includes(cat.toLowerCase())
     ) || "Outros";
