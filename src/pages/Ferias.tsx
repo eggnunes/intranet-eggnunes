@@ -67,9 +67,9 @@ interface UserProfile {
   join_date: string | null;
 }
 
-// Check if position is CLT (administrativo = 30 consecutive days)
+// Check if position is CLT (administrativo or comercial = 30 consecutive days)
 const isCLT = (position: string | null): boolean => {
-  return position === 'administrativo';
+  return position === 'administrativo' || position === 'comercial';
 };
 
 // Get total vacation days based on position
@@ -127,6 +127,7 @@ export default function Ferias() {
   const [adminSelectedUser, setAdminSelectedUser] = useState<string>('');
   const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile | null>(null);
   const [selectedUserProfile, setSelectedUserProfile] = useState<UserProfile | null>(null);
+  const [filteredUserProfile, setFilteredUserProfile] = useState<UserProfile | null>(null);
   const [reportStartDate, setReportStartDate] = useState<Date>(startOfMonth(new Date()));
   const [reportEndDate, setReportEndDate] = useState<Date>(endOfMonth(addMonths(new Date(), 2)));
   const [allApprovedRequests, setAllApprovedRequests] = useState<VacationRequest[]>([]);
@@ -145,7 +146,7 @@ export default function Ferias() {
     }
   }, [user, canManageVacations, selectedUser]);
 
-  // Update selected user profile when admin selects a user
+  // Update selected user profile when admin selects a user for creating vacation
   useEffect(() => {
     if (adminSelectedUser) {
       const profile = profiles.find(p => p.id === adminSelectedUser);
@@ -159,6 +160,21 @@ export default function Ferias() {
       setSelectedUserProfile(null);
     }
   }, [adminSelectedUser, profiles]);
+
+  // Update filtered user profile when admin filters by a specific user
+  useEffect(() => {
+    if (selectedUser && selectedUser !== 'all') {
+      const profile = profiles.find(p => p.id === selectedUser);
+      if (profile) {
+        setFilteredUserProfile({
+          position: profile.position,
+          join_date: profile.join_date
+        });
+      }
+    } else {
+      setFilteredUserProfile(null);
+    }
+  }, [selectedUser, profiles]);
 
   const fetchCurrentUserProfile = async () => {
     if (!user) return;
@@ -473,12 +489,17 @@ export default function Ferias() {
     );
   };
 
+  // Determine which profile to use for balance display
+  const displayProfile = (isAdmin && selectedUser !== 'all' && filteredUserProfile) 
+    ? filteredUserProfile 
+    : currentUserProfile;
+  
   // Calculate display balance
-  const totalDays = getTotalVacationDays(currentUserProfile?.position || null);
+  const totalDays = getTotalVacationDays(displayProfile?.position || null);
   const usedDays = balance?.used_days ?? 0;
   const availableDays = totalDays - usedDays;
-  const vacationTypeLabel = getVacationTypeLabel(currentUserProfile?.position || null);
-  const vacationPeriod = calculateVacationPeriod(currentUserProfile?.join_date || null);
+  const vacationTypeLabel = getVacationTypeLabel(displayProfile?.position || null);
+  const vacationPeriod = calculateVacationPeriod(displayProfile?.join_date || null);
 
   // For dialogs - calculate days preview
   const activeProfile = getActiveProfile();
@@ -622,7 +643,7 @@ export default function Ferias() {
                         <SelectContent>
                           {profiles.map((profile) => (
                             <SelectItem key={profile.id} value={profile.id}>
-                              {profile.full_name} {profile.position === 'administrativo' && '(CLT)'}
+                              {profile.full_name} {isCLT(profile.position) && '(CLT)'}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -732,7 +753,7 @@ export default function Ferias() {
                   <SelectItem value="all">Todos os colaboradores</SelectItem>
                   {profiles.map((profile) => (
                     <SelectItem key={profile.id} value={profile.id}>
-                      {profile.full_name} {profile.position === 'administrativo' && '(CLT)'}
+                      {profile.full_name} {isCLT(profile.position) && '(CLT)'}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -752,13 +773,13 @@ export default function Ferias() {
               )}
             </CardTitle>
             <CardDescription>
-              {isCLT(currentUserProfile?.position || null) ? (
+              {isCLT(displayProfile?.position || null) ? (
                 <>Colaborador CLT - 30 dias corridos por ano</>
               ) : (
                 <>Colaborador - 20 dias úteis por ano</>
               )}
-              {currentUserProfile?.join_date && (
-                <> (ingresso em {format(parseISO(currentUserProfile.join_date), "dd/MM/yyyy")})</>
+              {displayProfile?.join_date && (
+                <> (ingresso em {format(parseISO(displayProfile.join_date), "dd/MM/yyyy")})</>
               )}
             </CardDescription>
           </CardHeader>
@@ -806,7 +827,7 @@ export default function Ferias() {
                                 <div className="flex items-center gap-2">
                                   <User className="h-4 w-4 text-muted-foreground" />
                                   <span className="font-medium">{request.profiles.full_name}</span>
-                                  {request.profiles.position === 'administrativo' && (
+                                  {isCLT(request.profiles.position) && (
                                     <Badge variant="secondary" className="text-xs">CLT</Badge>
                                   )}
                                 </div>
@@ -820,7 +841,7 @@ export default function Ferias() {
                                   {format(parseISO(request.end_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                                 </span>
                                 <span className="text-muted-foreground">
-                                  ({request.business_days} {request.profiles.position === 'administrativo' ? 'dias corridos' : 'dias úteis'})
+                                  ({request.business_days} {isCLT(request.profiles.position) ? 'dias corridos' : 'dias úteis'})
                                 </span>
                               </div>
                               {request.notes && (
