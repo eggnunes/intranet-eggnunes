@@ -1077,50 +1077,49 @@ const HomeOffice = () => {
                         </div>
 
                         {/* Lawyer Selection */}
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label className="flex items-center gap-2">
-                              <Users className="h-4 w-4" />
-                              Advogados para o Sorteio
-                            </Label>
-                            <div className="flex gap-2">
-                              <Button variant="outline" size="sm" onClick={selectAllLawyers}>
-                                Selecionar Todos
-                              </Button>
-                              <Button variant="outline" size="sm" onClick={deselectAllLawyers}>
-                                Limpar
-                              </Button>
-                            </div>
-                          </div>
+                        <div className="space-y-3">
+                          <Label className="flex items-center gap-2">
+                            <Users className="h-4 w-4" />
+                            Advogados para o Sorteio
+                          </Label>
                           <p className="text-sm text-muted-foreground">
                             Selecione os advogados que participarão do sorteio. A escala existente será substituída.
                           </p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[300px] overflow-y-auto p-2 border rounded-lg">
                             {lawyers.map(lawyer => (
-                              <div
+                              <label
                                 key={lawyer.id}
-                                className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${
+                                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
                                   selectedLawyersForRandom.includes(lawyer.id)
                                     ? 'bg-primary/10 border border-primary'
                                     : 'bg-muted/30 border border-transparent hover:bg-muted/50'
                                 }`}
-                                onClick={() => toggleLawyerSelection(lawyer.id)}
                               >
                                 <Checkbox
                                   checked={selectedLawyersForRandom.includes(lawyer.id)}
                                   onCheckedChange={() => toggleLawyerSelection(lawyer.id)}
                                 />
-                                <Avatar className="h-8 w-8">
+                                <Avatar className="h-8 w-8 flex-shrink-0">
                                   <AvatarImage src={lawyer.avatar_url || ''} />
                                   <AvatarFallback>{lawyer.full_name.charAt(0)}</AvatarFallback>
                                 </Avatar>
                                 <span className="text-sm font-medium truncate">{lawyer.full_name}</span>
-                              </div>
+                              </label>
                             ))}
                           </div>
-                          <p className="text-sm text-muted-foreground text-center">
-                            {selectedLawyersForRandom.length} de {lawyers.length} advogado(s) selecionado(s)
-                          </p>
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+                            <p className="text-sm text-muted-foreground">
+                              {selectedLawyersForRandom.length} de {lawyers.length} advogado(s) selecionado(s)
+                            </p>
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm" onClick={selectAllLawyers} className="text-xs">
+                                Selecionar Todos
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={deselectAllLawyers} className="text-xs">
+                                Limpar
+                              </Button>
+                            </div>
+                          </div>
                         </div>
 
                         {/* Preview */}
