@@ -14,7 +14,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { 
   Coffee, Plus, ShoppingCart, Check, RefreshCw, Sparkles, Users, 
   FileSpreadsheet, FileText, Trophy, CheckCircle2, XCircle, Clock,
-  Apple, GlassWater, Cookie, Sandwich, Edit2, Trash2, Wand2, Lock
+  Apple, GlassWater, Cookie, Sandwich, Edit2, Trash2, Wand2, Lock,
+  Milk, Candy, CupSoda, Croissant, Salad, Soup
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -65,10 +66,16 @@ interface AllTimeRanking {
 
 const CATEGORIES = [
   { value: 'bebidas', label: 'Bebidas', icon: GlassWater },
+  { value: 'cafe_cha', label: 'Café/Chá', icon: Coffee },
+  { value: 'laticinios', label: 'Laticínios', icon: Milk },
   { value: 'snacks', label: 'Snacks', icon: Cookie },
   { value: 'frutas', label: 'Frutas', icon: Apple },
   { value: 'lanches', label: 'Lanches', icon: Sandwich },
-  { value: 'outros', label: 'Outros', icon: Coffee },
+  { value: 'paes', label: 'Pães', icon: Croissant },
+  { value: 'doces', label: 'Doces', icon: Candy },
+  { value: 'condimentos', label: 'Condimentos', icon: Soup },
+  { value: 'cereais', label: 'Cereais/Grãos', icon: Salad },
+  { value: 'outros', label: 'Outros', icon: CupSoda },
 ];
 
 const CopaCozinha = () => {
@@ -112,9 +119,15 @@ const CopaCozinha = () => {
       if (data?.category) {
         const categoryMap: Record<string, string> = {
           'Bebidas': 'bebidas',
+          'Café/Chá': 'cafe_cha',
+          'Laticínios': 'laticinios',
           'Snacks': 'snacks',
           'Frutas': 'frutas',
           'Lanches': 'lanches',
+          'Pães': 'paes',
+          'Doces': 'doces',
+          'Condimentos': 'condimentos',
+          'Cereais/Grãos': 'cereais',
           'Outros': 'outros',
         };
         const normalizedCategory = categoryMap[data.category] || 'outros';
@@ -374,6 +387,54 @@ const CopaCozinha = () => {
       toast({
         title: 'Erro',
         description: error.message || 'Não foi possível processar sua sugestão.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteSuggestion = async (foodItemId: string, deleteAll: boolean = false) => {
+    const confirmMessage = deleteAll 
+      ? 'Tem certeza que deseja excluir todas as sugestões deste alimento?'
+      : 'Tem certeza que deseja remover sua sugestão?';
+    
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      let query = supabase
+        .from('food_suggestions')
+        .delete()
+        .eq('food_item_id', foodItemId)
+        .eq('week_start', currentWeekStart);
+
+      // Se não for admin excluindo todas, remove apenas a própria sugestão
+      if (!deleteAll) {
+        query = query.eq('user_id', user?.id);
+      }
+
+      const { error } = await query;
+
+      if (error) throw error;
+
+      setUserSuggestions(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(foodItemId);
+        return newSet;
+      });
+
+      toast({
+        title: 'Sugestão excluída',
+        description: deleteAll 
+          ? 'Todas as sugestões deste alimento foram removidas.'
+          : 'Sua sugestão foi removida com sucesso.',
+      });
+
+      fetchSuggestions();
+      fetchAllTimeRanking();
+    } catch (error: any) {
+      console.error('Error deleting suggestion:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Não foi possível excluir a sugestão.',
         variant: 'destructive',
       });
     }
@@ -865,7 +926,9 @@ const CopaCozinha = () => {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {suggestionCounts.map((item) => (
+                      {suggestionCounts.map((item) => {
+                        const userHasSuggested = userSuggestions.has(item.food_item_id);
+                        return (
                         <div
                           key={item.food_item_id}
                           className="p-3 rounded-lg bg-muted/50 border border-border"
@@ -885,8 +948,24 @@ const CopaCozinha = () => {
                             <Users className="h-3 w-3" />
                             {item.users.join(', ')}
                           </p>
-                          {isAdmin && (
+                          
+                          {/* Botão para usuário remover própria sugestão */}
+                          {userHasSuggested && !isAdmin && (
                             <div className="flex gap-2 mt-3 pt-3 border-t border-border">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                                onClick={() => handleDeleteSuggestion(item.food_item_id, false)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Remover minha sugestão
+                              </Button>
+                            </div>
+                          )}
+
+                          {isAdmin && (
+                            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-border">
                               <Button
                                 size="sm"
                                 variant={item.purchase_status === 'accepted' ? 'default' : 'outline'}
@@ -913,10 +992,19 @@ const CopaCozinha = () => {
                                   Resetar
                                 </Button>
                               )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-destructive hover:bg-destructive hover:text-destructive-foreground ml-auto"
+                                onClick={() => handleDeleteSuggestion(item.food_item_id, true)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Excluir
+                              </Button>
                             </div>
                           )}
                         </div>
-                      ))}
+                      );})}
                     </div>
                   )}
 
