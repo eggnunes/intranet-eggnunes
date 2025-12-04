@@ -11,7 +11,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X, Edit, History, Calendar, List, Settings, BarChart3, Lightbulb } from 'lucide-react';
+import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X, Edit, History, Calendar, List, Settings, BarChart3, Lightbulb, Lock } from 'lucide-react';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { TaskCalendarView } from '@/components/TaskCalendarView';
 import { TaskNotificationSettings } from '@/components/TaskNotificationSettings';
 import { WeeklyTaskReport } from '@/components/WeeklyTaskReport';
@@ -94,10 +95,37 @@ export default function TarefasAdvbox() {
   const [viewTab, setViewTab] = useState<string>('list');
   const { toast } = useToast();
   const { isAdmin, profile, loading: roleLoading } = useUserRole();
+  const { canView, loading: permLoading } = useAdminPermissions();
   const isMobile = useIsMobile();
+  
+  const hasAdvboxAccess = canView('advbox');
   
   // Hook para notificações push
   useTaskNotifications(tasks);
+
+  if (roleLoading || permLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!hasAdvboxAccess) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+          <Lock className="h-16 w-16 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">Acesso Restrito</h2>
+          <p className="text-muted-foreground text-center max-w-md">
+            Você não tem permissão para acessar as tarefas do Advbox.
+          </p>
+        </div>
+      </Layout>
+    );
+  }
 
   useEffect(() => {
     fetchTasks();

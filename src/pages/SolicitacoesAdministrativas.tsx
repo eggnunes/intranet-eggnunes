@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Layout } from '@/components/Layout';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Package, Wrench, Monitor, AlertCircle, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Plus, Package, Wrench, Monitor, AlertCircle, Clock, CheckCircle, XCircle, Loader2, Lock } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -40,7 +41,8 @@ interface AdministrativeRequest {
 
 export default function SolicitacoesAdministrativas() {
   const { user } = useAuth();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, loading: roleLoading } = useUserRole();
+  const { canView, loading: permLoading } = useAdminPermissions();
   const [requests, setRequests] = useState<AdministrativeRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [isNewRequestOpen, setIsNewRequestOpen] = useState(false);
@@ -48,6 +50,8 @@ export default function SolicitacoesAdministrativas() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<string>('medium');
+
+  const hasAdminRequestsAccess = canView('admin_requests');
 
   useEffect(() => {
     if (user) {
@@ -225,6 +229,30 @@ export default function SolicitacoesAdministrativas() {
       </Badge>
     );
   };
+
+  if (roleLoading || permLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!hasAdminRequestsAccess) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+          <Lock className="h-16 w-16 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">Acesso Restrito</h2>
+          <p className="text-muted-foreground text-center max-w-md">
+            Você não tem permissão para acessar as solicitações administrativas.
+          </p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>

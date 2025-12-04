@@ -16,8 +16,10 @@ import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Home, Calendar, Users, ArrowRightLeft, Check, X, Clock,
-  Plus, Trash2, Bell, AlertCircle, BarChart3, FileSpreadsheet, FileText, Download, Shuffle, Building
+  Plus, Trash2, Bell, AlertCircle, BarChart3, FileSpreadsheet, FileText, Download, Shuffle, Building, History
 } from 'lucide-react';
+import { HomeOfficeLotteryHistory } from '@/components/HomeOfficeLotteryHistory';
+import { SwapRequestNotification } from '@/components/SwapRequestNotification';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
@@ -708,8 +710,13 @@ const HomeOffice = () => {
           </div>
         </div>
 
+        {/* Real-time swap request notification */}
+        {isLawyer && (
+          <SwapRequestNotification onRespond={fetchSwapRequests} />
+        )}
+
         <Tabs defaultValue="board" className="w-full">
-          <TabsList className={`grid w-full ${canManageHomeOffice ? 'grid-cols-4' : isLawyer ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <TabsList className={`grid w-full ${canManageHomeOffice ? 'grid-cols-5' : isLawyer ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <TabsTrigger value="board">Mural da Semana</TabsTrigger>
             {isLawyer && (
               <TabsTrigger value="swap" className="flex items-center gap-2">
@@ -728,6 +735,10 @@ const HomeOffice = () => {
                 <TabsTrigger value="stats">
                   <BarChart3 className="h-4 w-4 mr-1" />
                   Estatísticas
+                </TabsTrigger>
+                <TabsTrigger value="history">
+                  <History className="h-4 w-4 mr-1" />
+                  Histórico
                 </TabsTrigger>
               </>
             )}
@@ -1396,6 +1407,11 @@ const HomeOffice = () => {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* History Tab */}
+            <TabsContent value="history" className="space-y-6">
+              <HomeOfficeLotteryHistory />
             </TabsContent>
             </>
           )}

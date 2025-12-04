@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Layout } from '@/components/Layout';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { MessageSquare, Plus, Search, Clock, User } from 'lucide-react';
+import { MessageSquare, Plus, Search, Clock, User, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -28,6 +29,7 @@ interface Topic {
 
 export default function Forum() {
   const { isApproved, loading } = useUserRole();
+  const { canView, loading: permLoading } = useAdminPermissions();
   const [topics, setTopics] = useState<Topic[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showNewTopic, setShowNewTopic] = useState(false);
@@ -36,6 +38,8 @@ export default function Forum() {
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  const hasForumAccess = canView('forum');
 
   useEffect(() => {
     if (isApproved) {
@@ -126,11 +130,25 @@ export default function Forum() {
     }
   };
 
-  if (loading) {
+  if (loading || permLoading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-muted-foreground">Carregando...</div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!hasForumAccess) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+          <Lock className="h-16 w-16 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">Acesso Restrito</h2>
+          <p className="text-muted-foreground text-center max-w-md">
+            Você não tem permissão para acessar o fórum.
+          </p>
         </div>
       </Layout>
     );

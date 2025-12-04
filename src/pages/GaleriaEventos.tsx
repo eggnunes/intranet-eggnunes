@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
-import { Camera, Plus, Trash2, Upload, Calendar } from 'lucide-react';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
+import { Camera, Plus, Trash2, Upload, Calendar, Lock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { format, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -42,7 +43,10 @@ const GaleriaEventos = () => {
   const [uploading, setUploading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { isAdmin } = useUserRole();
+  const { canView, loading: permLoading } = useAdminPermissions();
   const { toast } = useToast();
+
+  const hasEventsAccess = canView('events');
 
   const [eventFormData, setEventFormData] = useState({
     title: '',
@@ -278,11 +282,25 @@ const GaleriaEventos = () => {
     }
   };
 
-  if (loading) {
+  if (loading || permLoading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[400px]">
           <p className="text-muted-foreground">Carregando galeria...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!hasEventsAccess) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+          <Lock className="h-16 w-16 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">Acesso Restrito</h2>
+          <p className="text-muted-foreground text-center max-w-md">
+            Você não tem permissão para acessar a galeria de eventos.
+          </p>
         </div>
       </Layout>
     );

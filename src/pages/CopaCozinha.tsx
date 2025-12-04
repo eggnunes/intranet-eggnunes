@@ -9,11 +9,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Coffee, Plus, ShoppingCart, Check, RefreshCw, Sparkles, Users, 
   FileSpreadsheet, FileText, Trophy, CheckCircle2, XCircle, Clock,
-  Apple, GlassWater, Cookie, Sandwich, Edit2, Trash2, Wand2
+  Apple, GlassWater, Cookie, Sandwich, Edit2, Trash2, Wand2, Lock
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -87,7 +88,10 @@ const CopaCozinha = () => {
   const [isSuggestingCategory, setIsSuggestingCategory] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, loading: roleLoading } = useUserRole();
+  const { canView, loading: permLoading } = useAdminPermissions();
+
+  const hasCopaCozinhaAccess = canView('copa_cozinha');
 
   const currentWeekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
   const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
@@ -594,6 +598,30 @@ const CopaCozinha = () => {
         return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" />Pendente</Badge>;
     }
   };
+
+  if (roleLoading || permLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!hasCopaCozinhaAccess) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+          <Lock className="h-16 w-16 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">Acesso Restrito</h2>
+          <p className="text-muted-foreground text-center max-w-md">
+            Você não tem permissão para acessar a Copa/Cozinha.
+          </p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
