@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
 import { LogOut, Home as HomeIcon, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, MoreHorizontal, Coffee, Home, UserPlus, DoorOpen } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
@@ -444,7 +445,8 @@ export const Layout = ({ children }: LayoutProps) => {
                 </DropdownMenu>
               </nav>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 md:gap-4">
+              <ThemeToggle />
               <div className="text-sm text-muted-foreground hidden md:flex items-center gap-2">
                 {profile?.avatar_url && (
                   <img 
