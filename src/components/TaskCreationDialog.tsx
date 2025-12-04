@@ -193,15 +193,15 @@ export function TaskCreationDialog({
 
   return (
     <DialogWrapper open={open} onOpenChange={onOpenChange}>
-      <DialogContentWrapper className={isMobile ? '' : 'max-w-2xl max-h-[90vh] overflow-y-auto'}>
-        <DialogHeaderWrapper>
+      <DialogContentWrapper className={isMobile ? 'max-h-[85vh]' : 'max-w-2xl max-h-[90vh] overflow-y-auto'}>
+        <DialogHeaderWrapper className="flex-shrink-0">
           <DialogTitleWrapper>Criar Tarefa</DialogTitleWrapper>
           <DialogDescriptionWrapper>
             Processo: {initialData.processNumber}
           </DialogDescriptionWrapper>
         </DialogHeaderWrapper>
         
-        <div className={isMobile ? 'px-4 pb-4 overflow-y-auto max-h-[70vh]' : 'px-6 pb-6'}>
+        <div className={isMobile ? 'px-4 pb-6' : 'px-6 pb-6'}>
           {/* Movement Info */}
           <div className="bg-muted/30 p-3 rounded-md text-sm space-y-2 border mb-4">
             <p>

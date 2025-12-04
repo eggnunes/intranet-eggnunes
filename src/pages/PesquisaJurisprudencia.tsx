@@ -456,7 +456,7 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
 
         {/* Dialog para salvar jurisprudência */}
         <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Salvar Jurisprudência</DialogTitle>
               <DialogDescription>

@@ -522,7 +522,7 @@ export default function Ferias() {
                   Nova Solicitação
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Nova Solicitação de Férias</DialogTitle>
                   <DialogDescription>
@@ -626,7 +626,7 @@ export default function Ferias() {
                     Cadastrar Férias Passadas
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Cadastrar Período de Férias</DialogTitle>
                     <DialogDescription>

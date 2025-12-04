@@ -1038,7 +1038,7 @@ const HomeOffice = () => {
                         Sortear Escala
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                           <Shuffle className="h-5 w-5" />
@@ -1108,11 +1108,24 @@ const HomeOffice = () => {
                             ))}
                           </div>
                           <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
-                            <p className="text-sm text-muted-foreground">
-                              {selectedLawyersForRandom.length} de {lawyers.length} advogado(s) selecionado(s)
-                            </p>
+                            {selectedLawyersForRandom.length === lawyers.length && lawyers.length > 0 ? (
+                              <div className="flex items-center gap-2 text-sm font-medium text-green-600 dark:text-green-400">
+                                <Check className="h-4 w-4" />
+                                Todos os {lawyers.length} advogados selecionados!
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">
+                                {selectedLawyersForRandom.length} de {lawyers.length} advogado(s) selecionado(s)
+                              </p>
+                            )}
                             <div className="flex gap-2">
-                              <Button variant="outline" size="sm" onClick={selectAllLawyers} className="text-xs">
+                              <Button 
+                                variant={selectedLawyersForRandom.length === lawyers.length ? "secondary" : "outline"} 
+                                size="sm" 
+                                onClick={selectAllLawyers} 
+                                className="text-xs"
+                                disabled={selectedLawyersForRandom.length === lawyers.length}
+                              >
                                 Selecionar Todos
                               </Button>
                               <Button variant="outline" size="sm" onClick={deselectAllLawyers} className="text-xs">

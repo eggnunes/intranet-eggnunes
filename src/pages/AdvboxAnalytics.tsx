@@ -586,7 +586,7 @@ export default function AdvboxAnalytics() {
                   Exportar Relatório
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Exportar Relatório Consolidado</DialogTitle>
                   <DialogDescription>

@@ -1355,7 +1355,7 @@ export default function Admin() {
 
         {/* Dialog de Edição de Usuário */}
         <Dialog open={editUserDialogOpen} onOpenChange={setEditUserDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Usuário</DialogTitle>
               <DialogDescription>
@@ -1468,7 +1468,7 @@ export default function Admin() {
 
         {/* Dialog de Redefinição de Senha */}
         <Dialog open={resetPasswordDialogOpen} onOpenChange={setResetPasswordDialogOpen}>
-          <DialogContent className="sm:max-w-[400px]">
+          <DialogContent className="sm:max-w-[400px] max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Redefinir Senha</DialogTitle>
               <DialogDescription>

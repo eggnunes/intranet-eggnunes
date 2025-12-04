@@ -269,7 +269,7 @@ export default function SolicitacoesAdministrativas() {
                 Nova Solicitação
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Nova Solicitação</DialogTitle>
                 <DialogDescription>
