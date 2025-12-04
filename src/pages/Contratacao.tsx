@@ -231,6 +231,7 @@ export default function Contratacao() {
   const [stageFilter, setStageFilter] = useState<string>('all');
   const [jobOpeningFilter, setJobOpeningFilter] = useState<string>('all');
   const [talentPoolFilter, setTalentPoolFilter] = useState<string>('all');
+  const [talentPoolSearch, setTalentPoolSearch] = useState('');
   const [uploading, setUploading] = useState(false);
   
   // Selected items
@@ -907,6 +908,64 @@ export default function Contratacao() {
   // Talent pool count
   const talentPoolCount = candidates.filter(c => !c.job_opening_id).length;
 
+  // Filtered talent pool
+  const filteredTalentPool = candidates.filter(c => {
+    if (c.job_opening_id) return false;
+    const matchesSearch = c.full_name.toLowerCase().includes(talentPoolSearch.toLowerCase());
+    if (talentPoolFilter === 'future_hire') return matchesSearch && c.is_future_hire_candidate;
+    if (talentPoolFilter === 'regular') return matchesSearch && !c.is_future_hire_candidate;
+    return matchesSearch;
+  });
+
+  // Talent pool export functions
+  const exportTalentPoolToExcel = () => {
+    const wb = XLSX.utils.book_new();
+    const data = filteredTalentPool.map(c => ({
+      'Nome': c.full_name,
+      'Email': c.email || '',
+      'Telefone': c.phone || '',
+      'Cargo Pretendido': c.position_applied || '',
+      'Estágio': STAGE_LABELS[c.current_stage],
+      'Viável para Contratação': c.is_future_hire_candidate ? 'Sim' : 'Não',
+      'Processo Anterior': jobOpenings.find(j => j.id === c.previous_job_opening_id)?.title || '',
+      'Observações': c.future_hire_notes || '',
+      'Data Cadastro': format(new Date(c.created_at), 'dd/MM/yyyy')
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, 'Banco de Talentos');
+    XLSX.writeFile(wb, `banco-talentos-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    toast.success('Excel exportado com sucesso');
+  };
+
+  const exportTalentPoolToPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text('Banco de Talentos', 14, 22);
+    doc.setFontSize(10);
+    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, 30);
+    doc.text(`Total: ${filteredTalentPool.length} candidatos`, 14, 38);
+
+    const tableData = filteredTalentPool.map(c => [
+      c.full_name,
+      c.email || '-',
+      c.phone || '-',
+      c.position_applied || '-',
+      c.is_future_hire_candidate ? 'Sim' : 'Não',
+      format(new Date(c.created_at), 'dd/MM/yyyy')
+    ]);
+
+    autoTable(doc, {
+      startY: 48,
+      head: [['Nome', 'Email', 'Telefone', 'Cargo', 'Viável', 'Data']],
+      body: tableData,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [245, 158, 11] }
+    });
+
+    doc.save(`banco-talentos-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    toast.success('PDF exportado com sucesso');
+  };
+
   // Chart data calculations
   const chartData = useMemo(() => {
     const last12Months = eachMonthOfInterval({
@@ -1417,7 +1476,16 @@ export default function Contratacao() {
               )}
             </div>
 
-            <div className="flex items-center gap-4 mb-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por nome..."
+                  value={talentPoolSearch}
+                  onChange={(e) => setTalentPoolSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
               <Select value={talentPoolFilter} onValueChange={setTalentPoolFilter}>
                 <SelectTrigger className="w-[220px]">
                   <Filter className="h-4 w-4 mr-2" />
@@ -1429,15 +1497,18 @@ export default function Contratacao() {
                   <SelectItem value="regular">Candidatos regulares</SelectItem>
                 </SelectContent>
               </Select>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => exportTalentPoolToExcel()}>
+                  <Download className="h-4 w-4 mr-1" />Excel
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => exportTalentPoolToPDF()}>
+                  <FileText className="h-4 w-4 mr-1" />PDF
+                </Button>
+              </div>
             </div>
 
             <div className="grid gap-4">
-              {candidates.filter(c => {
-                if (c.job_opening_id) return false;
-                if (talentPoolFilter === 'future_hire') return c.is_future_hire_candidate;
-                if (talentPoolFilter === 'regular') return !c.is_future_hire_candidate;
-                return true;
-              }).length === 0 ? (
+              {filteredTalentPool.length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center">
                     <Database className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -1448,12 +1519,7 @@ export default function Contratacao() {
                   </CardContent>
                 </Card>
               ) : (
-                candidates.filter(c => {
-                  if (c.job_opening_id) return false;
-                  if (talentPoolFilter === 'future_hire') return c.is_future_hire_candidate;
-                  if (talentPoolFilter === 'regular') return !c.is_future_hire_candidate;
-                  return true;
-                }).map(candidate => (
+                filteredTalentPool.map(candidate => (
                   <Card key={candidate.id} className="border-amber-200 bg-amber-50/30">
                     <CardContent className="p-4">
                       <div className="flex flex-col sm:flex-row justify-between gap-4">
