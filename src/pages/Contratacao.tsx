@@ -232,6 +232,7 @@ export default function Contratacao() {
   const [jobOpeningFilter, setJobOpeningFilter] = useState<string>('all');
   const [talentPoolFilter, setTalentPoolFilter] = useState<string>('all');
   const [talentPoolSearch, setTalentPoolSearch] = useState('');
+  const [talentPoolSort, setTalentPoolSort] = useState<string>('date_desc');
   const [uploading, setUploading] = useState(false);
   
   // Selected items
@@ -909,13 +910,38 @@ export default function Contratacao() {
   const talentPoolCount = candidates.filter(c => !c.job_opening_id).length;
 
   // Filtered talent pool
-  const filteredTalentPool = candidates.filter(c => {
-    if (c.job_opening_id) return false;
-    const matchesSearch = c.full_name.toLowerCase().includes(talentPoolSearch.toLowerCase());
-    if (talentPoolFilter === 'future_hire') return matchesSearch && c.is_future_hire_candidate;
-    if (talentPoolFilter === 'regular') return matchesSearch && !c.is_future_hire_candidate;
-    return matchesSearch;
-  });
+  const talentPoolCandidates = candidates.filter(c => !c.job_opening_id);
+  
+  const filteredTalentPool = talentPoolCandidates
+    .filter(c => {
+      const matchesSearch = c.full_name.toLowerCase().includes(talentPoolSearch.toLowerCase());
+      if (talentPoolFilter === 'future_hire') return matchesSearch && c.is_future_hire_candidate;
+      if (talentPoolFilter === 'regular') return matchesSearch && !c.is_future_hire_candidate;
+      return matchesSearch;
+    })
+    .sort((a, b) => {
+      switch (talentPoolSort) {
+        case 'name_asc': return a.full_name.localeCompare(b.full_name);
+        case 'name_desc': return b.full_name.localeCompare(a.full_name);
+        case 'date_asc': return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case 'date_desc': 
+        default: return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+    });
+
+  // Talent pool statistics
+  const talentPoolStats = useMemo(() => {
+    const futureHireCount = talentPoolCandidates.filter(c => c.is_future_hire_candidate).length;
+    const positionCounts: Record<string, number> = {};
+    talentPoolCandidates.forEach(c => {
+      const pos = c.position_applied || 'Não especificado';
+      positionCounts[pos] = (positionCounts[pos] || 0) + 1;
+    });
+    const topPositions = Object.entries(positionCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+    return { total: talentPoolCount, futureHire: futureHireCount, topPositions };
+  }, [talentPoolCandidates, talentPoolCount]);
 
   // Talent pool export functions
   const exportTalentPoolToExcel = () => {
@@ -1476,6 +1502,33 @@ export default function Contratacao() {
               )}
             </div>
 
+            {/* Statistics Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <Database className="h-6 w-6 mx-auto mb-2 text-amber-600" />
+                  <p className="text-2xl font-bold">{talentPoolStats.total}</p>
+                  <p className="text-xs text-muted-foreground">Total</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <UserCheck className="h-6 w-6 mx-auto mb-2 text-green-600" />
+                  <p className="text-2xl font-bold">{talentPoolStats.futureHire}</p>
+                  <p className="text-xs text-muted-foreground">Viáveis</p>
+                </CardContent>
+              </Card>
+              {talentPoolStats.topPositions.slice(0, 2).map(([pos, count]) => (
+                <Card key={pos}>
+                  <CardContent className="p-4 text-center">
+                    <Briefcase className="h-6 w-6 mx-auto mb-2 text-blue-600" />
+                    <p className="text-2xl font-bold">{count}</p>
+                    <p className="text-xs text-muted-foreground truncate" title={pos}>{pos}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1487,14 +1540,25 @@ export default function Contratacao() {
                 />
               </div>
               <Select value={talentPoolFilter} onValueChange={setTalentPoolFilter}>
-                <SelectTrigger className="w-[220px]">
+                <SelectTrigger className="w-[200px]">
                   <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Filtrar candidatos" />
+                  <SelectValue placeholder="Filtrar" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos os candidatos</SelectItem>
-                  <SelectItem value="future_hire">Viáveis para contratação</SelectItem>
-                  <SelectItem value="regular">Candidatos regulares</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="future_hire">Viáveis</SelectItem>
+                  <SelectItem value="regular">Regulares</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={talentPoolSort} onValueChange={setTalentPoolSort}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Ordenar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date_desc">Mais recentes</SelectItem>
+                  <SelectItem value="date_asc">Mais antigos</SelectItem>
+                  <SelectItem value="name_asc">Nome A-Z</SelectItem>
+                  <SelectItem value="name_desc">Nome Z-A</SelectItem>
                 </SelectContent>
               </Select>
               <div className="flex gap-2">
@@ -1512,10 +1576,7 @@ export default function Contratacao() {
                 <Card>
                   <CardContent className="py-12 text-center">
                     <Database className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Nenhum currículo no banco de talentos</p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Faça upload de currículos sem vinculá-los a uma vaga específica
-                    </p>
+                    <p className="text-muted-foreground">Nenhum currículo encontrado</p>
                   </CardContent>
                 </Card>
               ) : (
