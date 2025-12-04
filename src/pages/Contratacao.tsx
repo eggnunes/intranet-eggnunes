@@ -20,7 +20,7 @@ import {
   MessageSquare, Trash2, Eye, Filter, Briefcase, Plus,
   TrendingUp, BarChart3, Video, MapPin, Star, Paperclip,
   CalendarDays, FolderOpen, Sparkles, Loader2, Download, 
-  Database, UserCheck, Archive, GitCompare, Check, Edit
+  Database, UserCheck, Archive, GitCompare, Check, Edit, Mail, Phone
 } from 'lucide-react';
 import { format, differenceInDays, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -258,6 +258,10 @@ export default function Contratacao() {
   const [showEditPosition, setShowEditPosition] = useState(false);
   const [editPositionCandidate, setEditPositionCandidate] = useState<Candidate | null>(null);
   const [editPositionValue, setEditPositionValue] = useState('');
+  const [showEditContact, setShowEditContact] = useState(false);
+  const [editContactCandidate, setEditContactCandidate] = useState<Candidate | null>(null);
+  const [editContactEmail, setEditContactEmail] = useState('');
+  const [editContactPhone, setEditContactPhone] = useState('');
   
   // Comparison state
   const [compareList, setCompareList] = useState<string[]>([]);
@@ -759,6 +763,30 @@ export default function Contratacao() {
     setShowEditPosition(false);
     setEditPositionCandidate(null);
     setEditPositionValue('');
+    fetchCandidates();
+  };
+
+  const handleUpdateContact = async () => {
+    if (!editContactCandidate) return;
+
+    const { error } = await supabase
+      .from('recruitment_candidates')
+      .update({ 
+        email: editContactEmail || null,
+        phone: editContactPhone || null 
+      })
+      .eq('id', editContactCandidate.id);
+
+    if (error) {
+      toast.error('Erro ao atualizar contato');
+      return;
+    }
+
+    toast.success('Contato atualizado com sucesso');
+    setShowEditContact(false);
+    setEditContactCandidate(null);
+    setEditContactEmail('');
+    setEditContactPhone('');
     fetchCandidates();
   };
 
@@ -1700,6 +1728,20 @@ export default function Contratacao() {
                           {canEdit && (
                             <Button 
                               size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                setEditContactCandidate(candidate);
+                                setEditContactEmail(candidate.email || '');
+                                setEditContactPhone(candidate.phone || '');
+                                setShowEditContact(true);
+                              }}
+                            >
+                              <Mail className="h-4 w-4 mr-1" />Contato
+                            </Button>
+                          )}
+                          {canEdit && (
+                            <Button 
+                              size="sm" 
                               variant="ghost" 
                               className="text-destructive hover:text-destructive hover:bg-destructive/10"
                               onClick={() => {
@@ -2495,6 +2537,50 @@ export default function Contratacao() {
                     Cancelar
                   </Button>
                   <Button onClick={handleUpdatePosition}>
+                    <Check className="h-4 w-4 mr-2" />
+                    Salvar
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+        {/* Edit Contact Dialog */}
+        <Dialog open={showEditContact} onOpenChange={setShowEditContact}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Editar Contato
+              </DialogTitle>
+            </DialogHeader>
+            {editContactCandidate && (
+              <div className="space-y-4">
+                <p className="text-muted-foreground">
+                  Editando contato de <span className="font-semibold">{editContactCandidate.full_name}</span>
+                </p>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    placeholder="email@exemplo.com"
+                    value={editContactEmail}
+                    onChange={(e) => setEditContactEmail(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Telefone</Label>
+                  <Input
+                    placeholder="(00) 00000-0000"
+                    value={editContactPhone}
+                    onChange={(e) => setEditContactPhone(e.target.value)}
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setShowEditContact(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleUpdateContact}>
                     <Check className="h-4 w-4 mr-2" />
                     Salvar
                   </Button>
