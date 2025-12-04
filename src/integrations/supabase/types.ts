@@ -287,6 +287,39 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_message_favorites: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          message_id: string
+          model: string
+          notes: string | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          message_id: string
+          model: string
+          notes?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          message_id?: string
+          model?: string
+          notes?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_messages: {
         Row: {
           attachments: Json | null
