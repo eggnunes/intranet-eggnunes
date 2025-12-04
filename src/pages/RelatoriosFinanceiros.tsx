@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, Shield, Download, FileSpreadsheet, FileText, Percent, Receipt, Activity, ArrowRight, Lock } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, Shield, Download, FileSpreadsheet, FileText, Percent, Receipt, Activity, ArrowRight, Lock, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -26,7 +26,7 @@ import { FinancialDistribution } from '@/components/FinancialDistribution';
 import { CashFlowProjection } from '@/components/CashFlowProjection';
 import { ExecutiveDashboard } from '@/components/ExecutiveDashboard';
 import { FinancialDefaulters } from '@/components/FinancialDefaulters';
-import { Link, Navigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 interface Transaction {
   id: string;
@@ -48,108 +48,72 @@ interface Transaction {
 
 const STORAGE_KEY = 'relatorios_financeiros_cache';
 
+// Função para carregar cache - executada antes do componente montar
+const loadFromCache = (): { transactions: Transaction[]; timestamp: Date } | null => {
+  try {
+    const cached = localStorage.getItem(STORAGE_KEY);
+    if (cached) {
+      const { transactions: cachedTransactions, timestamp } = JSON.parse(cached);
+      return { transactions: cachedTransactions, timestamp: new Date(timestamp) };
+    }
+  } catch (error) {
+    console.error('Error loading cached transactions:', error);
+  }
+  return null;
+};
+
+// Carregar cache imediatamente (antes do render)
+const initialCache = loadFromCache();
+
 export default function RelatoriosFinanceiros() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  // TODOS OS HOOKS DEVEM VIR PRIMEIRO - antes de qualquer retorno condicional
+  const [transactions, setTransactions] = useState<Transaction[]>(initialCache?.transactions || []);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [metadata, setMetadata] = useState<any>(null);
-  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
+  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(initialCache?.timestamp);
   const [periodFilter, setPeriodFilter] = useState<string>('all');
   const [rateLimitError, setRateLimitError] = useState(false);
   const { toast } = useToast();
   const { isAdmin, loading: roleLoading } = useUserRole();
   const { canView, loading: permLoading, isSocioOrRafael } = useAdminPermissions();
 
-  // Check permission - only admin with financial permission or sócio/rafael can access
   const hasFinancialAccess = isSocioOrRafael || canView('financial');
-  
-  // Show loading while checking permissions
-  if (roleLoading || permLoading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <p className="text-muted-foreground">Carregando...</p>
-        </div>
-      </Layout>
-    );
-  }
 
-  // Redirect if no access
-  if (!isAdmin || !hasFinancialAccess) {
-    return (
-      <Layout>
-        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-          <Lock className="h-16 w-16 text-muted-foreground" />
-          <h2 className="text-xl font-semibold">Acesso Restrito</h2>
-          <p className="text-muted-foreground text-center max-w-md">
-            Você não tem permissão para acessar os relatórios financeiros.
-            Entre em contato com um administrador para solicitar acesso.
-          </p>
-        </div>
-      </Layout>
-    );
-  }
-
-  // Carregar cache imediatamente antes do componente montar
-  const loadFromCache = () => {
-    try {
-      const cached = localStorage.getItem(STORAGE_KEY);
-      if (cached) {
-        const { transactions: cachedTransactions, timestamp } = JSON.parse(cached);
-        return { transactions: cachedTransactions, timestamp: new Date(timestamp) };
-      }
-    } catch (error) {
-      console.error('Error loading cached transactions:', error);
-    }
-    return null;
-  };
-
-  const cachedData = loadFromCache();
-
-  useEffect(() => {
-    // Aplicar cache imediatamente se existir
-    if (cachedData && transactions.length === 0) {
-      setTransactions(cachedData.transactions);
-      setLastUpdate(cachedData.timestamp);
-      setLoading(false);
-    }
-    // Buscar dados atualizados em background
-    fetchTransactions();
+  const formatCurrency = useCallback((value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value);
   }, []);
 
-  const fetchTransactions = async (forceRefresh = false) => {
-    // Só mostrar loading se não tem dados em cache
-    if (transactions.length === 0) {
-      setLoading(true);
-    }
+  const fetchTransactions = useCallback(async (forceRefresh = false) => {
+    setIsRefreshing(true);
     setRateLimitError(false);
+    
     try {
-      // Buscar transações e processos em paralelo para enriquecer dados
       const [transactionsResponse, lawsuitsResponse] = await Promise.all([
         supabase.functions.invoke('advbox-integration/transactions-recent', {
           body: { 
             force_refresh: forceRefresh,
-            months: 24 // Buscar últimos 24 meses
+            months: 24
           },
         }),
         supabase.functions.invoke('advbox-integration/lawsuits', {
-          body: { force_refresh: false }, // Usar cache para processos
+          body: { force_refresh: false },
         }),
       ]);
 
       if (transactionsResponse.error) throw transactionsResponse.error;
 
-      // A resposta vem como: { data: { data: { data: [...], offset, limit, totalCount } } }
       const apiResponse = transactionsResponse.data?.data || transactionsResponse.data;
       const rawTransactionsData = apiResponse?.data || [];
       
-      // Criar mapa de lawsuit_id -> dados do processo (incluindo nome do cliente)
       const lawsuitsData = lawsuitsResponse.data?.data?.data || lawsuitsResponse.data?.data || [];
       const lawsuitMap = new Map<string, { personName: string; personPhone: string; personEmail: string; personDocument: string }>();
       
       if (Array.isArray(lawsuitsData)) {
         lawsuitsData.forEach((lawsuit: any) => {
           const lawsuitId = String(lawsuit.id);
-          // Extrair nome do cliente de várias fontes possíveis
           const personName = lawsuit.person?.name || lawsuit.customer?.name || lawsuit.person_name || lawsuit.customer_name || lawsuit.name_customer || null;
           const personPhone = lawsuit.person?.cellphone || lawsuit.person?.phone || lawsuit.customer?.cellphone || lawsuit.customer?.phone || null;
           const personEmail = lawsuit.person?.email || lawsuit.customer?.email || null;
@@ -161,59 +125,24 @@ export default function RelatoriosFinanceiros() {
         });
       }
       
-      console.log('Lawsuit map size:', lawsuitMap.size);
-      console.log('Sample lawsuit mapping:', Array.from(lawsuitMap.entries()).slice(0, 3));
-      
-      console.log('Transactions response:', {
-        totalCount: apiResponse?.totalCount,
-        dataLength: rawTransactionsData.length,
-        sampleDate: rawTransactionsData[0]?.date_due || rawTransactionsData[0]?.date_payment
-      });
-      
-      // Check if we got rate limited but have cached data
       if (transactionsResponse.data?.metadata?.rateLimited && rawTransactionsData.length === 0) {
         setRateLimitError(true);
-        // Keep existing cached transactions
         return;
       }
       
-      // Mapear campos da API para o formato esperado pelo frontend
-      // Debug: log first transaction to see all available fields
-      if (rawTransactionsData.length > 0) {
-        console.log('Sample transaction fields:', Object.keys(rawTransactionsData[0]));
-        console.log('Sample transaction data:', JSON.stringify(rawTransactionsData[0], null, 2).substring(0, 1500));
-      }
+      const incomeCategories = [
+        'RECEITA', 'HONORÁRIO', 'RECEITAS', 'RESULTADO COM APLICAÇÕES',
+        'RENDIMENTO', 'REPASSES', 'RECEBIMENTO', 'CRÉDITO', 'A RECEBER',
+        'ENTRADA', 'PAGAMENTO CLIENTE', 'FATURAMENTO'
+      ];
       
       const mappedTransactions: Transaction[] = rawTransactionsData.map((t: any) => {
-        // Usar date_payment se disponível, senão date_due
         const transactionDate = t.date_payment || t.date_due || null;
         const dueDate = t.date_due || null;
-        
-        // Determinar tipo baseado na categoria e tipo de transação
-        // A API Advbox pode retornar um campo "type" ou "transaction_type"
         const apiType = (t.type || t.transaction_type || '').toLowerCase();
-        
-        // Categorias que indicam receita (honorários a receber)
-        const incomeCategories = [
-          'RECEITA', 'HONORÁRIO', 'RECEITAS', 'RESULTADO COM APLICAÇÕES',
-          'RENDIMENTO', 'REPASSES', 'RECEBIMENTO', 'CRÉDITO', 'A RECEBER',
-          'ENTRADA', 'PAGAMENTO CLIENTE', 'FATURAMENTO'
-        ];
-        
-        // Categorias que indicam despesa
-        const expenseCategories = [
-          'DESPESA', 'PAGAMENTO', 'CUSTOS', 'DÉBITO', 'SAÍDA',
-          'FORNECEDOR', 'MATERIAL', 'CONTAS A PAGAR'
-        ];
-        
         const categoryUpper = (t.category || '').toUpperCase();
         const descriptionUpper = (t.description || '').toUpperCase();
         
-        // Lógica melhorada para determinar se é receita ou despesa
-        // 1. Se API indica explicitamente como receita/crédito
-        // 2. Se categoria contém palavras de receita
-        // 3. Se descrição contém indicadores de honorários/recebimentos
-        // 4. Se tem credit_bank e não debit_bank (entrada de dinheiro)
         const isIncome = apiType === 'income' || apiType === 'credit' || apiType === 'receita' ||
                         incomeCategories.some(cat => categoryUpper.includes(cat)) ||
                         incomeCategories.some(cat => descriptionUpper.includes(cat)) ||
@@ -223,8 +152,6 @@ export default function RelatoriosFinanceiros() {
                         descriptionUpper.includes('ÊXITO') ||
                         descriptionUpper.includes('SUCUMB');
         
-        // Determinar status: se não foi pago (date_payment null/vazio) e venceu, é overdue
-        // IMPORTANTE: Considerar "overdue" se está sem pagamento e passou da data de vencimento
         let status: 'pending' | 'paid' | 'overdue' = 'pending';
         const hasPayment = t.date_payment && t.date_payment.trim() !== '';
         
@@ -239,32 +166,19 @@ export default function RelatoriosFinanceiros() {
           }
         }
         
-        // Extrair lawsuit_id para buscar dados do processo
         const lawsuitId = t.lawsuit_id || t.lawsuit?.id || t.lawsuits_id || null;
         const lawsuitData = lawsuitId ? lawsuitMap.get(String(lawsuitId)) : null;
         
-        // CORREÇÃO: A API Advbox retorna "name" e "identification", NÃO "customer_name"
-        // Os campos reais são: name, identification (conforme debug dos logs)
         let customerName = t.name || t.customer_name || t.person?.name || t.customer?.name || t.person_name || null;
         let customerPhone = t.person?.cellphone || t.person?.phone || t.customer?.cellphone || t.customer?.phone || null;
         let customerEmail = t.person?.email || t.customer?.email || null;
         let personDocument = t.identification || t.customer_identification || t.person?.document || t.person?.cpf || t.person?.cnpj || t.customer?.document || null;
         
-        // Se não encontrou dados do cliente na transação, usar do processo
-        if (!customerName && lawsuitData) {
-          customerName = lawsuitData.personName;
-        }
-        if (!customerPhone && lawsuitData) {
-          customerPhone = lawsuitData.personPhone;
-        }
-        if (!customerEmail && lawsuitData) {
-          customerEmail = lawsuitData.personEmail;
-        }
-        if (!personDocument && lawsuitData) {
-          personDocument = lawsuitData.personDocument;
-        }
+        if (!customerName && lawsuitData) customerName = lawsuitData.personName;
+        if (!customerPhone && lawsuitData) customerPhone = lawsuitData.personPhone;
+        if (!customerEmail && lawsuitData) customerEmail = lawsuitData.personEmail;
+        if (!personDocument && lawsuitData) personDocument = lawsuitData.personDocument;
         
-        // Extrair dados do processo/lawsuit
         const lawsuitNumber = t.lawsuit_number || t.lawsuit?.number || t.lawsuit?.process_number || t.process_number || null;
         const lawsuitName = t.lawsuit_name || t.lawsuit?.name || t.lawsuit?.title || null;
         
@@ -287,32 +201,8 @@ export default function RelatoriosFinanceiros() {
         };
       });
       
-      // Debug: verificar quantos inadimplentes
-      const overdueIncomes = mappedTransactions.filter(t => t.type === 'income' && t.status === 'overdue');
-      const pendingIncomes = mappedTransactions.filter(t => t.type === 'income' && t.status === 'pending');
-      const paidIncomes = mappedTransactions.filter(t => t.type === 'income' && t.status === 'paid');
-      
-      console.log('=== FINANCIAL DATA SUMMARY ===');
-      console.log('Total transactions loaded:', mappedTransactions.length);
-      console.log('Income transactions:', mappedTransactions.filter(t => t.type === 'income').length);
-      console.log('Expense transactions:', mappedTransactions.filter(t => t.type === 'expense').length);
-      console.log('Income by status:', {
-        overdue: overdueIncomes.length,
-        pending: pendingIncomes.length,
-        paid: paidIncomes.length,
-      });
-      console.log('Sample OVERDUE incomes:', overdueIncomes.slice(0, 5).map(t => ({
-        customer: t.customer_name,
-        due_date: t.due_date,
-        amount: t.amount,
-        description: t.description?.substring(0, 40),
-        category: t.category,
-      })));
-      console.log('==============================');
-      
       if (mappedTransactions.length > 0) {
         setTransactions(mappedTransactions);
-        // Save to localStorage
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
           transactions: mappedTransactions,
           timestamp: new Date().toISOString()
@@ -335,17 +225,26 @@ export default function RelatoriosFinanceiros() {
     } catch (error) {
       console.error('Error fetching transactions:', error);
       setRateLimitError(true);
-      toast({
-        title: 'Erro ao carregar transações',
-        description: 'Não foi possível carregar as transações financeiras. Mostrando dados em cache.',
-        variant: 'destructive',
-      });
+      if (transactions.length === 0) {
+        toast({
+          title: 'Erro ao carregar transações',
+          description: 'Não foi possível carregar as transações financeiras.',
+          variant: 'destructive',
+        });
+      }
     } finally {
-      setLoading(false);
+      setIsRefreshing(false);
     }
-  };
+  }, [toast, transactions.length]);
 
-  const getFilteredTransactions = () => {
+  // Buscar dados em background quando componente monta
+  useEffect(() => {
+    if (hasFinancialAccess && isAdmin && !roleLoading && !permLoading) {
+      fetchTransactions();
+    }
+  }, [hasFinancialAccess, isAdmin, roleLoading, permLoading]);
+
+  const filteredTransactions = useMemo(() => {
     if (!Array.isArray(transactions)) return [];
     if (periodFilter === 'all') return transactions;
 
@@ -379,9 +278,9 @@ export default function RelatoriosFinanceiros() {
         return false;
       }
     });
-  };
+  }, [transactions, periodFilter]);
 
-  const getPreviousPeriodTransactions = () => {
+  const previousPeriodTransactions = useMemo(() => {
     if (!Array.isArray(transactions) || periodFilter === 'all') return [];
 
     const now = new Date();
@@ -417,45 +316,37 @@ export default function RelatoriosFinanceiros() {
         return false;
       }
     });
-  };
+  }, [transactions, periodFilter]);
 
-  const filteredTransactions = getFilteredTransactions();
-  const previousPeriodTransactions = getPreviousPeriodTransactions();
+  const validFilteredTransactions = useMemo(() => {
+    return filteredTransactions.filter(t => {
+      if (!t.date) return false;
+      try {
+        const date = new Date(t.date);
+        return !isNaN(date.getTime());
+      } catch {
+        return false;
+      }
+    });
+  }, [filteredTransactions]);
 
-  // Filtrar apenas transações com datas válidas para exibição
-  const validFilteredTransactions = filteredTransactions.filter(t => {
-    if (!t.date) return false;
-    try {
-      const date = new Date(t.date);
-      return !isNaN(date.getTime());
-    } catch {
-      return false;
-    }
-  });
+  const { totalIncome, totalExpense, balance, profitMargin, averageTicket, growthRate } = useMemo(() => {
+    const income = filteredTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+    const expense = filteredTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+    const incomeCount = filteredTransactions.filter((t) => t.type === 'income').length;
+    const prevIncome = previousPeriodTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
 
-  const totalIncome = Array.isArray(filteredTransactions)
-    ? filteredTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0)
-    : 0;
+    return {
+      totalIncome: income,
+      totalExpense: expense,
+      balance: income - expense,
+      profitMargin: income > 0 ? ((income - expense) / income) * 100 : 0,
+      averageTicket: incomeCount > 0 ? income / incomeCount : 0,
+      growthRate: prevIncome > 0 ? ((income - prevIncome) / prevIncome) * 100 : 0,
+    };
+  }, [filteredTransactions, previousPeriodTransactions]);
 
-  const totalExpense = Array.isArray(filteredTransactions)
-    ? filteredTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0)
-    : 0;
-
-  const balance = totalIncome - totalExpense;
-
-  // Métricas avançadas
-  const profitMargin = totalIncome > 0 ? ((totalIncome - totalExpense) / totalIncome) * 100 : 0;
-  const averageTicket = filteredTransactions.filter((t) => t.type === 'income').length > 0 
-    ? totalIncome / filteredTransactions.filter((t) => t.type === 'income').length 
-    : 0;
-
-  // Taxa de crescimento em relação ao período anterior
-  const prevIncome = Array.isArray(previousPeriodTransactions)
-    ? previousPeriodTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0)
-    : 0;
-  const growthRate = prevIncome > 0 ? ((totalIncome - prevIncome) / prevIncome) * 100 : 0;
-
-  const getChartData = () => {
+  const chartData = useMemo(() => {
     if (!Array.isArray(validFilteredTransactions) || validFilteredTransactions.length === 0) return [];
 
     const monthlyData: Record<string, { month: string; receitas: number; despesas: number }> = {};
@@ -485,25 +376,21 @@ export default function RelatoriosFinanceiros() {
       return new Date(parseInt(yearA), parseInt(monthA) - 1).getTime() - 
              new Date(parseInt(yearB), parseInt(monthB) - 1).getTime();
     });
-  };
+  }, [validFilteredTransactions]);
 
-  const chartData = getChartData();
-
-  const exportToExcel = () => {
-    const worksheetData = validFilteredTransactions
-      .map((t) => ({
-        Data: format(new Date(t.date), 'dd/MM/yyyy', { locale: ptBR }),
-        Descrição: t.description,
-        Categoria: t.category,
-        Tipo: t.type === 'income' ? 'Receita' : 'Despesa',
-        Valor: t.amount,
-      }));
+  const exportToExcel = useCallback(() => {
+    const worksheetData = validFilteredTransactions.map((t) => ({
+      Data: format(new Date(t.date), 'dd/MM/yyyy', { locale: ptBR }),
+      Descrição: t.description,
+      Categoria: t.category,
+      Tipo: t.type === 'income' ? 'Receita' : 'Despesa',
+      Valor: t.amount,
+    }));
 
     const worksheet = XLSX.utils.json_to_sheet(worksheetData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Transações');
 
-    // Adicionar resumo
     const summaryData = [
       { Métrica: 'Total de Receitas', Valor: totalIncome },
       { Métrica: 'Total de Despesas', Valor: totalExpense },
@@ -524,16 +411,14 @@ export default function RelatoriosFinanceiros() {
       title: 'Exportado com sucesso',
       description: 'Relatório exportado para Excel.',
     });
-  };
+  }, [validFilteredTransactions, totalIncome, totalExpense, balance, profitMargin, averageTicket, growthRate, periodFilter, toast]);
 
-  const exportToPDF = () => {
+  const exportToPDF = useCallback(() => {
     const doc = new jsPDF();
     
-    // Título
     doc.setFontSize(18);
     doc.text('Relatório Financeiro', 14, 20);
     
-    // Período
     const periodLabel = periodFilter === 'all' ? 'Completo' : 
                        periodFilter === 'month' ? 'Mês Atual' :
                        periodFilter === 'quarter' ? 'Trimestre Atual' : 'Ano Atual';
@@ -541,7 +426,6 @@ export default function RelatoriosFinanceiros() {
     doc.text(`Período: ${periodLabel}`, 14, 30);
     doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, 37);
 
-    // Métricas
     doc.setFontSize(14);
     doc.text('Resumo Executivo', 14, 50);
     
@@ -563,19 +447,17 @@ export default function RelatoriosFinanceiros() {
       headStyles: { fillColor: [59, 130, 246] },
     });
 
-    // Transações
     doc.setFontSize(14);
     const finalY = (doc as any).lastAutoTable.finalY || 120;
     doc.text('Transações', 14, finalY + 10);
 
-    const transactionsData = validFilteredTransactions
-      .map((t) => [
-        format(new Date(t.date), 'dd/MM/yyyy'),
-        t.description,
-        t.category,
-        t.type === 'income' ? 'Receita' : 'Despesa',
-        formatCurrency(t.amount),
-      ]);
+    const transactionsData = validFilteredTransactions.map((t) => [
+      format(new Date(t.date), 'dd/MM/yyyy'),
+      t.description,
+      t.category,
+      t.type === 'income' ? 'Receita' : 'Despesa',
+      formatCurrency(t.amount),
+    ]);
 
     autoTable(doc, {
       startY: finalY + 15,
@@ -596,46 +478,29 @@ export default function RelatoriosFinanceiros() {
       title: 'Exportado com sucesso',
       description: 'Relatório exportado para PDF.',
     });
-  };
+  }, [validFilteredTransactions, totalIncome, totalExpense, balance, profitMargin, averageTicket, growthRate, periodFilter, formatCurrency, toast]);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(value);
-  };
-
-  if (roleLoading) {
+  // RENDERIZAÇÃO CONDICIONAL (sem retornos antecipados que quebrem hooks)
+  if (roleLoading || permLoading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-muted-foreground">Verificando permissões...</div>
+          <p className="text-muted-foreground">Carregando...</p>
         </div>
       </Layout>
     );
   }
 
-  if (!isAdmin) {
+  if (!isAdmin || !hasFinancialAccess) {
     return (
       <Layout>
         <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-          <Shield className="h-16 w-16 text-muted-foreground" />
-          <div className="text-center">
-            <h2 className="text-2xl font-bold mb-2">Acesso Restrito</h2>
-            <p className="text-muted-foreground">
-              Esta página é acessível apenas para administradores.
-            </p>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
-
-  if (loading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-muted-foreground">Carregando relatórios...</div>
+          <Lock className="h-16 w-16 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">Acesso Restrito</h2>
+          <p className="text-muted-foreground text-center max-w-md">
+            Você não tem permissão para acessar os relatórios financeiros.
+            Entre em contato com um administrador para solicitar acesso.
+          </p>
         </div>
       </Layout>
     );
@@ -653,17 +518,22 @@ export default function RelatoriosFinanceiros() {
             <p className="text-muted-foreground mt-2">
               Acompanhe suas transações e relatórios financeiros
             </p>
-            <div className="mt-2">
+            <div className="mt-2 flex items-center gap-4">
               <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
+              {isRefreshing && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                  <span>Atualizando em segundo plano...</span>
+                </div>
+              )}
             </div>
           </div>
           <Button
             variant="outline"
+            disabled={isRefreshing}
             onClick={() => {
-              // Limpar cache local para forçar remapeamento dos dados
               localStorage.removeItem(STORAGE_KEY);
               setTransactions([]);
-              setLoading(true);
               toast({
                 title: 'Cache limpo',
                 description: 'Buscando dados dos últimos 24 meses...',
@@ -671,7 +541,11 @@ export default function RelatoriosFinanceiros() {
               fetchTransactions(true);
             }}
           >
-            <Download className="h-4 w-4 mr-2" />
+            {isRefreshing ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-2" />
+            )}
             Atualizar dados
           </Button>
         </div>
@@ -689,7 +563,7 @@ export default function RelatoriosFinanceiros() {
           </Alert>
         )}
 
-        {filteredTransactions.length !== validFilteredTransactions.length && (
+        {filteredTransactions.length !== validFilteredTransactions.length && validFilteredTransactions.length > 0 && (
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Transações com datas inválidas</AlertTitle>
