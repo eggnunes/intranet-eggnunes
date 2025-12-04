@@ -941,34 +941,51 @@ export default function Contratacao() {
 
   const downloadFile = async (fileUrl: string, fileName: string) => {
     try {
-      // Use direct download method which handles encoding properly
-      const { data, error } = await supabase.storage.from('resumes').download(fileUrl);
+      // Use signed URL as primary method - handles special characters better
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from('resumes')
+        .createSignedUrl(fileUrl, 300);
       
-      if (error) {
-        console.error('Download error:', error);
-        
-        // Try with signed URL as fallback
-        const { data: signedData } = await supabase.storage
-          .from('resumes')
-          .createSignedUrl(fileUrl, 60);
-        
-        if (signedData?.signedUrl) {
-          window.open(signedData.signedUrl, '_blank');
+      if (signedData?.signedUrl) {
+        // Fetch the file and trigger download with correct filename
+        const response = await fetch(signedData.signedUrl);
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
           return;
         }
-        
-        toast.error('Erro ao baixar arquivo. Verifique se o arquivo existe.');
-        return;
       }
       
-      const url = URL.createObjectURL(data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // If signed URL fails, try public URL
+      const { data: publicUrlData } = supabase.storage
+        .from('resumes')
+        .getPublicUrl(fileUrl);
+      
+      if (publicUrlData?.publicUrl) {
+        const response = await fetch(publicUrlData.publicUrl);
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          return;
+        }
+      }
+      
+      console.error('Download error:', signedError);
+      toast.error('Erro ao baixar arquivo. Verifique se o arquivo existe.');
     } catch (error) {
       console.error('Download error:', error);
       toast.error('Erro ao baixar arquivo');
