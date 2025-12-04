@@ -932,23 +932,23 @@ export default function PublicacoesFeed() {
 
         {/* Dialog de Criação de Tarefa */}
         <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
+          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle>Criar Nova Tarefa</DialogTitle>
               <DialogDescription>
                 Preencha os campos abaixo para criar uma nova tarefa no Advbox
               </DialogDescription>
             </DialogHeader>
             {selectedPublication && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Preview da Publicação */}
-                <div className="order-2 lg:order-1">
-                  <PublicationPreview publication={selectedPublication} />
-                </div>
-                
-                {/* Formulário */}
-                <div className="order-1 lg:order-2">
-                  <ScrollArea className="max-h-[60vh] pr-4">
+              <ScrollArea className="flex-1 overflow-y-auto">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pr-4 pb-4">
+                  {/* Preview da Publicação */}
+                  <div className="order-2 lg:order-1">
+                    <PublicationPreview publication={selectedPublication} />
+                  </div>
+                  
+                  {/* Formulário */}
+                  <div className="order-1 lg:order-2">
                     <TaskCreationForm
                       initialData={{
                         lawsuitId: selectedPublication.lawsuit_id || 0,
@@ -1012,9 +1012,9 @@ export default function PublicacoesFeed() {
                       onCancel={() => setTaskDialogOpen(false)}
                       isSubmitting={isCreatingTask}
                     />
-                  </ScrollArea>
+                  </div>
                 </div>
-              </div>
+              </ScrollArea>
             )}
           </DialogContent>
         </Dialog>
