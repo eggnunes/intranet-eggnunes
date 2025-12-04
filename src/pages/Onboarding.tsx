@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
-import { BookOpen, FileText, Plus, Download, Trash2 } from 'lucide-react';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
+import { BookOpen, FileText, Plus, Download, Trash2, Lock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 
@@ -29,7 +30,10 @@ const Onboarding = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const { isAdmin } = useUserRole();
+  const { canView, loading: permLoading } = useAdminPermissions();
   const { toast } = useToast();
+
+  const hasOnboardingAccess = canView('onboarding');
 
   const [formData, setFormData] = useState({
     title: '',
@@ -164,11 +168,25 @@ const Onboarding = () => {
     return acc;
   }, {} as Record<string, OnboardingMaterial[]>);
 
-  if (loading) {
+  if (loading || permLoading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[400px]">
           <p className="text-muted-foreground">Carregando materiais...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!hasOnboardingAccess) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+          <Lock className="h-16 w-16 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">Acesso Restrito</h2>
+          <p className="text-muted-foreground text-center max-w-md">
+            Você não tem permissão para acessar os materiais de onboarding.
+          </p>
         </div>
       </Layout>
     );
