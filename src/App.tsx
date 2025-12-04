@@ -39,6 +39,7 @@ import HomeOffice from "./pages/HomeOffice";
 import Contratacao from "./pages/Contratacao";
 import SalaReuniao from "./pages/SalaReuniao";
 import PesquisaJurisprudencia from "./pages/PesquisaJurisprudencia";
+import AssistenteIA from "./pages/AssistenteIA";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -313,6 +314,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <PesquisaJurisprudencia />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/assistente-ia"
+              element={
+                <ProtectedRoute>
+                  <AssistenteIA />
                 </ProtectedRoute>
               }
             />

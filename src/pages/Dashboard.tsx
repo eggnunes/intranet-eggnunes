@@ -141,6 +141,13 @@ export default function Dashboard() {
 
   const tools = [
     {
+      title: 'Assistente de IA',
+      description: 'Converse com diferentes modelos de IA',
+      icon: TrendingUp,
+      path: '/assistente-ia',
+      gradient: 'from-emerald-500 to-cyan-600',
+    },
+    {
       title: 'RotaDoc',
       description: 'Rotação e Organização Inteligente de Documentos',
       icon: FileText,
