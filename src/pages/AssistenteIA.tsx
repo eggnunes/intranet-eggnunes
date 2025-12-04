@@ -38,7 +38,11 @@ import {
   Brain,
   Cpu,
   Star,
-  StarOff
+  StarOff,
+  Volume2,
+  VolumeX,
+  PanelLeftClose,
+  PanelLeft
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -271,6 +275,10 @@ const AssistenteIA = () => {
   const [favorites, setFavorites] = useState<FavoriteMessage[]>([]);
   const [showFavorites, setShowFavorites] = useState(false);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  
+  // Text-to-Speech
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -875,6 +883,66 @@ const AssistenteIA = () => {
     setShowTemplates(false);
   };
 
+  // Text-to-Speech functions
+  const speakText = (text: string, messageId: string) => {
+    // Stop any current speech
+    window.speechSynthesis.cancel();
+    
+    if (speakingMessageId === messageId && isSpeaking) {
+      // Toggle off if same message
+      setIsSpeaking(false);
+      setSpeakingMessageId(null);
+      return;
+    }
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'pt-BR';
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    
+    // Try to find a Portuguese voice
+    const voices = window.speechSynthesis.getVoices();
+    const ptVoice = voices.find(voice => voice.lang.startsWith('pt'));
+    if (ptVoice) {
+      utterance.voice = ptVoice;
+    }
+    
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+      setSpeakingMessageId(messageId);
+    };
+    
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      setSpeakingMessageId(null);
+    };
+    
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      setSpeakingMessageId(null);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível reproduzir o áudio',
+        variant: 'destructive'
+      });
+    };
+    
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stopSpeaking = () => {
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+    setSpeakingMessageId(null);
+  };
+
+  // Cleanup TTS on unmount
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
   const exportToTXT = () => {
     if (messages.length === 0) return;
     
@@ -987,14 +1055,24 @@ const AssistenteIA = () => {
     <Layout>
       <div className="min-h-[calc(100vh-4rem)] flex">
         {/* Sidebar - Conversation History */}
-        {showSidebar && (
-          <div className="w-64 border-r bg-card/50 flex flex-col">
-            <div className="p-3 border-b">
-              <Button onClick={startNewChat} className="w-full" size="sm">
+        <div className={`${showSidebar ? 'w-64' : 'w-0'} border-r bg-card/50 flex flex-col transition-all duration-300 overflow-hidden`}>
+          <div className="p-3 border-b min-w-64">
+            <div className="flex items-center gap-2">
+              <Button onClick={startNewChat} className="flex-1" size="sm">
                 <Plus className="w-4 h-4 mr-2" />
                 Nova Conversa
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSidebar(false)}
+                className="h-8 w-8 p-0"
+                title="Recolher histórico"
+              >
+                <PanelLeftClose className="w-4 h-4" />
+              </Button>
             </div>
+          </div>
             
             <ScrollArea className="flex-1">
               <div className="p-2 space-y-1">
@@ -1039,7 +1117,6 @@ const AssistenteIA = () => {
               </div>
             </ScrollArea>
           </div>
-        )}
 
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col">
@@ -1047,14 +1124,16 @@ const AssistenteIA = () => {
           <div className="border-b bg-card/50 backdrop-blur-sm p-4">
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
               <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowSidebar(!showSidebar)}
-                  className="lg:hidden"
-                >
-                  <History className="w-4 h-4" />
-                </Button>
+                {!showSidebar && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowSidebar(true)}
+                    title="Mostrar histórico"
+                  >
+                    <PanelLeft className="w-4 h-4" />
+                  </Button>
+                )}
                 <div>
                   <h1 className="text-xl font-bold">Assistente de IA</h1>
                   <p className="text-muted-foreground text-sm">
@@ -1367,11 +1446,25 @@ const AssistenteIA = () => {
                                 size="sm"
                                 className="h-5 w-5 p-0"
                                 onClick={() => copyToClipboard(message.content, message.id)}
+                                title="Copiar"
                               >
                                 {copiedId === message.id ? (
                                   <Check className="w-3 h-3" />
                                 ) : (
                                   <Copy className="w-3 h-3" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`h-5 w-5 p-0 ${speakingMessageId === message.id ? 'text-primary' : ''}`}
+                                onClick={() => speakingMessageId === message.id ? stopSpeaking() : speakText(message.content, message.id)}
+                                title={speakingMessageId === message.id ? 'Parar áudio' : 'Ouvir resposta'}
+                              >
+                                {speakingMessageId === message.id ? (
+                                  <VolumeX className="w-3 h-3" />
+                                ) : (
+                                  <Volume2 className="w-3 h-3" />
                                 )}
                               </Button>
                               <Button
