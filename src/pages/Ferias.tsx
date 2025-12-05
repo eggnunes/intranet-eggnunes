@@ -14,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Calendar as CalendarIcon, Clock, CheckCircle, XCircle, Plus, User, Info, Users, FileText, Trash2, Pencil } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle, XCircle, Plus, User, Info, Users, FileText, Trash2, Pencil, LayoutDashboard, ClipboardList } from 'lucide-react';
+import { VacationDashboard } from '@/components/VacationDashboard';
 import { format, differenceInBusinessDays, differenceInCalendarDays, parseISO, addYears, isBefore, isAfter, eachDayOfInterval, isWithinInterval, startOfMonth, endOfMonth, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -133,6 +134,7 @@ export default function Ferias() {
   const [allApprovedRequests, setAllApprovedRequests] = useState<VacationRequest[]>([]);
   const [allVacationRequests, setAllVacationRequests] = useState<VacationRequest[]>([]);
   const [activeTab, setActiveTab] = useState<string>('requests');
+  const [mainTab, setMainTab] = useState<string>('solicitations');
   const [editingRequest, setEditingRequest] = useState<VacationRequest | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editStartDate, setEditStartDate] = useState<Date>();
@@ -600,7 +602,7 @@ export default function Ferias() {
   return (
     <Layout>
       <div className="container mx-auto p-6 space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Gestão de Férias</h1>
             <p className="text-muted-foreground">Gerencie suas férias e acompanhe seu saldo</p>
@@ -830,28 +832,44 @@ export default function Ferias() {
           </div>
         </div>
 
-        {canManageVacations && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Filtrar por Colaborador</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Select value={selectedUser} onValueChange={setSelectedUser}>
-                <SelectTrigger className="w-full md:w-[300px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os colaboradores</SelectItem>
-                  {profiles.map((profile) => (
-                    <SelectItem key={profile.id} value={profile.id}>
-                      {profile.full_name} {isCLT(profile.position) && '(CLT)'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
-        )}
+        {/* Main Navigation Tabs */}
+        <Tabs value={mainTab} onValueChange={setMainTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 max-w-md">
+            <TabsTrigger value="solicitations" className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4" />
+              Solicitações
+            </TabsTrigger>
+            {canManageVacations && (
+              <TabsTrigger value="dashboard" className="flex items-center gap-2">
+                <LayoutDashboard className="h-4 w-4" />
+                Dashboard
+              </TabsTrigger>
+            )}
+          </TabsList>
+
+          <TabsContent value="solicitations" className="space-y-6 mt-6">
+            {canManageVacations && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Filtrar por Colaborador</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Select value={selectedUser} onValueChange={setSelectedUser}>
+                    <SelectTrigger className="w-full md:w-[300px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os colaboradores</SelectItem>
+                      {profiles.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id}>
+                          {profile.full_name} {isCLT(profile.position) && '(CLT)'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </CardContent>
+              </Card>
+            )}
 
         <Card>
           <CardHeader>
@@ -1352,6 +1370,17 @@ export default function Ferias() {
             </CardContent>
           </Card>
         )}
+          </TabsContent>
+
+          {canManageVacations && (
+            <TabsContent value="dashboard" className="mt-6">
+              <VacationDashboard 
+                onEditRequest={openEditDialog}
+                onDeleteRequest={handleDelete}
+              />
+            </TabsContent>
+          )}
+        </Tabs>
       </div>
 
       {/* Edit Dialog */}
