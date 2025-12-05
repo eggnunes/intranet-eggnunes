@@ -267,6 +267,12 @@ export default function Contratacao() {
   const [editContactEmail, setEditContactEmail] = useState('');
   const [editContactPhone, setEditContactPhone] = useState('');
   
+  // Preview state
+  const [showResumePreview, setShowResumePreview] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewFileName, setPreviewFileName] = useState('');
+  const [previewFilePath, setPreviewFilePath] = useState('');
+  
   // Comparison state
   const [compareList, setCompareList] = useState<string[]>([]);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
@@ -992,6 +998,26 @@ export default function Contratacao() {
     }
   };
 
+  const previewResume = async (fileUrl: string, fileName: string) => {
+    try {
+      const { data: signedData } = await supabase.storage
+        .from('resumes')
+        .createSignedUrl(fileUrl, 300);
+      
+      if (signedData?.signedUrl) {
+        setPreviewUrl(signedData.signedUrl);
+        setPreviewFileName(fileName);
+        setPreviewFilePath(fileUrl);
+        setShowResumePreview(true);
+      } else {
+        toast.error('Erro ao carregar preview do currículo');
+      }
+    } catch (error) {
+      console.error('Preview error:', error);
+      toast.error('Erro ao carregar preview');
+    }
+  };
+
   // Metrics calculation
   const calculateMetrics = () => {
     const hired = candidates.filter(c => c.current_stage === 'contratado');
@@ -1616,12 +1642,17 @@ export default function Contratacao() {
                           </div>
                           <div className="flex flex-wrap gap-2 items-start">
                             {candidate.resume_url && (
-                              <Button size="sm" variant="outline" onClick={() => downloadFile(candidate.resume_url!, candidate.resume_file_name || 'curriculo.pdf')}>
-                                <FileText className="h-4 w-4" />
-                              </Button>
+                              <>
+                                <Button size="sm" variant="outline" onClick={() => previewResume(candidate.resume_url!, candidate.resume_file_name || 'curriculo.pdf')} title="Visualizar Currículo">
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => downloadFile(candidate.resume_url!, candidate.resume_file_name || 'curriculo.pdf')} title="Baixar Currículo">
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </>
                             )}
                             <Button size="sm" variant="outline" onClick={() => { setSelectedCandidate(candidate); fetchCandidateDetails(candidate.id); }}>
-                              <Eye className="h-4 w-4 mr-1" />Detalhes
+                              <FileText className="h-4 w-4 mr-1" />Detalhes
                             </Button>
                             {canEdit && candidate.is_active && (
                               <>
@@ -1824,12 +1855,17 @@ export default function Contratacao() {
                         </div>
                         <div className="flex flex-wrap gap-2 items-start">
                           {candidate.resume_url && (
-                            <Button size="sm" variant="outline" onClick={() => downloadFile(candidate.resume_url!, candidate.resume_file_name || 'curriculo.pdf')}>
-                              <FileText className="h-4 w-4" />
-                            </Button>
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => previewResume(candidate.resume_url!, candidate.resume_file_name || 'curriculo.pdf')} title="Visualizar Currículo">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => downloadFile(candidate.resume_url!, candidate.resume_file_name || 'curriculo.pdf')} title="Baixar Currículo">
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            </>
                           )}
                           <Button size="sm" variant="outline" onClick={() => { setSelectedCandidate(candidate); fetchCandidateDetails(candidate.id); }}>
-                            <Eye className="h-4 w-4 mr-1" />Detalhes
+                            <FileText className="h-4 w-4 mr-1" />Detalhes
                           </Button>
                           {canEdit && jobOpenings.filter(j => j.status === 'open').length > 0 && (
                             <Select onValueChange={(jobId) => {
@@ -2221,9 +2257,14 @@ export default function Contratacao() {
                       <div><Label className="text-muted-foreground">Cadastro</Label><p>{format(new Date(selectedCandidate.created_at), "dd/MM/yyyy", { locale: ptBR })}</p></div>
                     </div>
                     {selectedCandidate.resume_url && (
-                      <Button variant="outline" onClick={() => downloadFile(selectedCandidate.resume_url!, selectedCandidate.resume_file_name || 'curriculo.pdf')}>
-                        <FileText className="h-4 w-4 mr-2" />Baixar Currículo
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => previewResume(selectedCandidate.resume_url!, selectedCandidate.resume_file_name || 'curriculo.pdf')}>
+                          <Eye className="h-4 w-4 mr-2" />Visualizar
+                        </Button>
+                        <Button variant="outline" onClick={() => downloadFile(selectedCandidate.resume_url!, selectedCandidate.resume_file_name || 'curriculo.pdf')}>
+                          <Download className="h-4 w-4 mr-2" />Baixar
+                        </Button>
+                      </div>
                     )}
                     {selectedCandidate.extracted_data?.summary && (
                       <div><Label className="text-muted-foreground">Resumo</Label><p className="text-sm bg-muted p-3 rounded-md">{selectedCandidate.extracted_data.summary}</p></div>
@@ -2549,14 +2590,24 @@ export default function Contratacao() {
 
                       {/* Resume */}
                       {candidate.resume_url && (
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="w-full mt-2"
-                          onClick={() => downloadFile(candidate.resume_url!, candidate.resume_file_name || 'curriculo.pdf')}
-                        >
-                          <FileText className="h-4 w-4 mr-2" />Currículo
-                        </Button>
+                        <div className="flex gap-2 mt-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="flex-1"
+                            onClick={() => previewResume(candidate.resume_url!, candidate.resume_file_name || 'curriculo.pdf')}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />Ver
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="flex-1"
+                            onClick={() => downloadFile(candidate.resume_url!, candidate.resume_file_name || 'curriculo.pdf')}
+                          >
+                            <Download className="h-4 w-4 mr-1" />Baixar
+                          </Button>
+                        </div>
                       )}
 
                       {/* Summary */}
@@ -2728,6 +2779,35 @@ export default function Contratacao() {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Resume Preview Dialog */}
+        <Dialog open={showResumePreview} onOpenChange={setShowResumePreview}>
+          <DialogContent className="max-w-4xl h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                {previewFileName}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 min-h-0 h-full">
+              {previewUrl && (
+                <iframe
+                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewUrl)}&embedded=true`}
+                  className="w-full h-[calc(80vh-120px)] border rounded-md"
+                  title="Preview do Currículo"
+                />
+              )}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => window.open(previewUrl!, '_blank')}>
+                <Eye className="h-4 w-4 mr-2" />Abrir em Nova Aba
+              </Button>
+              <Button onClick={() => downloadFile(previewFilePath, previewFileName)}>
+                <Download className="h-4 w-4 mr-2" />Baixar
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
