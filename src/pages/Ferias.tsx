@@ -115,6 +115,56 @@ const calculateVacationPeriod = (joinDate: string | null): { startDate: Date; en
   return { startDate: periodStart, endDate: periodEnd, periodLabel };
 };
 
+// Interface for acquisition period
+interface AcquisitionPeriod {
+  value: string;
+  label: string;
+  startDate: Date;
+  endDate: Date;
+}
+
+// Generate all acquisition periods for a user based on join_date
+const generateAcquisitionPeriods = (joinDate: string | null): AcquisitionPeriod[] => {
+  if (!joinDate) return [];
+  
+  const join = parseISO(joinDate);
+  const today = new Date();
+  const periods: AcquisitionPeriod[] = [];
+  
+  let periodStart = join;
+  let periodEnd = addYears(join, 1);
+  let periodNumber = 1;
+  
+  // Generate periods up to current year + 1
+  const maxPeriods = 10; // Limit to prevent infinite loops
+  let count = 0;
+  
+  while (count < maxPeriods) {
+    // Only include periods where the start has already passed
+    if (isBefore(periodStart, addYears(today, 1))) {
+      const startStr = format(periodStart, 'yyyy-MM-dd');
+      const endStr = format(periodEnd, 'yyyy-MM-dd');
+      
+      periods.push({
+        value: `${startStr}|${endStr}`,
+        label: `${format(periodStart, "dd/MM/yyyy")} a ${format(periodEnd, "dd/MM/yyyy")}`,
+        startDate: periodStart,
+        endDate: periodEnd,
+      });
+    }
+    
+    periodStart = periodEnd;
+    periodEnd = addYears(periodStart, 1);
+    periodNumber++;
+    count++;
+    
+    // Stop if we've gone past current date by more than 1 year
+    if (isAfter(periodStart, addYears(today, 1))) break;
+  }
+  
+  return periods;
+};
+
 export default function Ferias() {
   const { user } = useAuth();
   const { isAdmin, profile: userProfile } = useUserRole();
@@ -148,9 +198,15 @@ export default function Ferias() {
   const [editAcquisitionEnd, setEditAcquisitionEnd] = useState<Date>();
   const [editSoldDays, setEditSoldDays] = useState<number>(0);
   // New request fields
-  const [acquisitionPeriodStart, setAcquisitionPeriodStart] = useState<Date>();
-  const [acquisitionPeriodEnd, setAcquisitionPeriodEnd] = useState<Date>();
+  const [selectedAcquisitionPeriod, setSelectedAcquisitionPeriod] = useState<string>('');
+  const [adminSelectedAcquisitionPeriod, setAdminSelectedAcquisitionPeriod] = useState<string>('');
+  const [editSelectedAcquisitionPeriod, setEditSelectedAcquisitionPeriod] = useState<string>('');
   const [soldDays, setSoldDays] = useState<number>(0);
+  
+  // Generate acquisition periods for current user
+  const currentUserAcquisitionPeriods = generateAcquisitionPeriods(currentUserProfile?.join_date || null);
+  const selectedUserAcquisitionPeriods = generateAcquisitionPeriods(selectedUserProfile?.join_date || null);
+  
   // Check if user can manage vacations
   const canManageVacations = isAdmin && (isSocioOrRafael || canEdit('vacation'));
 
@@ -176,8 +232,11 @@ export default function Ferias() {
           join_date: profile.join_date
         });
       }
+      // Reset acquisition period selection when user changes
+      setAdminSelectedAcquisitionPeriod('');
     } else {
       setSelectedUserProfile(null);
+      setAdminSelectedAcquisitionPeriod('');
     }
   }, [adminSelectedUser, profiles]);
 
@@ -354,6 +413,15 @@ export default function Ferias() {
       return;
     }
 
+    if (!selectedAcquisitionPeriod) {
+      toast({
+        title: 'Erro',
+        description: 'Selecione o período aquisitivo',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (startDate > endDate) {
       toast({
         title: 'Erro',
@@ -377,6 +445,8 @@ export default function Ferias() {
       return;
     }
 
+    const [acqStart, acqEnd] = selectedAcquisitionPeriod.split('|');
+
     const { error } = await supabase
       .from('vacation_requests')
       .insert({
@@ -385,8 +455,8 @@ export default function Ferias() {
         end_date: format(endDate, 'yyyy-MM-dd'),
         business_days: days,
         notes,
-        acquisition_period_start: acquisitionPeriodStart ? format(acquisitionPeriodStart, 'yyyy-MM-dd') : null,
-        acquisition_period_end: acquisitionPeriodEnd ? format(acquisitionPeriodEnd, 'yyyy-MM-dd') : null,
+        acquisition_period_start: acqStart,
+        acquisition_period_end: acqEnd,
         sold_days: soldDays || 0,
       });
 
@@ -408,8 +478,7 @@ export default function Ferias() {
     setStartDate(undefined);
     setEndDate(undefined);
     setNotes('');
-    setAcquisitionPeriodStart(undefined);
-    setAcquisitionPeriodEnd(undefined);
+    setSelectedAcquisitionPeriod('');
     setSoldDays(0);
     fetchData();
   };
@@ -424,7 +493,17 @@ export default function Ferias() {
       return;
     }
 
+    if (!adminSelectedAcquisitionPeriod) {
+      toast({
+        title: 'Erro',
+        description: 'Selecione o período aquisitivo',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const days = calculateDays(startDate, endDate, selectedUserProfile?.position || null);
+    const [acqStart, acqEnd] = adminSelectedAcquisitionPeriod.split('|');
 
     const { error } = await supabase
       .from('vacation_requests')
@@ -437,8 +516,8 @@ export default function Ferias() {
         approved_by: user!.id,
         approved_at: new Date().toISOString(),
         notes,
-        acquisition_period_start: acquisitionPeriodStart ? format(acquisitionPeriodStart, 'yyyy-MM-dd') : null,
-        acquisition_period_end: acquisitionPeriodEnd ? format(acquisitionPeriodEnd, 'yyyy-MM-dd') : null,
+        acquisition_period_start: acqStart,
+        acquisition_period_end: acqEnd,
         sold_days: soldDays || 0,
       });
 
@@ -461,8 +540,7 @@ export default function Ferias() {
     setStartDate(undefined);
     setEndDate(undefined);
     setNotes('');
-    setAcquisitionPeriodStart(undefined);
-    setAcquisitionPeriodEnd(undefined);
+    setAdminSelectedAcquisitionPeriod('');
     setSoldDays(0);
     fetchData();
   };
@@ -726,63 +804,28 @@ export default function Ferias() {
                   )}
                   {/* Período Aquisitivo */}
                   <div className="space-y-2">
-                    <Label className="font-medium">Período Aquisitivo (opcional)</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Início</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className={cn(
-                                "w-full justify-start text-left font-normal",
-                                !acquisitionPeriodStart && "text-muted-foreground"
-                              )}
-                            >
-                              <CalendarIcon className="mr-2 h-3 w-3" />
-                              {acquisitionPeriodStart ? format(acquisitionPeriodStart, 'dd/MM/yyyy') : 'Selecione'}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0">
-                            <Calendar
-                              mode="single"
-                              selected={acquisitionPeriodStart}
-                              onSelect={setAcquisitionPeriodStart}
-                              initialFocus
-                              className="pointer-events-auto"
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Fim</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className={cn(
-                                "w-full justify-start text-left font-normal",
-                                !acquisitionPeriodEnd && "text-muted-foreground"
-                              )}
-                            >
-                              <CalendarIcon className="mr-2 h-3 w-3" />
-                              {acquisitionPeriodEnd ? format(acquisitionPeriodEnd, 'dd/MM/yyyy') : 'Selecione'}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0">
-                            <Calendar
-                              mode="single"
-                              selected={acquisitionPeriodEnd}
-                              onSelect={setAcquisitionPeriodEnd}
-                              initialFocus
-                              className="pointer-events-auto"
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                    </div>
+                    <Label className="font-medium">Período Aquisitivo *</Label>
+                    {currentUserAcquisitionPeriods.length === 0 ? (
+                      <Alert>
+                        <Info className="h-4 w-4" />
+                        <AlertDescription>
+                          Sua data de admissão não está cadastrada. Entre em contato com o RH.
+                        </AlertDescription>
+                      </Alert>
+                    ) : (
+                      <Select value={selectedAcquisitionPeriod} onValueChange={setSelectedAcquisitionPeriod}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o período aquisitivo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {currentUserAcquisitionPeriods.map((period) => (
+                            <SelectItem key={period.value} value={period.value}>
+                              {period.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                   {/* Dias Vendidos */}
                   <div>
@@ -921,63 +964,30 @@ export default function Ferias() {
                     )}
                     {/* Período Aquisitivo */}
                     <div className="space-y-2">
-                      <Label className="font-medium">Período Aquisitivo (opcional)</Label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Início</Label>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className={cn(
-                                  "w-full justify-start text-left font-normal",
-                                  !acquisitionPeriodStart && "text-muted-foreground"
-                                )}
-                              >
-                                <CalendarIcon className="mr-2 h-3 w-3" />
-                                {acquisitionPeriodStart ? format(acquisitionPeriodStart, 'dd/MM/yyyy') : 'Selecione'}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                              <Calendar
-                                mode="single"
-                                selected={acquisitionPeriodStart}
-                                onSelect={setAcquisitionPeriodStart}
-                                initialFocus
-                                className="pointer-events-auto"
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Fim</Label>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className={cn(
-                                  "w-full justify-start text-left font-normal",
-                                  !acquisitionPeriodEnd && "text-muted-foreground"
-                                )}
-                              >
-                                <CalendarIcon className="mr-2 h-3 w-3" />
-                                {acquisitionPeriodEnd ? format(acquisitionPeriodEnd, 'dd/MM/yyyy') : 'Selecione'}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                              <Calendar
-                                mode="single"
-                                selected={acquisitionPeriodEnd}
-                                onSelect={setAcquisitionPeriodEnd}
-                                initialFocus
-                                className="pointer-events-auto"
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                      </div>
+                      <Label className="font-medium">Período Aquisitivo *</Label>
+                      {!adminSelectedUser ? (
+                        <p className="text-sm text-muted-foreground">Selecione um colaborador primeiro</p>
+                      ) : selectedUserAcquisitionPeriods.length === 0 ? (
+                        <Alert>
+                          <Info className="h-4 w-4" />
+                          <AlertDescription>
+                            Este colaborador não possui data de admissão cadastrada. Atualize o perfil dele.
+                          </AlertDescription>
+                        </Alert>
+                      ) : (
+                        <Select value={adminSelectedAcquisitionPeriod} onValueChange={setAdminSelectedAcquisitionPeriod}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o período aquisitivo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {selectedUserAcquisitionPeriods.map((period) => (
+                              <SelectItem key={period.value} value={period.value}>
+                                {period.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
                     {/* Dias Vendidos */}
                     <div>
