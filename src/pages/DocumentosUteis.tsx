@@ -72,6 +72,19 @@ export default function DocumentosUteis() {
     setDocuments(documentsWithNames);
   };
 
+  // Helper function to get signed URL for a document
+  const getSignedUrl = async (filePath: string): Promise<string | null> => {
+    const { data, error } = await supabase.storage
+      .from('documents')
+      .createSignedUrl(filePath, 3600); // 1 hour expiration
+    
+    if (error) {
+      console.error('Error creating signed URL:', error);
+      return null;
+    }
+    return data.signedUrl;
+  };
+
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file) return;
@@ -84,24 +97,20 @@ export default function DocumentosUteis() {
 
       // Upload do arquivo
       const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
       const { error: uploadError } = await supabase.storage
         .from('documents')
         .upload(fileName, file);
 
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from('documents')
-        .getPublicUrl(fileName);
-
-      // Criar registro
+      // Store just the file path, not the full URL (bucket is now private)
       const { error: insertError } = await supabase
         .from('useful_documents')
         .insert({
           title: newTitle,
           description: newDescription,
-          file_url: urlData.publicUrl,
+          file_url: fileName, // Store file path only
           uploaded_by: user.id,
         });
 
@@ -302,7 +311,18 @@ export default function DocumentosUteis() {
                       variant="outline"
                       size="sm"
                       className="flex-1"
-                      onClick={() => setPreviewDoc(doc)}
+                      onClick={async () => {
+                        const signedUrl = await getSignedUrl(doc.file_url);
+                        if (signedUrl) {
+                          setPreviewDoc({ ...doc, file_url: signedUrl });
+                        } else {
+                          toast({
+                            title: 'Erro',
+                            description: 'Não foi possível carregar o documento',
+                            variant: 'destructive',
+                          });
+                        }
+                      }}
                     >
                       <Eye className="w-4 h-4 mr-2" />
                       Visualizar
@@ -310,11 +330,20 @@ export default function DocumentosUteis() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        const link = document.createElement('a');
-                        link.href = doc.file_url;
-                        link.download = doc.title;
-                        link.click();
+                      onClick={async () => {
+                        const signedUrl = await getSignedUrl(doc.file_url);
+                        if (signedUrl) {
+                          const link = document.createElement('a');
+                          link.href = signedUrl;
+                          link.download = doc.title;
+                          link.click();
+                        } else {
+                          toast({
+                            title: 'Erro',
+                            description: 'Não foi possível baixar o documento',
+                            variant: 'destructive',
+                          });
+                        }
                       }}
                     >
                       <Download className="w-4 h-4" />
@@ -373,10 +402,11 @@ export default function DocumentosUteis() {
             </DialogHeader>
             <div className="flex-1 p-4 pt-0 h-[calc(90vh-80px)]">
               {previewDoc && (
-                <iframe
-                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewDoc.file_url)}&embedded=true`}
+                <embed
+                  src={previewDoc.file_url}
                   className="w-full h-full border rounded-lg"
                   title={previewDoc.title}
+                  type="application/pdf"
                 />
               )}
             </div>
