@@ -1353,6 +1353,104 @@ export default function Ferias() {
           </Card>
         )}
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Período de Férias</DialogTitle>
+            <DialogDescription>
+              Altere as datas do período de férias
+            </DialogDescription>
+          </DialogHeader>
+          {editingRequest && (
+            <div className="space-y-4">
+              <div className="p-3 bg-muted rounded-md">
+                <p className="font-medium">{editingRequest.profiles.full_name}</p>
+                <p className="text-sm text-muted-foreground">
+                  Status: {editingRequest.status === 'approved' ? 'Aprovada' : editingRequest.status === 'pending' ? 'Pendente' : 'Rejeitada'}
+                </p>
+              </div>
+              <div>
+                <Label>Data de Início</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !editStartDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {editStartDate ? format(editStartDate, 'PPP', { locale: ptBR }) : 'Selecione a data'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={editStartDate}
+                      onSelect={setEditStartDate}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <Label>Data de Fim</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !editEndDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {editEndDate ? format(editEndDate, 'PPP', { locale: ptBR }) : 'Selecione a data'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={editEndDate}
+                      onSelect={setEditEndDate}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              {editStartDate && editEndDate && (
+                <div className="p-3 bg-muted rounded-md">
+                  <p className="text-sm font-medium">
+                    {isCLT(editingRequest.profiles.position) ? 'Dias corridos' : 'Dias úteis'}: {calculateDays(editStartDate, editEndDate, editingRequest.profiles.position)}
+                  </p>
+                </div>
+              )}
+              <div>
+                <Label>Observações (opcional)</Label>
+                <Textarea
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="Adicione observações"
+                  rows={3}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="flex-1">
+                  Cancelar
+                </Button>
+                <Button onClick={handleEditRequest} className="flex-1">
+                  Salvar Alterações
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }
