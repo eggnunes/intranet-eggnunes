@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Calendar as CalendarIcon, Clock, CheckCircle, XCircle, Plus, User, Info, Users, FileText } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle, XCircle, Plus, User, Info, Users, FileText, Trash2, Pencil } from 'lucide-react';
 import { format, differenceInBusinessDays, differenceInCalendarDays, parseISO, addYears, isBefore, isAfter, eachDayOfInterval, isWithinInterval, startOfMonth, endOfMonth, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -133,6 +133,11 @@ export default function Ferias() {
   const [allApprovedRequests, setAllApprovedRequests] = useState<VacationRequest[]>([]);
   const [allVacationRequests, setAllVacationRequests] = useState<VacationRequest[]>([]);
   const [activeTab, setActiveTab] = useState<string>('requests');
+  const [editingRequest, setEditingRequest] = useState<VacationRequest | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editStartDate, setEditStartDate] = useState<Date>();
+  const [editEndDate, setEditEndDate] = useState<Date>();
+  const [editNotes, setEditNotes] = useState('');
   // Check if user can manage vacations
   const canManageVacations = isAdmin && (isSocioOrRafael || canEdit('vacation'));
 
@@ -488,6 +493,75 @@ export default function Ferias() {
       description: 'A solicitação foi rejeitada',
     });
     fetchData();
+    fetchAllVacationRequests();
+  };
+
+  const handleDelete = async (requestId: string) => {
+    if (!confirm('Tem certeza que deseja excluir este período de férias?')) return;
+
+    const { error } = await supabase
+      .from('vacation_requests')
+      .delete()
+      .eq('id', requestId);
+
+    if (error) {
+      toast({
+        title: 'Erro ao excluir',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    toast({
+      title: 'Férias excluídas',
+      description: 'O período de férias foi excluído com sucesso',
+    });
+    fetchData();
+    fetchAllVacationRequests();
+  };
+
+  const openEditDialog = (request: VacationRequest) => {
+    setEditingRequest(request);
+    setEditStartDate(parseISO(request.start_date));
+    setEditEndDate(parseISO(request.end_date));
+    setEditNotes(request.notes || '');
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditRequest = async () => {
+    if (!editingRequest || !editStartDate || !editEndDate) return;
+
+    const profile = profiles.find(p => p.id === editingRequest.user_id);
+    const days = calculateDays(editStartDate, editEndDate, profile?.position || null);
+
+    const { error } = await supabase
+      .from('vacation_requests')
+      .update({
+        start_date: format(editStartDate, 'yyyy-MM-dd'),
+        end_date: format(editEndDate, 'yyyy-MM-dd'),
+        business_days: days,
+        notes: editNotes,
+      })
+      .eq('id', editingRequest.id);
+
+    if (error) {
+      toast({
+        title: 'Erro ao editar',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    toast({
+      title: 'Férias atualizadas',
+      description: 'O período de férias foi atualizado com sucesso',
+    });
+    setIsEditDialogOpen(false);
+    setEditingRequest(null);
+    fetchData();
+    fetchAllVacationRequests();
   };
 
   const getStatusBadge = (status: string) => {
@@ -870,7 +944,7 @@ export default function Ferias() {
                                 </p>
                               )}
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               {getStatusBadge(request.status)}
                               {canManageVacations && request.status === 'pending' && (
                                 <div className="flex gap-2">
@@ -913,6 +987,27 @@ export default function Ferias() {
                                       </div>
                                     </DialogContent>
                                   </Dialog>
+                                </div>
+                              )}
+                              {canManageVacations && (
+                                <div className="flex gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => openEditDialog(request)}
+                                    title="Editar"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-destructive hover:text-destructive"
+                                    onClick={() => handleDelete(request.id)}
+                                    title="Excluir"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
                                 </div>
                               )}
                             </div>
