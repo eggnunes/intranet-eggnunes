@@ -2242,6 +2242,8 @@ export type Database = {
       }
       vacation_requests: {
         Row: {
+          acquisition_period_end: string | null
+          acquisition_period_start: string | null
           approved_at: string | null
           approved_by: string | null
           business_days: number
@@ -2250,12 +2252,15 @@ export type Database = {
           id: string
           notes: string | null
           rejection_reason: string | null
+          sold_days: number | null
           start_date: string
           status: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          acquisition_period_end?: string | null
+          acquisition_period_start?: string | null
           approved_at?: string | null
           approved_by?: string | null
           business_days: number
@@ -2264,12 +2269,15 @@ export type Database = {
           id?: string
           notes?: string | null
           rejection_reason?: string | null
+          sold_days?: number | null
           start_date: string
           status?: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          acquisition_period_end?: string | null
+          acquisition_period_start?: string | null
           approved_at?: string | null
           approved_by?: string | null
           business_days?: number
@@ -2278,6 +2286,7 @@ export type Database = {
           id?: string
           notes?: string | null
           rejection_reason?: string | null
+          sold_days?: number | null
           start_date?: string
           status?: string
           updated_at?: string
