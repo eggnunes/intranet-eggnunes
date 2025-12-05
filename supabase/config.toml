@@ -10,7 +10,7 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.process-documents]
-verify_jwt = false
+verify_jwt = true
 
 [functions.suggest-task]
 verify_jwt = true
