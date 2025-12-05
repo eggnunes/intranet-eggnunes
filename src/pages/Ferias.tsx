@@ -14,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Calendar as CalendarIcon, Clock, CheckCircle, XCircle, Plus, User, Info, Users, FileText, Trash2, Pencil, LayoutDashboard, ClipboardList } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle, XCircle, Plus, User, Info, Users, FileText, Trash2, Pencil, LayoutDashboard, ClipboardList, DollarSign } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { VacationDashboard } from '@/components/VacationDashboard';
 import { format, differenceInBusinessDays, differenceInCalendarDays, parseISO, addYears, isBefore, isAfter, eachDayOfInterval, isWithinInterval, startOfMonth, endOfMonth, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -36,6 +37,9 @@ interface VacationRequest {
   rejection_reason: string | null;
   notes: string | null;
   created_at: string;
+  acquisition_period_start: string | null;
+  acquisition_period_end: string | null;
+  sold_days: number | null;
   profiles: {
     full_name: string;
     avatar_url: string | null;
@@ -140,6 +144,13 @@ export default function Ferias() {
   const [editStartDate, setEditStartDate] = useState<Date>();
   const [editEndDate, setEditEndDate] = useState<Date>();
   const [editNotes, setEditNotes] = useState('');
+  const [editAcquisitionStart, setEditAcquisitionStart] = useState<Date>();
+  const [editAcquisitionEnd, setEditAcquisitionEnd] = useState<Date>();
+  const [editSoldDays, setEditSoldDays] = useState<number>(0);
+  // New request fields
+  const [acquisitionPeriodStart, setAcquisitionPeriodStart] = useState<Date>();
+  const [acquisitionPeriodEnd, setAcquisitionPeriodEnd] = useState<Date>();
+  const [soldDays, setSoldDays] = useState<number>(0);
   // Check if user can manage vacations
   const canManageVacations = isAdmin && (isSocioOrRafael || canEdit('vacation'));
 
@@ -374,6 +385,9 @@ export default function Ferias() {
         end_date: format(endDate, 'yyyy-MM-dd'),
         business_days: days,
         notes,
+        acquisition_period_start: acquisitionPeriodStart ? format(acquisitionPeriodStart, 'yyyy-MM-dd') : null,
+        acquisition_period_end: acquisitionPeriodEnd ? format(acquisitionPeriodEnd, 'yyyy-MM-dd') : null,
+        sold_days: soldDays || 0,
       });
 
     if (error) {
@@ -394,6 +408,9 @@ export default function Ferias() {
     setStartDate(undefined);
     setEndDate(undefined);
     setNotes('');
+    setAcquisitionPeriodStart(undefined);
+    setAcquisitionPeriodEnd(undefined);
+    setSoldDays(0);
     fetchData();
   };
 
@@ -420,6 +437,9 @@ export default function Ferias() {
         approved_by: user!.id,
         approved_at: new Date().toISOString(),
         notes,
+        acquisition_period_start: acquisitionPeriodStart ? format(acquisitionPeriodStart, 'yyyy-MM-dd') : null,
+        acquisition_period_end: acquisitionPeriodEnd ? format(acquisitionPeriodEnd, 'yyyy-MM-dd') : null,
+        sold_days: soldDays || 0,
       });
 
     if (error) {
@@ -441,6 +461,9 @@ export default function Ferias() {
     setStartDate(undefined);
     setEndDate(undefined);
     setNotes('');
+    setAcquisitionPeriodStart(undefined);
+    setAcquisitionPeriodEnd(undefined);
+    setSoldDays(0);
     fetchData();
   };
 
@@ -528,6 +551,9 @@ export default function Ferias() {
     setEditStartDate(parseISO(request.start_date));
     setEditEndDate(parseISO(request.end_date));
     setEditNotes(request.notes || '');
+    setEditAcquisitionStart(request.acquisition_period_start ? parseISO(request.acquisition_period_start) : undefined);
+    setEditAcquisitionEnd(request.acquisition_period_end ? parseISO(request.acquisition_period_end) : undefined);
+    setEditSoldDays(request.sold_days || 0);
     setIsEditDialogOpen(true);
   };
 
@@ -544,6 +570,9 @@ export default function Ferias() {
         end_date: format(editEndDate, 'yyyy-MM-dd'),
         business_days: days,
         notes: editNotes,
+        acquisition_period_start: editAcquisitionStart ? format(editAcquisitionStart, 'yyyy-MM-dd') : null,
+        acquisition_period_end: editAcquisitionEnd ? format(editAcquisitionEnd, 'yyyy-MM-dd') : null,
+        sold_days: editSoldDays || 0,
       })
       .eq('id', editingRequest.id);
 
@@ -695,6 +724,83 @@ export default function Ferias() {
                       </p>
                     </div>
                   )}
+                  {/* Período Aquisitivo */}
+                  <div className="space-y-2">
+                    <Label className="font-medium">Período Aquisitivo (opcional)</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Início</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !acquisitionPeriodStart && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-3 w-3" />
+                              {acquisitionPeriodStart ? format(acquisitionPeriodStart, 'dd/MM/yyyy') : 'Selecione'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0">
+                            <Calendar
+                              mode="single"
+                              selected={acquisitionPeriodStart}
+                              onSelect={setAcquisitionPeriodStart}
+                              initialFocus
+                              className="pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Fim</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !acquisitionPeriodEnd && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-3 w-3" />
+                              {acquisitionPeriodEnd ? format(acquisitionPeriodEnd, 'dd/MM/yyyy') : 'Selecione'}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0">
+                            <Calendar
+                              mode="single"
+                              selected={acquisitionPeriodEnd}
+                              onSelect={setAcquisitionPeriodEnd}
+                              initialFocus
+                              className="pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Dias Vendidos */}
+                  <div>
+                    <Label className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Dias Vendidos (opcional)
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="10"
+                      value={soldDays || ''}
+                      onChange={(e) => setSoldDays(parseInt(e.target.value) || 0)}
+                      placeholder="0"
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Dias de férias vendidos ao escritório (abono pecuniário)</p>
+                  </div>
                   <div>
                     <Label>Observações (opcional)</Label>
                     <Textarea
@@ -813,6 +919,83 @@ export default function Ferias() {
                         </p>
                       </div>
                     )}
+                    {/* Período Aquisitivo */}
+                    <div className="space-y-2">
+                      <Label className="font-medium">Período Aquisitivo (opcional)</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Início</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !acquisitionPeriodStart && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-3 w-3" />
+                                {acquisitionPeriodStart ? format(acquisitionPeriodStart, 'dd/MM/yyyy') : 'Selecione'}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={acquisitionPeriodStart}
+                                onSelect={setAcquisitionPeriodStart}
+                                initialFocus
+                                className="pointer-events-auto"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Fim</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !acquisitionPeriodEnd && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-3 w-3" />
+                                {acquisitionPeriodEnd ? format(acquisitionPeriodEnd, 'dd/MM/yyyy') : 'Selecione'}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={acquisitionPeriodEnd}
+                                onSelect={setAcquisitionPeriodEnd}
+                                initialFocus
+                                className="pointer-events-auto"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Dias Vendidos */}
+                    <div>
+                      <Label className="flex items-center gap-2">
+                        <DollarSign className="h-4 w-4" />
+                        Dias Vendidos (opcional)
+                      </Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="10"
+                        value={soldDays || ''}
+                        onChange={(e) => setSoldDays(parseInt(e.target.value) || 0)}
+                        placeholder="0"
+                        className="mt-1"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Dias de férias vendidos ao escritório (abono pecuniário)</p>
+                    </div>
                     <div>
                       <Label>Observações (opcional)</Label>
                       <Textarea
@@ -1067,12 +1250,12 @@ export default function Ferias() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Colaborador</TableHead>
-                        <TableHead>Início</TableHead>
-                        <TableHead>Fim</TableHead>
+                        <TableHead>Período</TableHead>
                         <TableHead>Duração</TableHead>
+                        <TableHead>Período Aquisitivo</TableHead>
+                        <TableHead>Vendidos</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Tipo</TableHead>
-                        <TableHead>Cadastrado em</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1090,13 +1273,29 @@ export default function Ferias() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {format(parseISO(request.start_date), 'dd/MM/yyyy')}
-                          </TableCell>
-                          <TableCell>
-                            {format(parseISO(request.end_date), 'dd/MM/yyyy')}
+                            {format(parseISO(request.start_date), 'dd/MM/yyyy')} - {format(parseISO(request.end_date), 'dd/MM/yyyy')}
                           </TableCell>
                           <TableCell>
                             {request.business_days} {isCLT(request.profiles.position) ? 'dias corridos' : 'dias úteis'}
+                          </TableCell>
+                          <TableCell>
+                            {request.acquisition_period_start && request.acquisition_period_end ? (
+                              <span className="text-sm">
+                                {format(parseISO(request.acquisition_period_start), 'dd/MM/yyyy')} - {format(parseISO(request.acquisition_period_end), 'dd/MM/yyyy')}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {request.sold_days && request.sold_days > 0 ? (
+                              <Badge variant="secondary" className="flex items-center gap-1 w-fit">
+                                <DollarSign className="h-3 w-3" />
+                                {request.sold_days}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">-</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             {getStatusBadge(request.status)}
@@ -1105,9 +1304,6 @@ export default function Ferias() {
                             <Badge variant={isCLT(request.profiles.position) ? 'secondary' : 'outline'}>
                               {isCLT(request.profiles.position) ? 'CLT' : 'Padrão'}
                             </Badge>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">
-                            {format(parseISO(request.created_at), 'dd/MM/yyyy HH:mm')}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1459,6 +1655,83 @@ export default function Ferias() {
                   </p>
                 </div>
               )}
+              {/* Período Aquisitivo */}
+              <div className="space-y-2">
+                <Label className="font-medium">Período Aquisitivo (opcional)</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Início</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !editAcquisitionStart && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-3 w-3" />
+                          {editAcquisitionStart ? format(editAcquisitionStart, 'dd/MM/yyyy') : 'Selecione'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={editAcquisitionStart}
+                          onSelect={setEditAcquisitionStart}
+                          initialFocus
+                          className="pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Fim</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !editAcquisitionEnd && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-3 w-3" />
+                          {editAcquisitionEnd ? format(editAcquisitionEnd, 'dd/MM/yyyy') : 'Selecione'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={editAcquisitionEnd}
+                          onSelect={setEditAcquisitionEnd}
+                          initialFocus
+                          className="pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+              </div>
+              {/* Dias Vendidos */}
+              <div>
+                <Label className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Dias Vendidos (opcional)
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="10"
+                  value={editSoldDays || ''}
+                  onChange={(e) => setEditSoldDays(parseInt(e.target.value) || 0)}
+                  placeholder="0"
+                  className="mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Dias de férias vendidos ao escritório (abono pecuniário)</p>
+              </div>
               <div>
                 <Label>Observações (opcional)</Label>
                 <Textarea

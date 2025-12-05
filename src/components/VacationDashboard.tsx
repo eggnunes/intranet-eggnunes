@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, Users, Clock, CheckCircle, TrendingUp, CalendarDays, AlertCircle, Trash2, Pencil } from 'lucide-react';
+import { Calendar, Users, Clock, CheckCircle, TrendingUp, CalendarDays, AlertCircle, Trash2, Pencil, DollarSign } from 'lucide-react';
 import { format, parseISO, isWithinInterval, startOfMonth, endOfMonth, addMonths, isBefore, isAfter, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -25,6 +25,9 @@ interface VacationRequest {
   rejection_reason: string | null;
   notes: string | null;
   created_at: string;
+  acquisition_period_start: string | null;
+  acquisition_period_end: string | null;
+  sold_days: number | null;
   profiles: {
     full_name: string;
     avatar_url: string | null;
@@ -506,9 +509,10 @@ export function VacationDashboard({ onEditRequest, onDeleteRequest }: VacationDa
                   <TableHead>Colaborador</TableHead>
                   <TableHead>Período</TableHead>
                   <TableHead>Duração</TableHead>
+                  <TableHead>Período Aquisitivo</TableHead>
+                  <TableHead>Vendidos</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Tipo</TableHead>
-                  <TableHead>Cadastrado em</TableHead>
                   {(onEditRequest || onDeleteRequest) && <TableHead>Ações</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -532,14 +536,30 @@ export function VacationDashboard({ onEditRequest, onDeleteRequest }: VacationDa
                     <TableCell>
                       {request.business_days} {isCLT(request.profiles.position) ? 'dias corridos' : 'dias úteis'}
                     </TableCell>
+                    <TableCell>
+                      {request.acquisition_period_start && request.acquisition_period_end ? (
+                        <span className="text-sm">
+                          {format(parseISO(request.acquisition_period_start), 'dd/MM/yyyy')} - {format(parseISO(request.acquisition_period_end), 'dd/MM/yyyy')}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {request.sold_days && request.sold_days > 0 ? (
+                        <Badge variant="secondary" className="flex items-center gap-1 w-fit">
+                          <DollarSign className="h-3 w-3" />
+                          {request.sold_days}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
+                    </TableCell>
                     <TableCell>{getStatusBadge(request.status)}</TableCell>
                     <TableCell>
                       <Badge variant={isCLT(request.profiles.position) ? 'secondary' : 'outline'}>
                         {isCLT(request.profiles.position) ? 'CLT' : 'Padrão'}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {format(parseISO(request.created_at), 'dd/MM/yyyy HH:mm')}
                     </TableCell>
                     {(onEditRequest || onDeleteRequest) && (
                       <TableCell>
