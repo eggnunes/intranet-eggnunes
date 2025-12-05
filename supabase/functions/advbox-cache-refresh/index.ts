@@ -10,6 +10,18 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Verify that the request comes from an authorized source (cron job with service role key)
+  const authHeader = req.headers.get('Authorization');
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  
+  if (!authHeader || !authHeader.includes(serviceRoleKey || '')) {
+    console.error('Unauthorized access attempt to advbox-cache-refresh');
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   try {
     console.log('Iniciando atualização automática do cache do Advbox');
 

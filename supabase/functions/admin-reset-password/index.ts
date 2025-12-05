@@ -70,9 +70,21 @@ serve(async (req) => {
       );
     }
 
-    if (newPassword.length < 6) {
+    // Validate password with stronger requirements (minimum 8 chars, uppercase, lowercase, number)
+    if (newPassword.length < 8) {
       return new Response(
-        JSON.stringify({ error: 'A senha deve ter pelo menos 6 caracteres' }),
+        JSON.stringify({ error: 'A senha deve ter pelo menos 8 caracteres' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const hasUppercase = /[A-Z]/.test(newPassword);
+    const hasLowercase = /[a-z]/.test(newPassword);
+    const hasNumber = /[0-9]/.test(newPassword);
+    
+    if (!hasUppercase || !hasLowercase || !hasNumber) {
+      return new Response(
+        JSON.stringify({ error: 'A senha deve conter pelo menos uma letra maiúscula, uma letra minúscula e um número' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
