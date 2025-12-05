@@ -16,7 +16,7 @@ serve(async (req) => {
     if (!title && !position) {
       return new Response(
         JSON.stringify({ error: 'Título ou cargo é obrigatório' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' } }
       );
     }
 
@@ -39,15 +39,19 @@ serve(async (req) => {
 
 Sua tarefa é gerar uma descrição de vaga e requisitos profissionais para uma vaga de emprego em um escritório de advocacia.
 
-IMPORTANTE: NÃO mencione localização específica, cidade ou estado. NÃO mencione áreas de atuação específicas a menos que sejam explicitamente informadas pelo usuário. Mantenha a descrição genérica o suficiente para se aplicar a qualquer escritório de advocacia.
+IMPORTANTE: 
+- NÃO mencione localização específica, cidade ou estado
+- NÃO mencione áreas de atuação específicas a menos que sejam explicitamente informadas
+- Mantenha a descrição genérica o suficiente para se aplicar a qualquer escritório de advocacia
+- Use português brasileiro correto e formal
+- NÃO use caracteres especiais, emojis ou formatação markdown
+- Escreva texto limpo e direto
 
 Responda APENAS em formato JSON válido com a seguinte estrutura:
 {
   "description": "Descrição detalhada da vaga com responsabilidades e atividades",
   "requirements": "Lista de requisitos e qualificações necessárias"
-}
-
-Seja profissional e objetivo. Foque nas competências e responsabilidades típicas do cargo sem fazer suposições sobre o escritório.`;
+}`;
 
     const userPrompt = `Gere descrição e requisitos para a seguinte vaga:
 
@@ -59,7 +63,8 @@ Considere:
 - Para cargos administrativos: foque em organização, atendimento e suporte ao escritório
 - Para cargos comerciais: foque em captação de clientes e relacionamento
 
-NÃO mencione localização, cidade ou áreas específicas de atuação do escritório.`;
+NÃO mencione localização, cidade ou áreas específicas de atuação do escritório.
+Escreva em português brasileiro sem caracteres especiais ou formatação.`;
 
     console.log('Calling Lovable AI for job opening suggestions...');
 
@@ -85,13 +90,13 @@ NÃO mencione localização, cidade ou áreas específicas de atuação do escri
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: 'Limite de requisições excedido. Tente novamente em alguns minutos.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' } }
         );
       }
       if (response.status === 402) {
         return new Response(
           JSON.stringify({ error: 'Créditos insuficientes. Adicione créditos à sua conta.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' } }
         );
       }
       
@@ -103,25 +108,51 @@ NÃO mencione localização, cidade ou áreas específicas de atuação do escri
     
     console.log('AI Response:', content);
 
+    // Clean the content - remove markdown code blocks and clean up text
+    let cleanContent = content
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/gi, '')
+      .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove zero-width characters
+      .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+      .trim();
+
     // Parse JSON from response
     let suggestion = { description: '', requirements: '' };
     try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        suggestion = JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]);
+        
+        // Clean the parsed content
+        suggestion = {
+          description: (parsed.description || '')
+            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+            .replace(/\*\*/g, '')
+            .replace(/\*/g, '')
+            .replace(/#{1,6}\s*/g, '')
+            .replace(/`/g, '')
+            .trim(),
+          requirements: (parsed.requirements || '')
+            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+            .replace(/\*\*/g, '')
+            .replace(/\*/g, '')
+            .replace(/#{1,6}\s*/g, '')
+            .replace(/`/g, '')
+            .trim()
+        };
       }
     } catch (parseError) {
       console.error('JSON parse error:', parseError);
-      // Fallback: try to extract content manually
+      // Fallback with clean generic text
       suggestion = {
-        description: `Vaga para ${positionLabel} no escritório Egg Nunes Advogados. Atuação em direito imobiliário, do consumidor e bancário.`,
-        requirements: `Formação em Direito. Conhecimento em direito imobiliário e do consumidor. Boa comunicação e organização.`
+        description: `Vaga para ${positionLabel}. Atuação em atividades jurídicas gerais incluindo pesquisa, redação de peças processuais, atendimento a clientes e acompanhamento de prazos.`,
+        requirements: `Formação em Direito. Boa comunicação escrita e verbal. Organização e atenção a prazos. Proatividade e trabalho em equipe.`
       };
     }
 
     return new Response(
       JSON.stringify(suggestion),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' } }
     );
 
   } catch (error) {
@@ -129,7 +160,7 @@ NÃO mencione localização, cidade ou áreas específicas de atuação do escri
     const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar sugestões';
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' } }
     );
   }
 });
