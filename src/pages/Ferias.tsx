@@ -131,6 +131,7 @@ export default function Ferias() {
   const [reportStartDate, setReportStartDate] = useState<Date>(startOfMonth(new Date()));
   const [reportEndDate, setReportEndDate] = useState<Date>(endOfMonth(addMonths(new Date(), 2)));
   const [allApprovedRequests, setAllApprovedRequests] = useState<VacationRequest[]>([]);
+  const [allVacationRequests, setAllVacationRequests] = useState<VacationRequest[]>([]);
   const [activeTab, setActiveTab] = useState<string>('requests');
   // Check if user can manage vacations
   const canManageVacations = isAdmin && (isSocioOrRafael || canEdit('vacation'));
@@ -142,6 +143,7 @@ export default function Ferias() {
       if (canManageVacations) {
         fetchProfiles();
         fetchAllApprovedRequests();
+        fetchAllVacationRequests();
       }
     }
   }, [user, canManageVacations, selectedUser]);
@@ -254,6 +256,21 @@ export default function Ferias() {
     
     if (data) {
       setAllApprovedRequests(data as any);
+    }
+  };
+
+  const fetchAllVacationRequests = async () => {
+    const { data } = await supabase
+      .from('vacation_requests')
+      .select(`
+        *,
+        profiles:user_id (full_name, avatar_url, position),
+        approver:approved_by (full_name)
+      `)
+      .order('start_date', { ascending: false });
+    
+    if (data) {
+      setAllVacationRequests(data as any);
     }
   };
 
@@ -915,6 +932,81 @@ export default function Ferias() {
         </Card>
 
         {/* Report Section - Only for admins */}
+        {canManageVacations && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Painel Geral de Férias - Todos os Colaboradores
+              </CardTitle>
+              <CardDescription>
+                Visualize todas as férias cadastradas de todos os colaboradores
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[500px]">
+                {allVacationRequests.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">
+                    Nenhuma férias cadastrada
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Colaborador</TableHead>
+                        <TableHead>Início</TableHead>
+                        <TableHead>Fim</TableHead>
+                        <TableHead>Duração</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Cadastrado em</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {allVacationRequests.map((request) => (
+                        <TableRow key={request.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={request.profiles.avatar_url || ''} />
+                                <AvatarFallback>
+                                  {request.profiles.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="font-medium">{request.profiles.full_name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {format(parseISO(request.start_date), 'dd/MM/yyyy')}
+                          </TableCell>
+                          <TableCell>
+                            {format(parseISO(request.end_date), 'dd/MM/yyyy')}
+                          </TableCell>
+                          <TableCell>
+                            {request.business_days} {isCLT(request.profiles.position) ? 'dias corridos' : 'dias úteis'}
+                          </TableCell>
+                          <TableCell>
+                            {getStatusBadge(request.status)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={isCLT(request.profiles.position) ? 'secondary' : 'outline'}>
+                              {isCLT(request.profiles.position) ? 'CLT' : 'Padrão'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
+                            {format(parseISO(request.created_at), 'dd/MM/yyyy HH:mm')}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Planning Report Section - Only for admins */}
         {canManageVacations && (
           <Card>
             <CardHeader>
