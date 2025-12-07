@@ -308,6 +308,84 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Security: Verify user is authenticated and approved
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.error('No authorization header provided');
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    
+    // Verify user with Supabase Auth
+    const userResponse = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'apikey': SUPABASE_ANON_KEY!,
+      },
+    });
+
+    if (!userResponse.ok) {
+      console.error('Failed to verify user token');
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const userData = await userResponse.json();
+    const userId = userData.id;
+
+    if (!userId) {
+      console.error('No user ID in token');
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Verify user is approved
+    const profileResponse = await fetch(
+      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=approval_status,is_active`,
+      {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY!,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+
+    if (profileResponse.ok) {
+      const profiles = await profileResponse.json();
+      if (profiles.length === 0) {
+        console.error('User profile not found:', userId);
+        return new Response(JSON.stringify({ error: 'Acesso não autorizado' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const profile = profiles[0];
+      if (profile.approval_status !== 'approved' || !profile.is_active) {
+        console.error('User not approved or inactive:', userId, profile.approval_status, profile.is_active);
+        return new Response(JSON.stringify({ error: 'Acesso não autorizado. Aguarde aprovação do administrador.' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    } else {
+      console.error('Failed to fetch user profile');
+      return new Response(JSON.stringify({ error: 'Erro ao verificar permissões' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log('User verified:', userId);
+
     const url = new URL(req.url);
     const path = url.pathname.split('/').pop();
     const forceRefresh = url.searchParams.get('force_refresh') === 'true';
