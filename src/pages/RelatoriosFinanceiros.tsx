@@ -72,7 +72,7 @@ export default function RelatoriosFinanceiros() {
   const [metadata, setMetadata] = useState<any>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | undefined>(initialCache?.timestamp);
   const [periodFilter, setPeriodFilter] = useState<string>('all');
-  const [rateLimitError, setRateLimitError] = useState(false);
+  const [isFromCache, setIsFromCache] = useState(!!initialCache);
   const { toast } = useToast();
   const { isAdmin, loading: roleLoading } = useUserRole();
   const { canView, loading: permLoading, isSocioOrRafael } = useAdminPermissions();
@@ -87,8 +87,10 @@ export default function RelatoriosFinanceiros() {
   }, []);
 
   const fetchTransactions = useCallback(async (forceRefresh = false) => {
-    setIsRefreshing(true);
-    setRateLimitError(false);
+    // Só mostrar loading se não tiver dados em cache
+    if (transactions.length === 0) {
+      setIsRefreshing(true);
+    }
     
     try {
       const [transactionsResponse, lawsuitsResponse] = await Promise.all([
@@ -126,7 +128,8 @@ export default function RelatoriosFinanceiros() {
       }
       
       if (transactionsResponse.data?.metadata?.rateLimited && rawTransactionsData.length === 0) {
-        setRateLimitError(true);
+        // Dados em cache, não precisa mostrar erro
+        setIsFromCache(true);
         return;
       }
       
@@ -203,6 +206,7 @@ export default function RelatoriosFinanceiros() {
       
       if (mappedTransactions.length > 0) {
         setTransactions(mappedTransactions);
+        setIsFromCache(false);
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
           transactions: mappedTransactions,
           timestamp: new Date().toISOString()
@@ -213,7 +217,7 @@ export default function RelatoriosFinanceiros() {
       setLastUpdate(new Date());
       
       if (transactionsResponse.data?.metadata?.rateLimited) {
-        setRateLimitError(true);
+        setIsFromCache(true);
       }
 
       if (forceRefresh) {
@@ -224,8 +228,10 @@ export default function RelatoriosFinanceiros() {
       }
     } catch (error) {
       console.error('Error fetching transactions:', error);
-      setRateLimitError(true);
-      if (transactions.length === 0) {
+      // Silenciosamente usar cache em caso de erro
+      if (transactions.length > 0) {
+        setIsFromCache(true);
+      } else {
         toast({
           title: 'Erro ao carregar transações',
           description: 'Não foi possível carregar as transações financeiras.',
@@ -565,13 +571,13 @@ export default function RelatoriosFinanceiros() {
 
         {metadata && <AdvboxCacheAlert metadata={metadata} />}
 
-        {rateLimitError && (
-          <Alert variant="destructive">
+        {isFromCache && lastUpdate && (
+          <Alert>
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Limite de requisições atingido</AlertTitle>
+            <AlertTitle>Dados em cache</AlertTitle>
             <AlertDescription>
-              Não foi possível atualizar os dados do Advbox devido ao limite de requisições da API. 
-              Os dados exibidos são do último cache disponível. Tente novamente mais tarde.
+              Mostrando dados salvos de {format(lastUpdate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}. 
+              Use "Atualizar dados" para tentar buscar informações mais recentes.
             </AlertDescription>
           </Alert>
         )}
