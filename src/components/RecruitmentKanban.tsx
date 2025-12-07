@@ -1,11 +1,17 @@
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useRef, useCallback } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { User, Mail, Phone, GripVertical, FileText, Eye } from 'lucide-react';
+import { User, Mail, Phone, GripVertical, FileText, Eye, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 type RecruitmentStage = 
   | 'curriculo_recebido'
@@ -27,7 +33,7 @@ interface Candidate {
   resume_url: string | null;
   current_stage: RecruitmentStage;
   created_at: string;
-  [key: string]: any; // Allow additional properties
+  [key: string]: any;
 }
 
 interface RecruitmentKanbanProps {
@@ -93,6 +99,7 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
     return candidates.filter(c => c.current_stage === stage);
   };
 
+  // Desktop drag handlers
   const handleDragStart = (e: React.DragEvent, candidate: Candidate) => {
     if (!canEdit) return;
     setDraggedCandidate(candidate);
@@ -123,6 +130,13 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
     }
     setDraggedCandidate(null);
     setDragOverStage(null);
+  };
+
+  // Mobile: move via dropdown menu
+  const handleMoveToStage = (candidate: Candidate, targetStage: RecruitmentStage) => {
+    if (candidate.current_stage !== targetStage) {
+      onStageChange(candidate.id, targetStage);
+    }
   };
 
   return (
@@ -163,7 +177,7 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
                     stageCandidates.map(candidate => (
                       <Card
                         key={candidate.id}
-                        className={`cursor-${canEdit ? 'grab' : 'default'} hover:shadow-md transition-shadow ${
+                        className={`hover:shadow-md transition-shadow ${
                           draggedCandidate?.id === candidate.id ? 'opacity-50' : ''
                         }`}
                         draggable={canEdit}
@@ -173,7 +187,36 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
                         <CardContent className="p-3">
                           <div className="flex items-start gap-2">
                             {canEdit && (
-                              <GripVertical className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                              <div className="flex-shrink-0 mt-0.5">
+                                {/* Desktop: drag handle */}
+                                <GripVertical className="h-4 w-4 text-muted-foreground hidden sm:block cursor-grab" />
+                                {/* Mobile: dropdown to move */}
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-6 w-6 sm:hidden"
+                                    >
+                                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="start" className="w-56">
+                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                                      Mover para:
+                                    </div>
+                                    {STAGE_ORDER.filter(s => s !== candidate.current_stage).map(targetStage => (
+                                      <DropdownMenuItem
+                                        key={targetStage}
+                                        onClick={() => handleMoveToStage(candidate, targetStage)}
+                                      >
+                                        <div className={`w-2 h-2 rounded-full mr-2 ${STAGE_COLORS[targetStage].split(' ')[0]}`} />
+                                        {STAGE_LABELS[targetStage]}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
                             )}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-start justify-between gap-2">
