@@ -347,13 +347,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify user is approved
+    // Verify user is approved - use the user's token for RLS policies
     const profileResponse = await fetch(
       `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=approval_status,is_active`,
       {
         headers: {
           'apikey': SUPABASE_ANON_KEY!,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${token}`,
         },
       }
     );
