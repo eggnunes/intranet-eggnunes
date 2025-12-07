@@ -250,6 +250,18 @@ export default function RelatoriosFinanceiros() {
     }
   }, [hasFinancialAccess, isAdmin, roleLoading, permLoading]);
 
+  // Atualização automática silenciosa a cada 10 minutos
+  useEffect(() => {
+    if (!hasFinancialAccess || !isAdmin || roleLoading || permLoading) return;
+    
+    const intervalId = setInterval(() => {
+      // Atualiza silenciosamente sem mostrar loading
+      fetchTransactions(false);
+    }, 10 * 60 * 1000); // 10 minutos
+    
+    return () => clearInterval(intervalId);
+  }, [hasFinancialAccess, isAdmin, roleLoading, permLoading, fetchTransactions]);
+
   const filteredTransactions = useMemo(() => {
     if (!Array.isArray(transactions)) return [];
     if (periodFilter === 'all') return transactions;
@@ -540,10 +552,15 @@ export default function RelatoriosFinanceiros() {
             </p>
             <div className="mt-2 flex items-center gap-4">
               <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
+              {isFromCache && lastUpdate && (
+                <Badge variant="secondary" className="text-xs font-normal">
+                  Cache de {format(lastUpdate, "dd/MM HH:mm", { locale: ptBR })}
+                </Badge>
+              )}
               {isRefreshing && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <RefreshCw className="h-3 w-3 animate-spin" />
-                  <span>Atualizando em segundo plano...</span>
+                  <span>Atualizando...</span>
                 </div>
               )}
             </div>
@@ -572,16 +589,6 @@ export default function RelatoriosFinanceiros() {
 
         {metadata && <AdvboxCacheAlert metadata={metadata} />}
 
-        {isFromCache && lastUpdate && (
-          <Alert>
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Dados em cache</AlertTitle>
-            <AlertDescription>
-              Mostrando dados salvos de {format(lastUpdate, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}. 
-              Use "Atualizar dados" para tentar buscar informações mais recentes.
-            </AlertDescription>
-          </Alert>
-        )}
 
         {filteredTransactions.length !== validFilteredTransactions.length && validFilteredTransactions.length > 0 && (
           <Alert>
