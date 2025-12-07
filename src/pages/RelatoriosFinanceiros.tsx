@@ -512,8 +512,9 @@ export default function RelatoriosFinanceiros() {
     );
   }
 
-  // Mostrar loading quando não há dados e está buscando
-  if (isRefreshing && transactions.length === 0) {
+  // Só mostrar loading se não tiver NENHUM dado (nem cache)
+  const hasNoData = transactions.length === 0 && !initialCache;
+  if (hasNoData && (roleLoading || permLoading || isRefreshing)) {
     return (
       <Layout>
         <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
