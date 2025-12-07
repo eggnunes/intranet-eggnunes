@@ -257,7 +257,7 @@ export default function RelatoriosFinanceiros() {
     const intervalId = setInterval(() => {
       // Atualiza silenciosamente sem mostrar loading
       fetchTransactions(false);
-    }, 10 * 60 * 1000); // 10 minutos
+    }, 6 * 60 * 60 * 1000); // 6 horas
     
     return () => clearInterval(intervalId);
   }, [hasFinancialAccess, isAdmin, roleLoading, permLoading, fetchTransactions]);
