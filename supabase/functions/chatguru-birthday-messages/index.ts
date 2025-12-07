@@ -9,11 +9,51 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Brazilian phone validation regex: country code (55) + DDD (2 digits, 11-99) + number (8-9 digits)
+const BRAZILIAN_PHONE_REGEX = /^55[1-9][0-9]9?[0-9]{8}$/;
+
 interface Customer {
   id: string;
   name: string;
   phone?: string;
   birthday: string;
+}
+
+// Map internal errors to safe user-facing messages
+function getSafeErrorMessage(error: Error | unknown): string {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  
+  // Map known errors to safe messages
+  if (errorMessage.includes('telefone inválido') || errorMessage.includes('formato')) {
+    return 'Número de telefone inválido';
+  }
+  if (errorMessage.includes('ChatGuru') || errorMessage.includes('API') || errorMessage.includes('comunicação')) {
+    return 'Erro ao enviar mensagem';
+  }
+  if (errorMessage.includes('credentials') || errorMessage.includes('Credenciais')) {
+    return 'Sistema de mensagens não configurado';
+  }
+  
+  // Default safe message
+  return 'Erro ao processar solicitação';
+}
+
+function validateBrazilianPhone(phone: string): string {
+  // Remove all non-digit characters
+  const cleanPhone = phone.replace(/\D/g, '');
+  
+  // Add country code if not present
+  let fullPhone = cleanPhone;
+  if (cleanPhone.length <= 11) {
+    fullPhone = `55${cleanPhone}`;
+  }
+  
+  // Validate against Brazilian phone format
+  if (!BRAZILIAN_PHONE_REGEX.test(fullPhone)) {
+    throw new Error(`Número de telefone com formato inválido: esperado formato brasileiro (DDD + número)`);
+  }
+  
+  return fullPhone;
 }
 
 async function setChatStatusToAttending(phone: string) {
@@ -51,20 +91,8 @@ async function setChatStatusToAttending(phone: string) {
 async function sendWhatsAppMessage(phone: string, customerName: string) {
   console.log(`Sending birthday message to ${phone} for ${customerName}`);
   
-  // Remove formatting from phone number
-  const cleanPhone = phone.replace(/\D/g, '');
-  
-  // Verificar se o telefone é válido
-  if (cleanPhone.length < 10 || cleanPhone.length > 13) {
-    throw new Error(`Número de telefone inválido: ${cleanPhone} (${cleanPhone.length} dígitos)`);
-  }
-  
-  // Adiciona código do país se não tiver (número brasileiro)
-  // Formato final: 5531999999999 (sem o +)
-  let fullPhone = cleanPhone;
-  if (cleanPhone.length <= 11) {
-    fullPhone = `55${cleanPhone}`;
-  }
+  // Validate and format phone number
+  const fullPhone = validateBrazilianPhone(phone);
   
   console.log(`Formatted phone number: ${fullPhone}`);
   console.log(`Using API Key: ${CHATGURU_API_KEY?.substring(0, 8)}...`);
@@ -97,7 +125,7 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
     dialogData = JSON.parse(dialogResponseText);
   } catch (e) {
     console.error('Failed to parse dialog response as JSON:', dialogResponseText.substring(0, 200));
-    throw new Error(`ChatGuru returned invalid response: ${dialogResponseText.substring(0, 100)}`);
+    throw new Error('Erro de comunicação com serviço de mensagens');
   }
   
   // Se dialog_execute funcionou, alterar status para "em atendimento"
@@ -138,7 +166,7 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
       chatAddData = JSON.parse(chatAddResponseText);
     } catch (e) {
       console.error('Failed to parse chat_add response as JSON:', chatAddResponseText.substring(0, 200));
-      throw new Error(`ChatGuru chat_add returned invalid response: ${chatAddResponseText.substring(0, 100)}`);
+      throw new Error('Erro de comunicação com serviço de mensagens');
     }
     
     if (chatAddData.result === 'success') {
@@ -147,10 +175,12 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
       return chatAddData;
     }
     
-    throw new Error(`ChatGuru chat_add error: ${chatAddData.description || JSON.stringify(chatAddData)}`);
+    console.error('ChatGuru chat_add error:', chatAddData);
+    throw new Error('Falha ao criar conversa no WhatsApp');
   }
   
-  throw new Error(`ChatGuru API error: ${dialogData.description || JSON.stringify(dialogData)}`);
+  console.error('ChatGuru API error:', dialogData);
+  throw new Error('Falha ao enviar mensagem via WhatsApp');
 }
 
 Deno.serve(async (req) => {
@@ -278,7 +308,7 @@ Deno.serve(async (req) => {
       total: customersToMessage.length,
       sent: 0,
       failed: 0,
-      errors: [] as any[],
+      errors: [] as { customer: string; error: string }[],
     };
 
     // Send messages
@@ -301,8 +331,9 @@ Deno.serve(async (req) => {
         console.log(`✓ Message sent successfully to ${customer.name}`);
 
         await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (error: any) {
-        console.error(`✗ Failed to send to ${customer.name}:`, error.message);
+      } catch (error: unknown) {
+        const safeError = getSafeErrorMessage(error);
+        console.error(`✗ Failed to send to ${customer.name}:`, error instanceof Error ? error.message : String(error));
         
         await supabase.from('chatguru_birthday_messages_log').insert({
           customer_id: customer.id,
@@ -310,13 +341,13 @@ Deno.serve(async (req) => {
           customer_phone: customer.phone!,
           message_text: `Falha no envio para ${customer.name}`,
           status: 'failed',
-          error_message: error.message,
+          error_message: safeError, // Store safe error message, not raw error
         });
 
         results.failed++;
         results.errors.push({
           customer: customer.name,
-          error: error.message,
+          error: safeError, // Return safe error message to client
         });
       }
     }
@@ -326,7 +357,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Birthday messages automation completed',
+        message: 'Automação de mensagens de aniversário concluída',
         results,
       }),
       {
@@ -334,12 +365,12 @@ Deno.serve(async (req) => {
         status: 200,
       }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in birthday messages automation:', error);
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message,
+        error: getSafeErrorMessage(error),
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

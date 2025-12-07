@@ -10,6 +10,52 @@ const corsHeaders = {
 const DIALOG_ID = '679a5d753968d5272a54d207';
 const TEMPLATE_NAME = 'boletoematraso';
 
+// Brazilian phone validation regex: country code (55) + DDD (2 digits, 11-99) + number (8-9 digits)
+const BRAZILIAN_PHONE_REGEX = /^55[1-9][0-9]9?[0-9]{8}$/;
+
+// Map internal errors to safe user-facing messages
+function getSafeErrorMessage(error: Error | unknown): string {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  
+  // Map known errors to safe messages
+  if (errorMessage.includes('telefone inválido') || errorMessage.includes('formato')) {
+    return 'Número de telefone inválido. Verifique o formato.';
+  }
+  if (errorMessage.includes('ChatGuru') || errorMessage.includes('API')) {
+    return 'Erro ao enviar mensagem. Tente novamente mais tarde.';
+  }
+  if (errorMessage.includes('Credenciais')) {
+    return 'Sistema de mensagens não configurado. Contate o administrador.';
+  }
+  if (errorMessage.includes('exclusão')) {
+    return errorMessage; // This is already a user-facing message
+  }
+  if (errorMessage.includes('autenticado')) {
+    return 'Você precisa estar logado para realizar esta ação.';
+  }
+  
+  // Default safe message
+  return 'Erro ao processar solicitação. Tente novamente.';
+}
+
+function validateBrazilianPhone(phone: string): string {
+  // Remove all non-digit characters
+  const cleanPhone = phone.replace(/\D/g, '');
+  
+  // Add country code if not present
+  let fullPhone = cleanPhone;
+  if (cleanPhone.length <= 11) {
+    fullPhone = `55${cleanPhone}`;
+  }
+  
+  // Validate against Brazilian phone format
+  if (!BRAZILIAN_PHONE_REGEX.test(fullPhone)) {
+    throw new Error(`Número de telefone com formato inválido: esperado formato brasileiro (DDD + número)`);
+  }
+  
+  return fullPhone;
+}
+
 async function setChatStatusToAttending(phone: string) {
   const CHATGURU_API_KEY = Deno.env.get('CHATGURU_API_KEY');
   const CHATGURU_ACCOUNT_ID = Deno.env.get('CHATGURU_ACCOUNT_ID');
@@ -53,19 +99,8 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
 
   console.log(`Sending collection message to ${phone} for ${customerName}`);
   
-  // Remove formatting from phone number
-  const cleanPhone = phone.replace(/\D/g, '');
-  
-  // Verificar se o telefone é válido
-  if (cleanPhone.length < 10 || cleanPhone.length > 13) {
-    throw new Error(`Número de telefone inválido: ${cleanPhone} (${cleanPhone.length} dígitos)`);
-  }
-  
-  // Adiciona código do país se não tiver (número brasileiro)
-  let fullPhone = cleanPhone;
-  if (cleanPhone.length <= 11) {
-    fullPhone = `55${cleanPhone}`;
-  }
+  // Validate and format phone number
+  const fullPhone = validateBrazilianPhone(phone);
   
   console.log(`Formatted phone number: ${fullPhone}`);
   console.log(`Using Dialog ID: ${DIALOG_ID}`);
@@ -93,7 +128,7 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
     dialogData = JSON.parse(dialogResponseText);
   } catch (e) {
     console.error('Failed to parse dialog response as JSON:', dialogResponseText.substring(0, 200));
-    throw new Error(`ChatGuru returned invalid response: ${dialogResponseText.substring(0, 100)}`);
+    throw new Error('Erro de comunicação com serviço de mensagens');
   }
   
   // Se dialog_execute funcionou, alterar status para "em atendimento"
@@ -132,7 +167,7 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
       chatAddData = JSON.parse(chatAddResponseText);
     } catch (e) {
       console.error('Failed to parse chat_add response as JSON:', chatAddResponseText.substring(0, 200));
-      throw new Error(`ChatGuru chat_add returned invalid response: ${chatAddResponseText.substring(0, 100)}`);
+      throw new Error('Erro de comunicação com serviço de mensagens');
     }
     
     if (chatAddData.result === 'success') {
@@ -141,10 +176,12 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
       return chatAddData;
     }
     
-    throw new Error(`ChatGuru chat_add error: ${chatAddData.description || JSON.stringify(chatAddData)}`);
+    console.error('ChatGuru chat_add error:', chatAddData);
+    throw new Error('Falha ao criar conversa no WhatsApp');
   }
   
-  throw new Error(`ChatGuru API error: ${dialogData.description || JSON.stringify(dialogData)}`);
+  console.error('ChatGuru API error:', dialogData);
+  throw new Error('Falha ao enviar mensagem via WhatsApp');
 }
 
 serve(async (req) => {
@@ -237,12 +274,10 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in send-defaulter-message function:', error);
     
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-    
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: errorMessage 
+        error: getSafeErrorMessage(error)
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
