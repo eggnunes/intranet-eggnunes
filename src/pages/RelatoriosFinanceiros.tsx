@@ -86,9 +86,9 @@ export default function RelatoriosFinanceiros() {
     }).format(value);
   }, []);
 
-  const fetchTransactions = useCallback(async (forceRefresh = false) => {
-    // Só mostrar loading se não tiver dados em cache
-    if (transactions.length === 0) {
+  const fetchTransactions = useCallback(async (forceRefresh = false, showLoading = false) => {
+    // Só mostrar loading se explicitamente solicitado E não tiver dados em cache
+    if (showLoading && transactions.length === 0 && !initialCache) {
       setIsRefreshing(true);
     }
     
@@ -243,10 +243,11 @@ export default function RelatoriosFinanceiros() {
     }
   }, [toast, transactions.length]);
 
-  // Buscar dados em background quando componente monta
+  // Buscar dados em background quando componente monta (100% silencioso)
   useEffect(() => {
     if (hasFinancialAccess && isAdmin && !roleLoading && !permLoading) {
-      fetchTransactions();
+      // Atualização silenciosa em background - nunca mostra loading
+      fetchTransactions(false, false);
     }
   }, [hasFinancialAccess, isAdmin, roleLoading, permLoading]);
 
@@ -524,9 +525,9 @@ export default function RelatoriosFinanceiros() {
     );
   }
 
-  // Só mostrar loading se não tiver NENHUM dado (nem cache)
+  // Só mostrar loading se não tiver NENHUM dado (nem cache) E for primeira carga manual
   const hasNoData = transactions.length === 0 && !initialCache;
-  if (hasNoData && (roleLoading || permLoading || isRefreshing)) {
+  if (hasNoData && isRefreshing) {
     return (
       <Layout>
         <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
@@ -575,7 +576,7 @@ export default function RelatoriosFinanceiros() {
                 title: 'Cache limpo',
                 description: 'Buscando dados dos últimos 24 meses...',
               });
-              fetchTransactions(true);
+              fetchTransactions(true, true); // Força refresh com loading visível
             }}
           >
             {isRefreshing ? (
