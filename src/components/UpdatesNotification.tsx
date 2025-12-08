@@ -114,7 +114,7 @@ export const UpdatesNotification = () => {
           )}
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="w-full sm:w-[540px] sm:max-w-[540px]">
+      <SheetContent side="right" className="w-[400px] max-w-[90vw] sm:w-[540px] sm:max-w-[540px] z-[100]">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Bell className="h-5 w-5" />
