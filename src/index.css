@@ -71,12 +71,23 @@ All colors MUST be HSL.
   html {
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
+    height: 100%;
   }
 
   body {
     @apply bg-background text-foreground;
     overflow-x: hidden;
-    overscroll-behavior-y: none;
+    min-height: 100%;
+    height: auto;
+    /* Remove overscroll-behavior-y: none - this was blocking scroll on mobile */
+  }
+  
+  /* Fix mobile scroll issues */
+  #root {
+    min-height: 100%;
+    height: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
 

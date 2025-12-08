@@ -753,44 +753,45 @@ export default function Admin() {
         </div>
 
         <Tabs defaultValue="pending" className="space-y-6">
-          <div className="overflow-x-auto -mx-4 px-4 pb-2 scrollbar-hide">
-            <TabsList className="inline-flex w-auto min-w-full md:grid md:w-full md:grid-cols-5 lg:grid-cols-6 gap-1">
-              <TabsTrigger value="pending" className="gap-2 flex-shrink-0 px-3 py-2 text-xs sm:text-sm">
-                <UserPlus className="w-4 h-4 flex-shrink-0" />
+          <div className="overflow-x-auto -mx-4 px-4 pb-2 scrollbar-hide touch-pan-x">
+            <TabsList className="inline-flex w-max gap-1 h-auto flex-nowrap">
+              <TabsTrigger value="pending" className="gap-1.5 flex-shrink-0 px-2 sm:px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+                <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Aprovações</span>
                 <span className="sm:hidden">Aprov.</span>
                 {pendingUsers.length > 0 && (
-                  <Badge variant="destructive" className="ml-1 text-xs">{pendingUsers.length}</Badge>
+                  <Badge variant="destructive" className="ml-0.5 text-[10px] px-1.5">{pendingUsers.length}</Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="users" className="gap-2 flex-shrink-0 px-3 py-2 text-xs sm:text-sm">
-                <Users className="w-4 h-4 flex-shrink-0" />
-                Usuários
+              <TabsTrigger value="users" className="gap-1.5 flex-shrink-0 px-2 sm:px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+                <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Usuários</span>
+                <span className="sm:hidden">Users</span>
               </TabsTrigger>
-              <TabsTrigger value="suggestions" className="gap-2 flex-shrink-0 px-3 py-2 text-xs sm:text-sm">
-                <Lightbulb className="w-4 h-4 flex-shrink-0" />
+              <TabsTrigger value="suggestions" className="gap-1.5 flex-shrink-0 px-2 sm:px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+                <Lightbulb className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Sugestões</span>
                 <span className="sm:hidden">Sug.</span>
                 {suggestions.filter(s => s.status === 'pending').length > 0 && (
-                  <Badge variant="secondary" className="ml-1 text-xs">
+                  <Badge variant="secondary" className="ml-0.5 text-[10px] px-1.5">
                     {suggestions.filter(s => s.status === 'pending').length}
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="admins" className="gap-2 flex-shrink-0 px-3 py-2 text-xs sm:text-sm">
-                <Shield className="w-4 h-4 flex-shrink-0" />
+              <TabsTrigger value="admins" className="gap-1.5 flex-shrink-0 px-2 sm:px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+                <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Administradores</span>
                 <span className="sm:hidden">Admin</span>
               </TabsTrigger>
               {isSocioOrRafael && (
-                <TabsTrigger value="permissions" className="gap-2 flex-shrink-0 px-3 py-2 text-xs sm:text-sm">
-                  <Lock className="w-4 h-4 flex-shrink-0" />
+                <TabsTrigger value="permissions" className="gap-1.5 flex-shrink-0 px-2 sm:px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+                  <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
                   <span className="hidden sm:inline">Permissões</span>
                   <span className="sm:hidden">Perm.</span>
                 </TabsTrigger>
               )}
-              <TabsTrigger value="history" className="gap-2 flex-shrink-0 px-3 py-2 text-xs sm:text-sm">
-                <History className="w-4 h-4 flex-shrink-0" />
+              <TabsTrigger value="history" className="gap-1.5 flex-shrink-0 px-2 sm:px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+                <History className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
                 <span className="hidden sm:inline">Histórico Geral</span>
                 <span className="sm:hidden">Hist.</span>
               </TabsTrigger>
