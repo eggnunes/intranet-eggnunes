@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Layout } from '@/components/Layout';
 import { useUserRole } from '@/hooks/useUserRole';
+import { usePresence } from '@/hooks/usePresence';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck, Lock, Pencil, Key, UserX, UserCheck } from 'lucide-react';
+import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck, Lock, Pencil, Key, UserX, UserCheck, Circle } from 'lucide-react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -39,6 +40,7 @@ import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { Calendar } from '@/components/ui/calendar';
 import { format, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface PendingUser {
   id: string;
@@ -99,6 +101,7 @@ interface Suggestion {
 
 export default function Admin() {
   const { isAdmin, loading } = useUserRole();
+  const { isUserOnline, onlineCount } = usePresence();
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<ApprovedUser[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
@@ -876,6 +879,12 @@ export default function Admin() {
                 <CardTitle className="flex items-center gap-2">
                   <Users className="w-5 h-5" />
                   Gerenciar Usuários
+                  {onlineCount > 0 && (
+                    <Badge variant="secondary" className="ml-2 gap-1">
+                      <Circle className="w-2 h-2 fill-green-500 text-green-500" />
+                      {onlineCount} online
+                    </Badge>
+                  )}
                 </CardTitle>
                 <CardDescription>
                   Gerencie os perfis dos colaboradores
@@ -906,33 +915,51 @@ export default function Admin() {
                     Nenhum usuário encontrado
                   </p>
                 ) : (
-                  <div className="space-y-3">
-                    {filteredApprovedUsers.map((user) => (
-                      <div
-                        key={user.id}
-                        className="flex items-center justify-between p-4 border border-border rounded-lg"
-                      >
-                        <div className="flex items-center gap-4 flex-1">
-                          <Avatar className="h-12 w-12 border-2 border-primary/20">
-                            <AvatarImage src={user.avatar_url || undefined} />
-                            <AvatarFallback className="bg-primary/10 text-primary">
-                              {user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <p className="font-medium">{user.full_name}</p>
-                            <p className="text-sm text-muted-foreground">{user.email}</p>
-                            {user.position && (
-                              <Badge variant="secondary" className="text-xs mt-1">
-                                {user.position === 'socio' && 'Sócio'}
-                                {user.position === 'advogado' && 'Advogado'}
-                                {user.position === 'estagiario' && 'Estagiário'}
-                                {user.position === 'comercial' && 'Comercial'}
-                                {user.position === 'administrativo' && 'Administrativo'}
-                              </Badge>
-                            )}
+                  <TooltipProvider>
+                    <div className="space-y-3">
+                      {filteredApprovedUsers.map((user) => (
+                        <div
+                          key={user.id}
+                          className="flex items-center justify-between p-4 border border-border rounded-lg"
+                        >
+                          <div className="flex items-center gap-4 flex-1">
+                            <div className="relative">
+                              <Avatar className="h-12 w-12 border-2 border-primary/20">
+                                <AvatarImage src={user.avatar_url || undefined} />
+                                <AvatarFallback className="bg-primary/10 text-primary">
+                                  {user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              {isUserOnline(user.id) && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-background rounded-full" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Online agora</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium">{user.full_name}</p>
+                                {isUserOnline(user.id) && (
+                                  <span className="text-xs text-green-600 dark:text-green-400 font-medium">Online</span>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground">{user.email}</p>
+                              {user.position && (
+                                <Badge variant="secondary" className="text-xs mt-1">
+                                  {user.position === 'socio' && 'Sócio'}
+                                  {user.position === 'advogado' && 'Advogado'}
+                                  {user.position === 'estagiario' && 'Estagiário'}
+                                  {user.position === 'comercial' && 'Comercial'}
+                                  {user.position === 'administrativo' && 'Administrativo'}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
-                        </div>
                         <div className="flex items-center gap-3">
                           {/* Inactive badge */}
                           {!user.is_active && (
@@ -1022,8 +1049,9 @@ export default function Admin() {
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  </TooltipProvider>
                 )}
               </CardContent>
             </Card>
