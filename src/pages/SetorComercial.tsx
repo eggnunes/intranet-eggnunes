@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import { cn } from "@/lib/utils";
+import { ContractGenerator } from "@/components/ContractGenerator";
 import { 
   RefreshCw, 
   Search, 
@@ -147,6 +148,9 @@ const SetorComercial = () => {
   // Qualificação editável
   const [editedQualification, setEditedQualification] = useState<string>("");
   const [qualificationSaved, setQualificationSaved] = useState(false);
+  
+  // Contract generator
+  const [contractGeneratorOpen, setContractGeneratorOpen] = useState(false);
 
   const fetchProducts = async () => {
     try {
@@ -282,16 +286,8 @@ const SetorComercial = () => {
       return;
     }
 
-    const product = products.find(p => p._id === selectedProduct);
-    const productName = product?.name || 'Produto';
-    const qualification = generateClientQualification(clientForDocument);
-    
     setProductDialogOpen(false);
-    
-    console.log('Qualificação do cliente para contrato:', qualification);
-    toast.info(`Gerando contrato para ${clientForDocument.nomeCompleto} - Produto: ${productName}`);
-    // TODO: Implement contract generation with product
-    // A qualificação está disponível na variável 'qualification' para ser inserida no modelo
+    setContractGeneratorOpen(true);
   };
 
   const handleGenerateContract = (client: Client) => {
@@ -939,6 +935,15 @@ const SetorComercial = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Contract Generator Dialog */}
+      <ContractGenerator
+        open={contractGeneratorOpen}
+        onOpenChange={setContractGeneratorOpen}
+        client={clientForDocument}
+        productName={products.find(p => p._id === selectedProduct)?.name || ''}
+        qualification={clientForDocument ? (qualificationSaved ? editedQualification : generateClientQualification(clientForDocument)) : ''}
+      />
     </Layout>
   );
 };
