@@ -217,6 +217,9 @@ export const ContractGenerator = ({
 
   // Associação de templates por produto
   const [productAssociationId, setProductAssociationId] = useState<string | null>(null);
+  const [selectedContraPartidaTemplateId, setSelectedContraPartidaTemplateId] = useState<string | null>(null);
+  const [selectedObjetoContratoTemplateId, setSelectedObjetoContratoTemplateId] = useState<string | null>(null);
+  const [savingProductAssociation, setSavingProductAssociation] = useState(false);
 
   // Geração do contrato
   const [gerandoContrato, setGerandoContrato] = useState(false);
@@ -292,12 +295,14 @@ export const ContractGenerator = ({
           
           if (assocData) {
             setProductAssociationId(assocData.id);
-            // Carregar templates associados
+            // Carregar templates associados e definir IDs selecionados
             if (assocData.contra_partida_template_id) {
+              setSelectedContraPartidaTemplateId(assocData.contra_partida_template_id);
               const template = contraPartidaData?.find(t => t.id === assocData.contra_partida_template_id);
               if (template) setContraPartida(template.description);
             }
             if (assocData.objeto_contrato_template_id) {
+              setSelectedObjetoContratoTemplateId(assocData.objeto_contrato_template_id);
               const template = objetoData?.find(t => t.id === assocData.objeto_contrato_template_id);
               if (template) setObjetoContrato(template.description);
             }
@@ -464,17 +469,23 @@ export const ContractGenerator = ({
   };
 
   // Salvar associação de templates por produto
-  const salvarAssociacaoProduto = async (contraPartidaTemplateId?: string, objetoContratoTemplateId?: string) => {
+  const salvarAssociacaoProduto = async () => {
     if (!user || !productName) return;
     
+    if (!selectedContraPartidaTemplateId && !selectedObjetoContratoTemplateId) {
+      toast.error("Selecione pelo menos um template para associar ao produto");
+      return;
+    }
+    
+    setSavingProductAssociation(true);
     try {
       if (productAssociationId) {
         // Atualizar
         await supabase
           .from('product_template_associations')
           .update({
-            contra_partida_template_id: contraPartidaTemplateId || null,
-            objeto_contrato_template_id: objetoContratoTemplateId || null,
+            contra_partida_template_id: selectedContraPartidaTemplateId || null,
+            objeto_contrato_template_id: selectedObjetoContratoTemplateId || null,
           })
           .eq('id', productAssociationId);
       } else {
@@ -484,8 +495,8 @@ export const ContractGenerator = ({
           .insert({
             user_id: user.id,
             product_name: productName,
-            contra_partida_template_id: contraPartidaTemplateId || null,
-            objeto_contrato_template_id: objetoContratoTemplateId || null,
+            contra_partida_template_id: selectedContraPartidaTemplateId || null,
+            objeto_contrato_template_id: selectedObjetoContratoTemplateId || null,
           })
           .select('id')
           .single();
@@ -495,6 +506,9 @@ export const ContractGenerator = ({
       toast.success("Templates salvos para este produto!");
     } catch (error) {
       console.error('Erro ao salvar associação:', error);
+      toast.error("Erro ao salvar associação");
+    } finally {
+      setSavingProductAssociation(false);
     }
   };
 
@@ -1548,13 +1562,17 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
                       {contraPartidaTemplates.map((template) => (
                         <div key={template.id} className="flex items-center gap-1">
                           <Badge 
-                            variant={template.is_default ? "secondary" : "outline"}
-                            className="cursor-pointer hover:bg-primary/10"
-                            onClick={() => setContraPartida(template.description)}
+                            variant={selectedContraPartidaTemplateId === template.id ? "default" : (template.is_default ? "secondary" : "outline")}
+                            className={`cursor-pointer hover:bg-primary/10 ${selectedContraPartidaTemplateId === template.id ? 'ring-2 ring-primary' : ''}`}
+                            onClick={() => {
+                              setContraPartida(template.description);
+                              setSelectedContraPartidaTemplateId(template.id);
+                            }}
                           >
                             <Users className="h-3 w-3 mr-1" />
                             {template.name}
                             {template.is_default && <span className="ml-1 text-[10px] opacity-60">(padrão)</span>}
+                            {selectedContraPartidaTemplateId === template.id && <span className="ml-1 text-[10px]">✓</span>}
                           </Badge>
                           {(!template.is_default || isAdmin) && (
                             <button
@@ -1641,13 +1659,17 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
                       {objetoContratoTemplates.map((template) => (
                         <div key={template.id} className="flex items-center gap-1">
                           <Badge 
-                            variant={template.is_default ? "secondary" : "outline"}
-                            className="cursor-pointer hover:bg-primary/10"
-                            onClick={() => setObjetoContrato(template.description)}
+                            variant={selectedObjetoContratoTemplateId === template.id ? "default" : (template.is_default ? "secondary" : "outline")}
+                            className={`cursor-pointer hover:bg-primary/10 ${selectedObjetoContratoTemplateId === template.id ? 'ring-2 ring-primary' : ''}`}
+                            onClick={() => {
+                              setObjetoContrato(template.description);
+                              setSelectedObjetoContratoTemplateId(template.id);
+                            }}
                           >
                             <FileEdit className="h-3 w-3 mr-1" />
                             {template.name}
                             {template.is_default && <span className="ml-1 text-[10px] opacity-60">(padrão)</span>}
+                            {selectedObjetoContratoTemplateId === template.id && <span className="ml-1 text-[10px]">✓</span>}
                           </Badge>
                           {(!template.is_default || isAdmin) && (
                             <button
@@ -1703,18 +1725,19 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
                 </div>
                 
                 {/* Botão salvar templates para este produto */}
-                {(contraPartida.trim() || objetoContrato.trim()) && (
+                {(selectedContraPartidaTemplateId || selectedObjetoContratoTemplateId) && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      const cpTemplate = contraPartidaTemplates.find(t => t.description === contraPartida);
-                      const ocTemplate = objetoContratoTemplates.find(t => t.description === objetoContrato);
-                      salvarAssociacaoProduto(cpTemplate?.id, ocTemplate?.id);
-                    }}
+                    onClick={salvarAssociacaoProduto}
+                    disabled={savingProductAssociation}
                     className="w-full"
                   >
-                    <Save className="h-3 w-3 mr-2" />
+                    {savingProductAssociation ? (
+                      <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="h-3 w-3 mr-2" />
+                    )}
                     Salvar templates selecionados para "{productName}"
                   </Button>
                 )}
