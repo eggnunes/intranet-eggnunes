@@ -1123,6 +1123,54 @@ export type Database = {
         }
         Relationships: []
       }
+      initial_fee_templates: {
+        Row: {
+          created_at: string
+          forma_pagamento: string | null
+          id: string
+          is_default: boolean | null
+          name: string
+          numero_parcelas: string | null
+          tem_entrada: boolean | null
+          tipo_honorarios: string
+          updated_at: string
+          user_id: string | null
+          valor_entrada: string | null
+          valor_parcela: string | null
+          valor_total: string | null
+        }
+        Insert: {
+          created_at?: string
+          forma_pagamento?: string | null
+          id?: string
+          is_default?: boolean | null
+          name: string
+          numero_parcelas?: string | null
+          tem_entrada?: boolean | null
+          tipo_honorarios?: string
+          updated_at?: string
+          user_id?: string | null
+          valor_entrada?: string | null
+          valor_parcela?: string | null
+          valor_total?: string | null
+        }
+        Update: {
+          created_at?: string
+          forma_pagamento?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          numero_parcelas?: string | null
+          tem_entrada?: boolean | null
+          tipo_honorarios?: string
+          updated_at?: string
+          user_id?: string | null
+          valor_entrada?: string | null
+          valor_parcela?: string | null
+          valor_total?: string | null
+        }
+        Relationships: []
+      }
       intranet_update_reads: {
         Row: {
           id: string
