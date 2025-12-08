@@ -47,3 +47,6 @@ verify_jwt = true
 
 [functions.google-sheets-integration]
 verify_jwt = true
+
+[functions.rd-station-products]
+verify_jwt = true
