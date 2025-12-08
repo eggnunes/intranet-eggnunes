@@ -104,7 +104,6 @@ const SetorComercial = () => {
   const [productsLoading, setProductsLoading] = useState(false);
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<string>("");
-  const [documentType, setDocumentType] = useState<'contract' | 'procuracao' | 'declaracao'>('contract');
   const [clientForDocument, setClientForDocument] = useState<Client | null>(null);
 
   const fetchProducts = async () => {
@@ -222,9 +221,8 @@ const SetorComercial = () => {
     setDetailsOpen(true);
   };
 
-  const openProductDialog = (client: Client, type: 'contract' | 'procuracao' | 'declaracao') => {
+  const openProductDialog = (client: Client) => {
     setClientForDocument(client);
-    setDocumentType(type);
     setSelectedProduct("");
     setProductDialogOpen(true);
   };
@@ -240,32 +238,22 @@ const SetorComercial = () => {
     
     setProductDialogOpen(false);
     
-    switch (documentType) {
-      case 'contract':
-        toast.info(`Gerando contrato para ${clientForDocument?.nomeCompleto} - Produto: ${productName}`);
-        // TODO: Implement contract generation with product
-        break;
-      case 'procuracao':
-        toast.info(`Gerando procuração para ${clientForDocument?.nomeCompleto} - Produto: ${productName}`);
-        // TODO: Implement procuracao generation with product
-        break;
-      case 'declaracao':
-        toast.info(`Gerando declaração para ${clientForDocument?.nomeCompleto} - Produto: ${productName}`);
-        // TODO: Implement declaracao generation with product
-        break;
-    }
+    toast.info(`Gerando contrato para ${clientForDocument?.nomeCompleto} - Produto: ${productName}`);
+    // TODO: Implement contract generation with product
   };
 
   const handleGenerateContract = (client: Client) => {
-    openProductDialog(client, 'contract');
+    openProductDialog(client);
   };
 
   const handleGenerateProcuracao = (client: Client) => {
-    openProductDialog(client, 'procuracao');
+    toast.info('Funcionalidade de geração de procuração em desenvolvimento');
+    // TODO: Implement procuracao generation
   };
 
   const handleGenerateDeclaracao = (client: Client) => {
-    openProductDialog(client, 'declaracao');
+    toast.info('Funcionalidade de geração de declaração em desenvolvimento');
+    // TODO: Implement declaracao generation
   };
 
   if (permissionsLoading) {
@@ -773,7 +761,7 @@ const SetorComercial = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Product Selection Dialog */}
+      {/* Product Selection Dialog - Only for Contracts */}
       <Dialog open={productDialogOpen} onOpenChange={setProductDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -782,7 +770,7 @@ const SetorComercial = () => {
               Selecionar Produto
             </DialogTitle>
             <DialogDescription>
-              Selecione o produto/serviço para {documentType === 'contract' ? 'o contrato' : documentType === 'procuracao' ? 'a procuração' : 'a declaração'} de {clientForDocument?.nomeCompleto?.split(' ')[0]}
+              Selecione o produto/serviço para o contrato de {clientForDocument?.nomeCompleto?.split(' ')[0]}
             </DialogDescription>
           </DialogHeader>
           
@@ -834,24 +822,8 @@ const SetorComercial = () => {
               Cancelar
             </Button>
             <Button onClick={handleGenerateDocument} disabled={!selectedProduct || productsLoading}>
-              {documentType === 'contract' && (
-                <>
-                  <FileSignature className="h-4 w-4 mr-2" />
-                  Gerar Contrato
-                </>
-              )}
-              {documentType === 'procuracao' && (
-                <>
-                  <Scale className="h-4 w-4 mr-2" />
-                  Gerar Procuração
-                </>
-              )}
-              {documentType === 'declaracao' && (
-                <>
-                  <FileCheck className="h-4 w-4 mr-2" />
-                  Gerar Declaração
-                </>
-              )}
+              <FileSignature className="h-4 w-4 mr-2" />
+              Gerar Contrato
             </Button>
           </DialogFooter>
         </DialogContent>
