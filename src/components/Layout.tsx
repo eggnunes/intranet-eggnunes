@@ -209,7 +209,6 @@ export const Layout = ({ children }: LayoutProps) => {
     { icon: ClipboardList, path: '/relatorios-produtividade-tarefas', label: 'Produtividade', description: 'Relatórios de produtividade' },
     { icon: DollarSign, path: '/relatorios-financeiros', label: 'Financeiro', description: 'Relatórios financeiros' },
     { icon: TrendingUp, path: '/advbox-analytics', label: 'Analytics', description: 'Gráficos e métricas' },
-    { icon: FileSignature, path: '/setor-comercial', label: 'Setor Comercial', description: 'Geração de contratos' },
   ];
 
   const rhMenuItems = [
@@ -267,6 +266,14 @@ export const Layout = ({ children }: LayoutProps) => {
         {unreadAnnouncementsCount > 0 && (
           <Badge variant="destructive" className="ml-2">{unreadAnnouncementsCount}</Badge>
         )}
+      </Button>
+      <Button 
+        variant="ghost" 
+        onClick={() => { navigate('/setor-comercial'); setMobileMenuOpen(false); }}
+        className="gap-2 justify-start"
+      >
+        <FileSignature className="w-4 h-4" />
+        Setor Comercial
       </Button>
       <div className="px-2 py-2">
         <p className="text-xs font-semibold text-muted-foreground mb-2">ADVBOX</p>
@@ -391,6 +398,15 @@ export const Layout = ({ children }: LayoutProps) => {
                   {unreadAnnouncementsCount > 0 && (
                     <Badge variant="destructive" className="ml-2">{unreadAnnouncementsCount}</Badge>
                   )}
+                </Button>
+
+                <Button 
+                  variant="ghost" 
+                  onClick={() => navigate('/setor-comercial')}
+                  className="gap-2"
+                >
+                  <FileSignature className="w-4 h-4" />
+                  Comercial
                 </Button>
                 
                 <DropdownMenu>
