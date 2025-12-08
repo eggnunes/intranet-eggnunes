@@ -206,6 +206,8 @@ export default function Ferias() {
   const [balanceUserProfile, setBalanceUserProfile] = useState<UserProfile | null>(null);
   const [balanceUserRequests, setBalanceUserRequests] = useState<VacationRequest[]>([]);
   const [balanceUserData, setBalanceUserData] = useState<{ total: number; used: number; available: number } | null>(null);
+  const [balanceSelectedPeriod, setBalanceSelectedPeriod] = useState<string>('all');
+  const [balanceUserAcquisitionPeriods, setBalanceUserAcquisitionPeriods] = useState<AcquisitionPeriod[]>([]);
   
   // Generate acquisition periods for current user
   const currentUserAcquisitionPeriods = generateAcquisitionPeriods(currentUserProfile?.join_date || null);
@@ -268,18 +270,30 @@ export default function Ferias() {
           position: profile.position,
           join_date: profile.join_date
         });
-        fetchBalanceUserData(balanceSelectedUser, profile.position);
+        const periods = generateAcquisitionPeriods(profile.join_date);
+        setBalanceUserAcquisitionPeriods(periods);
+        setBalanceSelectedPeriod('all'); // Reset to all when user changes
+        fetchBalanceUserData(balanceSelectedUser, profile.position, 'all');
       }
     } else {
       setBalanceUserProfile(null);
       setBalanceUserRequests([]);
       setBalanceUserData(null);
+      setBalanceUserAcquisitionPeriods([]);
+      setBalanceSelectedPeriod('all');
     }
   }, [balanceSelectedUser, profiles]);
 
-  const fetchBalanceUserData = async (userId: string, position: string | null) => {
+  // Refetch when period filter changes
+  useEffect(() => {
+    if (balanceSelectedUser && balanceUserProfile) {
+      fetchBalanceUserData(balanceSelectedUser, balanceUserProfile.position, balanceSelectedPeriod);
+    }
+  }, [balanceSelectedPeriod]);
+
+  const fetchBalanceUserData = async (userId: string, position: string | null, periodFilter: string = 'all') => {
     // Fetch approved vacation requests for this user
-    const { data: requestsData } = await supabase
+    let query = supabase
       .from('vacation_requests')
       .select(`
         *,
@@ -290,10 +304,20 @@ export default function Ferias() {
       .eq('status', 'approved')
       .order('start_date', { ascending: false });
 
+    // Filter by acquisition period if selected
+    if (periodFilter && periodFilter !== 'all') {
+      const [periodStart, periodEnd] = periodFilter.split('|');
+      query = query
+        .eq('acquisition_period_start', periodStart)
+        .eq('acquisition_period_end', periodEnd);
+    }
+
+    const { data: requestsData } = await query;
+
     if (requestsData) {
       setBalanceUserRequests(requestsData as any);
       
-      // Calculate used days from approved requests
+      // Calculate used days from approved requests in selected period
       const usedDays = requestsData.reduce((sum, req) => sum + (req.business_days || 0), 0);
       const totalDays = getTotalVacationDays(position);
       const availableDays = Math.max(0, totalDays - usedDays);
@@ -1652,26 +1676,49 @@ export default function Ferias() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {/* User Selection */}
-                  <div>
-                    <Label>Selecione o Colaborador</Label>
-                    <Select value={balanceSelectedUser} onValueChange={setBalanceSelectedUser}>
-                      <SelectTrigger className="w-full md:w-[400px]">
-                        <SelectValue placeholder="Escolha um colaborador para ver o saldo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {profiles.map((profile) => (
-                          <SelectItem key={profile.id} value={profile.id}>
-                            <div className="flex items-center gap-2">
-                              <span>{profile.full_name}</span>
-                              {isCLT(profile.position) && (
-                                <Badge variant="secondary" className="text-xs">CLT</Badge>
-                              )}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  {/* User Selection and Period Filter */}
+                  <div className="flex flex-col md:flex-row gap-4">
+                    <div className="flex-1">
+                      <Label>Selecione o Colaborador</Label>
+                      <Select value={balanceSelectedUser} onValueChange={setBalanceSelectedUser}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Escolha um colaborador para ver o saldo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {profiles.map((profile) => (
+                            <SelectItem key={profile.id} value={profile.id}>
+                              <div className="flex items-center gap-2">
+                                <span>{profile.full_name}</span>
+                                {isCLT(profile.position) && (
+                                  <Badge variant="secondary" className="text-xs">CLT</Badge>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {balanceSelectedUser && balanceUserAcquisitionPeriods.length > 0 && (
+                      <div className="md:w-[300px]">
+                        <Label>Período Aquisitivo</Label>
+                        <Select value={balanceSelectedPeriod} onValueChange={setBalanceSelectedPeriod}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Filtrar por período" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">
+                              <span className="font-medium">Todos os períodos</span>
+                            </SelectItem>
+                            {balanceUserAcquisitionPeriods.map((period) => (
+                              <SelectItem key={period.value} value={period.value}>
+                                {period.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
 
                   {/* Balance Information */}
@@ -1703,6 +1750,16 @@ export default function Ferias() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Period Badge */}
+                      {balanceSelectedPeriod !== 'all' && (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="gap-1">
+                            <CalendarIcon className="h-3 w-3" />
+                            Período: {balanceUserAcquisitionPeriods.find(p => p.value === balanceSelectedPeriod)?.label}
+                          </Badge>
+                        </div>
+                      )}
 
                       {/* Balance Stats */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
