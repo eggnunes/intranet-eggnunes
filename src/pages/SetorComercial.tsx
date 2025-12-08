@@ -10,9 +10,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
+import { cn } from "@/lib/utils";
 import { 
   RefreshCw, 
   Search, 
@@ -26,10 +29,11 @@ import {
   Phone,
   Mail,
   MapPin,
-  Calendar,
-  CreditCard
+  Calendar as CalendarIcon,
+  CreditCard,
+  X
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, parse, isAfter, isBefore, isEqual, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface Client {
@@ -80,6 +84,8 @@ const SetorComercial = () => {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
   const fetchClients = async (showToast = false) => {
     try {
@@ -108,10 +114,53 @@ const SetorComercial = () => {
     fetchClients();
   }, []);
 
+  // Parse timestamp from Google Sheets format (DD/MM/YYYY HH:MM:SS)
+  const parseTimestamp = (timestamp: string): Date | null => {
+    if (!timestamp) return null;
+    try {
+      // Try parsing DD/MM/YYYY HH:MM:SS format
+      const parsed = parse(timestamp, 'dd/MM/yyyy HH:mm:ss', new Date());
+      if (!isNaN(parsed.getTime())) return parsed;
+      
+      // Try parsing DD/MM/YYYY format
+      const parsedDate = parse(timestamp, 'dd/MM/yyyy', new Date());
+      if (!isNaN(parsedDate.getTime())) return parsedDate;
+      
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   // Reverse order to show most recent first
   const reversedClients = [...clients].reverse();
   
-  const filteredClients = reversedClients.filter(client => 
+  // Apply date filter
+  const dateFilteredClients = reversedClients.filter(client => {
+    if (!startDate && !endDate) return true;
+    
+    const clientDate = parseTimestamp(client.timestamp);
+    if (!clientDate) return true;
+    
+    const clientDay = startOfDay(clientDate);
+    
+    if (startDate && endDate) {
+      return (isAfter(clientDay, startOfDay(startDate)) || isEqual(clientDay, startOfDay(startDate))) &&
+             (isBefore(clientDay, endOfDay(endDate)) || isEqual(clientDay, startOfDay(endDate)));
+    }
+    
+    if (startDate) {
+      return isAfter(clientDay, startOfDay(startDate)) || isEqual(clientDay, startOfDay(startDate));
+    }
+    
+    if (endDate) {
+      return isBefore(clientDay, endOfDay(endDate)) || isEqual(clientDay, startOfDay(endDate));
+    }
+    
+    return true;
+  });
+  
+  const filteredClients = dateFilteredClients.filter(client => 
     client.nomeCompleto?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.cpf?.includes(searchTerm) ||
     client.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -121,6 +170,11 @@ const SetorComercial = () => {
   // Limit to 30 unless showAll is true
   const displayedClients = showAll ? filteredClients : filteredClients.slice(0, 30);
   const hasMoreClients = filteredClients.length > 30;
+  
+  const clearDateFilters = () => {
+    setStartDate(undefined);
+    setEndDate(undefined);
+  };
 
   const handleViewDetails = (client: Client) => {
     setSelectedClient(client);
@@ -241,8 +295,8 @@ const SetorComercial = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+              <div className="relative flex-1 w-full sm:w-auto">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Buscar por nome, CPF, email ou telefone..."
@@ -251,7 +305,88 @@ const SetorComercial = () => {
                   className="pl-10"
                 />
               </div>
+              
+              {/* Date filters */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "justify-start text-left font-normal w-full sm:w-[140px]",
+                        !startDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {startDate ? format(startDate, "dd/MM/yyyy") : "Data início"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={startDate}
+                      onSelect={setStartDate}
+                      initialFocus
+                      locale={ptBR}
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+                
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "justify-start text-left font-normal w-full sm:w-[140px]",
+                        !endDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {endDate ? format(endDate, "dd/MM/yyyy") : "Data fim"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={endDate}
+                      onSelect={setEndDate}
+                      initialFocus
+                      locale={ptBR}
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+                
+                {(startDate || endDate) && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={clearDateFilters}
+                    title="Limpar filtros de data"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </div>
+            
+            {/* Active filters badge */}
+            {(startDate || endDate) && (
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-xs">
+                  {startDate && endDate 
+                    ? `${format(startDate, "dd/MM/yyyy")} - ${format(endDate, "dd/MM/yyyy")}`
+                    : startDate 
+                      ? `A partir de ${format(startDate, "dd/MM/yyyy")}`
+                      : `Até ${format(endDate!, "dd/MM/yyyy")}`
+                  }
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {filteredClients.length} resultado(s)
+                </span>
+              </div>
+            )}
 
             {loading ? (
               <div className="space-y-3">
