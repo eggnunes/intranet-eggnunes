@@ -38,3 +38,12 @@ verify_jwt = true
 
 [functions.admin-reset-password]
 verify_jwt = true
+
+[functions.ai-assistant]
+verify_jwt = true
+
+[functions.voice-to-text]
+verify_jwt = true
+
+[functions.google-sheets-integration]
+verify_jwt = true
