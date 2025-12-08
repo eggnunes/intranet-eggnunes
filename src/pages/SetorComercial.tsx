@@ -79,6 +79,7 @@ const SetorComercial = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   const fetchClients = async (showToast = false) => {
     try {
@@ -107,12 +108,19 @@ const SetorComercial = () => {
     fetchClients();
   }, []);
 
-  const filteredClients = clients.filter(client => 
+  // Reverse order to show most recent first
+  const reversedClients = [...clients].reverse();
+  
+  const filteredClients = reversedClients.filter(client => 
     client.nomeCompleto?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.cpf?.includes(searchTerm) ||
     client.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.telefone?.includes(searchTerm)
   );
+  
+  // Limit to 30 unless showAll is true
+  const displayedClients = showAll ? filteredClients : filteredClients.slice(0, 30);
+  const hasMoreClients = filteredClients.length > 30;
 
   const handleViewDetails = (client: Client) => {
     setSelectedClient(client);
@@ -183,7 +191,7 @@ const SetorComercial = () => {
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
+              <CardTitle className="text-sm font-medium">Total de Clientes que Preencheram o Formulário</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -200,13 +208,13 @@ const SetorComercial = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {clients.length > 0 
-                  ? clients[clients.length - 1]?.nomeCompleto?.split(' ')[0] || '-'
+                {reversedClients.length > 0 
+                  ? reversedClients[0]?.nomeCompleto?.split(' ')[0] || '-'
                   : '-'
                 }
               </div>
               <p className="text-xs text-muted-foreground">
-                {clients.length > 0 ? clients[clients.length - 1]?.timestamp : 'Nenhum registro'}
+                {reversedClients.length > 0 ? reversedClients[0]?.timestamp : 'Nenhum registro'}
               </p>
             </CardContent>
           </Card>
@@ -273,7 +281,7 @@ const SetorComercial = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredClients.map((client) => (
+                    {displayedClients.map((client) => (
                       <TableRow key={client.id}>
                         <TableCell className="font-medium">
                           <div>
@@ -331,6 +339,21 @@ const SetorComercial = () => {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+            
+            {/* Show more button */}
+            {!loading && hasMoreClients && !searchTerm && (
+              <div className="flex justify-center pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowAll(!showAll)}
+                >
+                  {showAll 
+                    ? 'Mostrar apenas os 30 últimos' 
+                    : `Ver todos os ${filteredClients.length} clientes`
+                  }
+                </Button>
               </div>
             )}
           </CardContent>
