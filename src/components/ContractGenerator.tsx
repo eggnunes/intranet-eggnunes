@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -76,6 +77,42 @@ const CUSTOM_CONTRACT_PRODUCTS = [
   'imobiliário - rescisão de contrato abusivo',
 ];
 
+// Helper para formatar múltiplas formas de pagamento
+const formatarFormasPagamento = (formas: string[]): string => {
+  const mapa: Record<string, string> = {
+    'pix': 'PIX',
+    'cartao': 'cartão de crédito',
+    'boleto': 'boleto bancário'
+  };
+  
+  const textos = formas.map(f => mapa[f] || f);
+  
+  if (textos.length === 1) {
+    return `via ${textos[0]}`;
+  } else if (textos.length === 2) {
+    return `via ${textos[0]} ou ${textos[1]}`;
+  } else {
+    const ultimo = textos.pop();
+    return `via ${textos.join(', ')} ou ${ultimo}`;
+  }
+};
+
+// Helper para toggle de forma de pagamento em array
+const toggleFormaPagamento = (
+  formas: string[], 
+  forma: string, 
+  setFormas: (formas: string[]) => void
+) => {
+  if (formas.includes(forma)) {
+    // Não permitir desmarcar se for a única opção
+    if (formas.length > 1) {
+      setFormas(formas.filter(f => f !== forma));
+    }
+  } else {
+    setFormas([...formas, forma]);
+  }
+};
+
 export const ContractGenerator = ({ 
   open, 
   onOpenChange, 
@@ -97,9 +134,10 @@ export const ContractGenerator = ({
   const [valorParcela, setValorParcela] = useState("");
   const [temEntrada, setTemEntrada] = useState(false);
   const [valorEntrada, setValorEntrada] = useState("");
-  const [formaPagamentoEntrada, setFormaPagamentoEntrada] = useState<"pix" | "cartao" | "boleto">("pix");
-  const [formaPagamentoParcelas, setFormaPagamentoParcelas] = useState<"pix" | "cartao" | "boleto">("boleto");
-  const [formaPagamento, setFormaPagamento] = useState<"pix" | "cartao" | "boleto">("pix");
+  // Múltiplas opções de pagamento (ex: PIX ou Cartão para entrada)
+  const [formasPagamentoEntrada, setFormasPagamentoEntrada] = useState<string[]>(["pix"]);
+  const [formasPagamentoParcelas, setFormasPagamentoParcelas] = useState<string[]>(["boleto"]);
+  const [formasPagamento, setFormasPagamento] = useState<string[]>(["pix"]);
   const [dataVencimento, setDataVencimento] = useState("");
 
   // Honorários Êxito
@@ -245,7 +283,7 @@ export const ContractGenerator = ({
         setValorParcela(data.valor_parcela || "");
         setTemEntrada(data.tem_entrada || false);
         setValorEntrada(data.valor_entrada || "");
-        setFormaPagamento((data.forma_pagamento as "pix" | "cartao" | "boleto") || "pix");
+        setFormasPagamento(data.forma_pagamento ? [data.forma_pagamento] : ["pix"]);
         setDataVencimento(data.data_vencimento || "");
         setTemHonorariosExito(data.tem_honorarios_exito || false);
         setDescricaoHonorariosExito(data.descricao_honorarios_exito || "");
@@ -286,7 +324,7 @@ export const ContractGenerator = ({
         valor_parcela: valorParcela,
         tem_entrada: temEntrada,
         valor_entrada: valorEntrada,
-        forma_pagamento: formaPagamento,
+        forma_pagamento: formasPagamento.join(','),
         data_vencimento: dataVencimento,
         tem_honorarios_exito: temHonorariosExito,
         descricao_honorarios_exito: descricaoHonorariosExito,
@@ -430,9 +468,9 @@ export const ContractGenerator = ({
           valor_parcela: valorParcela || null,
           tem_entrada: temEntrada,
           valor_entrada: valorEntrada || null,
-          forma_pagamento: formaPagamento,
-          forma_pagamento_entrada: temEntrada ? formaPagamentoEntrada : null,
-          forma_pagamento_parcelas: tipoHonorarios === 'parcelado' ? formaPagamentoParcelas : null,
+          forma_pagamento: formasPagamento.join(','),
+          forma_pagamento_entrada: temEntrada ? formasPagamentoEntrada.join(',') : null,
+          forma_pagamento_parcelas: tipoHonorarios === 'parcelado' ? formasPagamentoParcelas.join(',') : null,
         });
 
       if (error) throw error;
@@ -480,9 +518,9 @@ export const ContractGenerator = ({
           valor_parcela: valorParcela || null,
           tem_entrada: temEntrada,
           valor_entrada: valorEntrada || null,
-          forma_pagamento: formaPagamento,
-          forma_pagamento_entrada: temEntrada ? formaPagamentoEntrada : null,
-          forma_pagamento_parcelas: tipoHonorarios === 'parcelado' ? formaPagamentoParcelas : null,
+          forma_pagamento: formasPagamento.join(','),
+          forma_pagamento_entrada: temEntrada ? formasPagamentoEntrada.join(',') : null,
+          forma_pagamento_parcelas: tipoHonorarios === 'parcelado' ? formasPagamentoParcelas.join(',') : null,
         });
 
       if (error) throw error;
@@ -516,12 +554,12 @@ export const ContractGenerator = ({
     if (template.valor_parcela) setValorParcela(template.valor_parcela);
     setTemEntrada(template.tem_entrada || false);
     if (template.valor_entrada) setValorEntrada(template.valor_entrada);
-    setFormaPagamento((template.forma_pagamento as "pix" | "cartao" | "boleto") || "pix");
+    setFormasPagamento(template.forma_pagamento ? template.forma_pagamento.split(',') : ["pix"]);
     if (template.forma_pagamento_entrada) {
-      setFormaPagamentoEntrada(template.forma_pagamento_entrada as "pix" | "cartao" | "boleto");
+      setFormasPagamentoEntrada(template.forma_pagamento_entrada.split(','));
     }
     if (template.forma_pagamento_parcelas) {
-      setFormaPagamentoParcelas(template.forma_pagamento_parcelas as "pix" | "cartao" | "boleto");
+      setFormasPagamentoParcelas(template.forma_pagamento_parcelas.split(','));
     }
     toast.success(`Template "${template.name}" carregado`);
   };
@@ -674,11 +712,7 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
       const prefixo = temAmbos ? 'a) ' : '';
       
       if (tipoHonorarios === 'avista') {
-        const formaPagamentoTexto = {
-          'pix': 'via PIX',
-          'cartao': 'via cartão de crédito',
-          'boleto': 'via boleto bancário'
-        }[formaPagamento];
+        const formaPagamentoTexto = formatarFormasPagamento(formasPagamento);
         
         textoHonorariosIniciais = `${prefixo}R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} à vista que serão pagos ${formaPagamentoTexto} até o dia ${dataVencimento || '[DATA]'} para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
       } else {
@@ -686,15 +720,12 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
         const valorParcelaNum = parseFloat(valorParcela.replace(/\./g, '').replace(',', '.') || '0');
         const valorEntradaNum = parseFloat(valorEntrada.replace(/\./g, '').replace(',', '.') || '0');
         
-        const formaPagamentoTexto = {
-          'pix': 'via PIX',
-          'cartao': 'via cartão de crédito',
-          'boleto': 'via boleto bancário'
-        }[formaPagamento];
-        
         if (temEntrada && valorEntradaNum > 0) {
-          textoHonorariosIniciais = `${prefixo}R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} parcelados, sendo R$${new Intl.NumberFormat('pt-BR').format(valorEntradaNum)} de entrada e mais ${numParcelas} parcelas de R$${new Intl.NumberFormat('pt-BR').format(valorParcelaNum)} cada, ${formaPagamentoTexto}, com vencimento para o dia ${dataVencimento || '[DATA]'} de cada mês, para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
+          const formaPagamentoEntradaTexto = formatarFormasPagamento(formasPagamentoEntrada);
+          const formaPagamentoParcelasTexto = formatarFormasPagamento(formasPagamentoParcelas);
+          textoHonorariosIniciais = `${prefixo}R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} parcelados, sendo R$${new Intl.NumberFormat('pt-BR').format(valorEntradaNum)} de entrada ${formaPagamentoEntradaTexto} e mais ${numParcelas} parcelas de R$${new Intl.NumberFormat('pt-BR').format(valorParcelaNum)} cada ${formaPagamentoParcelasTexto}, com vencimento para o dia ${dataVencimento || '[DATA]'} de cada mês, para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
         } else {
+          const formaPagamentoTexto = formatarFormasPagamento(formasPagamentoParcelas);
           textoHonorariosIniciais = `${prefixo}R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} parcelados em ${numParcelas} parcelas de R$${new Intl.NumberFormat('pt-BR').format(valorParcelaNum)} cada, ${formaPagamentoTexto}, com vencimento para o dia ${dataVencimento || '[DATA]'} de cada mês, para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
         }
       }
@@ -1182,17 +1213,35 @@ Testemunhas:
                     
                     {tipoHonorarios === 'avista' && (
                       <div className="space-y-2">
-                        <Label>Forma de pagamento *</Label>
-                        <Select value={formaPagamento} onValueChange={(v) => setFormaPagamento(v as "pix" | "cartao" | "boleto")}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pix">PIX</SelectItem>
-                            <SelectItem value="cartao">Cartão de Crédito</SelectItem>
-                            <SelectItem value="boleto">Boleto Bancário</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <Label>Formas de pagamento aceitas * <span className="text-xs text-muted-foreground">(selecione uma ou mais)</span></Label>
+                        <div className="flex flex-wrap gap-3">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <Checkbox 
+                              checked={formasPagamento.includes('pix')}
+                              onCheckedChange={() => toggleFormaPagamento(formasPagamento, 'pix', setFormasPagamento)}
+                            />
+                            <span className="text-sm">PIX</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <Checkbox 
+                              checked={formasPagamento.includes('cartao')}
+                              onCheckedChange={() => toggleFormaPagamento(formasPagamento, 'cartao', setFormasPagamento)}
+                            />
+                            <span className="text-sm">Cartão de Crédito</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <Checkbox 
+                              checked={formasPagamento.includes('boleto')}
+                              onCheckedChange={() => toggleFormaPagamento(formasPagamento, 'boleto', setFormasPagamento)}
+                            />
+                            <span className="text-sm">Boleto Bancário</span>
+                          </label>
+                        </div>
+                        {formasPagamento.length > 1 && (
+                          <p className="text-xs text-muted-foreground">
+                            No contrato: "{formatarFormasPagamento(formasPagamento)}"
+                          </p>
+                        )}
                       </div>
                     )}
                     
@@ -1201,7 +1250,7 @@ Testemunhas:
                         <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
                           <div>
                             <Label htmlFor="temEntrada" className="cursor-pointer font-medium">Possui entrada?</Label>
-                            <p className="text-xs text-muted-foreground">Ex: entrada via PIX/Cartão + parcelas via boleto</p>
+                            <p className="text-xs text-muted-foreground">Ex: entrada via PIX ou Cartão + parcelas via boleto</p>
                           </div>
                           <Switch
                             id="temEntrada"
@@ -1213,7 +1262,7 @@ Testemunhas:
                         {temEntrada && (
                           <div className="p-3 rounded-lg border border-primary/20 bg-primary/5 space-y-3">
                             <Label className="text-sm font-medium">Entrada</Label>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-3">
                               <div className="space-y-1">
                                 <Label htmlFor="valorEntrada" className="text-xs">Valor (R$) *</Label>
                                 <Input
@@ -1225,17 +1274,35 @@ Testemunhas:
                                 />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs">Forma de pagamento *</Label>
-                                <Select value={formaPagamentoEntrada} onValueChange={(v) => setFormaPagamentoEntrada(v as "pix" | "cartao" | "boleto")}>
-                                  <SelectTrigger className="h-9">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="pix">PIX</SelectItem>
-                                    <SelectItem value="cartao">Cartão de Crédito</SelectItem>
-                                    <SelectItem value="boleto">Boleto Bancário</SelectItem>
-                                  </SelectContent>
-                                </Select>
+                                <Label className="text-xs">Formas de pagamento aceitas * <span className="text-muted-foreground">(selecione uma ou mais)</span></Label>
+                                <div className="flex flex-wrap gap-3">
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <Checkbox 
+                                      checked={formasPagamentoEntrada.includes('pix')}
+                                      onCheckedChange={() => toggleFormaPagamento(formasPagamentoEntrada, 'pix', setFormasPagamentoEntrada)}
+                                    />
+                                    <span className="text-sm">PIX</span>
+                                  </label>
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <Checkbox 
+                                      checked={formasPagamentoEntrada.includes('cartao')}
+                                      onCheckedChange={() => toggleFormaPagamento(formasPagamentoEntrada, 'cartao', setFormasPagamentoEntrada)}
+                                    />
+                                    <span className="text-sm">Cartão de Crédito</span>
+                                  </label>
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <Checkbox 
+                                      checked={formasPagamentoEntrada.includes('boleto')}
+                                      onCheckedChange={() => toggleFormaPagamento(formasPagamentoEntrada, 'boleto', setFormasPagamentoEntrada)}
+                                    />
+                                    <span className="text-sm">Boleto Bancário</span>
+                                  </label>
+                                </div>
+                                {formasPagamentoEntrada.length > 1 && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    No contrato: "{formatarFormasPagamento(formasPagamentoEntrada)}"
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1243,7 +1310,7 @@ Testemunhas:
                         
                         <div className="p-3 rounded-lg border space-y-3">
                           <Label className="text-sm font-medium">Parcelas</Label>
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                               <Label htmlFor="numeroParcelas" className="text-xs">Quantidade *</Label>
                               <Input
@@ -1266,20 +1333,38 @@ Testemunhas:
                                 className="h-9"
                               />
                             </div>
+                          </div>
 
-                            <div className="space-y-1">
-                              <Label className="text-xs">Forma de pagamento *</Label>
-                              <Select value={formaPagamentoParcelas} onValueChange={(v) => setFormaPagamentoParcelas(v as "pix" | "cartao" | "boleto")}>
-                                <SelectTrigger className="h-9">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="pix">PIX</SelectItem>
-                                  <SelectItem value="cartao">Cartão de Crédito</SelectItem>
-                                  <SelectItem value="boleto">Boleto Bancário</SelectItem>
-                                </SelectContent>
-                              </Select>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Formas de pagamento aceitas * <span className="text-muted-foreground">(selecione uma ou mais)</span></Label>
+                            <div className="flex flex-wrap gap-3">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <Checkbox 
+                                  checked={formasPagamentoParcelas.includes('pix')}
+                                  onCheckedChange={() => toggleFormaPagamento(formasPagamentoParcelas, 'pix', setFormasPagamentoParcelas)}
+                                />
+                                <span className="text-sm">PIX</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <Checkbox 
+                                  checked={formasPagamentoParcelas.includes('cartao')}
+                                  onCheckedChange={() => toggleFormaPagamento(formasPagamentoParcelas, 'cartao', setFormasPagamentoParcelas)}
+                                />
+                                <span className="text-sm">Cartão de Crédito</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <Checkbox 
+                                  checked={formasPagamentoParcelas.includes('boleto')}
+                                  onCheckedChange={() => toggleFormaPagamento(formasPagamentoParcelas, 'boleto', setFormasPagamentoParcelas)}
+                                />
+                                <span className="text-sm">Boleto Bancário</span>
+                              </label>
                             </div>
+                            {formasPagamentoParcelas.length > 1 && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                No contrato: "{formatarFormasPagamento(formasPagamentoParcelas)}"
+                              </p>
+                            )}
                           </div>
                         </div>
                       </>
