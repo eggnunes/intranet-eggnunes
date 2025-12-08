@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Calendar as CalendarIcon, Clock, CheckCircle, XCircle, Plus, User, Info, Users, FileText, Trash2, Pencil, LayoutDashboard, ClipboardList, DollarSign } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle, XCircle, Plus, User, Info, Users, FileText, Trash2, Pencil, LayoutDashboard, ClipboardList, DollarSign, Wallet } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { VacationDashboard } from '@/components/VacationDashboard';
 import { format, differenceInBusinessDays, differenceInCalendarDays, parseISO, addYears, isBefore, isAfter, eachDayOfInterval, isWithinInterval, startOfMonth, endOfMonth, addMonths } from 'date-fns';
@@ -202,6 +202,10 @@ export default function Ferias() {
   const [adminSelectedAcquisitionPeriod, setAdminSelectedAcquisitionPeriod] = useState<string>('');
   const [editSelectedAcquisitionPeriod, setEditSelectedAcquisitionPeriod] = useState<string>('');
   const [soldDays, setSoldDays] = useState<number>(0);
+  const [balanceSelectedUser, setBalanceSelectedUser] = useState<string>('');
+  const [balanceUserProfile, setBalanceUserProfile] = useState<UserProfile | null>(null);
+  const [balanceUserRequests, setBalanceUserRequests] = useState<VacationRequest[]>([]);
+  const [balanceUserData, setBalanceUserData] = useState<{ total: number; used: number; available: number } | null>(null);
   
   // Generate acquisition periods for current user
   const currentUserAcquisitionPeriods = generateAcquisitionPeriods(currentUserProfile?.join_date || null);
@@ -254,6 +258,53 @@ export default function Ferias() {
       setFilteredUserProfile(null);
     }
   }, [selectedUser, profiles]);
+
+  // Fetch balance user data when admin selects a user in the Balance tab
+  useEffect(() => {
+    if (balanceSelectedUser && profiles.length > 0) {
+      const profile = profiles.find(p => p.id === balanceSelectedUser);
+      if (profile) {
+        setBalanceUserProfile({
+          position: profile.position,
+          join_date: profile.join_date
+        });
+        fetchBalanceUserData(balanceSelectedUser, profile.position);
+      }
+    } else {
+      setBalanceUserProfile(null);
+      setBalanceUserRequests([]);
+      setBalanceUserData(null);
+    }
+  }, [balanceSelectedUser, profiles]);
+
+  const fetchBalanceUserData = async (userId: string, position: string | null) => {
+    // Fetch approved vacation requests for this user
+    const { data: requestsData } = await supabase
+      .from('vacation_requests')
+      .select(`
+        *,
+        profiles:user_id (full_name, avatar_url, position),
+        approver:approved_by (full_name)
+      `)
+      .eq('user_id', userId)
+      .eq('status', 'approved')
+      .order('start_date', { ascending: false });
+
+    if (requestsData) {
+      setBalanceUserRequests(requestsData as any);
+      
+      // Calculate used days from approved requests
+      const usedDays = requestsData.reduce((sum, req) => sum + (req.business_days || 0), 0);
+      const totalDays = getTotalVacationDays(position);
+      const availableDays = Math.max(0, totalDays - usedDays);
+      
+      setBalanceUserData({
+        total: totalDays,
+        used: usedDays,
+        available: availableDays
+      });
+    }
+  };
 
   const fetchCurrentUserProfile = async () => {
     if (!user) return;
@@ -1027,16 +1078,25 @@ export default function Ferias() {
 
         {/* Main Navigation Tabs */}
         <Tabs value={mainTab} onValueChange={setMainTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsList className={cn("grid w-full max-w-2xl", canManageVacations ? "grid-cols-3" : "grid-cols-1")}>
             <TabsTrigger value="solicitations" className="flex items-center gap-2">
               <ClipboardList className="h-4 w-4" />
-              Solicitações
+              <span className="hidden sm:inline">Solicitações</span>
+              <span className="sm:hidden">Solic.</span>
             </TabsTrigger>
             {canManageVacations && (
-              <TabsTrigger value="dashboard" className="flex items-center gap-2">
-                <LayoutDashboard className="h-4 w-4" />
-                Dashboard
-              </TabsTrigger>
+              <>
+                <TabsTrigger value="balance" className="flex items-center gap-2">
+                  <Wallet className="h-4 w-4" />
+                  <span className="hidden sm:inline">Saldo por Colaborador</span>
+                  <span className="sm:hidden">Saldo</span>
+                </TabsTrigger>
+                <TabsTrigger value="dashboard" className="flex items-center gap-2">
+                  <LayoutDashboard className="h-4 w-4" />
+                  <span className="hidden sm:inline">Dashboard</span>
+                  <span className="sm:hidden">Dash</span>
+                </TabsTrigger>
+              </>
             )}
           </TabsList>
 
@@ -1577,6 +1637,203 @@ export default function Ferias() {
           </Card>
         )}
           </TabsContent>
+
+          {/* Balance Tab - Only for admins */}
+          {canManageVacations && (
+            <TabsContent value="balance" className="space-y-6 mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Wallet className="h-5 w-5" />
+                    Saldo de Férias por Colaborador
+                  </CardTitle>
+                  <CardDescription>
+                    Selecione um colaborador para visualizar seu saldo e histórico de férias
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* User Selection */}
+                  <div>
+                    <Label>Selecione o Colaborador</Label>
+                    <Select value={balanceSelectedUser} onValueChange={setBalanceSelectedUser}>
+                      <SelectTrigger className="w-full md:w-[400px]">
+                        <SelectValue placeholder="Escolha um colaborador para ver o saldo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {profiles.map((profile) => (
+                          <SelectItem key={profile.id} value={profile.id}>
+                            <div className="flex items-center gap-2">
+                              <span>{profile.full_name}</span>
+                              {isCLT(profile.position) && (
+                                <Badge variant="secondary" className="text-xs">CLT</Badge>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Balance Information */}
+                  {balanceSelectedUser && balanceUserProfile && balanceUserData && (
+                    <>
+                      {/* User Info Card */}
+                      <div className="p-4 border rounded-lg bg-muted/30">
+                        <div className="flex items-center gap-4 mb-4">
+                          <Avatar className="h-12 w-12">
+                            <AvatarImage src={profiles.find(p => p.id === balanceSelectedUser)?.avatar_url || ''} />
+                            <AvatarFallback>
+                              {profiles.find(p => p.id === balanceSelectedUser)?.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium text-lg">
+                              {profiles.find(p => p.id === balanceSelectedUser)?.full_name}
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={isCLT(balanceUserProfile.position) ? 'secondary' : 'outline'}>
+                                {isCLT(balanceUserProfile.position) ? 'CLT - 30 dias corridos' : '20 dias úteis'}
+                              </Badge>
+                              {balanceUserProfile.join_date && (
+                                <span className="text-sm text-muted-foreground">
+                                  Ingresso em {format(parseISO(balanceUserProfile.join_date), 'dd/MM/yyyy')}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Balance Stats */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Card className="border-2">
+                          <CardContent className="pt-6">
+                            <div className="text-center">
+                              <p className="text-sm text-muted-foreground">Total de Férias</p>
+                              <p className="text-3xl font-bold">{balanceUserData.total}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {isCLT(balanceUserProfile.position) ? 'dias corridos' : 'dias úteis'}
+                              </p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="border-2 border-orange-200 dark:border-orange-900">
+                          <CardContent className="pt-6">
+                            <div className="text-center">
+                              <p className="text-sm text-muted-foreground">Dias Utilizados</p>
+                              <p className="text-3xl font-bold text-orange-600">{balanceUserData.used}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {isCLT(balanceUserProfile.position) ? 'dias corridos' : 'dias úteis'}
+                              </p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="border-2 border-green-200 dark:border-green-900">
+                          <CardContent className="pt-6">
+                            <div className="text-center">
+                              <p className="text-sm text-muted-foreground">Dias Disponíveis</p>
+                              <p className="text-3xl font-bold text-green-600">{balanceUserData.available}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {isCLT(balanceUserProfile.position) ? 'dias corridos' : 'dias úteis'}
+                              </p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Progresso de utilização</span>
+                          <span className="font-medium">
+                            {Math.round((balanceUserData.used / balanceUserData.total) * 100)}%
+                          </span>
+                        </div>
+                        <div className="h-3 bg-muted rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-primary transition-all duration-500"
+                            style={{ width: `${Math.min(100, (balanceUserData.used / balanceUserData.total) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Vacation History */}
+                      <div className="space-y-4">
+                        <h4 className="font-semibold flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          Períodos de Férias Usufruídos
+                        </h4>
+                        {balanceUserRequests.length === 0 ? (
+                          <div className="text-center py-8 text-muted-foreground border rounded-lg">
+                            Nenhuma férias usufruída até o momento
+                          </div>
+                        ) : (
+                          <ScrollArea className="h-[300px]">
+                            <div className="space-y-3">
+                              {balanceUserRequests.map((request) => (
+                                <Card key={request.id} className="border">
+                                  <CardContent className="pt-4 pb-4">
+                                    <div className="flex items-center justify-between">
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                          <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                                          <span className="font-medium">
+                                            {format(parseISO(request.start_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                                          </span>
+                                          <span>→</span>
+                                          <span className="font-medium">
+                                            {format(parseISO(request.end_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                                          <span className="font-medium text-foreground">
+                                            {request.business_days} {isCLT(balanceUserProfile.position) ? 'dias corridos' : 'dias úteis'}
+                                          </span>
+                                          {request.acquisition_period_start && request.acquisition_period_end && (
+                                            <span>
+                                              Período aquisitivo: {format(parseISO(request.acquisition_period_start), 'dd/MM/yyyy')} - {format(parseISO(request.acquisition_period_end), 'dd/MM/yyyy')}
+                                            </span>
+                                          )}
+                                          {request.sold_days && request.sold_days > 0 && (
+                                            <Badge variant="secondary" className="gap-1">
+                                              <DollarSign className="h-3 w-3" />
+                                              {request.sold_days} vendidos
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        {request.notes && (
+                                          <p className="text-sm text-muted-foreground mt-1">
+                                            Obs: {request.notes}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <Badge variant="default" className="gap-1">
+                                        <CheckCircle className="h-3 w-3" />
+                                        Aprovada
+                                      </Badge>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Empty State */}
+                  {!balanceSelectedUser && (
+                    <div className="text-center py-12 text-muted-foreground border rounded-lg border-dashed">
+                      <Wallet className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p className="font-medium">Selecione um colaborador</p>
+                      <p className="text-sm">Escolha um colaborador acima para visualizar seu saldo de férias</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
 
           {canManageVacations && (
             <TabsContent value="dashboard" className="mt-6">
