@@ -62,22 +62,9 @@ interface ContractGeneratorProps {
   qualification: string;
 }
 
-// Produtos que usam contratos específicos (não o padrão)
-const CUSTOM_CONTRACT_PRODUCTS = [
-  'terço de férias',
-  'adicional escolaridade',
-  'cobrança ipsm',
-  'concurso público',
-  'férias prêmio',
-  'isenção de ir',
-  'licença para curso de formação',
-  'processos de bsb',
-  'recurso administrativo',
-  'vale refeição',
-  'imobiliário - atraso em obra',
-  'imobiliário - multipropriedade',
-  'imobiliário - rescisão de contrato abusivo',
-];
+// Todos os produtos agora usam o contrato padrão com templates personalizados
+// Lista mantida apenas para referência futura se necessário
+// const CUSTOM_CONTRACT_PRODUCTS = [...];
 
 // Helper para formatar múltiplas formas de pagamento
 const formatarFormasPagamento = (formas: string[]): string => {
@@ -246,11 +233,6 @@ export const ContractGenerator = ({
 
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
-
-  // Verificar se é um produto com contrato específico
-  const isCustomContractProduct = CUSTOM_CONTRACT_PRODUCTS.some(
-    p => productName.toLowerCase().includes(p.toLowerCase())
-  );
 
   // Carregar todos os templates
   useEffect(() => {
@@ -1294,35 +1276,6 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
   const voltarParaEdicao = () => {
     setShowPreview(false);
   };
-
-  if (isCustomContractProduct) {
-    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileSignature className="h-5 w-5" />
-              Contrato Específico
-            </DialogTitle>
-            <DialogDescription>
-              O produto "{productName}" possui um modelo de contrato específico.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-6 text-center">
-            <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-sm text-muted-foreground">
-              Este produto utiliza um modelo de contrato personalizado que ainda não foi configurado.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Fechar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    );
-  }
 
   // Renderizar opção de honorário inicial
   const renderInitialFeeOption = (opcao: InitialFeeOption, index: number) => (
