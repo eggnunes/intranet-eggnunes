@@ -102,6 +102,10 @@ export const ContractGenerator = ({
 
   // Geração do contrato
   const [gerandoContrato, setGerandoContrato] = useState(false);
+  
+  // Pré-visualização
+  const [showPreview, setShowPreview] = useState(false);
+  const [contractPreviewText, setContractPreviewText] = useState("");
 
   // Verificar se é um produto com contrato específico
   const isCustomContractProduct = CUSTOM_CONTRACT_PRODUCTS.some(
@@ -252,8 +256,76 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
     return `Em remuneração pelos serviços profissionais ora contratados serão devidos honorários advocatícios da seguinte forma:\n\n${clausulaA}${clausulaB}`;
   };
 
-  // Gerar PDF do contrato
-  const gerarContratoPDF = async () => {
+  // Gerar texto completo do contrato para preview
+  const gerarTextoContrato = (): string => {
+    if (!client) return "";
+    
+    const dataAtual = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+    const clausulaTerceira = gerarClausulaTerceira();
+    
+    const paragrafos = [
+      'Parágrafo Primeiro - Na hipótese do(a) Contratante fazer acordo com a parte "ex-adversa", com ou sem o concurso do advogado, ou na hipótese de ser cassada a procuração outorgada (a qualquer tempo), e ainda caso não prossiga a ação por motivo que independa da vontade dos Contratados, os valores referentes aos honorários continuarão devidos.',
+      'Parágrafo Segundo – Caso o(a) Contratante queira sustentação oral em seu favor em instâncias superiores, o que é opcional em um processo, pagará o valor constante na tabela de honorários mínimos da OAB/MG vigente à época.',
+      'Parágrafo Terceiro - O não pagamento de qualquer prestação, caso haja parcelamento dos honorários, implicará na revogação dos poderes, além do acréscimo de multa de 20% sobre o devido para o caso da necessidade de cobrança judicial.',
+      'Parágrafo Quarto – O atraso no pagamento de qualquer parcela, caso tenha optado pelo pagamento parcelado, acarretará o vencimento antecipado das demais - que poderão ser cobradas judicialmente.',
+      'Parágrafo Quinto – Ficam os herdeiros do(a) Contratante comprometidos também ao pagamento dos valores acordados neste contrato em eventual ausência do(a) Contratante quando do recebimento.',
+      'Parágrafo Sexto - O(a) Contratante autoriza, caso seja necessário, penhora em contracheque de salário/pensão em caso de não pagamento dos honorários.',
+      'Parágrafo Sétimo – Caso o(a) Contratante tenha optado por pagamento via boleto bancário, fica ciente que cada boleto terá o acréscimo de R$4,00 referente à taxas bancárias.',
+      'Parágrafo Oitavo – Na hipótese de desistência pelo(a) Contratante após assinatura deste contrato, e antes do ingresso da ação, serão devidos honorários de R$500,00 (quinhentos reais) a título de consultoria prestada.',
+      `Parágrafo Nono - O(a) Contratante declara estar ciente que poderá receber citação/intimação judicial através do número de telefone ${client.telefone || '[TELEFONE]'}.`
+    ];
+    
+    const demaisClausulas = [
+      { titulo: 'Cláusula Quarta', texto: 'Os honorários de condenação (sucumbência), se houver, pertencerão aos Contratados, sem exclusão dos que ora são combinados, em conformidade com os artigos 23 da Lei nº 8.906/94 e 35, parágrafo 1º, do Código de Ética e Disciplina da Ordem dos Advogados do Brasil.' },
+      { titulo: 'Cláusula Quinta', texto: 'O(a) Contratante pagará ainda as custas e despesas judiciais, além de quaisquer outras que decorrerem do serviço, mediante apresentação de demonstrativos analíticos pelos Contratados (caso haja referidas despesas).' },
+      { titulo: 'Cláusula Sexta', texto: 'O presente contrato pode ser executado pelos dois Contratados em conjunto ou separadamente por apenas um dos Contratados.' },
+      { titulo: 'Cláusula Sétima', texto: 'O(a) Contratante fica ciente que os únicos canais de comunicação oficiais dos Contratados são os números de telefone/WhatsApp 31-32268742 e/ou 31-993438742 sendo que os Contratados não se responsabilizam por contatos feitos por outros números desconhecidos.' },
+      { titulo: 'Cláusula Oitava', texto: 'O(a) Contratante fica ciente que as informações do processo são públicas, exceto os processos em segredo de justiça, e que o Contratado não tem controle sobre elas, sendo a veiculação feita pelo respectivo Tribunal.' },
+      { titulo: 'Cláusula Nona', texto: 'Elegem as partes o foro da Comarca de Belo Horizonte/MG para dirimir dúvidas sobre este contrato, podendo ainda os Contratados, em caso de execução do contrato, optarem pelo foro do domicílio do(a) Contratante.' }
+    ];
+
+    let texto = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS
+
+que entre si fazem, de um lado, como contratados, o escritório EGG NUNES ADVOGADOS ASSOCIADOS, inscrito no CNPJ sob o número 10.378.694./0001/59, neste ato representado por seu sócio Marcos Luiz Egg Nunes, OAB/MG 115.283, com escritório à Rua São Paulo nº 1104 / 9º andar – Belo Horizonte/MG, e o advogado RAFAEL EGG NUNES, OAB/MG 118.395, também com endereço à Rua São Paulo nº 1104 / 9º andar – Belo Horizonte/MG; e de outro lado, como cliente, ora contratante, ${qualification} ajustam, entre si, com fulcro no artigo 22 da Lei nº 8.906/94, mediante as seguintes cláusulas e condições, contrato de honorários advocatícios.
+
+Cláusula Primeira
+${clausulaPrimeiraGerada}
+
+Parágrafo Único - A atuação compreende o processo de forma completa, inclusive eventuais e cabíveis fases recursais.
+
+Cláusula Segunda
+O(a) Contratante, que reconhece já haver recebido a orientação preventiva comportamental e jurídica para a consecução dos serviços, inclusive dos riscos sobre êxito na causa, fornecerá aos Contratados os documentos e meios necessários à comprovação processual do seu pretendido direito.
+
+Cláusula Terceira
+${clausulaTerceira}
+
+${paragrafos.join('\n\n')}
+
+${demaisClausulas.map(c => `${c.titulo}\n${c.texto}`).join('\n\n')}
+
+E por estarem assim justos e contratados, assinam na presença de duas testemunhas para que passe a produzir todos os seus efeitos legais.
+
+Belo Horizonte, ${dataAtual}.
+
+_____________________________________
+Contratado: Egg Nunes Advogados Associados
+Neste ato representado por seu sócio Marcos Luiz Egg Nunes, OAB/MG 115.283
+
+_______________________________________
+Contratado: Rafael Egg Nunes, OAB/MG 118.395
+
+_________________________________________
+Contratante: ${client.nomeCompleto.toUpperCase()}
+
+Testemunhas:
+1ª) _______________________________
+2ª) __________________________________`;
+
+    return texto;
+  };
+
+  // Abrir pré-visualização
+  const abrirPreview = () => {
     if (!client) {
       toast.error("Cliente não selecionado");
       return;
@@ -274,6 +346,18 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
       return;
     }
 
+    const texto = gerarTextoContrato();
+    setContractPreviewText(texto);
+    setShowPreview(true);
+  };
+
+  // Gerar PDF do contrato a partir do texto da pré-visualização
+  const gerarContratoPDF = async () => {
+    if (!client || !contractPreviewText) {
+      toast.error("Erro ao gerar contrato");
+      return;
+    }
+
     setGerandoContrato(true);
     
     try {
@@ -283,22 +367,6 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
       const maxWidth = pageWidth - (margin * 2);
       let yPos = margin;
       
-      // Título
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      const titulo = 'CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS';
-      doc.text(titulo, pageWidth / 2, yPos, { align: 'center' });
-      yPos += 15;
-      
-      // Preâmbulo
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'normal');
-      const preambulo = `que entre si fazem, de um lado, como contratados, o escritório EGG NUNES ADVOGADOS ASSOCIADOS, inscrito no CNPJ sob o número 10.378.694./0001/59, neste ato representado por seu sócio Marcos Luiz Egg Nunes, OAB/MG 115.283, com escritório à Rua São Paulo nº 1104 / 9º andar – Belo Horizonte/MG, e o advogado RAFAEL EGG NUNES, OAB/MG 118.395, também com endereço à Rua São Paulo nº 1104 / 9º andar – Belo Horizonte/MG; e de outro lado, como cliente, ora contratante, ${qualification} ajustam, entre si, com fulcro no artigo 22 da Lei nº 8.906/94, mediante as seguintes cláusulas e condições, contrato de honorários advocatícios.`;
-      
-      const preambuloLines = doc.splitTextToSize(preambulo, maxWidth);
-      doc.text(preambuloLines, margin, yPos);
-      yPos += preambuloLines.length * 6 + 10;
-      
       // Função para adicionar nova página se necessário
       const checkPageBreak = (height: number) => {
         if (yPos + height > doc.internal.pageSize.getHeight() - margin) {
@@ -307,140 +375,53 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
         }
       };
       
-      // Cláusula Primeira
-      doc.setFont('helvetica', 'bold');
-      checkPageBreak(20);
-      doc.text('Cláusula Primeira', margin, yPos);
-      yPos += 8;
+      // Processar o texto da pré-visualização linha por linha
+      const lines = contractPreviewText.split('\n');
       
-      doc.setFont('helvetica', 'normal');
-      const clausula1Lines = doc.splitTextToSize(clausulaPrimeiraGerada, maxWidth);
-      checkPageBreak(clausula1Lines.length * 6);
-      doc.text(clausula1Lines, margin, yPos);
-      yPos += clausula1Lines.length * 6 + 5;
+      doc.setFontSize(11);
       
-      const paragrafoUnico = 'Parágrafo Único - A atuação compreende o processo de forma completa, inclusive eventuais e cabíveis fases recursais.';
-      const paragrafoLines = doc.splitTextToSize(paragrafoUnico, maxWidth);
-      checkPageBreak(paragrafoLines.length * 6);
-      doc.text(paragrafoLines, margin, yPos);
-      yPos += paragrafoLines.length * 6 + 10;
-      
-      // Cláusula Segunda
-      doc.setFont('helvetica', 'bold');
-      checkPageBreak(20);
-      doc.text('Cláusula Segunda', margin, yPos);
-      yPos += 8;
-      
-      doc.setFont('helvetica', 'normal');
-      const clausula2 = 'O(a) Contratante, que reconhece já haver recebido a orientação preventiva comportamental e jurídica para a consecução dos serviços, inclusive dos riscos sobre êxito na causa, fornecerá aos Contratados os documentos e meios necessários à comprovação processual do seu pretendido direito.';
-      const clausula2Lines = doc.splitTextToSize(clausula2, maxWidth);
-      checkPageBreak(clausula2Lines.length * 6);
-      doc.text(clausula2Lines, margin, yPos);
-      yPos += clausula2Lines.length * 6 + 10;
-      
-      // Cláusula Terceira
-      doc.setFont('helvetica', 'bold');
-      checkPageBreak(20);
-      doc.text('Cláusula Terceira', margin, yPos);
-      yPos += 8;
-      
-      doc.setFont('helvetica', 'normal');
-      const clausula3 = gerarClausulaTerceira();
-      const clausula3Lines = doc.splitTextToSize(clausula3, maxWidth);
-      checkPageBreak(clausula3Lines.length * 6);
-      doc.text(clausula3Lines, margin, yPos);
-      yPos += clausula3Lines.length * 6 + 5;
-      
-      // Parágrafos da cláusula terceira
-      const paragrafos = [
-        'Parágrafo Primeiro - Na hipótese do(a) Contratante fazer acordo com a parte "ex-adversa", com ou sem o concurso do advogado, ou na hipótese de ser cassada a procuração outorgada (a qualquer tempo), e ainda caso não prossiga a ação por motivo que independa da vontade dos Contratados, os valores referentes aos honorários continuarão devidos.',
-        'Parágrafo Segundo – Caso o(a) Contratante queira sustentação oral em seu favor em instâncias superiores, o que é opcional em um processo, pagará o valor constante na tabela de honorários mínimos da OAB/MG vigente à época.',
-        'Parágrafo Terceiro - O não pagamento de qualquer prestação, caso haja parcelamento dos honorários, implicará na revogação dos poderes, além do acréscimo de multa de 20% sobre o devido para o caso da necessidade de cobrança judicial.',
-        'Parágrafo Quarto – O atraso no pagamento de qualquer parcela, caso tenha optado pelo pagamento parcelado, acarretará o vencimento antecipado das demais - que poderão ser cobradas judicialmente.',
-        'Parágrafo Quinto – Ficam os herdeiros do(a) Contratante comprometidos também ao pagamento dos valores acordados neste contrato em eventual ausência do(a) Contratante quando do recebimento.',
-        'Parágrafo Sexto - O(a) Contratante autoriza, caso seja necessário, penhora em contracheque de salário/pensão em caso de não pagamento dos honorários.',
-        'Parágrafo Sétimo – Caso o(a) Contratante tenha optado por pagamento via boleto bancário, fica ciente que cada boleto terá o acréscimo de R$4,00 referente à taxas bancárias.',
-        'Parágrafo Oitavo – Na hipótese de desistência pelo(a) Contratante após assinatura deste contrato, e antes do ingresso da ação, serão devidos honorários de R$500,00 (quinhentos reais) a título de consultoria prestada.',
-        `Parágrafo Nono - O(a) Contratante declara estar ciente que poderá receber citação/intimação judicial através do número de telefone ${client.telefone || '[TELEFONE]'}.`
-      ];
-      
-      paragrafos.forEach(p => {
-        const pLines = doc.splitTextToSize(p, maxWidth);
-        checkPageBreak(pLines.length * 6 + 5);
-        doc.text(pLines, margin, yPos);
-        yPos += pLines.length * 6 + 3;
-      });
-      yPos += 7;
-      
-      // Cláusula Quarta a Nona
-      const demaisClausulas = [
-        { titulo: 'Cláusula Quarta', texto: 'Os honorários de condenação (sucumbência), se houver, pertencerão aos Contratados, sem exclusão dos que ora são combinados, em conformidade com os artigos 23 da Lei nº 8.906/94 e 35, parágrafo 1º, do Código de Ética e Disciplina da Ordem dos Advogados do Brasil.' },
-        { titulo: 'Cláusula Quinta', texto: 'O(a) Contratante pagará ainda as custas e despesas judiciais, além de quaisquer outras que decorrerem do serviço, mediante apresentação de demonstrativos analíticos pelos Contratados (caso haja referidas despesas).' },
-        { titulo: 'Cláusula Sexta', texto: 'O presente contrato pode ser executado pelos dois Contratados em conjunto ou separadamente por apenas um dos Contratados.' },
-        { titulo: 'Cláusula Sétima', texto: 'O(a) Contratante fica ciente que os únicos canais de comunicação oficiais dos Contratados são os números de telefone/WhatsApp 31-32268742 e/ou 31-993438742 sendo que os Contratados não se responsabilizam por contatos feitos por outros números desconhecidos.' },
-        { titulo: 'Cláusula Oitava', texto: 'O(a) Contratante fica ciente que as informações do processo são públicas, exceto os processos em segredo de justiça, e que o Contratado não tem controle sobre elas, sendo a veiculação feita pelo respectivo Tribunal.' },
-        { titulo: 'Cláusula Nona', texto: 'Elegem as partes o foro da Comarca de Belo Horizonte/MG para dirimir dúvidas sobre este contrato, podendo ainda os Contratados, em caso de execução do contrato, optarem pelo foro do domicílio do(a) Contratante.' }
-      ];
-      
-      demaisClausulas.forEach(c => {
-        doc.setFont('helvetica', 'bold');
-        checkPageBreak(20);
-        doc.text(c.titulo, margin, yPos);
-        yPos += 8;
+      for (const line of lines) {
+        const trimmedLine = line.trim();
         
+        // Título principal
+        if (trimmedLine === 'CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS') {
+          doc.setFontSize(14);
+          doc.setFont('helvetica', 'bold');
+          doc.text(trimmedLine, pageWidth / 2, yPos, { align: 'center' });
+          doc.setFontSize(11);
+          yPos += 15;
+          continue;
+        }
+        
+        // Cláusulas (títulos)
+        if (trimmedLine.startsWith('Cláusula ') && trimmedLine.length < 30) {
+          doc.setFont('helvetica', 'bold');
+          checkPageBreak(20);
+          doc.text(trimmedLine, margin, yPos);
+          yPos += 8;
+          continue;
+        }
+        
+        // Linha vazia
+        if (!trimmedLine) {
+          yPos += 4;
+          continue;
+        }
+        
+        // Texto normal
         doc.setFont('helvetica', 'normal');
-        const lines = doc.splitTextToSize(c.texto, maxWidth);
-        checkPageBreak(lines.length * 6);
-        doc.text(lines, margin, yPos);
-        yPos += lines.length * 6 + 10;
-      });
-      
-      // Fechamento
-      checkPageBreak(30);
-      const fechamento = 'E por estarem assim justos e contratados, assinam na presença de duas testemunhas para que passe a produzir todos os seus efeitos legais.';
-      const fechamentoLines = doc.splitTextToSize(fechamento, maxWidth);
-      doc.text(fechamentoLines, margin, yPos);
-      yPos += fechamentoLines.length * 6 + 10;
-      
-      // Data
-      const dataAtual = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-      doc.text(`Belo Horizonte, ${dataAtual}.`, margin, yPos);
-      yPos += 20;
-      
-      // Assinaturas
-      checkPageBreak(80);
-      doc.text('_____________________________________', margin, yPos);
-      yPos += 6;
-      doc.text('Contratado: Egg Nunes Advogados Associados', margin, yPos);
-      yPos += 6;
-      doc.text('Neste ato representado por seu sócio Marcos Luiz Egg Nunes, OAB/MG 115.283', margin, yPos);
-      yPos += 15;
-      
-      doc.text('_______________________________________', margin, yPos);
-      yPos += 6;
-      doc.text('Contratado: Rafael Egg Nunes, OAB/MG 118.395', margin, yPos);
-      yPos += 15;
-      
-      doc.text('_________________________________________', margin, yPos);
-      yPos += 6;
-      doc.text(`Contratante: ${client.nomeCompleto.toUpperCase()}`, margin, yPos);
-      yPos += 20;
-      
-      // Testemunhas
-      checkPageBreak(30);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Testemunhas:', margin, yPos);
-      yPos += 10;
-      doc.setFont('helvetica', 'normal');
-      doc.text('1ª) _______________________________', margin, yPos);
-      yPos += 10;
-      doc.text('2ª) __________________________________', margin, yPos);
+        const textLines = doc.splitTextToSize(trimmedLine, maxWidth);
+        checkPageBreak(textLines.length * 6);
+        doc.text(textLines, margin, yPos);
+        yPos += textLines.length * 6 + 2;
+      }
       
       // Salvar PDF
       const nomeArquivo = `Contrato_${client.nomeCompleto.replace(/\s+/g, '_')}_${format(new Date(), 'ddMMyyyy')}.pdf`;
       doc.save(nomeArquivo);
       
       toast.success("Contrato gerado com sucesso!");
+      setShowPreview(false);
       onOpenChange(false);
       
     } catch (error) {
@@ -449,6 +430,11 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
     } finally {
       setGerandoContrato(false);
     }
+  };
+
+  // Voltar para edição
+  const voltarParaEdicao = () => {
+    setShowPreview(false);
   };
 
   if (isCustomContractProduct) {
@@ -734,22 +720,56 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
           </div>
         </ScrollArea>
         
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button 
-            onClick={gerarContratoPDF} 
-            disabled={gerandoContrato || !clausulaPrimeiraGerada || !valorTotal || !dataVencimento}
-          >
-            {gerandoContrato ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4 mr-2" />
-            )}
-            Gerar Contrato PDF
-          </Button>
-        </DialogFooter>
+        {/* Pré-visualização */}
+        {showPreview ? (
+          <>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Badge variant="outline" className="text-sm">
+                  <FileText className="h-3 w-3 mr-1" />
+                  Pré-visualização do Contrato
+                </Badge>
+                <p className="text-xs text-muted-foreground">
+                  Edite o texto abaixo se necessário antes de gerar o PDF
+                </p>
+              </div>
+              <Textarea
+                value={contractPreviewText}
+                onChange={(e) => setContractPreviewText(e.target.value)}
+                className="min-h-[60vh] font-mono text-sm leading-relaxed"
+              />
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={voltarParaEdicao}>
+                Voltar e Editar
+              </Button>
+              <Button 
+                onClick={gerarContratoPDF} 
+                disabled={gerandoContrato}
+              >
+                {gerandoContrato ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                Gerar PDF Final
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={abrirPreview} 
+              disabled={!clausulaPrimeiraGerada || !valorTotal || !dataVencimento}
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Pré-visualizar Contrato
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
