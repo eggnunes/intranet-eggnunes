@@ -314,7 +314,7 @@ export const Layout = ({ children }: LayoutProps) => {
   );
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
+    <div className="min-h-[100dvh] bg-background" style={{ overflowX: 'hidden', overflowY: 'visible' }}>
       <header className="border-b border-border bg-card sticky top-0 z-50 backdrop-blur-sm bg-card/95">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-20">

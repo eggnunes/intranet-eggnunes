@@ -69,25 +69,26 @@ All colors MUST be HSL.
   }
 
   html {
-    -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
-    height: 100%;
+    height: auto;
+    min-height: 100%;
   }
 
   body {
     @apply bg-background text-foreground;
     overflow-x: hidden;
+    overflow-y: auto;
     min-height: 100%;
     height: auto;
-    /* Remove overscroll-behavior-y: none - this was blocking scroll on mobile */
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
   
   /* Fix mobile scroll issues */
   #root {
     min-height: 100%;
     height: auto;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: visible;
   }
 }
 

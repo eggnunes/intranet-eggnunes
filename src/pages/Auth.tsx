@@ -156,8 +156,8 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4 overflow-y-auto">
+      <Card className="w-full max-w-md my-4">
         <CardHeader className="text-center space-y-4">
           <img 
             src={logoEggNunes} 
