@@ -128,6 +128,8 @@ export default function Admin() {
     join_date: string | null;
     oab_number: string | null;
     oab_state: string | null;
+    is_active: boolean;
+    is_admin: boolean;
   } | null>(null);
   const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
   const [resetPasswordUser, setResetPasswordUser] = useState<{ id: string; email: string; full_name: string } | null>(null);
@@ -222,6 +224,8 @@ export default function Admin() {
       join_date: user.join_date,
       oab_number: user.oab_number,
       oab_state: user.oab_state,
+      is_active: user.is_active,
+      is_admin: adminUsers.some(a => a.id === user.id),
     });
     setEditUserDialogOpen(true);
   };
@@ -993,59 +997,6 @@ export default function Admin() {
                                 <Pencil className="w-4 h-4 mr-1" />
                                 Editar Perfil
                               </Button>
-                            {/* Botão Tornar/Remover Admin - Apenas Sócios */}
-                            {isSocioOrRafael && user.email !== 'rafael@eggnunes.com.br' && (
-                              adminUsers.some(a => a.id === user.id) ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleRemoveAdmin(user.id)}
-                                  className="text-destructive hover:text-destructive"
-                                >
-                                  <Shield className="w-4 h-4 mr-1" />
-                                  Remover Admin
-                                </Button>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  variant="default"
-                                  onClick={() => handleMakeAdmin(user.id)}
-                                >
-                                  <Shield className="w-4 h-4 mr-1" />
-                                  Tornar Admin
-                                </Button>
-                              )
-                            )}
-                              {/* Reset Password Button */}
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleOpenResetPassword(user)}
-                              >
-                                <Key className="w-4 h-4 mr-1" />
-                                Redefinir Senha
-                              </Button>
-                              {/* Toggle Active Button */}
-                              {user.email !== 'rafael@eggnunes.com.br' && (
-                                <Button
-                                  size="sm"
-                                  variant={user.is_active ? 'outline' : 'default'}
-                                  onClick={() => handleToggleUserActive(user)}
-                                  className={user.is_active ? 'text-destructive hover:text-destructive' : ''}
-                                >
-                                  {user.is_active ? (
-                                    <>
-                                      <UserX className="w-4 h-4 mr-1" />
-                                      Inativar
-                                    </>
-                                  ) : (
-                                    <>
-                                      <UserCheck className="w-4 h-4 mr-1" />
-                                      Reativar
-                                    </>
-                                  )}
-                                </Button>
-                              )}
                           </div>
                         </div>
                       </div>
@@ -1482,6 +1433,94 @@ export default function Admin() {
                     </div>
                   </div>
                 )}
+
+                {/* Ações Administrativas */}
+                <div className="border-t pt-4 mt-4 space-y-3">
+                  <Label className="text-sm font-medium text-muted-foreground">Ações Administrativas</Label>
+                  
+                  <div className="flex flex-wrap gap-2">
+                    {/* Redefinir Senha */}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditUserDialogOpen(false);
+                        setResetPasswordUser({ 
+                          id: editingUserData.id, 
+                          email: editingUserData.email, 
+                          full_name: editingUserData.full_name 
+                        });
+                        setNewPassword('');
+                        setResetPasswordDialogOpen(true);
+                      }}
+                    >
+                      <Key className="w-4 h-4 mr-1" />
+                      Redefinir Senha
+                    </Button>
+
+                    {/* Tornar/Remover Admin - Apenas Sócios */}
+                    {isSocioOrRafael && editingUserData.email !== 'rafael@eggnunes.com.br' && (
+                      editingUserData.is_admin ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            await handleRemoveAdmin(editingUserData.id);
+                            setEditingUserData({ ...editingUserData, is_admin: false });
+                          }}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Shield className="w-4 h-4 mr-1" />
+                          Remover Admin
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="default"
+                          onClick={async () => {
+                            await handleMakeAdmin(editingUserData.id);
+                            setEditingUserData({ ...editingUserData, is_admin: true });
+                          }}
+                        >
+                          <Shield className="w-4 h-4 mr-1" />
+                          Tornar Admin
+                        </Button>
+                      )
+                    )}
+
+                    {/* Inativar/Reativar */}
+                    {editingUserData.email !== 'rafael@eggnunes.com.br' && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={editingUserData.is_active ? 'outline' : 'default'}
+                        onClick={async () => {
+                          const user = approvedUsers.find(u => u.id === editingUserData.id);
+                          if (user) {
+                            await handleToggleUserActive(user);
+                            setEditingUserData({ ...editingUserData, is_active: !editingUserData.is_active });
+                          }
+                        }}
+                        className={editingUserData.is_active ? 'text-destructive hover:text-destructive' : ''}
+                      >
+                        {editingUserData.is_active ? (
+                          <>
+                            <UserX className="w-4 h-4 mr-1" />
+                            Inativar
+                          </>
+                        ) : (
+                          <>
+                            <UserCheck className="w-4 h-4 mr-1" />
+                            Reativar
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
             <DialogFooter>
