@@ -222,6 +222,7 @@ export const Layout = ({ children }: LayoutProps) => {
   ];
 
   const maisMenuItems = [
+    { icon: Megaphone, path: '/mural-avisos', label: 'Mural de Avisos', description: 'Comunicados e eventos' },
     { icon: DoorOpen, path: '/sala-reuniao', label: 'Sala de Reunião', description: 'Reservar sala' },
     { icon: MessageSquare, path: '/forum', label: 'Fórum', description: 'Discussões da equipe' },
     { icon: FileStack, path: '/documentos-uteis', label: 'Documentos', description: 'Documentos úteis' },
@@ -256,17 +257,6 @@ export const Layout = ({ children }: LayoutProps) => {
           )}
         </Button>
       )}
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/mural-avisos'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start relative"
-      >
-        <Megaphone className="w-4 h-4" />
-        Mural de Avisos
-        {unreadAnnouncementsCount > 0 && (
-          <Badge variant="destructive" className="ml-2">{unreadAnnouncementsCount}</Badge>
-        )}
-      </Button>
       <Button 
         variant="ghost" 
         onClick={() => { navigate('/setor-comercial'); setMobileMenuOpen(false); }}
@@ -387,18 +377,6 @@ export const Layout = ({ children }: LayoutProps) => {
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-
-                <Button 
-                  variant="ghost" 
-                  onClick={() => navigate('/mural-avisos')}
-                  className="gap-2 relative"
-                >
-                  <Megaphone className="w-4 h-4" />
-                  Avisos
-                  {unreadAnnouncementsCount > 0 && (
-                    <Badge variant="destructive" className="ml-2">{unreadAnnouncementsCount}</Badge>
-                  )}
-                </Button>
 
                 <Button 
                   variant="ghost" 
