@@ -89,6 +89,7 @@ export const ContractGenerator = ({
   const [gerandoClausulaPrimeira, setGerandoClausulaPrimeira] = useState(false);
 
   // Cláusula Terceira - Honorários
+  const [temHonorariosIniciais, setTemHonorariosIniciais] = useState(true);
   const [tipoHonorarios, setTipoHonorarios] = useState<"avista" | "parcelado">("avista");
   const [valorTotal, setValorTotal] = useState("");
   const [numeroParcelas, setNumeroParcelas] = useState("");
@@ -378,40 +379,50 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
 
   // Gerar cláusula terceira (honorários)
   const gerarClausulaTerceira = (): string => {
-    const valorFormatado = parseFloat(valorTotal.replace(/\./g, '').replace(',', '.') || '0');
-    const valorExtenso = valorPorExtenso(valorTotal);
-    
     let clausulaA = '';
     
-    if (tipoHonorarios === 'avista') {
-      const formaPagamentoTexto = {
-        'pix': 'via PIX',
-        'cartao': 'via cartão de crédito',
-        'boleto': 'via boleto bancário'
-      }[formaPagamento];
+    if (temHonorariosIniciais) {
+      const valorFormatado = parseFloat(valorTotal.replace(/\./g, '').replace(',', '.') || '0');
+      const valorExtenso = valorPorExtenso(valorTotal);
       
-      clausulaA = `a) R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} à vista que serão pagos ${formaPagamentoTexto} até o dia ${dataVencimento || '[DATA]'} para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
-    } else {
-      const numParcelas = parseInt(numeroParcelas) || 0;
-      const valorParcelaNum = parseFloat(valorParcela.replace(/\./g, '').replace(',', '.') || '0');
-      const valorEntradaNum = parseFloat(valorEntrada.replace(/\./g, '').replace(',', '.') || '0');
-      
-      const formaPagamentoTexto = {
-        'pix': 'via PIX',
-        'cartao': 'via cartão de crédito',
-        'boleto': 'via boleto bancário'
-      }[formaPagamento];
-      
-      if (temEntrada && valorEntradaNum > 0) {
-        clausulaA = `a) R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} parcelados, sendo R$${new Intl.NumberFormat('pt-BR').format(valorEntradaNum)} de entrada e mais ${numParcelas} parcelas de R$${new Intl.NumberFormat('pt-BR').format(valorParcelaNum)} cada, ${formaPagamentoTexto}, com vencimento para o dia ${dataVencimento || '[DATA]'} de cada mês, para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
+      if (tipoHonorarios === 'avista') {
+        const formaPagamentoTexto = {
+          'pix': 'via PIX',
+          'cartao': 'via cartão de crédito',
+          'boleto': 'via boleto bancário'
+        }[formaPagamento];
+        
+        clausulaA = `a) R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} à vista que serão pagos ${formaPagamentoTexto} até o dia ${dataVencimento || '[DATA]'} para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
       } else {
-        clausulaA = `a) R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} parcelados em ${numParcelas} parcelas de R$${new Intl.NumberFormat('pt-BR').format(valorParcelaNum)} cada, ${formaPagamentoTexto}, com vencimento para o dia ${dataVencimento || '[DATA]'} de cada mês, para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
+        const numParcelas = parseInt(numeroParcelas) || 0;
+        const valorParcelaNum = parseFloat(valorParcela.replace(/\./g, '').replace(',', '.') || '0');
+        const valorEntradaNum = parseFloat(valorEntrada.replace(/\./g, '').replace(',', '.') || '0');
+        
+        const formaPagamentoTexto = {
+          'pix': 'via PIX',
+          'cartao': 'via cartão de crédito',
+          'boleto': 'via boleto bancário'
+        }[formaPagamento];
+        
+        if (temEntrada && valorEntradaNum > 0) {
+          clausulaA = `a) R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} parcelados, sendo R$${new Intl.NumberFormat('pt-BR').format(valorEntradaNum)} de entrada e mais ${numParcelas} parcelas de R$${new Intl.NumberFormat('pt-BR').format(valorParcelaNum)} cada, ${formaPagamentoTexto}, com vencimento para o dia ${dataVencimento || '[DATA]'} de cada mês, para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
+        } else {
+          clausulaA = `a) R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} parcelados em ${numParcelas} parcelas de R$${new Intl.NumberFormat('pt-BR').format(valorParcelaNum)} cada, ${formaPagamentoTexto}, com vencimento para o dia ${dataVencimento || '[DATA]'} de cada mês, para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
+        }
       }
     }
     
     let clausulaB = '';
     if (temHonorariosExito && clausulaExitoGerada) {
-      clausulaB = `\n${clausulaExitoGerada}`;
+      // Ajustar letra da cláusula baseado se tem honorários iniciais
+      const letraClausula = temHonorariosIniciais ? 'b)' : 'a)';
+      clausulaB = temHonorariosIniciais 
+        ? `\n${clausulaExitoGerada}` 
+        : clausulaExitoGerada.replace(/^b\)/, letraClausula);
+    }
+    
+    if (!temHonorariosIniciais && !clausulaB) {
+      return `Em remuneração pelos serviços profissionais ora contratados serão devidos honorários advocatícios da seguinte forma:\n\n[Apenas honorários de êxito]`;
     }
     
     return `Em remuneração pelos serviços profissionais ora contratados serão devidos honorários advocatícios da seguinte forma:\n\n${clausulaA}${clausulaB}`;
@@ -497,8 +508,13 @@ Testemunhas:
       return;
     }
 
-    if (!valorTotal || !dataVencimento) {
-      toast.error("Preencha os dados de honorários");
+    if (temHonorariosIniciais && (!valorTotal || !dataVencimento)) {
+      toast.error("Preencha os dados de honorários iniciais");
+      return;
+    }
+
+    if (!temHonorariosIniciais && !temHonorariosExito) {
+      toast.error("Selecione pelo menos um tipo de honorários (iniciais ou êxito)");
       return;
     }
 
@@ -767,107 +783,129 @@ Testemunhas:
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Tipo de pagamento *</Label>
-                  <RadioGroup
-                    value={tipoHonorarios}
-                    onValueChange={(v) => setTipoHonorarios(v as "avista" | "parcelado")}
-                    className="flex gap-4"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="avista" id="avista" />
-                      <Label htmlFor="avista" className="cursor-pointer">À vista</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="parcelado" id="parcelado" />
-                      <Label htmlFor="parcelado" className="cursor-pointer">Parcelado</Label>
-                    </div>
-                  </RadioGroup>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                  <div>
+                    <Label htmlFor="temHonorariosIniciais" className="cursor-pointer font-medium">
+                      Possui honorários iniciais?
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Desative caso o cliente contrate apenas honorários de êxito
+                    </p>
+                  </div>
+                  <Switch
+                    id="temHonorariosIniciais"
+                    checked={temHonorariosIniciais}
+                    onCheckedChange={setTemHonorariosIniciais}
+                  />
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="valorTotal">Valor total (R$) *</Label>
-                    <Input
-                      id="valorTotal"
-                      placeholder="0,00"
-                      value={valorTotal}
-                      onChange={(e) => setValorTotal(e.target.value)}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="dataVencimento">Data de vencimento *</Label>
-                    <Input
-                      id="dataVencimento"
-                      placeholder="Ex: 10/01/2025 ou dia 10"
-                      value={dataVencimento}
-                      onChange={(e) => setDataVencimento(e.target.value)}
-                    />
-                  </div>
-                </div>
-                
-                {tipoHonorarios === 'parcelado' && (
+                {temHonorariosIniciais && (
                   <>
+                    <Separator />
+                    
+                    <div className="space-y-2">
+                      <Label>Tipo de pagamento *</Label>
+                      <RadioGroup
+                        value={tipoHonorarios}
+                        onValueChange={(v) => setTipoHonorarios(v as "avista" | "parcelado")}
+                        className="flex gap-4"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="avista" id="avista" />
+                          <Label htmlFor="avista" className="cursor-pointer">À vista</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="parcelado" id="parcelado" />
+                          <Label htmlFor="parcelado" className="cursor-pointer">Parcelado</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="numeroParcelas">Número de parcelas *</Label>
+                        <Label htmlFor="valorTotal">Valor total (R$) *</Label>
                         <Input
-                          id="numeroParcelas"
-                          type="number"
-                          placeholder="12"
-                          value={numeroParcelas}
-                          onChange={(e) => setNumeroParcelas(e.target.value)}
+                          id="valorTotal"
+                          placeholder="0,00"
+                          value={valorTotal}
+                          onChange={(e) => setValorTotal(e.target.value)}
                         />
                       </div>
                       
                       <div className="space-y-2">
-                        <Label htmlFor="valorParcela">Valor de cada parcela (R$) *</Label>
+                        <Label htmlFor="dataVencimento">Data de vencimento *</Label>
                         <Input
-                          id="valorParcela"
-                          placeholder="0,00"
-                          value={valorParcela}
-                          onChange={(e) => setValorParcela(e.target.value)}
+                          id="dataVencimento"
+                          placeholder="Ex: 10/01/2025 ou dia 10"
+                          value={dataVencimento}
+                          onChange={(e) => setDataVencimento(e.target.value)}
                         />
                       </div>
                     </div>
                     
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="temEntrada" className="cursor-pointer">Possui entrada?</Label>
-                      <Switch
-                        id="temEntrada"
-                        checked={temEntrada}
-                        onCheckedChange={setTemEntrada}
-                      />
-                    </div>
-                    
-                    {temEntrada && (
-                      <div className="space-y-2">
-                        <Label htmlFor="valorEntrada">Valor da entrada (R$) *</Label>
-                        <Input
-                          id="valorEntrada"
-                          placeholder="0,00"
-                          value={valorEntrada}
-                          onChange={(e) => setValorEntrada(e.target.value)}
-                        />
-                      </div>
+                    {tipoHonorarios === 'parcelado' && (
+                      <>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="numeroParcelas">Número de parcelas *</Label>
+                            <Input
+                              id="numeroParcelas"
+                              type="number"
+                              placeholder="12"
+                              value={numeroParcelas}
+                              onChange={(e) => setNumeroParcelas(e.target.value)}
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="valorParcela">Valor de cada parcela (R$) *</Label>
+                            <Input
+                              id="valorParcela"
+                              placeholder="0,00"
+                              value={valorParcela}
+                              onChange={(e) => setValorParcela(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="temEntrada" className="cursor-pointer">Possui entrada?</Label>
+                          <Switch
+                            id="temEntrada"
+                            checked={temEntrada}
+                            onCheckedChange={setTemEntrada}
+                          />
+                        </div>
+                        
+                        {temEntrada && (
+                          <div className="space-y-2">
+                            <Label htmlFor="valorEntrada">Valor da entrada (R$) *</Label>
+                            <Input
+                              id="valorEntrada"
+                              placeholder="0,00"
+                              value={valorEntrada}
+                              onChange={(e) => setValorEntrada(e.target.value)}
+                            />
+                          </div>
+                        )}
+                      </>
                     )}
+                    
+                    <div className="space-y-2">
+                      <Label>Forma de pagamento *</Label>
+                      <Select value={formaPagamento} onValueChange={(v) => setFormaPagamento(v as "pix" | "cartao" | "boleto")}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pix">PIX</SelectItem>
+                          <SelectItem value="cartao">Cartão de Crédito</SelectItem>
+                          <SelectItem value="boleto">Boleto Bancário</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </>
                 )}
-                
-                <div className="space-y-2">
-                  <Label>Forma de pagamento *</Label>
-                  <Select value={formaPagamento} onValueChange={(v) => setFormaPagamento(v as "pix" | "cartao" | "boleto")}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pix">PIX</SelectItem>
-                      <SelectItem value="cartao">Cartão de Crédito</SelectItem>
-                      <SelectItem value="boleto">Boleto Bancário</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </CardContent>
             </Card>
             
