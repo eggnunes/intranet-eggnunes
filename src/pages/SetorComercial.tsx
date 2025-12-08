@@ -86,6 +86,31 @@ interface RDStationProduct {
   recurrence?: string;
 }
 
+// Função para gerar a qualificação do cliente no formato jurídico
+const generateClientQualification = (client: Client): string => {
+  const parts = [
+    client.nomeCompleto || '[NOME]',
+    'brasileiro(a)',
+    client.estadoCivil?.toLowerCase() || '[ESTADO CIVIL]',
+    client.profissao?.toLowerCase() || '[PROFISSÃO]',
+    `portador(a) do documento de identidade nº ${client.documentoIdentidade || '[RG]'}`,
+    `e do CPF nº ${client.cpf || '[CPF]'}`,
+    `nascido(a) em ${client.dataNascimento || '[DATA NASCIMENTO]'}`,
+    `filiação: ${client.nomePai || '[PAI]'} e ${client.nomeMae || '[MÃE]'}`,
+    `residente na ${client.rua || '[RUA]'}`,
+    `nº ${client.numero || '[NÚMERO]'}`,
+    client.complemento ? client.complemento : null,
+    `bairro ${client.bairro || '[BAIRRO]'}`,
+    client.cidade || '[CIDADE]',
+    client.estado || '[ESTADO]',
+    `CEP ${client.cep || '[CEP]'}`,
+    `e-mail: ${client.email || '[E-MAIL]'}`
+  ];
+
+  // Remove valores nulos e junta com vírgula
+  return parts.filter(Boolean).join(', ') + '.';
+};
+
 const SetorComercial = () => {
   const navigate = useNavigate();
   const { hasPermission, loading: permissionsLoading } = useAdminPermissions();
@@ -233,13 +258,21 @@ const SetorComercial = () => {
       return;
     }
 
+    if (!clientForDocument) {
+      toast.error('Cliente não selecionado');
+      return;
+    }
+
     const product = products.find(p => p._id === selectedProduct);
     const productName = product?.name || 'Produto';
+    const qualification = generateClientQualification(clientForDocument);
     
     setProductDialogOpen(false);
     
-    toast.info(`Gerando contrato para ${clientForDocument?.nomeCompleto} - Produto: ${productName}`);
+    console.log('Qualificação do cliente para contrato:', qualification);
+    toast.info(`Gerando contrato para ${clientForDocument.nomeCompleto} - Produto: ${productName}`);
     // TODO: Implement contract generation with product
+    // A qualificação está disponível na variável 'qualification' para ser inserida no modelo
   };
 
   const handleGenerateContract = (client: Client) => {
@@ -247,8 +280,11 @@ const SetorComercial = () => {
   };
 
   const handleGenerateProcuracao = (client: Client) => {
-    toast.info('Funcionalidade de geração de procuração em desenvolvimento');
+    const qualification = generateClientQualification(client);
+    console.log('Qualificação do cliente para procuração:', qualification);
+    toast.info(`Gerando procuração para ${client.nomeCompleto}`);
     // TODO: Implement procuracao generation
+    // A qualificação está disponível na variável 'qualification' para ser inserida no modelo
   };
 
   const handleGenerateDeclaracao = (client: Client) => {
