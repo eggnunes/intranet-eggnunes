@@ -90,6 +90,15 @@ interface RDStationProduct {
   recurrence?: string;
 }
 
+// Função para formatar CPF no padrão XXX.XXX.XXX-XX
+const formatCPF = (cpf: string): string => {
+  if (!cpf) return '[CPF]';
+  // Remove tudo que não é número
+  const cleanCPF = cpf.replace(/\D/g, '');
+  if (cleanCPF.length !== 11) return cpf; // Retorna original se não tiver 11 dígitos
+  return cleanCPF.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+};
+
 // Função para gerar a qualificação do cliente no formato jurídico
 const generateClientQualification = (client: Client): string => {
   const parts = [
@@ -98,7 +107,7 @@ const generateClientQualification = (client: Client): string => {
     client.estadoCivil?.toLowerCase() || '[ESTADO CIVIL]',
     client.profissao?.toLowerCase() || '[PROFISSÃO]',
     `portador(a) do documento de identidade nº ${client.documentoIdentidade || '[RG]'}`,
-    `e do CPF nº ${client.cpf || '[CPF]'}`,
+    `e do CPF nº ${formatCPF(client.cpf)}`,
     `nascido(a) em ${client.dataNascimento || '[DATA NASCIMENTO]'}`,
     `residente na ${client.rua || '[RUA]'}`,
     `nº ${client.numero || '[NÚMERO]'}`,
@@ -111,8 +120,8 @@ const generateClientQualification = (client: Client): string => {
     `telefone: ${client.telefone || '[TELEFONE]'}`
   ];
 
-  // Remove valores nulos e junta com vírgula
-  return parts.filter(Boolean).join(', ') + '.';
+  // Remove valores nulos e junta com vírgula, terminando com ponto e vírgula
+  return parts.filter(Boolean).join(', ') + ';';
 };
 
 const SetorComercial = () => {
