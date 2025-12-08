@@ -57,6 +57,7 @@ export default function PesquisaJurisprudencia() {
   const [savedJurisprudence, setSavedJurisprudence] = useState<SavedJurisprudence[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [loadingSaved, setLoadingSaved] = useState(true);
+  const [activeTab, setActiveTab] = useState('search');
   
   // Dialog para salvar jurisprudência
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
@@ -274,11 +275,8 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
       setParsedResult(null);
     }
     
-    // Mudar para aba de pesquisa para ver resultado (importante para mobile)
-    const searchTab = document.querySelector('[value="search"]') as HTMLElement;
-    if (searchTab) {
-      searchTab.click();
-    }
+    // Mudar para aba de pesquisa para ver resultado
+    setActiveTab('search');
   };
 
   const getAreaLabel = (area: string) => {
@@ -308,7 +306,7 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
           </p>
         </div>
 
-        <Tabs defaultValue="search" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="search" className="gap-2">
               <Search className="h-4 w-4" />
