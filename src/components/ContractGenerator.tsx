@@ -105,11 +105,29 @@ export const ContractGenerator = ({
   const [clausulaExitoGerada, setClausulaExitoGerada] = useState("");
   
   // Templates de honorários êxito
-  const [templates, setTemplates] = useState<{id: string; name: string; description: string}[]>([]);
+  const [templates, setTemplates] = useState<{id: string; name: string; description: string; is_default?: boolean}[]>([]);
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
+
+  // Templates de honorários iniciais
+  interface InitialFeeTemplate {
+    id: string;
+    name: string;
+    tipo_honorarios: string;
+    valor_total?: string;
+    numero_parcelas?: string;
+    valor_parcela?: string;
+    tem_entrada?: boolean;
+    valor_entrada?: string;
+    forma_pagamento?: string;
+    is_default?: boolean;
+  }
+  const [initialFeeTemplates, setInitialFeeTemplates] = useState<InitialFeeTemplate[]>([]);
+  const [showSaveInitialTemplate, setShowSaveInitialTemplate] = useState(false);
+  const [initialTemplateName, setInitialTemplateName] = useState("");
+  const [savingInitialTemplate, setSavingInitialTemplate] = useState(false);
   const [gerandoClausulaExito, setGerandoClausulaExito] = useState(false);
 
   // Geração do contrato
@@ -132,21 +150,34 @@ export const ContractGenerator = ({
     p => productName.toLowerCase().includes(p.toLowerCase())
   );
 
-  // Carregar templates de honorários êxito
+  // Carregar templates de honorários êxito e iniciais
   useEffect(() => {
-    const loadTemplates = async () => {
-      if (!user || !open) return;
+    const loadAllTemplates = async () => {
+      if (!open) return;
       
       setLoadingTemplates(true);
       try {
-        const { data, error } = await supabase
+        // Carregar templates de êxito (próprios e padrão)
+        const { data: successData, error: successError } = await supabase
           .from('success_fee_templates')
-          .select('id, name, description')
-          .eq('user_id', user.id)
+          .select('id, name, description, is_default')
+          .or(user ? `user_id.eq.${user.id},is_default.eq.true` : 'is_default.eq.true')
+          .order('is_default', { ascending: false })
           .order('name');
         
-        if (error) throw error;
-        setTemplates(data || []);
+        if (successError) throw successError;
+        setTemplates(successData || []);
+
+        // Carregar templates de honorários iniciais (próprios e padrão)
+        const { data: initialData, error: initialError } = await supabase
+          .from('initial_fee_templates')
+          .select('*')
+          .or(user ? `user_id.eq.${user.id},is_default.eq.true` : 'is_default.eq.true')
+          .order('is_default', { ascending: false })
+          .order('name');
+        
+        if (initialError) throw initialError;
+        setInitialFeeTemplates(initialData || []);
       } catch (error) {
         console.error('Erro ao carregar templates:', error);
       } finally {
@@ -154,7 +185,7 @@ export const ContractGenerator = ({
       }
     };
 
-    loadTemplates();
+    loadAllTemplates();
   }, [user, open]);
 
   // Verificar se existe rascunho para este cliente
@@ -328,8 +359,9 @@ export const ContractGenerator = ({
       // Recarregar templates
       const { data } = await supabase
         .from('success_fee_templates')
-        .select('id, name, description')
-        .eq('user_id', user.id)
+        .select('id, name, description, is_default')
+        .or(user ? `user_id.eq.${user.id},is_default.eq.true` : 'is_default.eq.true')
+        .order('is_default', { ascending: false })
         .order('name');
       
       setTemplates(data || []);
@@ -344,13 +376,13 @@ export const ContractGenerator = ({
     }
   };
 
-  // Carregar template selecionado
+  // Carregar template de êxito selecionado
   const carregarTemplate = (template: {id: string; name: string; description: string}) => {
     setDescricaoHonorariosExito(template.description);
     toast.success(`Template "${template.name}" carregado`);
   };
 
-  // Deletar template
+  // Deletar template de êxito
   const deletarTemplate = async (templateId: string) => {
     try {
       const { error } = await supabase
@@ -361,6 +393,81 @@ export const ContractGenerator = ({
       if (error) throw error;
       
       setTemplates(prev => prev.filter(t => t.id !== templateId));
+      toast.success("Template excluído");
+    } catch (error) {
+      console.error('Erro ao deletar template:', error);
+      toast.error("Erro ao excluir template");
+    }
+  };
+
+  // Salvar template de honorários iniciais
+  const salvarTemplateInicial = async () => {
+    if (!initialTemplateName.trim() || !user) {
+      toast.error("Preencha o nome do template");
+      return;
+    }
+
+    setSavingInitialTemplate(true);
+    try {
+      const { error } = await supabase
+        .from('initial_fee_templates')
+        .insert({
+          user_id: user.id,
+          name: initialTemplateName.trim(),
+          tipo_honorarios: tipoHonorarios,
+          valor_total: valorTotal,
+          numero_parcelas: numeroParcelas,
+          valor_parcela: valorParcela,
+          tem_entrada: temEntrada,
+          valor_entrada: valorEntrada,
+          forma_pagamento: formaPagamento,
+        });
+
+      if (error) throw error;
+
+      // Recarregar templates
+      const { data } = await supabase
+        .from('initial_fee_templates')
+        .select('*')
+        .or(user ? `user_id.eq.${user.id},is_default.eq.true` : 'is_default.eq.true')
+        .order('is_default', { ascending: false })
+        .order('name');
+      
+      setInitialFeeTemplates(data || []);
+      setInitialTemplateName("");
+      setShowSaveInitialTemplate(false);
+      toast.success("Template de honorários iniciais salvo!");
+    } catch (error) {
+      console.error('Erro ao salvar template:', error);
+      toast.error("Erro ao salvar template");
+    } finally {
+      setSavingInitialTemplate(false);
+    }
+  };
+
+  // Carregar template de honorários iniciais
+  const carregarTemplateInicial = (template: InitialFeeTemplate) => {
+    setTipoHonorarios((template.tipo_honorarios as "avista" | "parcelado") || "avista");
+    if (template.valor_total) setValorTotal(template.valor_total);
+    if (template.numero_parcelas) setNumeroParcelas(template.numero_parcelas);
+    if (template.valor_parcela) setValorParcela(template.valor_parcela);
+    setTemEntrada(template.tem_entrada || false);
+    if (template.valor_entrada) setValorEntrada(template.valor_entrada);
+    setFormaPagamento((template.forma_pagamento as "pix" | "cartao" | "boleto") || "pix");
+    toast.success(`Template "${template.name}" carregado`);
+  };
+
+  // Deletar template de honorários iniciais
+  const deletarTemplateInicial = async (templateId: string) => {
+    try {
+      const { error } = await supabase
+        .from('initial_fee_templates')
+        .delete()
+        .eq('id', templateId);
+      
+      if (error) throw error;
+      
+      setInitialFeeTemplates(prev => prev.filter(t => t.id !== templateId));
       toast.success("Template excluído");
     } catch (error) {
       console.error('Erro ao deletar template:', error);
@@ -915,6 +1022,35 @@ Testemunhas:
                 {temHonorariosIniciais && (
                   <>
                     <Separator />
+
+                    {/* Templates de honorários iniciais */}
+                    {initialFeeTemplates.length > 0 && (
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Templates disponíveis</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {initialFeeTemplates.map((template) => (
+                            <div key={template.id} className="flex items-center gap-1">
+                              <Badge 
+                                variant={template.is_default ? "secondary" : "outline"}
+                                className="cursor-pointer hover:bg-primary/10"
+                                onClick={() => carregarTemplateInicial(template)}
+                              >
+                                {template.name}
+                                {template.is_default && <span className="ml-1 text-[10px] opacity-60">(padrão)</span>}
+                              </Badge>
+                              {!template.is_default && (
+                                <button
+                                  onClick={() => deletarTemplateInicial(template.id)}
+                                  className="text-muted-foreground hover:text-destructive p-0.5"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     
                     <div className="space-y-2">
                       <Label>Tipo de pagamento *</Label>
@@ -1017,6 +1153,51 @@ Testemunhas:
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* Salvar como template */}
+                    {!showSaveInitialTemplate ? (
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => setShowSaveInitialTemplate(true)}
+                        className="w-full text-xs"
+                      >
+                        <Save className="h-3 w-3 mr-1" />
+                        Salvar configuração como template
+                      </Button>
+                    ) : (
+                      <div className="flex gap-2 items-end p-3 rounded-lg bg-muted/50">
+                        <div className="flex-1 space-y-1">
+                          <Label htmlFor="initialTemplateName" className="text-xs">Nome do template</Label>
+                          <Input
+                            id="initialTemplateName"
+                            placeholder="Ex: Parcelado 12x - Cartão"
+                            value={initialTemplateName}
+                            onChange={(e) => setInitialTemplateName(e.target.value)}
+                            className="h-8"
+                          />
+                        </div>
+                        <Button 
+                          size="sm" 
+                          onClick={salvarTemplateInicial}
+                          disabled={savingInitialTemplate || !initialTemplateName.trim()}
+                          className="h-8"
+                        >
+                          {savingInitialTemplate ? <Loader2 className="h-3 w-3 animate-spin" /> : "Salvar"}
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={() => {
+                            setShowSaveInitialTemplate(false);
+                            setInitialTemplateName("");
+                          }}
+                          className="h-8"
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    )}
                   </>
                 )}
               </CardContent>
@@ -1040,26 +1221,29 @@ Testemunhas:
               </CardHeader>
               {temHonorariosExito && (
                 <CardContent className="space-y-4">
-                  {/* Templates salvos */}
+                  {/* Templates salvos e padrão */}
                   {templates.length > 0 && (
                     <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Templates salvos</Label>
+                      <Label className="text-xs text-muted-foreground">Templates disponíveis</Label>
                       <div className="flex flex-wrap gap-2">
                         {templates.map((template) => (
                           <div key={template.id} className="flex items-center gap-1">
                             <Badge 
-                              variant="outline" 
+                              variant={template.is_default ? "secondary" : "outline"}
                               className="cursor-pointer hover:bg-primary/10"
                               onClick={() => carregarTemplate(template)}
                             >
                               {template.name}
+                              {template.is_default && <span className="ml-1 text-[10px] opacity-60">(padrão)</span>}
                             </Badge>
-                            <button
-                              onClick={() => deletarTemplate(template.id)}
-                              className="text-muted-foreground hover:text-destructive p-0.5"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
+                            {!template.is_default && (
+                              <button
+                                onClick={() => deletarTemplate(template.id)}
+                                className="text-muted-foreground hover:text-destructive p-0.5"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
