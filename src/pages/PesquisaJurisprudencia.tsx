@@ -161,13 +161,32 @@ export default function PesquisaJurisprudencia() {
     }
   };
 
-  const openSaveDialog = (content: string, searchId?: string) => {
+  const openSaveDialog = (content: string, title?: string, searchId?: string) => {
     setSaveContent(content);
-    setSaveTitle('');
+    setSaveTitle(title || '');
     setSaveSource('Pesquisa Perplexity AI');
     setSaveNotes('');
     setCurrentSearchId(searchId || null);
     setSaveDialogOpen(true);
+  };
+
+  const openSaveDialogFromJuris = (juris: JurisprudenciaItem, searchId?: string) => {
+    const content = `TRIBUNAL: ${juris.tribunal}
+PROCESSO: ${juris.numero_processo}
+RELATOR: ${juris.relator || 'Não informado'}
+DATA: ${juris.data_julgamento || 'Não informada'}
+ÁREA: ${juris.area_direito || 'Não informada'}
+
+EMENTA:
+${juris.ementa || 'Não disponível'}
+
+RESUMO:
+${juris.resumo || 'Não disponível'}
+${juris.tese_firmada ? `\nTESE FIRMADA:\n${juris.tese_firmada}` : ''}
+${juris.sumulas_relacionadas ? `\nSÚMULAS RELACIONADAS:\n${juris.sumulas_relacionadas}` : ''}`;
+
+    const title = `${juris.tribunal} - ${juris.numero_processo}`;
+    openSaveDialog(content, title, searchId);
   };
 
   const handleSaveJurisprudence = async () => {
@@ -363,14 +382,16 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <h3 className="font-semibold">Resultado da Pesquisa</h3>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => openSaveDialog(searchResult, currentSearchId || undefined)}
-                      >
-                        <Save className="h-4 w-4 mr-2" />
-                        Salvar Jurisprudência
-                      </Button>
+                      {(!parsedResult || !parsedResult.jurisprudencias || parsedResult.jurisprudencias.length === 0) && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => openSaveDialog(searchResult, undefined, currentSearchId || undefined)}
+                        >
+                          <Save className="h-4 w-4 mr-2" />
+                          Salvar Resultado
+                        </Button>
+                      )}
                     </div>
                     
                     {parsedResult && parsedResult.jurisprudencias && parsedResult.jurisprudencias.length > 0 ? (
@@ -378,15 +399,26 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                         {parsedResult.jurisprudencias.map((juris, index) => (
                           <Card key={index} className="border-l-4 border-l-primary">
                             <CardHeader className="pb-2">
-                              <div className="flex flex-wrap items-center gap-2 mb-2">
-                                <span className="bg-primary text-primary-foreground px-2 py-1 rounded text-xs font-semibold">
-                                  {juris.tribunal}
-                                </span>
-                                {juris.area_direito && (
-                                  <span className="bg-muted px-2 py-1 rounded text-xs">
-                                    {getAreaLabel(juris.area_direito)}
+                              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="bg-primary text-primary-foreground px-2 py-1 rounded text-xs font-semibold">
+                                    {juris.tribunal}
                                   </span>
-                                )}
+                                  {juris.area_direito && (
+                                    <span className="bg-muted px-2 py-1 rounded text-xs">
+                                      {getAreaLabel(juris.area_direito)}
+                                    </span>
+                                  )}
+                                </div>
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => openSaveDialogFromJuris(juris, currentSearchId || undefined)}
+                                  className="gap-1.5"
+                                >
+                                  <Bookmark className="h-3.5 w-3.5" />
+                                  <span className="hidden sm:inline">Salvar</span>
+                                </Button>
                               </div>
                               <CardTitle className="text-base">
                                 {juris.numero_processo}
