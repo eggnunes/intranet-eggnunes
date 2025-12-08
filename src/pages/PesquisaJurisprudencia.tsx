@@ -273,6 +273,12 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
     } catch {
       setParsedResult(null);
     }
+    
+    // Mudar para aba de pesquisa para ver resultado (importante para mobile)
+    const searchTab = document.querySelector('[value="search"]') as HTMLElement;
+    if (searchTab) {
+      searchTab.click();
+    }
   };
 
   const getAreaLabel = (area: string) => {

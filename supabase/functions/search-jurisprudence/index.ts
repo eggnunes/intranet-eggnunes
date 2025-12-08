@@ -43,7 +43,12 @@ serve(async (req) => {
       courtFilter = `Foque especificamente em decisões do ${courtNames[court] || court}.`;
     }
 
-    console.log('Searching jurisprudence for:', query, 'Court:', court || 'todos');
+    // Detect if user specified a number of jurisprudence to return
+    const numberMatch = query.match(/(\d+)\s*jurisprud[êe]ncia/i);
+    const requestedCount = numberMatch ? parseInt(numberMatch[1]) : 5;
+    const maxResults = Math.min(Math.max(requestedCount, 3), 15); // Between 3 and 15
+
+    console.log('Searching jurisprudence for:', query, 'Court:', court || 'todos', 'Requested count:', maxResults);
 
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
@@ -80,13 +85,13 @@ Para cada decisão encontrada, retorne um JSON estruturado:
 }
 
 REGRAS:
-1. Busque 3 a 5 jurisprudências relevantes
+1. Busque EXATAMENTE ${maxResults} jurisprudências relevantes
 2. Retorne APENAS o JSON, sem texto adicional
 3. Seja preciso nas citações`
           },
           {
             role: 'user',
-            content: `Pesquise jurisprudência sobre: ${query}`
+            content: `Pesquise ${maxResults} jurisprudências sobre: ${query}`
           }
         ],
         temperature: 0.2,
