@@ -30,11 +30,29 @@ interface SavedJurisprudence {
   created_at: string;
 }
 
+interface JurisprudenciaItem {
+  tribunal: string;
+  numero_processo: string;
+  relator: string;
+  data_julgamento: string;
+  ementa: string;
+  resumo: string;
+  area_direito: string;
+  tese_firmada?: string;
+  sumulas_relacionadas?: string;
+}
+
+interface ParsedResult {
+  jurisprudencias: JurisprudenciaItem[];
+  observacoes_gerais?: string;
+}
+
 export default function PesquisaJurisprudencia() {
   const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<string | null>(null);
+  const [parsedResult, setParsedResult] = useState<ParsedResult | null>(null);
   const [searchHistory, setSearchHistory] = useState<SearchHistory[]>([]);
   const [savedJurisprudence, setSavedJurisprudence] = useState<SavedJurisprudence[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -96,6 +114,7 @@ export default function PesquisaJurisprudencia() {
 
     setIsSearching(true);
     setSearchResult(null);
+    setParsedResult(null);
 
     try {
       const { data, error } = await supabase.functions.invoke('search-jurisprudence', {
@@ -109,7 +128,10 @@ export default function PesquisaJurisprudencia() {
       }
 
       const result = data.result;
+      const parsed = data.parsed as ParsedResult | null;
+      
       setSearchResult(result);
+      setParsedResult(parsed);
 
       // Salvar no histórico
       const { data: savedSearch, error: saveError } = await supabase
@@ -238,6 +260,36 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
     setQuery(item.query);
     setSearchResult(item.response);
     setCurrentSearchId(item.id);
+    
+    // Tentar parsear o resultado do histórico
+    try {
+      const jsonMatch = item.response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]) as ParsedResult;
+        setParsedResult(parsed);
+      } else {
+        setParsedResult(null);
+      }
+    } catch {
+      setParsedResult(null);
+    }
+  };
+
+  const getAreaLabel = (area: string) => {
+    const labels: Record<string, string> = {
+      'civil': 'Civil',
+      'trabalhista': 'Trabalhista',
+      'penal': 'Penal',
+      'tributario': 'Tributário',
+      'administrativo': 'Administrativo',
+      'constitucional': 'Constitucional',
+      'previdenciario': 'Previdenciário',
+      'consumidor': 'Consumidor',
+      'ambiental': 'Ambiental',
+      'empresarial': 'Empresarial',
+      'outro': 'Outro'
+    };
+    return labels[area] || area;
   };
 
   return (
@@ -316,9 +368,81 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                         Salvar Jurisprudência
                       </Button>
                     </div>
-                    <div className="bg-muted/50 rounded-lg p-4 whitespace-pre-wrap text-sm max-h-[600px] overflow-y-auto">
-                      {searchResult}
-                    </div>
+                    
+                    {parsedResult && parsedResult.jurisprudencias && parsedResult.jurisprudencias.length > 0 ? (
+                      <div className="space-y-4">
+                        {parsedResult.jurisprudencias.map((juris, index) => (
+                          <Card key={index} className="border-l-4 border-l-primary">
+                            <CardHeader className="pb-2">
+                              <div className="flex flex-wrap items-center gap-2 mb-2">
+                                <span className="bg-primary text-primary-foreground px-2 py-1 rounded text-xs font-semibold">
+                                  {juris.tribunal}
+                                </span>
+                                {juris.area_direito && (
+                                  <span className="bg-muted px-2 py-1 rounded text-xs">
+                                    {getAreaLabel(juris.area_direito)}
+                                  </span>
+                                )}
+                              </div>
+                              <CardTitle className="text-base">
+                                {juris.numero_processo}
+                              </CardTitle>
+                              <CardDescription className="flex flex-col gap-1">
+                                {juris.relator && <span>Relator: {juris.relator}</span>}
+                                {juris.data_julgamento && <span>Data: {juris.data_julgamento}</span>}
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                              {juris.ementa && (
+                                <div>
+                                  <h4 className="font-semibold text-sm mb-1">Ementa</h4>
+                                  <p className="text-sm bg-muted/50 p-3 rounded whitespace-pre-wrap">
+                                    {juris.ementa}
+                                  </p>
+                                </div>
+                              )}
+                              {juris.resumo && (
+                                <div>
+                                  <h4 className="font-semibold text-sm mb-1">Resumo</h4>
+                                  <p className="text-sm text-muted-foreground">
+                                    {juris.resumo}
+                                  </p>
+                                </div>
+                              )}
+                              {juris.tese_firmada && (
+                                <div>
+                                  <h4 className="font-semibold text-sm mb-1">Tese Firmada</h4>
+                                  <p className="text-sm text-muted-foreground italic">
+                                    {juris.tese_firmada}
+                                  </p>
+                                </div>
+                              )}
+                              {juris.sumulas_relacionadas && (
+                                <div>
+                                  <h4 className="font-semibold text-sm mb-1">Súmulas Relacionadas</h4>
+                                  <p className="text-sm text-muted-foreground">
+                                    {juris.sumulas_relacionadas}
+                                  </p>
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        ))}
+                        
+                        {parsedResult.observacoes_gerais && (
+                          <div className="bg-muted/50 rounded-lg p-4">
+                            <h4 className="font-semibold text-sm mb-2">Observações Gerais</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {parsedResult.observacoes_gerais}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-muted/50 rounded-lg p-4 whitespace-pre-wrap text-sm max-h-[600px] overflow-y-auto">
+                        {searchResult}
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
