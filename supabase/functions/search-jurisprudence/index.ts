@@ -52,7 +52,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'sonar-pro',
+        model: 'sonar',
         messages: [
           {
             role: 'system',
@@ -61,33 +61,28 @@ Sua função é encontrar e apresentar decisões judiciais relevantes dos tribun
 
 ${courtFilter}
 
-IMPORTANTE: Para CADA decisão judicial encontrada, você DEVE retornar um JSON estruturado no seguinte formato:
+Para cada decisão encontrada, retorne um JSON estruturado:
 
 {
   "jurisprudencias": [
     {
-      "tribunal": "Nome do tribunal (STF, STJ, TRF1, TJSP, etc)",
-      "numero_processo": "Número do processo/recurso completo",
+      "tribunal": "Nome do tribunal",
+      "numero_processo": "Número do processo",
       "relator": "Nome do relator",
       "data_julgamento": "Data do julgamento",
-      "ementa": "EMENTA COMPLETA da decisão - transcreva integralmente",
-      "resumo": "Breve resumo explicativo da tese jurídica firmada (2-3 parágrafos)",
+      "ementa": "Ementa da decisão",
+      "resumo": "Resumo da tese jurídica",
       "area_direito": "civil|trabalhista|penal|tributario|administrativo|constitucional|previdenciario|consumidor|ambiental|empresarial|outro",
-      "tese_firmada": "A tese jurídica principal firmada na decisão",
-      "sumulas_relacionadas": "Súmulas ou teses de repercussão geral relacionadas (se houver)"
+      "tese_firmada": "Tese jurídica principal"
     }
   ],
-  "observacoes_gerais": "Observações gerais sobre os resultados encontrados"
+  "observacoes_gerais": "Observações sobre os resultados"
 }
 
 REGRAS:
-1. Busque entre 3 a 6 jurisprudências relevantes sobre o tema
-2. Sempre transcreva a EMENTA COMPLETA de cada decisão
-3. Inclua o resumo explicativo separadamente
-4. Classifique corretamente a área do direito
-5. Se não encontrar jurisprudência específica, retorne o JSON com array vazio e explique nas observações
-6. Retorne APENAS o JSON, sem texto adicional antes ou depois
-7. Seja preciso nas citações - não invente decisões`
+1. Busque 3 a 5 jurisprudências relevantes
+2. Retorne APENAS o JSON, sem texto adicional
+3. Seja preciso nas citações`
           },
           {
             role: 'user',
@@ -95,13 +90,9 @@ REGRAS:
           }
         ],
         temperature: 0.2,
-        top_p: 0.9,
-        max_tokens: 8000,
+        max_tokens: 4000,
         return_images: false,
-        return_related_questions: false,
-        search_recency_filter: 'year',
-        frequency_penalty: 1,
-        presence_penalty: 0
+        return_related_questions: false
       }),
     });
 
