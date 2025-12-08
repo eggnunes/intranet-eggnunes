@@ -14,6 +14,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
@@ -35,7 +36,10 @@ import {
   CreditCard,
   X,
   Package,
-  Loader2
+  Loader2,
+  Check,
+  RotateCcw,
+  Save
 } from "lucide-react";
 import { format, parse, isAfter, isBefore, isEqual, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -96,7 +100,6 @@ const generateClientQualification = (client: Client): string => {
     `portador(a) do documento de identidade nº ${client.documentoIdentidade || '[RG]'}`,
     `e do CPF nº ${client.cpf || '[CPF]'}`,
     `nascido(a) em ${client.dataNascimento || '[DATA NASCIMENTO]'}`,
-    `filiação: ${client.nomePai || '[PAI]'} e ${client.nomeMae || '[MÃE]'}`,
     `residente na ${client.rua || '[RUA]'}`,
     `nº ${client.numero || '[NÚMERO]'}`,
     client.complemento ? client.complemento : null,
@@ -104,7 +107,8 @@ const generateClientQualification = (client: Client): string => {
     client.cidade || '[CIDADE]',
     client.estado || '[ESTADO]',
     `CEP ${client.cep || '[CEP]'}`,
-    `e-mail: ${client.email || '[E-MAIL]'}`
+    `e-mail: ${client.email || '[E-MAIL]'}`,
+    `telefone: ${client.telefone || '[TELEFONE]'}`
   ];
 
   // Remove valores nulos e junta com vírgula
@@ -130,6 +134,10 @@ const SetorComercial = () => {
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<string>("");
   const [clientForDocument, setClientForDocument] = useState<Client | null>(null);
+  
+  // Qualificação editável
+  const [editedQualification, setEditedQualification] = useState<string>("");
+  const [qualificationSaved, setQualificationSaved] = useState(false);
 
   const fetchProducts = async () => {
     try {
@@ -243,6 +251,8 @@ const SetorComercial = () => {
 
   const handleViewDetails = (client: Client) => {
     setSelectedClient(client);
+    setEditedQualification(generateClientQualification(client));
+    setQualificationSaved(false);
     setDetailsOpen(true);
   };
 
@@ -778,20 +788,58 @@ const SetorComercial = () => {
 
                 <Separator />
 
-                {/* Qualification Preview */}
+                {/* Qualification Preview - Editable */}
                 <div>
-                  <h3 className="font-semibold mb-3 flex items-center gap-2">
-                    <FileSignature className="h-4 w-4" />
-                    Preview da Qualificação
-                  </h3>
-                  <div className="bg-muted/50 rounded-lg p-4 border">
-                    <p className="text-sm leading-relaxed italic">
-                      {generateClientQualification(selectedClient)}
-                    </p>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <FileSignature className="h-4 w-4" />
+                      Qualificação do Cliente
+                    </h3>
+                    {qualificationSaved && (
+                      <Badge variant="secondary" className="text-xs">
+                        <Check className="h-3 w-3 mr-1" />
+                        Salvo
+                      </Badge>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Este texto será inserido automaticamente nos documentos gerados (contrato e procuração).
-                  </p>
+                  <Textarea
+                    value={editedQualification}
+                    onChange={(e) => {
+                      setEditedQualification(e.target.value);
+                      setQualificationSaved(false);
+                    }}
+                    className="min-h-[120px] text-sm leading-relaxed"
+                    placeholder="Qualificação do cliente..."
+                  />
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-xs text-muted-foreground">
+                      Edite conforme necessário. A versão salva será usada nos documentos.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditedQualification(generateClientQualification(selectedClient));
+                          setQualificationSaved(false);
+                        }}
+                      >
+                        <RotateCcw className="h-3 w-3 mr-1" />
+                        Restaurar
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setQualificationSaved(true);
+                          toast.success("Qualificação salva com sucesso!");
+                        }}
+                        disabled={qualificationSaved}
+                      >
+                        <Save className="h-3 w-3 mr-1" />
+                        Salvar
+                      </Button>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Action Buttons */}
