@@ -1126,7 +1126,10 @@ export type Database = {
       initial_fee_templates: {
         Row: {
           created_at: string
+          descricao: string | null
           forma_pagamento: string | null
+          forma_pagamento_entrada: string | null
+          forma_pagamento_parcelas: string | null
           id: string
           is_default: boolean | null
           name: string
@@ -1141,7 +1144,10 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          descricao?: string | null
           forma_pagamento?: string | null
+          forma_pagamento_entrada?: string | null
+          forma_pagamento_parcelas?: string | null
           id?: string
           is_default?: boolean | null
           name: string
@@ -1156,7 +1162,10 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          descricao?: string | null
           forma_pagamento?: string | null
+          forma_pagamento_entrada?: string | null
+          forma_pagamento_parcelas?: string | null
           id?: string
           is_default?: boolean | null
           name?: string

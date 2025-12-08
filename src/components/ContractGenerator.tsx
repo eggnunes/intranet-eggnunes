@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { 
   FileSignature, 
   Loader2, 
@@ -96,6 +97,8 @@ export const ContractGenerator = ({
   const [valorParcela, setValorParcela] = useState("");
   const [temEntrada, setTemEntrada] = useState(false);
   const [valorEntrada, setValorEntrada] = useState("");
+  const [formaPagamentoEntrada, setFormaPagamentoEntrada] = useState<"pix" | "cartao" | "boleto">("pix");
+  const [formaPagamentoParcelas, setFormaPagamentoParcelas] = useState<"pix" | "cartao" | "boleto">("boleto");
   const [formaPagamento, setFormaPagamento] = useState<"pix" | "cartao" | "boleto">("pix");
   const [dataVencimento, setDataVencimento] = useState("");
 
@@ -122,11 +125,16 @@ export const ContractGenerator = ({
     tem_entrada?: boolean;
     valor_entrada?: string;
     forma_pagamento?: string;
+    forma_pagamento_entrada?: string;
+    forma_pagamento_parcelas?: string;
+    descricao?: string;
     is_default?: boolean;
   }
   const [initialFeeTemplates, setInitialFeeTemplates] = useState<InitialFeeTemplate[]>([]);
   const [showSaveInitialTemplate, setShowSaveInitialTemplate] = useState(false);
+  const [showCreateDefaultTemplate, setShowCreateDefaultTemplate] = useState(false);
   const [initialTemplateName, setInitialTemplateName] = useState("");
+  const [initialTemplateDescricao, setInitialTemplateDescricao] = useState("");
   const [savingInitialTemplate, setSavingInitialTemplate] = useState(false);
   const [gerandoClausulaExito, setGerandoClausulaExito] = useState(false);
 
@@ -144,6 +152,7 @@ export const ContractGenerator = ({
   const [deletandoRascunho, setDeletandoRascunho] = useState(false);
 
   const { user } = useAuth();
+  const { isAdmin } = useUserRole();
 
   // Verificar se é um produto com contrato específico
   const isCustomContractProduct = CUSTOM_CONTRACT_PRODUCTS.some(
@@ -400,7 +409,7 @@ export const ContractGenerator = ({
     }
   };
 
-  // Salvar template de honorários iniciais
+  // Salvar template de honorários iniciais (usuário comum)
   const salvarTemplateInicial = async () => {
     if (!initialTemplateName.trim() || !user) {
       toast.error("Preencha o nome do template");
@@ -414,13 +423,16 @@ export const ContractGenerator = ({
         .insert({
           user_id: user.id,
           name: initialTemplateName.trim(),
+          descricao: initialTemplateDescricao.trim() || null,
           tipo_honorarios: tipoHonorarios,
-          valor_total: valorTotal,
-          numero_parcelas: numeroParcelas,
-          valor_parcela: valorParcela,
+          valor_total: valorTotal || null,
+          numero_parcelas: numeroParcelas || null,
+          valor_parcela: valorParcela || null,
           tem_entrada: temEntrada,
-          valor_entrada: valorEntrada,
+          valor_entrada: valorEntrada || null,
           forma_pagamento: formaPagamento,
+          forma_pagamento_entrada: temEntrada ? formaPagamentoEntrada : null,
+          forma_pagamento_parcelas: tipoHonorarios === 'parcelado' ? formaPagamentoParcelas : null,
         });
 
       if (error) throw error;
@@ -435,11 +447,62 @@ export const ContractGenerator = ({
       
       setInitialFeeTemplates(data || []);
       setInitialTemplateName("");
+      setInitialTemplateDescricao("");
       setShowSaveInitialTemplate(false);
       toast.success("Template de honorários iniciais salvo!");
     } catch (error) {
       console.error('Erro ao salvar template:', error);
       toast.error("Erro ao salvar template");
+    } finally {
+      setSavingInitialTemplate(false);
+    }
+  };
+
+  // Criar template padrão (apenas admin)
+  const criarTemplatePadrao = async () => {
+    if (!initialTemplateName.trim() || !user || !isAdmin) {
+      toast.error("Preencha o nome do template");
+      return;
+    }
+
+    setSavingInitialTemplate(true);
+    try {
+      const { error } = await supabase
+        .from('initial_fee_templates')
+        .insert({
+          user_id: null,
+          is_default: true,
+          name: initialTemplateName.trim(),
+          descricao: initialTemplateDescricao.trim() || null,
+          tipo_honorarios: tipoHonorarios,
+          valor_total: valorTotal || null,
+          numero_parcelas: numeroParcelas || null,
+          valor_parcela: valorParcela || null,
+          tem_entrada: temEntrada,
+          valor_entrada: valorEntrada || null,
+          forma_pagamento: formaPagamento,
+          forma_pagamento_entrada: temEntrada ? formaPagamentoEntrada : null,
+          forma_pagamento_parcelas: tipoHonorarios === 'parcelado' ? formaPagamentoParcelas : null,
+        });
+
+      if (error) throw error;
+
+      // Recarregar templates
+      const { data } = await supabase
+        .from('initial_fee_templates')
+        .select('*')
+        .or(user ? `user_id.eq.${user.id},is_default.eq.true` : 'is_default.eq.true')
+        .order('is_default', { ascending: false })
+        .order('name');
+      
+      setInitialFeeTemplates(data || []);
+      setInitialTemplateName("");
+      setInitialTemplateDescricao("");
+      setShowCreateDefaultTemplate(false);
+      toast.success("Template padrão criado com sucesso!");
+    } catch (error) {
+      console.error('Erro ao criar template padrão:', error);
+      toast.error("Erro ao criar template padrão");
     } finally {
       setSavingInitialTemplate(false);
     }
@@ -454,11 +517,22 @@ export const ContractGenerator = ({
     setTemEntrada(template.tem_entrada || false);
     if (template.valor_entrada) setValorEntrada(template.valor_entrada);
     setFormaPagamento((template.forma_pagamento as "pix" | "cartao" | "boleto") || "pix");
+    if (template.forma_pagamento_entrada) {
+      setFormaPagamentoEntrada(template.forma_pagamento_entrada as "pix" | "cartao" | "boleto");
+    }
+    if (template.forma_pagamento_parcelas) {
+      setFormaPagamentoParcelas(template.forma_pagamento_parcelas as "pix" | "cartao" | "boleto");
+    }
     toast.success(`Template "${template.name}" carregado`);
   };
 
-  // Deletar template de honorários iniciais
-  const deletarTemplateInicial = async (templateId: string) => {
+  // Deletar template de honorários iniciais (admin pode deletar padrão, usuário só os seus)
+  const deletarTemplateInicial = async (templateId: string, isDefault?: boolean) => {
+    if (isDefault && !isAdmin) {
+      toast.error("Apenas administradores podem excluir templates padrão");
+      return;
+    }
+    
     try {
       const { error } = await supabase
         .from('initial_fee_templates')
@@ -1024,9 +1098,21 @@ Testemunhas:
                     <Separator />
 
                     {/* Templates de honorários iniciais */}
-                    {initialFeeTemplates.length > 0 && (
-                      <div className="space-y-2">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
                         <Label className="text-xs text-muted-foreground">Templates disponíveis</Label>
+                        {isAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowCreateDefaultTemplate(true)}
+                            className="h-6 text-xs px-2"
+                          >
+                            + Novo Template Padrão
+                          </Button>
+                        )}
+                      </div>
+                      {initialFeeTemplates.length > 0 && (
                         <div className="flex flex-wrap gap-2">
                           {initialFeeTemplates.map((template) => (
                             <div key={template.id} className="flex items-center gap-1">
@@ -1034,14 +1120,16 @@ Testemunhas:
                                 variant={template.is_default ? "secondary" : "outline"}
                                 className="cursor-pointer hover:bg-primary/10"
                                 onClick={() => carregarTemplateInicial(template)}
+                                title={template.descricao || template.name}
                               >
                                 {template.name}
                                 {template.is_default && <span className="ml-1 text-[10px] opacity-60">(padrão)</span>}
                               </Badge>
-                              {!template.is_default && (
+                              {(!template.is_default || isAdmin) && (
                                 <button
-                                  onClick={() => deletarTemplateInicial(template.id)}
+                                  onClick={() => deletarTemplateInicial(template.id, template.is_default)}
                                   className="text-muted-foreground hover:text-destructive p-0.5"
+                                  title={template.is_default ? "Excluir template padrão (admin)" : "Excluir template"}
                                 >
                                   <Trash2 className="h-3 w-3" />
                                 </button>
@@ -1049,8 +1137,8 @@ Testemunhas:
                             </div>
                           ))}
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                     
                     <div className="space-y-2">
                       <Label>Tipo de pagamento *</Label>
@@ -1092,33 +1180,29 @@ Testemunhas:
                       </div>
                     </div>
                     
+                    {tipoHonorarios === 'avista' && (
+                      <div className="space-y-2">
+                        <Label>Forma de pagamento *</Label>
+                        <Select value={formaPagamento} onValueChange={(v) => setFormaPagamento(v as "pix" | "cartao" | "boleto")}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pix">PIX</SelectItem>
+                            <SelectItem value="cartao">Cartão de Crédito</SelectItem>
+                            <SelectItem value="boleto">Boleto Bancário</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    
                     {tipoHonorarios === 'parcelado' && (
                       <>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="numeroParcelas">Número de parcelas *</Label>
-                            <Input
-                              id="numeroParcelas"
-                              type="number"
-                              placeholder="12"
-                              value={numeroParcelas}
-                              onChange={(e) => setNumeroParcelas(e.target.value)}
-                            />
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                          <div>
+                            <Label htmlFor="temEntrada" className="cursor-pointer font-medium">Possui entrada?</Label>
+                            <p className="text-xs text-muted-foreground">Ex: entrada via PIX/Cartão + parcelas via boleto</p>
                           </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="valorParcela">Valor de cada parcela (R$) *</Label>
-                            <Input
-                              id="valorParcela"
-                              placeholder="0,00"
-                              value={valorParcela}
-                              onChange={(e) => setValorParcela(e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="temEntrada" className="cursor-pointer">Possui entrada?</Label>
                           <Switch
                             id="temEntrada"
                             checked={temEntrada}
@@ -1127,35 +1211,82 @@ Testemunhas:
                         </div>
                         
                         {temEntrada && (
-                          <div className="space-y-2">
-                            <Label htmlFor="valorEntrada">Valor da entrada (R$) *</Label>
-                            <Input
-                              id="valorEntrada"
-                              placeholder="0,00"
-                              value={valorEntrada}
-                              onChange={(e) => setValorEntrada(e.target.value)}
-                            />
+                          <div className="p-3 rounded-lg border border-primary/20 bg-primary/5 space-y-3">
+                            <Label className="text-sm font-medium">Entrada</Label>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <Label htmlFor="valorEntrada" className="text-xs">Valor (R$) *</Label>
+                                <Input
+                                  id="valorEntrada"
+                                  placeholder="0,00"
+                                  value={valorEntrada}
+                                  onChange={(e) => setValorEntrada(e.target.value)}
+                                  className="h-9"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Forma de pagamento *</Label>
+                                <Select value={formaPagamentoEntrada} onValueChange={(v) => setFormaPagamentoEntrada(v as "pix" | "cartao" | "boleto")}>
+                                  <SelectTrigger className="h-9">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="pix">PIX</SelectItem>
+                                    <SelectItem value="cartao">Cartão de Crédito</SelectItem>
+                                    <SelectItem value="boleto">Boleto Bancário</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
                           </div>
                         )}
+                        
+                        <div className="p-3 rounded-lg border space-y-3">
+                          <Label className="text-sm font-medium">Parcelas</Label>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="space-y-1">
+                              <Label htmlFor="numeroParcelas" className="text-xs">Quantidade *</Label>
+                              <Input
+                                id="numeroParcelas"
+                                type="number"
+                                placeholder="12"
+                                value={numeroParcelas}
+                                onChange={(e) => setNumeroParcelas(e.target.value)}
+                                className="h-9"
+                              />
+                            </div>
+                            
+                            <div className="space-y-1">
+                              <Label htmlFor="valorParcela" className="text-xs">Valor (R$) *</Label>
+                              <Input
+                                id="valorParcela"
+                                placeholder="0,00"
+                                value={valorParcela}
+                                onChange={(e) => setValorParcela(e.target.value)}
+                                className="h-9"
+                              />
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-xs">Forma de pagamento *</Label>
+                              <Select value={formaPagamentoParcelas} onValueChange={(v) => setFormaPagamentoParcelas(v as "pix" | "cartao" | "boleto")}>
+                                <SelectTrigger className="h-9">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="pix">PIX</SelectItem>
+                                  <SelectItem value="cartao">Cartão de Crédito</SelectItem>
+                                  <SelectItem value="boleto">Boleto Bancário</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
                       </>
                     )}
-                    
-                    <div className="space-y-2">
-                      <Label>Forma de pagamento *</Label>
-                      <Select value={formaPagamento} onValueChange={(v) => setFormaPagamento(v as "pix" | "cartao" | "boleto")}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pix">PIX</SelectItem>
-                          <SelectItem value="cartao">Cartão de Crédito</SelectItem>
-                          <SelectItem value="boleto">Boleto Bancário</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
 
                     {/* Salvar como template */}
-                    {!showSaveInitialTemplate ? (
+                    {!showSaveInitialTemplate && !showCreateDefaultTemplate ? (
                       <Button 
                         variant="ghost" 
                         size="sm"
@@ -1163,41 +1294,100 @@ Testemunhas:
                         className="w-full text-xs"
                       >
                         <Save className="h-3 w-3 mr-1" />
-                        Salvar configuração como template
+                        Salvar configuração como template pessoal
                       </Button>
-                    ) : (
-                      <div className="flex gap-2 items-end p-3 rounded-lg bg-muted/50">
-                        <div className="flex-1 space-y-1">
+                    ) : showSaveInitialTemplate ? (
+                      <div className="space-y-2 p-3 rounded-lg bg-muted/50">
+                        <div className="space-y-1">
                           <Label htmlFor="initialTemplateName" className="text-xs">Nome do template</Label>
                           <Input
                             id="initialTemplateName"
-                            placeholder="Ex: Parcelado 12x - Cartão"
+                            placeholder="Ex: Parcelado 12x com entrada"
                             value={initialTemplateName}
                             onChange={(e) => setInitialTemplateName(e.target.value)}
                             className="h-8"
                           />
                         </div>
-                        <Button 
-                          size="sm" 
-                          onClick={salvarTemplateInicial}
-                          disabled={savingInitialTemplate || !initialTemplateName.trim()}
-                          className="h-8"
-                        >
-                          {savingInitialTemplate ? <Loader2 className="h-3 w-3 animate-spin" /> : "Salvar"}
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost"
-                          onClick={() => {
-                            setShowSaveInitialTemplate(false);
-                            setInitialTemplateName("");
-                          }}
-                          className="h-8"
-                        >
-                          Cancelar
-                        </Button>
+                        <div className="space-y-1">
+                          <Label htmlFor="initialTemplateDescricao" className="text-xs">Descrição (opcional)</Label>
+                          <Input
+                            id="initialTemplateDescricao"
+                            placeholder="Ex: Entrada R$ 1.200 PIX + 12x boleto"
+                            value={initialTemplateDescricao}
+                            onChange={(e) => setInitialTemplateDescricao(e.target.value)}
+                            className="h-8"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            onClick={salvarTemplateInicial}
+                            disabled={savingInitialTemplate || !initialTemplateName.trim()}
+                            className="h-8"
+                          >
+                            {savingInitialTemplate ? <Loader2 className="h-3 w-3 animate-spin" /> : "Salvar"}
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={() => {
+                              setShowSaveInitialTemplate(false);
+                              setInitialTemplateName("");
+                              setInitialTemplateDescricao("");
+                            }}
+                            className="h-8"
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
                       </div>
-                    )}
+                    ) : showCreateDefaultTemplate && isAdmin ? (
+                      <div className="space-y-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                        <Label className="text-xs font-medium text-primary">Criar Template Padrão (visível para todos)</Label>
+                        <div className="space-y-1">
+                          <Label htmlFor="defaultTemplateName" className="text-xs">Nome do template</Label>
+                          <Input
+                            id="defaultTemplateName"
+                            placeholder="Ex: Parcelado 12x com entrada"
+                            value={initialTemplateName}
+                            onChange={(e) => setInitialTemplateName(e.target.value)}
+                            className="h-8"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="defaultTemplateDescricao" className="text-xs">Descrição (opcional)</Label>
+                          <Input
+                            id="defaultTemplateDescricao"
+                            placeholder="Ex: Entrada R$ 1.200 PIX + 12x boleto"
+                            value={initialTemplateDescricao}
+                            onChange={(e) => setInitialTemplateDescricao(e.target.value)}
+                            className="h-8"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            onClick={criarTemplatePadrao}
+                            disabled={savingInitialTemplate || !initialTemplateName.trim()}
+                            className="h-8"
+                          >
+                            {savingInitialTemplate ? <Loader2 className="h-3 w-3 animate-spin" /> : "Criar Template Padrão"}
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={() => {
+                              setShowCreateDefaultTemplate(false);
+                              setInitialTemplateName("");
+                              setInitialTemplateDescricao("");
+                            }}
+                            className="h-8"
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
                   </>
                 )}
               </CardContent>
