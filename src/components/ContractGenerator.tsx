@@ -331,15 +331,21 @@ Retorne APENAS a frase da cláusula primeira reescrita, sem explicações adicio
     try {
       const prompt = `Você é um advogado especialista em contratos de prestação de serviços advocatícios.
 
-Reescreva a cláusula de honorários de êxito de um contrato de honorários advocatícios de forma jurídica e profissional.
+Gere uma cláusula de honorários de êxito para um contrato de prestação de serviços advocatícios.
 
-O modelo original é:
-"b) em caso de êxito na anulação de punição disciplinar, seria devido, ainda, ao final, o valor de um salário mínimo e meio vigente a época do pagamento por punição anulada, valor este que poderá ser divido em até 12 vezes."
+Contexto do contrato:
+- Parte contrária: ${contraPartida || 'Não informada'}
+- Objeto do contrato: ${objetoContrato || 'Não informado'}
 
-Com base na descrição fornecida dos honorários de êxito:
+Descrição dos honorários de êxito informada pelo usuário:
 ${descricaoHonorariosExito}
 
-Reescreva a cláusula de forma jurídica e clara, começando com "b)". A cláusula deve indicar a condição de êxito, o valor ou percentual devido, e eventuais condições de pagamento.
+Com base no objeto do contrato e na descrição dos honorários de êxito, redija uma cláusula jurídica clara e profissional que indique:
+1. A condição de êxito (relacionada ao objeto do contrato)
+2. O valor ou percentual devido
+3. Eventuais condições de pagamento
+
+IMPORTANTE: NÃO inicie com letras como "a)" ou "b)". Escreva apenas o texto da cláusula de forma direta.
 
 Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
 
@@ -354,7 +360,9 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
 
       const response = data?.content || data?.choices?.[0]?.message?.content;
       if (response) {
-        setClausulaExitoGerada(response.trim());
+        // Remove letras iniciais se a IA incluir
+        const clausulaLimpa = response.trim().replace(/^[a-z]\)\s*/i, '');
+        setClausulaExitoGerada(clausulaLimpa);
         toast.success("Cláusula de honorários êxito gerada com sucesso!");
       }
     } catch (error) {
@@ -379,11 +387,16 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
 
   // Gerar cláusula terceira (honorários)
   const gerarClausulaTerceira = (): string => {
-    let clausulaA = '';
+    const temAmbos = temHonorariosIniciais && temHonorariosExito && clausulaExitoGerada;
+    
+    let textoHonorariosIniciais = '';
     
     if (temHonorariosIniciais) {
       const valorFormatado = parseFloat(valorTotal.replace(/\./g, '').replace(',', '.') || '0');
       const valorExtenso = valorPorExtenso(valorTotal);
+      
+      // Só adiciona letra se tiver ambos os tipos de honorários
+      const prefixo = temAmbos ? 'a) ' : '';
       
       if (tipoHonorarios === 'avista') {
         const formaPagamentoTexto = {
@@ -392,7 +405,7 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
           'boleto': 'via boleto bancário'
         }[formaPagamento];
         
-        clausulaA = `a) R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} à vista que serão pagos ${formaPagamentoTexto} até o dia ${dataVencimento || '[DATA]'} para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
+        textoHonorariosIniciais = `${prefixo}R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} à vista que serão pagos ${formaPagamentoTexto} até o dia ${dataVencimento || '[DATA]'} para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
       } else {
         const numParcelas = parseInt(numeroParcelas) || 0;
         const valorParcelaNum = parseFloat(valorParcela.replace(/\./g, '').replace(',', '.') || '0');
@@ -405,27 +418,33 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
         }[formaPagamento];
         
         if (temEntrada && valorEntradaNum > 0) {
-          clausulaA = `a) R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} parcelados, sendo R$${new Intl.NumberFormat('pt-BR').format(valorEntradaNum)} de entrada e mais ${numParcelas} parcelas de R$${new Intl.NumberFormat('pt-BR').format(valorParcelaNum)} cada, ${formaPagamentoTexto}, com vencimento para o dia ${dataVencimento || '[DATA]'} de cada mês, para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
+          textoHonorariosIniciais = `${prefixo}R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} parcelados, sendo R$${new Intl.NumberFormat('pt-BR').format(valorEntradaNum)} de entrada e mais ${numParcelas} parcelas de R$${new Intl.NumberFormat('pt-BR').format(valorParcelaNum)} cada, ${formaPagamentoTexto}, com vencimento para o dia ${dataVencimento || '[DATA]'} de cada mês, para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
         } else {
-          clausulaA = `a) R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} parcelados em ${numParcelas} parcelas de R$${new Intl.NumberFormat('pt-BR').format(valorParcelaNum)} cada, ${formaPagamentoTexto}, com vencimento para o dia ${dataVencimento || '[DATA]'} de cada mês, para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
+          textoHonorariosIniciais = `${prefixo}R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} parcelados em ${numParcelas} parcelas de R$${new Intl.NumberFormat('pt-BR').format(valorParcelaNum)} cada, ${formaPagamentoTexto}, com vencimento para o dia ${dataVencimento || '[DATA]'} de cada mês, para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
         }
       }
     }
     
-    let clausulaB = '';
+    let textoHonorariosExito = '';
     if (temHonorariosExito && clausulaExitoGerada) {
-      // Ajustar letra da cláusula baseado se tem honorários iniciais
-      const letraClausula = temHonorariosIniciais ? 'b)' : 'a)';
-      clausulaB = temHonorariosIniciais 
-        ? `\n${clausulaExitoGerada}` 
-        : clausulaExitoGerada.replace(/^b\)/, letraClausula);
+      // Só adiciona letra se tiver ambos os tipos de honorários
+      const prefixo = temAmbos ? 'b) ' : '';
+      textoHonorariosExito = `${prefixo}${clausulaExitoGerada}`;
     }
     
-    if (!temHonorariosIniciais && !clausulaB) {
-      return `Em remuneração pelos serviços profissionais ora contratados serão devidos honorários advocatícios da seguinte forma:\n\n[Apenas honorários de êxito]`;
+    // Montar texto final
+    let clausulaCompleta = '';
+    if (textoHonorariosIniciais && textoHonorariosExito) {
+      clausulaCompleta = `${textoHonorariosIniciais}\n\n${textoHonorariosExito}`;
+    } else if (textoHonorariosIniciais) {
+      clausulaCompleta = textoHonorariosIniciais;
+    } else if (textoHonorariosExito) {
+      clausulaCompleta = textoHonorariosExito;
+    } else {
+      return `Em remuneração pelos serviços profissionais ora contratados serão devidos honorários advocatícios da seguinte forma:\n\n[Honorários não definidos]`;
     }
     
-    return `Em remuneração pelos serviços profissionais ora contratados serão devidos honorários advocatícios da seguinte forma:\n\n${clausulaA}${clausulaB}`;
+    return `Em remuneração pelos serviços profissionais ora contratados serão devidos honorários advocatícios da seguinte forma:\n\n${clausulaCompleta}`;
   };
 
   // Gerar texto completo do contrato para preview
