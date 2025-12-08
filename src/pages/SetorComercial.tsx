@@ -776,6 +776,24 @@ const SetorComercial = () => {
                   </div>
                 </div>
 
+                <Separator />
+
+                {/* Qualification Preview */}
+                <div>
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <FileSignature className="h-4 w-4" />
+                    Preview da Qualificação
+                  </h3>
+                  <div className="bg-muted/50 rounded-lg p-4 border">
+                    <p className="text-sm leading-relaxed italic">
+                      {generateClientQualification(selectedClient)}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Este texto será inserido automaticamente nos documentos gerados (contrato e procuração).
+                  </p>
+                </div>
+
                 {/* Action Buttons */}
                 <div className="flex flex-wrap gap-2 pt-4">
                   <Button onClick={() => handleGenerateContract(selectedClient)}>
