@@ -793,20 +793,25 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
     // Verificar se tem cláusulas de êxito geradas
     const clausulasExitoGeradas = exitoOptions.filter(o => o.clausulaGerada.trim());
     const temClausulasExito = temHonorariosExito && clausulasExitoGeradas.length > 0;
-    const temAmbos = temHonorariosIniciais && temClausulasExito;
     
-    let textoHonorariosIniciais = '';
+    // Contar total de opções de pagamento para determinar se usa letras
+    const totalOpcoes = (temHonorariosIniciais ? 1 : 0) + (temClausulasExito ? clausulasExitoGeradas.length : 0);
+    const usarLetras = totalOpcoes > 1;
     
+    let letraAtual = 0; // 0 = 'a', 1 = 'b', 2 = 'c', etc.
+    const todasClausulas: string[] = [];
+    
+    // Adicionar honorários iniciais
     if (temHonorariosIniciais) {
       const valorFormatado = parseFloat(valorTotal.replace(/\./g, '').replace(',', '.') || '0');
       const valorExtenso = valorPorExtenso(valorTotal);
+      const prefixo = usarLetras ? `${String.fromCharCode(97 + letraAtual)}) ` : '';
+      letraAtual++;
       
-      // Só adiciona letra se tiver ambos os tipos de honorários
-      const prefixo = temAmbos ? 'a) ' : '';
+      let textoHonorariosIniciais = '';
       
       if (tipoHonorarios === 'avista') {
         const formaPagamentoTexto = formatarFormasPagamento(formasPagamento);
-        
         textoHonorariosIniciais = `${prefixo}R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} à vista que serão pagos ${formaPagamentoTexto} até o dia ${dataVencimento || '[DATA]'} para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
       } else {
         const numParcelas = parseInt(numeroParcelas) || 0;
@@ -822,38 +827,24 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
           textoHonorariosIniciais = `${prefixo}R$${new Intl.NumberFormat('pt-BR').format(valorFormatado)} ${valorExtenso} parcelados em ${numParcelas} parcelas de R$${new Intl.NumberFormat('pt-BR').format(valorParcelaNum)} cada, ${formaPagamentoTexto}, com vencimento para o dia ${dataVencimento || '[DATA]'} de cada mês, para a seguinte conta: Banco Itaú, agência 1403, conta corrente 68937-3, em nome de Egg Nunes Advogados Associados, CNPJ/PIX: 10378694/0001-59.`;
         }
       }
+      
+      todasClausulas.push(textoHonorariosIniciais);
     }
     
-    let textoHonorariosExito = '';
+    // Adicionar cada cláusula de êxito com sua própria letra
     if (temClausulasExito) {
-      // Se tem apenas uma cláusula de êxito
-      if (clausulasExitoGeradas.length === 1) {
-        const prefixo = temAmbos ? 'b) ' : '';
-        textoHonorariosExito = `${prefixo}${clausulasExitoGeradas[0].clausulaGerada}`;
-      } else {
-        // Múltiplas cláusulas de êxito - usar sub-letras (b.1, b.2, etc.)
-        const prefixo = temAmbos ? 'b) Honorários de êxito:\n\n' : '';
-        const clausulasFormatadas = clausulasExitoGeradas.map((opcao, index) => {
-          const subLetra = temAmbos ? `b.${index + 1}) ` : `${String.fromCharCode(97 + index)}) `;
-          return `${subLetra}${opcao.clausulaGerada}`;
-        }).join('\n\n');
-        textoHonorariosExito = prefixo + clausulasFormatadas;
-      }
+      clausulasExitoGeradas.forEach((opcao) => {
+        const prefixo = usarLetras ? `${String.fromCharCode(97 + letraAtual)}) ` : '';
+        letraAtual++;
+        todasClausulas.push(`${prefixo}${opcao.clausulaGerada}`);
+      });
     }
     
-    // Montar texto final
-    let clausulaCompleta = '';
-    if (textoHonorariosIniciais && textoHonorariosExito) {
-      clausulaCompleta = `${textoHonorariosIniciais}\n\n${textoHonorariosExito}`;
-    } else if (textoHonorariosIniciais) {
-      clausulaCompleta = textoHonorariosIniciais;
-    } else if (textoHonorariosExito) {
-      clausulaCompleta = textoHonorariosExito;
-    } else {
+    if (todasClausulas.length === 0) {
       return `Em remuneração pelos serviços profissionais ora contratados serão devidos honorários advocatícios da seguinte forma:\n\n[Honorários não definidos]`;
     }
     
-    return `Em remuneração pelos serviços profissionais ora contratados serão devidos honorários advocatícios da seguinte forma:\n\n${clausulaCompleta}`;
+    return `Em remuneração pelos serviços profissionais ora contratados serão devidos honorários advocatícios da seguinte forma:\n\n${todasClausulas.join('\n\n')}`;
   };
 
   // Gerar texto completo do contrato para preview
