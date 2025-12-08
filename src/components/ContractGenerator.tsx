@@ -140,14 +140,22 @@ export const ContractGenerator = ({
   const [formasPagamento, setFormasPagamento] = useState<string[]>(["pix"]);
   const [dataVencimento, setDataVencimento] = useState("");
 
-  // Honorários Êxito
+  // Honorários Êxito - Múltiplas opções
+  interface ExitoOption {
+    id: string;
+    descricao: string;
+    clausulaGerada: string;
+    gerando: boolean;
+  }
   const [temHonorariosExito, setTemHonorariosExito] = useState(false);
-  const [descricaoHonorariosExito, setDescricaoHonorariosExito] = useState("");
-  const [clausulaExitoGerada, setClausulaExitoGerada] = useState("");
+  const [exitoOptions, setExitoOptions] = useState<ExitoOption[]>([
+    { id: crypto.randomUUID(), descricao: "", clausulaGerada: "", gerando: false }
+  ]);
   
   // Templates de honorários êxito
   const [templates, setTemplates] = useState<{id: string; name: string; description: string; is_default?: boolean}[]>([]);
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [showCreateDefaultExitoTemplate, setShowCreateDefaultExitoTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
@@ -174,7 +182,6 @@ export const ContractGenerator = ({
   const [initialTemplateName, setInitialTemplateName] = useState("");
   const [initialTemplateDescricao, setInitialTemplateDescricao] = useState("");
   const [savingInitialTemplate, setSavingInitialTemplate] = useState(false);
-  const [gerandoClausulaExito, setGerandoClausulaExito] = useState(false);
 
   // Geração do contrato
   const [gerandoContrato, setGerandoContrato] = useState(false);
@@ -286,8 +293,14 @@ export const ContractGenerator = ({
         setFormasPagamento(data.forma_pagamento ? [data.forma_pagamento] : ["pix"]);
         setDataVencimento(data.data_vencimento || "");
         setTemHonorariosExito(data.tem_honorarios_exito || false);
-        setDescricaoHonorariosExito(data.descricao_honorarios_exito || "");
-        setClausulaExitoGerada(data.clausula_exito_gerada || "");
+        if (data.descricao_honorarios_exito || data.clausula_exito_gerada) {
+          setExitoOptions([{
+            id: crypto.randomUUID(),
+            descricao: data.descricao_honorarios_exito || "",
+            clausulaGerada: data.clausula_exito_gerada || "",
+            gerando: false
+          }]);
+        }
         setContractPreviewText(data.contract_preview_text || "");
         
         toast.success("Rascunho carregado com sucesso!");
@@ -327,8 +340,8 @@ export const ContractGenerator = ({
         forma_pagamento: formasPagamento.join(','),
         data_vencimento: dataVencimento,
         tem_honorarios_exito: temHonorariosExito,
-        descricao_honorarios_exito: descricaoHonorariosExito,
-        clausula_exito_gerada: clausulaExitoGerada,
+        descricao_honorarios_exito: exitoOptions.map(o => o.descricao).join(' | '),
+        clausula_exito_gerada: exitoOptions.map(o => o.clausulaGerada).join('\n\n'),
         contract_preview_text: contractPreviewText,
       };
 
@@ -384,9 +397,10 @@ export const ContractGenerator = ({
     }
   };
 
-  // Salvar template de honorários êxito
+  // Salvar template de honorários êxito (usuário comum)
   const salvarTemplate = async () => {
-    if (!templateName.trim() || !descricaoHonorariosExito.trim() || !user) {
+    const primeiraOpcao = exitoOptions[0];
+    if (!templateName.trim() || !primeiraOpcao.descricao.trim() || !user) {
       toast.error("Preencha o nome do template e a descrição");
       return;
     }
@@ -398,7 +412,7 @@ export const ContractGenerator = ({
         .insert({
           user_id: user.id,
           name: templateName.trim(),
-          description: descricaoHonorariosExito.trim(),
+          description: primeiraOpcao.descricao.trim(),
         });
 
       if (error) throw error;
@@ -423,14 +437,64 @@ export const ContractGenerator = ({
     }
   };
 
-  // Carregar template de êxito selecionado
+  // Criar template padrão de êxito (apenas admin)
+  const criarTemplatePadraoExito = async () => {
+    const primeiraOpcao = exitoOptions[0];
+    if (!templateName.trim() || !primeiraOpcao.descricao.trim() || !user || !isAdmin) {
+      toast.error("Preencha o nome do template e a descrição");
+      return;
+    }
+
+    setSavingTemplate(true);
+    try {
+      const { error } = await supabase
+        .from('success_fee_templates')
+        .insert({
+          user_id: null,
+          is_default: true,
+          name: templateName.trim(),
+          description: primeiraOpcao.descricao.trim(),
+        });
+
+      if (error) throw error;
+
+      // Recarregar templates
+      const { data } = await supabase
+        .from('success_fee_templates')
+        .select('id, name, description, is_default')
+        .or(user ? `user_id.eq.${user.id},is_default.eq.true` : 'is_default.eq.true')
+        .order('is_default', { ascending: false })
+        .order('name');
+      
+      setTemplates(data || []);
+      setTemplateName("");
+      setShowCreateDefaultExitoTemplate(false);
+      toast.success("Template padrão criado com sucesso!");
+    } catch (error) {
+      console.error('Erro ao criar template padrão:', error);
+      toast.error("Erro ao criar template padrão");
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  // Carregar template de êxito selecionado (na primeira opção)
   const carregarTemplate = (template: {id: string; name: string; description: string}) => {
-    setDescricaoHonorariosExito(template.description);
+    setExitoOptions(prev => {
+      const updated = [...prev];
+      updated[0] = { ...updated[0], descricao: template.description, clausulaGerada: "" };
+      return updated;
+    });
     toast.success(`Template "${template.name}" carregado`);
   };
 
-  // Deletar template de êxito
-  const deletarTemplate = async (templateId: string) => {
+  // Deletar template de êxito (admin pode deletar padrão, usuário só os seus)
+  const deletarTemplate = async (templateId: string, isDefault?: boolean) => {
+    if (isDefault && !isAdmin) {
+      toast.error("Apenas administradores podem excluir templates padrão");
+      return;
+    }
+    
     try {
       const { error } = await supabase
         .from('success_fee_templates')
@@ -445,6 +509,30 @@ export const ContractGenerator = ({
       console.error('Erro ao deletar template:', error);
       toast.error("Erro ao excluir template");
     }
+  };
+
+  // Adicionar nova opção de êxito
+  const adicionarOpcaoExito = () => {
+    setExitoOptions(prev => [...prev, { id: crypto.randomUUID(), descricao: "", clausulaGerada: "", gerando: false }]);
+  };
+
+  // Remover opção de êxito
+  const removerOpcaoExito = (id: string) => {
+    if (exitoOptions.length === 1) {
+      toast.error("Deve haver pelo menos uma opção de honorários êxito");
+      return;
+    }
+    setExitoOptions(prev => prev.filter(o => o.id !== id));
+  };
+
+  // Atualizar descrição de uma opção
+  const atualizarDescricaoExito = (id: string, descricao: string) => {
+    setExitoOptions(prev => prev.map(o => o.id === id ? { ...o, descricao } : o));
+  };
+
+  // Atualizar cláusula gerada de uma opção
+  const atualizarClausulaExito = (id: string, clausulaGerada: string) => {
+    setExitoOptions(prev => prev.map(o => o.id === id ? { ...o, clausulaGerada } : o));
   };
 
   // Salvar template de honorários iniciais (usuário comum)
@@ -633,14 +721,17 @@ Retorne APENAS a frase da cláusula primeira reescrita, sem explicações adicio
     }
   };
 
-  // Gerar cláusula de honorários êxito com IA
-  const gerarClausulaExito = async () => {
-    if (!descricaoHonorariosExito.trim()) {
+  // Gerar cláusula de honorários êxito com IA para uma opção específica
+  const gerarClausulaExitoParaOpcao = async (opcaoId: string) => {
+    const opcao = exitoOptions.find(o => o.id === opcaoId);
+    if (!opcao || !opcao.descricao.trim()) {
       toast.error("Descreva os honorários de êxito");
       return;
     }
 
-    setGerandoClausulaExito(true);
+    // Marcar como gerando
+    setExitoOptions(prev => prev.map(o => o.id === opcaoId ? { ...o, gerando: true } : o));
+    
     try {
       const prompt = `Você é um advogado especialista em contratos de prestação de serviços advocatícios.
 
@@ -651,7 +742,7 @@ Contexto do contrato:
 - Objeto do contrato: ${objetoContrato || 'Não informado'}
 
 Descrição dos honorários de êxito informada pelo usuário:
-${descricaoHonorariosExito}
+${opcao.descricao}
 
 Com base no objeto do contrato e na descrição dos honorários de êxito, redija uma cláusula jurídica clara e profissional que indique:
 1. A condição de êxito (relacionada ao objeto do contrato)
@@ -675,14 +766,13 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
       if (response) {
         // Remove letras iniciais se a IA incluir
         const clausulaLimpa = response.trim().replace(/^[a-z]\)\s*/i, '');
-        setClausulaExitoGerada(clausulaLimpa);
+        setExitoOptions(prev => prev.map(o => o.id === opcaoId ? { ...o, clausulaGerada: clausulaLimpa, gerando: false } : o));
         toast.success("Cláusula de honorários êxito gerada com sucesso!");
       }
     } catch (error) {
       console.error('Erro ao gerar cláusula de êxito:', error);
       toast.error("Erro ao gerar cláusula. Tente novamente.");
-    } finally {
-      setGerandoClausulaExito(false);
+      setExitoOptions(prev => prev.map(o => o.id === opcaoId ? { ...o, gerando: false } : o));
     }
   };
 
@@ -700,7 +790,10 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
 
   // Gerar cláusula terceira (honorários)
   const gerarClausulaTerceira = (): string => {
-    const temAmbos = temHonorariosIniciais && temHonorariosExito && clausulaExitoGerada;
+    // Verificar se tem cláusulas de êxito geradas
+    const clausulasExitoGeradas = exitoOptions.filter(o => o.clausulaGerada.trim());
+    const temClausulasExito = temHonorariosExito && clausulasExitoGeradas.length > 0;
+    const temAmbos = temHonorariosIniciais && temClausulasExito;
     
     let textoHonorariosIniciais = '';
     
@@ -732,10 +825,20 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
     }
     
     let textoHonorariosExito = '';
-    if (temHonorariosExito && clausulaExitoGerada) {
-      // Só adiciona letra se tiver ambos os tipos de honorários
-      const prefixo = temAmbos ? 'b) ' : '';
-      textoHonorariosExito = `${prefixo}${clausulaExitoGerada}`;
+    if (temClausulasExito) {
+      // Se tem apenas uma cláusula de êxito
+      if (clausulasExitoGeradas.length === 1) {
+        const prefixo = temAmbos ? 'b) ' : '';
+        textoHonorariosExito = `${prefixo}${clausulasExitoGeradas[0].clausulaGerada}`;
+      } else {
+        // Múltiplas cláusulas de êxito - usar sub-letras (b.1, b.2, etc.)
+        const prefixo = temAmbos ? 'b) Honorários de êxito:\n\n' : '';
+        const clausulasFormatadas = clausulasExitoGeradas.map((opcao, index) => {
+          const subLetra = temAmbos ? `b.${index + 1}) ` : `${String.fromCharCode(97 + index)}) `;
+          return `${subLetra}${opcao.clausulaGerada}`;
+        }).join('\n\n');
+        textoHonorariosExito = prefixo + clausulasFormatadas;
+      }
     }
     
     // Montar texto final
@@ -843,8 +946,9 @@ Testemunhas:
       return;
     }
 
-    if (temHonorariosExito && !clausulaExitoGerada) {
-      toast.error("Gere a cláusula de honorários êxito");
+    const clausulasExitoGeradas = exitoOptions.filter(o => o.clausulaGerada.trim());
+    if (temHonorariosExito && clausulasExitoGeradas.length === 0) {
+      toast.error("Gere pelo menos uma cláusula de honorários êxito");
       return;
     }
 
@@ -1497,9 +1601,21 @@ Testemunhas:
               {temHonorariosExito && (
                 <CardContent className="space-y-4">
                   {/* Templates salvos e padrão */}
-                  {templates.length > 0 && (
-                    <div className="space-y-2">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
                       <Label className="text-xs text-muted-foreground">Templates disponíveis</Label>
+                      {isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowCreateDefaultExitoTemplate(true)}
+                          className="h-6 text-xs px-2"
+                        >
+                          + Novo Template Padrão
+                        </Button>
+                      )}
+                    </div>
+                    {templates.length > 0 && (
                       <div className="flex flex-wrap gap-2">
                         {templates.map((template) => (
                           <div key={template.id} className="flex items-center gap-1">
@@ -1511,10 +1627,11 @@ Testemunhas:
                               {template.name}
                               {template.is_default && <span className="ml-1 text-[10px] opacity-60">(padrão)</span>}
                             </Badge>
-                            {!template.is_default && (
+                            {(!template.is_default || isAdmin) && (
                               <button
-                                onClick={() => deletarTemplate(template.id)}
+                                onClick={() => deletarTemplate(template.id, template.is_default)}
                                 className="text-muted-foreground hover:text-destructive p-0.5"
+                                title={template.is_default ? "Excluir template padrão (admin)" : "Excluir template"}
                               >
                                 <Trash2 className="h-3 w-3" />
                               </button>
@@ -1522,39 +1639,95 @@ Testemunhas:
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="descricaoHonorariosExito">
-                        Descreva os honorários de êxito *
-                      </Label>
-                      {descricaoHonorariosExito && !showSaveTemplate && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => setShowSaveTemplate(true)}
-                          className="h-6 text-xs"
-                        >
-                          <Save className="h-3 w-3 mr-1" />
-                          Salvar como template
-                        </Button>
-                      )}
-                    </div>
-                    <Textarea
-                      id="descricaoHonorariosExito"
-                      placeholder="Ex: Em caso de êxito, será devido 20% do valor obtido na causa, a ser pago em até 6 parcelas..."
-                      value={descricaoHonorariosExito}
-                      onChange={(e) => setDescricaoHonorariosExito(e.target.value)}
-                      className="min-h-[80px]"
-                    />
+                    )}
                   </div>
 
+                  {/* Múltiplas opções de êxito */}
+                  {exitoOptions.map((opcao, index) => (
+                    <div key={opcao.id} className="space-y-3 p-3 rounded-lg border">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium">
+                          {exitoOptions.length > 1 ? `Opção ${index + 1}` : 'Descrição dos honorários de êxito *'}
+                        </Label>
+                        {exitoOptions.length > 1 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removerOpcaoExito(opcao.id)}
+                            className="h-6 text-xs text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Remover
+                          </Button>
+                        )}
+                      </div>
+                      
+                      <Textarea
+                        placeholder="Ex: 30% dos 12 primeiros meses de pagamento..."
+                        value={opcao.descricao}
+                        onChange={(e) => atualizarDescricaoExito(opcao.id, e.target.value)}
+                        className="min-h-[60px]"
+                      />
+                      
+                      <Button 
+                        onClick={() => gerarClausulaExitoParaOpcao(opcao.id)} 
+                        disabled={opcao.gerando || !opcao.descricao.trim()}
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                      >
+                        {opcao.gerando ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-4 w-4 mr-2" />
+                        )}
+                        Gerar Cláusula com IA
+                      </Button>
+                      
+                      {opcao.clausulaGerada && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">Cláusula gerada:</Label>
+                            <Badge variant="secondary" className="text-xs">
+                              Editável
+                            </Badge>
+                          </div>
+                          <Textarea
+                            value={opcao.clausulaGerada}
+                            onChange={(e) => atualizarClausulaExito(opcao.id, e.target.value)}
+                            className="min-h-[80px] text-sm"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Botão adicionar opção */}
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={adicionarOpcaoExito}
+                    className="w-full"
+                  >
+                    + Adicionar outra opção de êxito
+                  </Button>
+
                   {/* Salvar como template */}
+                  {exitoOptions[0]?.descricao && !showSaveTemplate && !showCreateDefaultExitoTemplate && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => setShowSaveTemplate(true)}
+                      className="w-full text-xs"
+                    >
+                      <Save className="h-3 w-3 mr-1" />
+                      Salvar primeira opção como template pessoal
+                    </Button>
+                  )}
+
                   {showSaveTemplate && (
-                    <div className="flex gap-2 items-end p-3 rounded-lg bg-muted/50">
-                      <div className="flex-1 space-y-1">
+                    <div className="space-y-2 p-3 rounded-lg bg-muted/50">
+                      <div className="space-y-1">
                         <Label htmlFor="templateName" className="text-xs">Nome do template</Label>
                         <Input
                           id="templateName"
@@ -1564,55 +1737,67 @@ Testemunhas:
                           className="h-8"
                         />
                       </div>
-                      <Button 
-                        size="sm" 
-                        onClick={salvarTemplate}
-                        disabled={savingTemplate || !templateName.trim()}
-                        className="h-8"
-                      >
-                        {savingTemplate ? <Loader2 className="h-3 w-3 animate-spin" /> : "Salvar"}
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="ghost"
-                        onClick={() => {
-                          setShowSaveTemplate(false);
-                          setTemplateName("");
-                        }}
-                        className="h-8"
-                      >
-                        Cancelar
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm" 
+                          onClick={salvarTemplate}
+                          disabled={savingTemplate || !templateName.trim()}
+                          className="h-8"
+                        >
+                          {savingTemplate ? <Loader2 className="h-3 w-3 animate-spin" /> : "Salvar"}
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={() => {
+                            setShowSaveTemplate(false);
+                            setTemplateName("");
+                          }}
+                          className="h-8"
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
                     </div>
                   )}
-                  
-                  <Button 
-                    onClick={gerarClausulaExito} 
-                    disabled={gerandoClausulaExito || !descricaoHonorariosExito}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    {gerandoClausulaExito ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-4 w-4 mr-2" />
-                    )}
-                    Gerar Cláusula de Êxito com IA
-                  </Button>
-                  
-                  {clausulaExitoGerada && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label>Cláusula gerada:</Label>
-                        <Badge variant="secondary" className="text-xs">
-                          Editável - ajuste se necessário
-                        </Badge>
+
+                  {showCreateDefaultExitoTemplate && isAdmin && (
+                    <div className="space-y-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                      <Label className="text-xs font-medium text-primary">Criar Template Padrão (visível para todos)</Label>
+                      <div className="space-y-1">
+                        <Label htmlFor="defaultExitoTemplateName" className="text-xs">Nome do template</Label>
+                        <Input
+                          id="defaultExitoTemplateName"
+                          placeholder="Ex: Êxito 30% retroativos"
+                          value={templateName}
+                          onChange={(e) => setTemplateName(e.target.value)}
+                          className="h-8"
+                        />
                       </div>
-                      <Textarea
-                        value={clausulaExitoGerada}
-                        onChange={(e) => setClausulaExitoGerada(e.target.value)}
-                        className="min-h-[100px] text-sm"
-                      />
+                      <p className="text-xs text-muted-foreground">
+                        Será usado o texto da primeira opção de êxito: "{exitoOptions[0]?.descricao?.substring(0, 50) || '...'}..."
+                      </p>
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm" 
+                          onClick={criarTemplatePadraoExito}
+                          disabled={savingTemplate || !templateName.trim() || !exitoOptions[0]?.descricao}
+                          className="h-8"
+                        >
+                          {savingTemplate ? <Loader2 className="h-3 w-3 animate-spin" /> : "Criar Template Padrão"}
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={() => {
+                            setShowCreateDefaultExitoTemplate(false);
+                            setTemplateName("");
+                          }}
+                          className="h-8"
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </CardContent>
