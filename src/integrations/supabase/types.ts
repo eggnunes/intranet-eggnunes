@@ -528,6 +528,84 @@ export type Database = {
         }
         Relationships: []
       }
+      contract_drafts: {
+        Row: {
+          clausula_exito_gerada: string | null
+          clausula_primeira_gerada: string | null
+          client_id: number
+          client_name: string
+          contra_partida: string | null
+          contract_preview_text: string | null
+          created_at: string
+          data_vencimento: string | null
+          descricao_honorarios_exito: string | null
+          forma_pagamento: string | null
+          id: string
+          numero_parcelas: string | null
+          objeto_contrato: string | null
+          product_name: string
+          qualification: string
+          tem_entrada: boolean | null
+          tem_honorarios_exito: boolean | null
+          tipo_honorarios: string | null
+          updated_at: string
+          user_id: string
+          valor_entrada: string | null
+          valor_parcela: string | null
+          valor_total: string | null
+        }
+        Insert: {
+          clausula_exito_gerada?: string | null
+          clausula_primeira_gerada?: string | null
+          client_id: number
+          client_name: string
+          contra_partida?: string | null
+          contract_preview_text?: string | null
+          created_at?: string
+          data_vencimento?: string | null
+          descricao_honorarios_exito?: string | null
+          forma_pagamento?: string | null
+          id?: string
+          numero_parcelas?: string | null
+          objeto_contrato?: string | null
+          product_name: string
+          qualification: string
+          tem_entrada?: boolean | null
+          tem_honorarios_exito?: boolean | null
+          tipo_honorarios?: string | null
+          updated_at?: string
+          user_id: string
+          valor_entrada?: string | null
+          valor_parcela?: string | null
+          valor_total?: string | null
+        }
+        Update: {
+          clausula_exito_gerada?: string | null
+          clausula_primeira_gerada?: string | null
+          client_id?: number
+          client_name?: string
+          contra_partida?: string | null
+          contract_preview_text?: string | null
+          created_at?: string
+          data_vencimento?: string | null
+          descricao_honorarios_exito?: string | null
+          forma_pagamento?: string | null
+          id?: string
+          numero_parcelas?: string | null
+          objeto_contrato?: string | null
+          product_name?: string
+          qualification?: string
+          tem_entrada?: boolean | null
+          tem_honorarios_exito?: boolean | null
+          tipo_honorarios?: string | null
+          updated_at?: string
+          user_id?: string
+          valor_entrada?: string | null
+          valor_parcela?: string | null
+          valor_total?: string | null
+        }
+        Relationships: []
+      }
       customer_birthday_exclusions: {
         Row: {
           created_at: string

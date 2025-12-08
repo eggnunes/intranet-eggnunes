@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { 
   FileSignature, 
   Loader2, 
@@ -21,7 +22,10 @@ import {
   Target, 
   Award,
   FileText,
-  Download
+  Download,
+  Save,
+  FolderOpen,
+  Trash2
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { format } from "date-fns";
@@ -107,10 +111,167 @@ export const ContractGenerator = ({
   const [showPreview, setShowPreview] = useState(false);
   const [contractPreviewText, setContractPreviewText] = useState("");
 
+  // Rascunhos
+  const [salvandoRascunho, setSalvandoRascunho] = useState(false);
+  const [carregandoRascunho, setCarregandoRascunho] = useState(false);
+  const [rascunhoExistente, setRascunhoExistente] = useState<string | null>(null);
+  const [deletandoRascunho, setDeletandoRascunho] = useState(false);
+
+  const { user } = useAuth();
+
   // Verificar se é um produto com contrato específico
   const isCustomContractProduct = CUSTOM_CONTRACT_PRODUCTS.some(
     p => productName.toLowerCase().includes(p.toLowerCase())
   );
+
+  // Verificar se existe rascunho para este cliente
+  useEffect(() => {
+    const checkExistingDraft = async () => {
+      if (!client || !user) return;
+      
+      const { data } = await supabase
+        .from('contract_drafts')
+        .select('id')
+        .eq('client_id', client.id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (data) {
+        setRascunhoExistente(data.id);
+      } else {
+        setRascunhoExistente(null);
+      }
+    };
+
+    if (open) {
+      checkExistingDraft();
+    }
+  }, [client, user, open]);
+
+  // Carregar rascunho existente
+  const carregarRascunho = async () => {
+    if (!rascunhoExistente) return;
+    
+    setCarregandoRascunho(true);
+    try {
+      const { data, error } = await supabase
+        .from('contract_drafts')
+        .select('*')
+        .eq('id', rascunhoExistente)
+        .single();
+      
+      if (error) throw error;
+      
+      if (data) {
+        setContraPartida(data.contra_partida || "");
+        setObjetoContrato(data.objeto_contrato || "");
+        setClausulaPrimeiraGerada(data.clausula_primeira_gerada || "");
+        setTipoHonorarios((data.tipo_honorarios as "avista" | "parcelado") || "avista");
+        setValorTotal(data.valor_total || "");
+        setNumeroParcelas(data.numero_parcelas || "");
+        setValorParcela(data.valor_parcela || "");
+        setTemEntrada(data.tem_entrada || false);
+        setValorEntrada(data.valor_entrada || "");
+        setFormaPagamento((data.forma_pagamento as "pix" | "cartao" | "boleto") || "pix");
+        setDataVencimento(data.data_vencimento || "");
+        setTemHonorariosExito(data.tem_honorarios_exito || false);
+        setDescricaoHonorariosExito(data.descricao_honorarios_exito || "");
+        setClausulaExitoGerada(data.clausula_exito_gerada || "");
+        setContractPreviewText(data.contract_preview_text || "");
+        
+        toast.success("Rascunho carregado com sucesso!");
+      }
+    } catch (error) {
+      console.error('Erro ao carregar rascunho:', error);
+      toast.error("Erro ao carregar rascunho");
+    } finally {
+      setCarregandoRascunho(false);
+    }
+  };
+
+  // Salvar rascunho
+  const salvarRascunho = async () => {
+    if (!client || !user) {
+      toast.error("Erro: cliente ou usuário não identificado");
+      return;
+    }
+    
+    setSalvandoRascunho(true);
+    try {
+      const draftData = {
+        user_id: user.id,
+        client_id: client.id,
+        client_name: client.nomeCompleto,
+        product_name: productName,
+        qualification: qualification,
+        contra_partida: contraPartida,
+        objeto_contrato: objetoContrato,
+        clausula_primeira_gerada: clausulaPrimeiraGerada,
+        tipo_honorarios: tipoHonorarios,
+        valor_total: valorTotal,
+        numero_parcelas: numeroParcelas,
+        valor_parcela: valorParcela,
+        tem_entrada: temEntrada,
+        valor_entrada: valorEntrada,
+        forma_pagamento: formaPagamento,
+        data_vencimento: dataVencimento,
+        tem_honorarios_exito: temHonorariosExito,
+        descricao_honorarios_exito: descricaoHonorariosExito,
+        clausula_exito_gerada: clausulaExitoGerada,
+        contract_preview_text: contractPreviewText,
+      };
+
+      if (rascunhoExistente) {
+        // Atualizar rascunho existente
+        const { error } = await supabase
+          .from('contract_drafts')
+          .update(draftData)
+          .eq('id', rascunhoExistente);
+        
+        if (error) throw error;
+      } else {
+        // Criar novo rascunho
+        const { data, error } = await supabase
+          .from('contract_drafts')
+          .insert(draftData)
+          .select('id')
+          .single();
+        
+        if (error) throw error;
+        if (data) setRascunhoExistente(data.id);
+      }
+      
+      toast.success("Rascunho salvo com sucesso!");
+    } catch (error) {
+      console.error('Erro ao salvar rascunho:', error);
+      toast.error("Erro ao salvar rascunho");
+    } finally {
+      setSalvandoRascunho(false);
+    }
+  };
+
+  // Deletar rascunho
+  const deletarRascunho = async () => {
+    if (!rascunhoExistente) return;
+    
+    setDeletandoRascunho(true);
+    try {
+      const { error } = await supabase
+        .from('contract_drafts')
+        .delete()
+        .eq('id', rascunhoExistente);
+      
+      if (error) throw error;
+      
+      setRascunhoExistente(null);
+      toast.success("Rascunho excluído");
+    } catch (error) {
+      console.error('Erro ao deletar rascunho:', error);
+      toast.error("Erro ao excluir rascunho");
+    } finally {
+      setDeletandoRascunho(false);
+    }
+  };
 
   // Gerar cláusula primeira com IA
   const gerarClausulaPrimeira = async () => {
@@ -471,12 +632,66 @@ Testemunhas:
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileSignature className="h-5 w-5" />
-            Gerador de Contrato Padrão
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <FileSignature className="h-5 w-5" />
+              Gerador de Contrato Padrão
+            </DialogTitle>
+            <div className="flex items-center gap-2">
+              {rascunhoExistente && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={carregarRascunho}
+                    disabled={carregandoRascunho}
+                    title="Carregar rascunho salvo"
+                  >
+                    {carregandoRascunho ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FolderOpen className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={deletarRascunho}
+                    disabled={deletandoRascunho}
+                    title="Excluir rascunho"
+                    className="text-destructive hover:text-destructive"
+                  >
+                    {deletandoRascunho ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                </>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={salvarRascunho}
+                disabled={salvandoRascunho}
+                title="Salvar rascunho"
+              >
+                {salvandoRascunho ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-1" />
+                )}
+                Salvar
+              </Button>
+            </div>
+          </div>
           <DialogDescription>
             Preencha os dados para gerar o contrato de {client?.nomeCompleto?.split(' ')[0]} - {productName}
+            {rascunhoExistente && (
+              <Badge variant="secondary" className="ml-2 text-xs">
+                Rascunho disponível
+              </Badge>
+            )}
           </DialogDescription>
         </DialogHeader>
         
