@@ -24,12 +24,14 @@ serve(async (req) => {
 
     console.log('Fetching products from RD Station CRM...');
 
-    // Using RD Station CRM API v1 to get products
-    const response = await fetch('https://crm.rdstation.com/api/v1/products', {
+    // RD Station CRM API uses token as query parameter
+    const apiUrl = `https://crm.rdstation.com/api/v1/products?token=${rdStationToken}`;
+    
+    const response = await fetch(apiUrl, {
       method: 'GET',
       headers: {
-        'Authorization': `Token ${rdStationToken}`,
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
     });
 
@@ -39,8 +41,15 @@ serve(async (req) => {
       
       if (response.status === 401) {
         return new Response(
-          JSON.stringify({ error: 'Token de API do RD Station inválido ou expirado' }),
+          JSON.stringify({ error: 'Token de API do RD Station inválido ou expirado. Verifique o token nas configurações do CRM.' }),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      if (response.status === 403) {
+        return new Response(
+          JSON.stringify({ error: 'Sem permissão para acessar produtos. Verifique as permissões do token no RD Station.' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
@@ -51,10 +60,9 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log('Products fetched successfully:', data);
+    console.log('Products fetched successfully, count:', Array.isArray(data.products) ? data.products.length : (Array.isArray(data) ? data.length : 0));
 
-    // RD Station returns products in a specific format
-    // Extract and normalize the products data
+    // RD Station returns products in different formats depending on the endpoint version
     const products = data.products || data || [];
     
     return new Response(
