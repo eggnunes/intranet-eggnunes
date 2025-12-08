@@ -7,11 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
@@ -31,7 +33,9 @@ import {
   MapPin,
   Calendar as CalendarIcon,
   CreditCard,
-  X
+  X,
+  Package,
+  Loader2
 } from "lucide-react";
 import { format, parse, isAfter, isBefore, isEqual, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -74,6 +78,14 @@ interface Client {
   telefoneAlternativo: string;
 }
 
+interface RDStationProduct {
+  _id: string;
+  name: string;
+  description?: string;
+  base_price?: number;
+  recurrence?: string;
+}
+
 const SetorComercial = () => {
   const navigate = useNavigate();
   const { hasPermission, loading: permissionsLoading } = useAdminPermissions();
@@ -86,6 +98,33 @@ const SetorComercial = () => {
   const [showAll, setShowAll] = useState(false);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  
+  // RD Station products
+  const [products, setProducts] = useState<RDStationProduct[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productDialogOpen, setProductDialogOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<string>("");
+  const [documentType, setDocumentType] = useState<'contract' | 'procuracao' | 'declaracao'>('contract');
+  const [clientForDocument, setClientForDocument] = useState<Client | null>(null);
+
+  const fetchProducts = async () => {
+    try {
+      setProductsLoading(true);
+      const { data, error } = await supabase.functions.invoke('rd-station-products');
+      
+      if (error) throw error;
+      
+      if (data.products) {
+        setProducts(data.products);
+      }
+    } catch (error: unknown) {
+      console.error('Error fetching products:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao carregar produtos';
+      toast.error(errorMessage);
+    } finally {
+      setProductsLoading(false);
+    }
+  };
 
   const fetchClients = async (showToast = false) => {
     try {
@@ -101,9 +140,10 @@ const SetorComercial = () => {
           toast.success(`${data.clients.length} clientes carregados`);
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching clients:', error);
-      toast.error('Erro ao carregar dados: ' + error.message);
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao carregar dados';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -112,6 +152,7 @@ const SetorComercial = () => {
 
   useEffect(() => {
     fetchClients();
+    fetchProducts();
   }, []);
 
   // Parse timestamp from Google Sheets format (DD/MM/YYYY HH:MM:SS)
@@ -181,19 +222,50 @@ const SetorComercial = () => {
     setDetailsOpen(true);
   };
 
+  const openProductDialog = (client: Client, type: 'contract' | 'procuracao' | 'declaracao') => {
+    setClientForDocument(client);
+    setDocumentType(type);
+    setSelectedProduct("");
+    setProductDialogOpen(true);
+  };
+
+  const handleGenerateDocument = () => {
+    if (!selectedProduct) {
+      toast.error('Selecione um produto');
+      return;
+    }
+
+    const product = products.find(p => p._id === selectedProduct);
+    const productName = product?.name || 'Produto';
+    
+    setProductDialogOpen(false);
+    
+    switch (documentType) {
+      case 'contract':
+        toast.info(`Gerando contrato para ${clientForDocument?.nomeCompleto} - Produto: ${productName}`);
+        // TODO: Implement contract generation with product
+        break;
+      case 'procuracao':
+        toast.info(`Gerando procuração para ${clientForDocument?.nomeCompleto} - Produto: ${productName}`);
+        // TODO: Implement procuracao generation with product
+        break;
+      case 'declaracao':
+        toast.info(`Gerando declaração para ${clientForDocument?.nomeCompleto} - Produto: ${productName}`);
+        // TODO: Implement declaracao generation with product
+        break;
+    }
+  };
+
   const handleGenerateContract = (client: Client) => {
-    toast.info('Funcionalidade de geração de contrato em desenvolvimento');
-    // TODO: Implement contract generation
+    openProductDialog(client, 'contract');
   };
 
   const handleGenerateProcuracao = (client: Client) => {
-    toast.info('Funcionalidade de geração de procuração em desenvolvimento');
-    // TODO: Implement procuracao generation
+    openProductDialog(client, 'procuracao');
   };
 
   const handleGenerateDeclaracao = (client: Client) => {
-    toast.info('Funcionalidade de geração de declaração em desenvolvimento');
-    // TODO: Implement declaracao generation
+    openProductDialog(client, 'declaracao');
   };
 
   if (permissionsLoading) {
@@ -698,6 +770,90 @@ const SetorComercial = () => {
               </div>
             </ScrollArea>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Product Selection Dialog */}
+      <Dialog open={productDialogOpen} onOpenChange={setProductDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Selecionar Produto
+            </DialogTitle>
+            <DialogDescription>
+              Selecione o produto/serviço para {documentType === 'contract' ? 'o contrato' : documentType === 'procuracao' ? 'a procuração' : 'a declaração'} de {clientForDocument?.nomeCompleto?.split(' ')[0]}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="product">Produto *</Label>
+              {productsLoading ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Carregando produtos do RD Station...
+                </div>
+              ) : products.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  <p>Nenhum produto encontrado no RD Station.</p>
+                  <Button 
+                    variant="link" 
+                    className="p-0 h-auto" 
+                    onClick={fetchProducts}
+                  >
+                    Tentar novamente
+                  </Button>
+                </div>
+              ) : (
+                <Select value={selectedProduct} onValueChange={setSelectedProduct}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um produto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {products.map((product) => (
+                      <SelectItem key={product._id} value={product._id}>
+                        <div className="flex flex-col">
+                          <span>{product.name}</span>
+                          {product.base_price && (
+                            <span className="text-xs text-muted-foreground">
+                              R$ {product.base_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProductDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleGenerateDocument} disabled={!selectedProduct || productsLoading}>
+              {documentType === 'contract' && (
+                <>
+                  <FileSignature className="h-4 w-4 mr-2" />
+                  Gerar Contrato
+                </>
+              )}
+              {documentType === 'procuracao' && (
+                <>
+                  <Scale className="h-4 w-4 mr-2" />
+                  Gerar Procuração
+                </>
+              )}
+              {documentType === 'declaracao' && (
+                <>
+                  <FileCheck className="h-4 w-4 mr-2" />
+                  Gerar Declaração
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Layout>
