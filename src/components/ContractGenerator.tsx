@@ -103,6 +103,13 @@ export const ContractGenerator = ({
   const [temHonorariosExito, setTemHonorariosExito] = useState(false);
   const [descricaoHonorariosExito, setDescricaoHonorariosExito] = useState("");
   const [clausulaExitoGerada, setClausulaExitoGerada] = useState("");
+  
+  // Templates de honorários êxito
+  const [templates, setTemplates] = useState<{id: string; name: string; description: string}[]>([]);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [gerandoClausulaExito, setGerandoClausulaExito] = useState(false);
 
   // Geração do contrato
@@ -124,6 +131,31 @@ export const ContractGenerator = ({
   const isCustomContractProduct = CUSTOM_CONTRACT_PRODUCTS.some(
     p => productName.toLowerCase().includes(p.toLowerCase())
   );
+
+  // Carregar templates de honorários êxito
+  useEffect(() => {
+    const loadTemplates = async () => {
+      if (!user || !open) return;
+      
+      setLoadingTemplates(true);
+      try {
+        const { data, error } = await supabase
+          .from('success_fee_templates')
+          .select('id, name, description')
+          .eq('user_id', user.id)
+          .order('name');
+        
+        if (error) throw error;
+        setTemplates(data || []);
+      } catch (error) {
+        console.error('Erro ao carregar templates:', error);
+      } finally {
+        setLoadingTemplates(false);
+      }
+    };
+
+    loadTemplates();
+  }, [user, open]);
 
   // Verificar se existe rascunho para este cliente
   useEffect(() => {
@@ -271,6 +303,68 @@ export const ContractGenerator = ({
       toast.error("Erro ao excluir rascunho");
     } finally {
       setDeletandoRascunho(false);
+    }
+  };
+
+  // Salvar template de honorários êxito
+  const salvarTemplate = async () => {
+    if (!templateName.trim() || !descricaoHonorariosExito.trim() || !user) {
+      toast.error("Preencha o nome do template e a descrição");
+      return;
+    }
+
+    setSavingTemplate(true);
+    try {
+      const { error } = await supabase
+        .from('success_fee_templates')
+        .insert({
+          user_id: user.id,
+          name: templateName.trim(),
+          description: descricaoHonorariosExito.trim(),
+        });
+
+      if (error) throw error;
+
+      // Recarregar templates
+      const { data } = await supabase
+        .from('success_fee_templates')
+        .select('id, name, description')
+        .eq('user_id', user.id)
+        .order('name');
+      
+      setTemplates(data || []);
+      setTemplateName("");
+      setShowSaveTemplate(false);
+      toast.success("Template salvo com sucesso!");
+    } catch (error) {
+      console.error('Erro ao salvar template:', error);
+      toast.error("Erro ao salvar template");
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  // Carregar template selecionado
+  const carregarTemplate = (template: {id: string; name: string; description: string}) => {
+    setDescricaoHonorariosExito(template.description);
+    toast.success(`Template "${template.name}" carregado`);
+  };
+
+  // Deletar template
+  const deletarTemplate = async (templateId: string) => {
+    try {
+      const { error } = await supabase
+        .from('success_fee_templates')
+        .delete()
+        .eq('id', templateId);
+      
+      if (error) throw error;
+      
+      setTemplates(prev => prev.filter(t => t.id !== templateId));
+      toast.success("Template excluído");
+    } catch (error) {
+      console.error('Erro ao deletar template:', error);
+      toast.error("Erro ao excluir template");
     }
   };
 
@@ -946,10 +1040,49 @@ Testemunhas:
               </CardHeader>
               {temHonorariosExito && (
                 <CardContent className="space-y-4">
+                  {/* Templates salvos */}
+                  {templates.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Templates salvos</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {templates.map((template) => (
+                          <div key={template.id} className="flex items-center gap-1">
+                            <Badge 
+                              variant="outline" 
+                              className="cursor-pointer hover:bg-primary/10"
+                              onClick={() => carregarTemplate(template)}
+                            >
+                              {template.name}
+                            </Badge>
+                            <button
+                              onClick={() => deletarTemplate(template.id)}
+                              className="text-muted-foreground hover:text-destructive p-0.5"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
-                    <Label htmlFor="descricaoHonorariosExito">
-                      Descreva os honorários de êxito *
-                    </Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="descricaoHonorariosExito">
+                        Descreva os honorários de êxito *
+                      </Label>
+                      {descricaoHonorariosExito && !showSaveTemplate && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => setShowSaveTemplate(true)}
+                          className="h-6 text-xs"
+                        >
+                          <Save className="h-3 w-3 mr-1" />
+                          Salvar como template
+                        </Button>
+                      )}
+                    </div>
                     <Textarea
                       id="descricaoHonorariosExito"
                       placeholder="Ex: Em caso de êxito, será devido 20% do valor obtido na causa, a ser pago em até 6 parcelas..."
@@ -958,6 +1091,41 @@ Testemunhas:
                       className="min-h-[80px]"
                     />
                   </div>
+
+                  {/* Salvar como template */}
+                  {showSaveTemplate && (
+                    <div className="flex gap-2 items-end p-3 rounded-lg bg-muted/50">
+                      <div className="flex-1 space-y-1">
+                        <Label htmlFor="templateName" className="text-xs">Nome do template</Label>
+                        <Input
+                          id="templateName"
+                          placeholder="Ex: Êxito 20% - Padrão"
+                          value={templateName}
+                          onChange={(e) => setTemplateName(e.target.value)}
+                          className="h-8"
+                        />
+                      </div>
+                      <Button 
+                        size="sm" 
+                        onClick={salvarTemplate}
+                        disabled={savingTemplate || !templateName.trim()}
+                        className="h-8"
+                      >
+                        {savingTemplate ? <Loader2 className="h-3 w-3 animate-spin" /> : "Salvar"}
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="ghost"
+                        onClick={() => {
+                          setShowSaveTemplate(false);
+                          setTemplateName("");
+                        }}
+                        className="h-8"
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  )}
                   
                   <Button 
                     onClick={gerarClausulaExito} 
@@ -975,15 +1143,17 @@ Testemunhas:
                   
                   {clausulaExitoGerada && (
                     <div className="space-y-2">
-                      <Label>Cláusula gerada:</Label>
+                      <div className="flex items-center justify-between">
+                        <Label>Cláusula gerada:</Label>
+                        <Badge variant="secondary" className="text-xs">
+                          Editável - ajuste se necessário
+                        </Badge>
+                      </div>
                       <Textarea
                         value={clausulaExitoGerada}
                         onChange={(e) => setClausulaExitoGerada(e.target.value)}
-                        className="min-h-[80px] text-sm"
+                        className="min-h-[100px] text-sm"
                       />
-                      <Badge variant="secondary" className="text-xs">
-                        Você pode editar o texto acima se necessário
-                      </Badge>
                     </div>
                   )}
                 </CardContent>
