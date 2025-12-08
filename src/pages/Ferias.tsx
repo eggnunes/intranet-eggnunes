@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Layout } from '@/components/Layout';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Calendar as CalendarIcon, Clock, CheckCircle, XCircle, Plus, User, Info, Users, FileText, Trash2, Pencil, LayoutDashboard, ClipboardList, DollarSign, Wallet } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle, XCircle, Plus, User, Info, Users, FileText, Trash2, Pencil, LayoutDashboard, ClipboardList, DollarSign, Wallet, BarChart3 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { VacationDashboard } from '@/components/VacationDashboard';
 import { format, differenceInBusinessDays, differenceInCalendarDays, parseISO, addYears, isBefore, isAfter, eachDayOfInterval, isWithinInterval, startOfMonth, endOfMonth, addMonths } from 'date-fns';
@@ -25,6 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 interface VacationRequest {
   id: string;
   user_id: string;
@@ -205,9 +206,36 @@ export default function Ferias() {
   const [balanceSelectedUser, setBalanceSelectedUser] = useState<string>('');
   const [balanceUserProfile, setBalanceUserProfile] = useState<UserProfile | null>(null);
   const [balanceUserRequests, setBalanceUserRequests] = useState<VacationRequest[]>([]);
+  const [balanceUserAllRequests, setBalanceUserAllRequests] = useState<VacationRequest[]>([]);
   const [balanceUserData, setBalanceUserData] = useState<{ total: number; used: number; available: number } | null>(null);
   const [balanceSelectedPeriod, setBalanceSelectedPeriod] = useState<string>('all');
   const [balanceUserAcquisitionPeriods, setBalanceUserAcquisitionPeriods] = useState<AcquisitionPeriod[]>([]);
+
+  // Chart data for vacation distribution by acquisition period
+  const vacationChartData = useMemo(() => {
+    if (!balanceUserAllRequests.length || !balanceUserAcquisitionPeriods.length) return [];
+    
+    const totalDays = getTotalVacationDays(balanceUserProfile?.position || null);
+    
+    return balanceUserAcquisitionPeriods.map((period, index) => {
+      const usedInPeriod = balanceUserAllRequests
+        .filter(req => 
+          req.acquisition_period_start === period.value.split('|')[0] &&
+          req.acquisition_period_end === period.value.split('|')[1]
+        )
+        .reduce((sum, req) => sum + (req.business_days || 0), 0);
+      
+      const availableInPeriod = Math.max(0, totalDays - usedInPeriod);
+      
+      return {
+        name: `${format(period.startDate, 'yyyy')}/${format(period.endDate, 'yyyy')}`,
+        fullLabel: period.label,
+        usado: usedInPeriod,
+        disponivel: availableInPeriod,
+        total: totalDays,
+      };
+    }).filter(item => item.usado > 0 || balanceUserAcquisitionPeriods.length <= 5);
+  }, [balanceUserAllRequests, balanceUserAcquisitionPeriods, balanceUserProfile]);
   
   // Generate acquisition periods for current user
   const currentUserAcquisitionPeriods = generateAcquisitionPeriods(currentUserProfile?.join_date || null);
@@ -278,6 +306,7 @@ export default function Ferias() {
     } else {
       setBalanceUserProfile(null);
       setBalanceUserRequests([]);
+      setBalanceUserAllRequests([]);
       setBalanceUserData(null);
       setBalanceUserAcquisitionPeriods([]);
       setBalanceSelectedPeriod('all');
@@ -292,8 +321,8 @@ export default function Ferias() {
   }, [balanceSelectedPeriod]);
 
   const fetchBalanceUserData = async (userId: string, position: string | null, periodFilter: string = 'all') => {
-    // Fetch approved vacation requests for this user
-    let query = supabase
+    // Always fetch all requests first for the chart
+    const { data: allRequestsData } = await supabase
       .from('vacation_requests')
       .select(`
         *,
@@ -304,30 +333,33 @@ export default function Ferias() {
       .eq('status', 'approved')
       .order('start_date', { ascending: false });
 
-    // Filter by acquisition period if selected
+    if (allRequestsData) {
+      setBalanceUserAllRequests(allRequestsData as any);
+    }
+
+    // Fetch filtered requests based on period selection
+    let filteredRequests = allRequestsData || [];
+    
     if (periodFilter && periodFilter !== 'all') {
       const [periodStart, periodEnd] = periodFilter.split('|');
-      query = query
-        .eq('acquisition_period_start', periodStart)
-        .eq('acquisition_period_end', periodEnd);
+      filteredRequests = (allRequestsData || []).filter(req => 
+        req.acquisition_period_start === periodStart &&
+        req.acquisition_period_end === periodEnd
+      );
     }
 
-    const { data: requestsData } = await query;
-
-    if (requestsData) {
-      setBalanceUserRequests(requestsData as any);
-      
-      // Calculate used days from approved requests in selected period
-      const usedDays = requestsData.reduce((sum, req) => sum + (req.business_days || 0), 0);
-      const totalDays = getTotalVacationDays(position);
-      const availableDays = Math.max(0, totalDays - usedDays);
-      
-      setBalanceUserData({
-        total: totalDays,
-        used: usedDays,
-        available: availableDays
-      });
-    }
+    setBalanceUserRequests(filteredRequests as any);
+    
+    // Calculate used days from approved requests in selected period
+    const usedDays = filteredRequests.reduce((sum, req) => sum + (req.business_days || 0), 0);
+    const totalDays = getTotalVacationDays(position);
+    const availableDays = Math.max(0, totalDays - usedDays);
+    
+    setBalanceUserData({
+      total: totalDays,
+      used: usedDays,
+      available: availableDays
+    });
   };
 
   const fetchCurrentUserProfile = async () => {
@@ -1813,6 +1845,79 @@ export default function Ferias() {
                           />
                         </div>
                       </div>
+
+                      {/* Chart - Vacation Distribution by Acquisition Period */}
+                      {vacationChartData.length > 0 && (
+                        <div className="space-y-4">
+                          <h4 className="font-semibold flex items-center gap-2">
+                            <BarChart3 className="h-4 w-4" />
+                            Distribuição por Período Aquisitivo
+                          </h4>
+                          <Card className="border">
+                            <CardContent className="pt-6">
+                              <ResponsiveContainer width="100%" height={250}>
+                                <BarChart data={vacationChartData} layout="vertical">
+                                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                                  <XAxis 
+                                    type="number" 
+                                    domain={[0, balanceUserData.total]}
+                                    tickFormatter={(value) => `${value}d`}
+                                    className="text-xs"
+                                  />
+                                  <YAxis 
+                                    type="category" 
+                                    dataKey="name" 
+                                    width={80}
+                                    className="text-xs"
+                                  />
+                                  <Tooltip 
+                                    content={({ active, payload }) => {
+                                      if (active && payload && payload.length) {
+                                        const data = payload[0].payload;
+                                        return (
+                                          <div className="bg-popover border rounded-lg p-3 shadow-lg">
+                                            <p className="font-medium text-sm mb-2">{data.fullLabel}</p>
+                                            <div className="space-y-1 text-sm">
+                                              <p className="text-orange-600">Utilizado: {data.usado} dias</p>
+                                              <p className="text-green-600">Disponível: {data.disponivel} dias</p>
+                                              <p className="text-muted-foreground">Total: {data.total} dias</p>
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+                                      return null;
+                                    }}
+                                  />
+                                  <Bar 
+                                    dataKey="usado" 
+                                    stackId="a" 
+                                    fill="hsl(var(--chart-1))" 
+                                    name="Utilizado"
+                                    radius={[0, 0, 0, 0]}
+                                  />
+                                  <Bar 
+                                    dataKey="disponivel" 
+                                    stackId="a" 
+                                    fill="hsl(var(--chart-2))" 
+                                    name="Disponível"
+                                    radius={[0, 4, 4, 0]}
+                                  />
+                                </BarChart>
+                              </ResponsiveContainer>
+                              <div className="flex justify-center gap-6 mt-4 text-sm">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-3 h-3 rounded" style={{ backgroundColor: 'hsl(var(--chart-1))' }} />
+                                  <span className="text-muted-foreground">Utilizado</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-3 h-3 rounded" style={{ backgroundColor: 'hsl(var(--chart-2))' }} />
+                                  <span className="text-muted-foreground">Disponível</span>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+                      )}
 
                       {/* Vacation History */}
                       <div className="space-y-4">
