@@ -528,6 +528,36 @@ export type Database = {
         }
         Relationships: []
       }
+      contra_partida_templates: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          is_default: boolean | null
+          name: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          is_default?: boolean | null
+          name: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       contract_drafts: {
         Row: {
           clausula_exito_gerada: string | null
@@ -1296,6 +1326,36 @@ export type Database = {
         }
         Relationships: []
       }
+      objeto_contrato_templates: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          is_default: boolean | null
+          name: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          is_default?: boolean | null
+          name: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       onboarding_materials: {
         Row: {
           category: string
@@ -1406,6 +1466,51 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      product_template_associations: {
+        Row: {
+          contra_partida_template_id: string | null
+          created_at: string
+          id: string
+          objeto_contrato_template_id: string | null
+          product_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contra_partida_template_id?: string | null
+          created_at?: string
+          id?: string
+          objeto_contrato_template_id?: string | null
+          product_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contra_partida_template_id?: string | null
+          created_at?: string
+          id?: string
+          objeto_contrato_template_id?: string | null
+          product_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_template_associations_contra_partida_template_id_fkey"
+            columns: ["contra_partida_template_id"]
+            isOneToOne: false
+            referencedRelation: "contra_partida_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_template_associations_objeto_contrato_template_id_fkey"
+            columns: ["objeto_contrato_template_id"]
+            isOneToOne: false
+            referencedRelation: "objeto_contrato_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
