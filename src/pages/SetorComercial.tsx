@@ -18,8 +18,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
+import { useUserRole } from "@/hooks/useUserRole";
 import { cn } from "@/lib/utils";
 import { ContractGenerator } from "@/components/ContractGenerator";
+import { ProcuracaoGenerator } from "@/components/ProcuracaoGenerator";
+import { DocumentTemplatesManager } from "@/components/DocumentTemplatesManager";
 import { 
   RefreshCw, 
   Search, 
@@ -40,7 +43,8 @@ import {
   Loader2,
   Check,
   RotateCcw,
-  Save
+  Save,
+  Settings
 } from "lucide-react";
 import { format, parse, isAfter, isBefore, isEqual, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -128,6 +132,7 @@ const generateClientQualification = (client: Client): string => {
 const SetorComercial = () => {
   const navigate = useNavigate();
   const { hasPermission, loading: permissionsLoading } = useAdminPermissions();
+  const { isAdmin } = useUserRole();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -151,6 +156,14 @@ const SetorComercial = () => {
   
   // Contract generator
   const [contractGeneratorOpen, setContractGeneratorOpen] = useState(false);
+  
+  // Procuração generator
+  const [procuracaoGeneratorOpen, setProcuracaoGeneratorOpen] = useState(false);
+  const [clientForProcuracao, setClientForProcuracao] = useState<Client | null>(null);
+  const [objetoContratoForProcuracao, setObjetoContratoForProcuracao] = useState("");
+  
+  // Document Templates Manager
+  const [templatesManagerOpen, setTemplatesManagerOpen] = useState(false);
 
   const fetchProducts = async () => {
     try {
@@ -295,11 +308,12 @@ const SetorComercial = () => {
   };
 
   const handleGenerateProcuracao = (client: Client) => {
-    const qualification = generateClientQualification(client);
-    console.log('Qualificação do cliente para procuração:', qualification);
-    toast.info(`Gerando procuração para ${client.nomeCompleto}`);
-    // TODO: Implement procuracao generation
-    // A qualificação está disponível na variável 'qualification' para ser inserida no modelo
+    const qualification = qualificationSaved && selectedClient?.id === client.id 
+      ? editedQualification 
+      : generateClientQualification(client);
+    setClientForProcuracao(client);
+    setEditedQualification(qualification);
+    setProcuracaoGeneratorOpen(true);
   };
 
   const handleGenerateDeclaracao = (client: Client) => {
@@ -342,14 +356,25 @@ const SetorComercial = () => {
               Geração de contratos e documentos a partir dos formulários de clientes
             </p>
           </div>
-          <Button 
-            onClick={() => fetchClients(true)} 
-            disabled={refreshing}
-            variant="outline"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Atualizar
-          </Button>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Button 
+                onClick={() => setTemplatesManagerOpen(true)} 
+                variant="outline"
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Modelos
+              </Button>
+            )}
+            <Button 
+              onClick={() => fetchClients(true)} 
+              disabled={refreshing}
+              variant="outline"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -943,6 +968,21 @@ const SetorComercial = () => {
         client={clientForDocument}
         productName={products.find(p => p._id === selectedProduct)?.name || ''}
         qualification={clientForDocument ? (qualificationSaved ? editedQualification : generateClientQualification(clientForDocument)) : ''}
+      />
+
+      {/* Procuração Generator Dialog */}
+      <ProcuracaoGenerator
+        open={procuracaoGeneratorOpen}
+        onOpenChange={setProcuracaoGeneratorOpen}
+        client={clientForProcuracao}
+        qualification={clientForProcuracao ? (qualificationSaved && selectedClient?.id === clientForProcuracao.id ? editedQualification : generateClientQualification(clientForProcuracao)) : ''}
+        objetoContrato={objetoContratoForProcuracao}
+      />
+
+      {/* Document Templates Manager */}
+      <DocumentTemplatesManager
+        open={templatesManagerOpen}
+        onOpenChange={setTemplatesManagerOpen}
       />
     </Layout>
   );
