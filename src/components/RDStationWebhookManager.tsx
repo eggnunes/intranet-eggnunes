@@ -43,9 +43,9 @@ export function RDStationWebhookManager() {
 
       if (error) throw error;
       
-      // Filter to show only webhooks that match our URL or are crm_deal_updated events
-      const allWebhooks = data.webhooks || [];
-      setWebhooks(allWebhooks);
+      // Ensure webhooks is always an array
+      const webhooksData = Array.isArray(data.webhooks) ? data.webhooks : [];
+      setWebhooks(webhooksData);
     } catch (error: any) {
       console.error('Error fetching webhooks:', error);
       toast.error('Erro ao carregar webhooks: ' + error.message);
