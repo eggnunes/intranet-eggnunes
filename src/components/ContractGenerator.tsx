@@ -1055,7 +1055,8 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
         // Limpar resposta: remover letras iniciais, cabeçalhos e texto introdutório
         let clausulaLimpa = response.trim()
           .replace(/^[a-z]\)\s*/i, '') // Remove letras como "a)" ou "b)"
-          .replace(/^(Cláusula Terceira|CLÁUSULA TERCEIRA)[^\n]*\n*/gi, '') // Remove cabeçalho "Cláusula Terceira"
+          .replace(/^(Cláusula Terceira|CLÁUSULA TERCEIRA)[^\n]*\n*/gi, '') // Remove cabeçalho "Cláusula Terceira" e variações
+          .replace(/^CLÁUSULA TERCEIRA\s*[–-]\s*DOS HONORÁRIOS DE ÊXITO\s*\n*/gi, '') // Remove cabeçalho com subtítulo
           .replace(/^Em remuneração pelos serviços profissionais ora contratados serão devidos honorários advocatícios da seguinte forma:\s*/gi, '') // Remove texto introdutório
           .trim();
         setExitoOptions(prev => prev.map(o => o.id === opcaoId ? { ...o, clausulaGerada: clausulaLimpa, gerando: false } : o));
