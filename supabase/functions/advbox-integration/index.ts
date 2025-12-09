@@ -1107,8 +1107,34 @@ Deno.serve(async (req) => {
       }
 
       // ========== TRANSAÇÕES FINANCEIRAS ==========
+      // Security: Financial endpoints require 'financial' permission (view or edit)
       
       case 'transactions': {
+        // Check financial permission before allowing access
+        const permCheckTransactions = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/get_admin_permission`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_ANON_KEY!,
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ _user_id: userId, _feature: 'financial' }),
+          }
+        );
+        
+        if (permCheckTransactions.ok) {
+          const permission = await permCheckTransactions.json();
+          if (permission !== 'edit' && permission !== 'view') {
+            console.log('User lacks financial permission:', userId, permission);
+            return new Response(JSON.stringify({ error: 'Permissão negada para dados financeiros' }), {
+              status: 403,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+        
         // Aceitar parâmetros de data para filtrar transações recentes
         let startDate = url.searchParams.get('start_date');
         let endDate = url.searchParams.get('end_date');
@@ -1157,6 +1183,31 @@ Deno.serve(async (req) => {
       
       // Endpoint para transações recentes (últimos N meses) - COM PAGINAÇÃO COMPLETA
       case 'transactions-recent': {
+        // Check financial permission before allowing access
+        const permCheckRecent = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/get_admin_permission`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_ANON_KEY!,
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ _user_id: userId, _feature: 'financial' }),
+          }
+        );
+        
+        if (permCheckRecent.ok) {
+          const permission = await permCheckRecent.json();
+          if (permission !== 'edit' && permission !== 'view') {
+            console.log('User lacks financial permission for transactions-recent:', userId, permission);
+            return new Response(JSON.stringify({ error: 'Permissão negada para dados financeiros' }), {
+              status: 403,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+        
         const months = parseInt(url.searchParams.get('months') || '12');
         const now = new Date();
         const startDate = new Date(now);
