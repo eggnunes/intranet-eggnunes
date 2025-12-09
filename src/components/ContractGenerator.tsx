@@ -1130,9 +1130,104 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
     return `Em remuneração pelos serviços profissionais ora contratados serão devidos honorários advocatícios da seguinte forma:\n\n${todasClausulas.join('\n\n')}`;
   };
 
-  // Gerar texto completo do contrato para preview
+  // Verificar se é contrato BSB
+  const isContratoBSB = (): boolean => {
+    return productName.toLowerCase().includes('processos bsb') || 
+           productName.toLowerCase().includes('processos de bsb') ||
+           productName.toLowerCase() === 'bsb';
+  };
+
+  // Gerar texto do contrato BSB (modelo específico)
+  const gerarTextoContratoBSB = (): string => {
+    if (!client) return "";
+    
+    const dataAtual = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+    const clausulaTerceira = gerarClausulaTerceira();
+    
+    let texto = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS\n\n`;
+    
+    // Cabeçalho com múltiplos contratados (específico BSB)
+    texto += `que entre si fazem, de um lado, como contratados, o escritório NAVES E MAC CORD ADVOGADOS, inscrito no CNPJ sob o número 52.041.973/0001-72, neste ato representado por seu sócio Guilherme Menezes Naves, OAB/DF 16.826, com escritório no endereço SHIS QI 19 Conjunto 4, Casa 10, Lago Sul, Brasília/DF, CEP 71.655-040; EGG NUNES ADVOGADOS ASSOCIADOS, inscrito no CNPJ sob o número 10.378.694/0001-59, neste ato representado por seu sócio Marcos Luiz Egg Nunes, OAB/MG 115.283, com escritório à Rua São Paulo nº 1104, 9º andar, Belo Horizonte/MG; o advogado RAFAEL EGG NUNES, OAB/MG 118.395, com mesmo endereço do escritório Egg Nunes Advogados Associados; e MARINHO E JANUÁRIO SOCIEDADE DE ADVOGADOS, inscrito no CNPJ sob o número 50.127.848/0001-54, neste ato representado por sua sócia Gabriela Almeida Marinho, OAB/MG 112.300, com escritório à Av. Augusto de Lima, nº. 655, Conj. 1209, Belo Horizonte/MG; e de outro lado, como cliente, ora contratante, ${qualification} ajustam, entre si, com fulcro no artigo 22 da Lei nº 8.906/94, mediante as seguintes cláusulas e condições, contrato de honorários advocatícios.\n\n`;
+    
+    // Cláusula Primeira - Fixa para BSB
+    texto += `Cláusula Primeira\n\n`;
+    texto += `Os Contratados comprometem-se, em cumprimento ao mandato recebido, a requerer para o(a) Contratante o reajuste dos seus vencimentos visando a correção de disparidade de tratamento e aplicação da isonomia em relação aos servidores da carreira estruturada do FNDE.\n\n`;
+    
+    // Cláusula Segunda
+    texto += `Cláusula Segunda\n\n`;
+    texto += `O(a) Contratante, que reconhece já haver recebido a orientação preventiva comportamental e jurídica para a consecução dos serviços, inclusive dos riscos sobre êxito na causa, fornecerá aos Contratados os documentos e meios necessários à comprovação processual do seu pretendido direito.\n\n`;
+    
+    // Cláusula Terceira - Honorários
+    texto += `Cláusula Terceira\n\n`;
+    texto += `${clausulaTerceira}\n\n`;
+    
+    // Parágrafos específicos BSB
+    const paragrafosBSB = [
+      'Parágrafo Primeiro - Na hipótese do(a) Contratante fazer acordo com a parte "ex-adversa", com ou sem o concurso do advogado, ou na hipótese de ser cassada a procuração outorgada (a qualquer tempo), e ainda caso não prossiga a ação por motivo que independa da vontade dos Contratados, os valores referentes aos honorários continuarão devidos.',
+      'Parágrafo Segundo - Caso o(a) Contratante queira sustentação oral em seu favor em instâncias superiores, o que é opcional em um processo, pagará o valor constante na tabela de honorários mínimos da OAB/MG vigente à época.',
+      'Parágrafo Terceiro - O não pagamento dos honorários poderá implicar na revogação dos poderes, além do acréscimo de multa de 20% sobre o total devido.',
+      'Parágrafo Quarto - O(a) Contratante autoriza, caso seja necessário, penhora em contracheque de salário/pensão em caso de não pagamento dos honorários.',
+      'Parágrafo Quinto - Caso o(a) Contratante opte por pagamento via boleto bancário, fica ciente que cada boleto terá o acréscimo de R$4,00 referente à taxas bancárias.',
+      `Parágrafo Sexto - O(a) Contratante declara estar ciente que poderá receber citação/intimação judicial através do número de telefone ${client.telefone || '[TELEFONE]'}.`
+    ];
+    
+    paragrafosBSB.forEach(p => {
+      texto += `${p}\n\n`;
+    });
+    
+    // Demais cláusulas específicas BSB
+    texto += `Cláusula Quarta\n\n`;
+    texto += `Caso o(a) Contratante opte pelo trâmite processual na justiça comum e não no Juizado Especial (que tem isenção de custas para ações com pedido de até 60 salários mínimos), pagará ainda as custas e despesas judiciais do Tribunal, além de quaisquer outras que decorrerem do serviço, mediante apresentação de demonstrativos analíticos pelos Contratados (caso haja referidas despesas e também não esteja sob justiça gratuita).\n\n`;
+    
+    texto += `Cláusula Quinta\n\n`;
+    texto += `O presente contrato pode ser executado pelos Contratados em conjunto ou separadamente por apenas um dos Contratados.\n\n`;
+    
+    texto += `Cláusula Sexta\n\n`;
+    texto += `O(a) Contratante fica ciente que os únicos canais de comunicação oficial dos Contratados são os números de telefone/WhatsApp 61-99996-2274; 31-32268742; e 31-98397-0212; sendo que os Contratados não se responsabilizam por contatos feitos por outros números desconhecidos.\n\n`;
+    
+    texto += `Cláusula Sétima\n\n`;
+    texto += `O(a) Contratante fica ciente que as informações do processo são públicas, exceto os processos em segredo de justiça, e que o Contratado não tem controle sobre elas, sendo a veiculação feita pelo respectivo Tribunal.\n\n`;
+    
+    texto += `Cláusula Oitava\n\n`;
+    texto += `Elegem as partes o foro da Comarca de domicílio do(a) Contratante para dirimir dúvidas sobre este contrato, podendo ainda os Contratados, em caso de execução do contrato, optar pelo seus foros de domicílio.\n\n`;
+    
+    texto += `E por estarem assim justos e contratados, assinam na presença de duas testemunhas para que passe a produzir todos os seus efeitos legais.\n\n`;
+    texto += `Brasília/DF, ${dataAtual}.\n\n\n`;
+    
+    // Bloco de assinaturas específico BSB (4 contratados)
+    texto += `_____________________________________\n`;
+    texto += `Contratado: NAVES E MAC CORD ADVOGADOS\n`;
+    texto += `Neste ato representado por seu sócio Guilherme Menezes Naves, OAB/DF 16.826\n\n`;
+    
+    texto += `_____________________________________\n`;
+    texto += `Contratado: EGG NUNES ADVOGADOS ASSOCIADOS\n`;
+    texto += `Neste ato representado por seu sócio Marcos Luiz Egg Nunes, OAB/MG 115.283\n\n`;
+    
+    texto += `_____________________________________\n`;
+    texto += `Contratado: MARINHO E JANUÁRIO SOCIEDADE DE ADVOGADOS\n`;
+    texto += `Neste ato representado por sua sócia Gabriela Almeida Marinho, OAB/MG 112.300\n\n`;
+    
+    texto += `_______________________________________\n`;
+    texto += `Contratado: Rafael Egg Nunes, OAB/MG 118.395\n\n`;
+    
+    texto += `________________________________________\n`;
+    texto += `Contratante: ${client.nomeCompleto.toUpperCase()}\n\n`;
+    
+    texto += `Testemunhas:\n\n`;
+    texto += `1ª) ______________________________\n\n`;
+    texto += `2ª) _____________________________\n`;
+
+    return texto;
+  };
+
+  // Gerar texto completo do contrato para preview (modelo padrão)
   const gerarTextoContrato = (): string => {
     if (!client) return "";
+    
+    // Se for contrato BSB, usar modelo específico
+    if (isContratoBSB()) {
+      return gerarTextoContratoBSB();
+    }
     
     const dataAtual = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
     const clausulaTerceira = gerarClausulaTerceira();
@@ -1191,8 +1286,17 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
   // Abrir pré-visualização
   const abrirPreview = () => {
     const firstOption = initialFeeOptions[0];
-    if (!clausulaPrimeiraGerada || (temHonorariosIniciais && (!firstOption?.valorTotal || !firstOption?.dataVencimento))) {
-      toast.error("Preencha todos os campos obrigatórios");
+    
+    // Para contratos BSB, não precisa da cláusula primeira gerada (é fixa)
+    const precisaClausulaPrimeira = !isContratoBSB();
+    
+    if (precisaClausulaPrimeira && !clausulaPrimeiraGerada) {
+      toast.error("Gere a Cláusula Primeira antes de visualizar");
+      return;
+    }
+    
+    if (temHonorariosIniciais && (!firstOption?.valorTotal || !firstOption?.dataVencimento)) {
+      toast.error("Preencha todos os campos obrigatórios dos honorários");
       return;
     }
 
@@ -1458,7 +1562,7 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
               <FileSignature className="h-5 w-5" />
-              Gerador de Contrato Padrão
+              {isContratoBSB() ? 'Gerador de Contrato - Processos BSB' : 'Gerador de Contrato Padrão'}
             </DialogTitle>
             <div className="flex items-center gap-2">
               {rascunhoExistente && (
@@ -1520,7 +1624,26 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
         
         <ScrollArea className="max-h-[70vh] pr-4">
           <div className="space-y-6 py-4">
-            {/* Cláusula Primeira - Objeto */}
+            {/* Aviso para contratos BSB */}
+            {isContratoBSB() && (
+              <Card className="border-primary/50 bg-primary/5">
+                <CardContent className="pt-4">
+                  <div className="flex items-start gap-3">
+                    <Badge variant="default" className="mt-0.5">BSB</Badge>
+                    <div className="space-y-1">
+                      <p className="font-medium text-sm">Modelo específico para Processos de Brasília</p>
+                      <p className="text-xs text-muted-foreground">
+                        Este contrato utiliza um modelo específico com múltiplos escritórios contratados e cláusula primeira fixa 
+                        (reajuste/isonomia FNDE). Apenas preencha os honorários abaixo.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
+            {/* Cláusula Primeira - Objeto (escondido para BSB) */}
+            {!isContratoBSB() && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -1770,8 +1893,9 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
                 )}
               </CardContent>
             </Card>
+            )}
             
-            <Separator />
+            {!isContratoBSB() && <Separator />}
             
             {/* Cláusula Terceira - Honorários Iniciais */}
             <Card>
