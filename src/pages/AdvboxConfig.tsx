@@ -8,6 +8,7 @@ import { Settings, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
+import { RDStationWebhookManager } from '@/components/RDStationWebhookManager';
 
 export default function AdvboxConfig() {
   const [cacheTtl, setCacheTtl] = useState(5);
@@ -191,6 +192,8 @@ export default function AdvboxConfig() {
             </p>
           </CardContent>
         </Card>
+
+        {isAdmin && <RDStationWebhookManager />}
       </div>
     </Layout>
   );
