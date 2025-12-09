@@ -257,11 +257,14 @@ Deno.serve(async (req) => {
 
     console.log(`Checking birthdays for: ${currentDay}/${currentMonth + 1}`);
 
-    // Fetch customer birthdays from Advbox
+    // Fetch customer birthdays from Advbox - pass the user token for authentication
     const { data: birthdayData, error: birthdayError } = await supabase.functions.invoke(
       'advbox-integration/customer-birthdays',
       {
         body: { force_refresh: false },
+        headers: {
+          Authorization: authHeader,
+        },
       }
     );
 
