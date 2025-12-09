@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Check, CheckCheck, Trash2, X, FileText, Target, Info, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Bell, Check, CheckCheck, Trash2, X, FileText, Target, Info, AlertTriangle, CheckCircle, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -196,11 +196,23 @@ export const NotificationsPanel = () => {
         {notifications.length > 0 && (
           <>
             <Separator />
-            <div className="p-2">
+            <div className="p-2 flex flex-col gap-1">
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full text-xs text-muted-foreground hover:text-destructive"
+                className="w-full text-xs justify-start"
+                onClick={() => {
+                  setOpen(false);
+                  navigate('/notificacoes');
+                }}
+              >
+                <ExternalLink className="h-3 w-3 mr-1" />
+                Ver todas as notificações
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-xs text-muted-foreground hover:text-destructive justify-start"
                 onClick={clearAll}
               >
                 <Trash2 className="h-3 w-3 mr-1" />
