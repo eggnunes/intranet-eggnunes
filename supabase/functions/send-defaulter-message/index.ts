@@ -242,6 +242,28 @@ serve(async (req) => {
       throw new Error('Usuário não autenticado');
     }
 
+    // Security: Verify user has admin role before allowing to send messages
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'admin')
+      .maybeSingle();
+
+    if (!roleData) {
+      console.log('Non-admin user attempted to send defaulter message:', user.id);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Acesso restrito - apenas administradores podem enviar mensagens de cobrança.' 
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 403 
+        }
+      );
+    }
+
     // Registrar no log
     const { error: logError } = await supabase
       .from('defaulter_messages_log')
