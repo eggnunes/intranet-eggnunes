@@ -53,3 +53,6 @@ verify_jwt = true
 
 [functions.rdstation-webhook]
 verify_jwt = false
+
+[functions.rd-station-webhooks]
+verify_jwt = true
