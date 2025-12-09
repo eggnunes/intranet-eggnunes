@@ -16,6 +16,28 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const advboxToken = Deno.env.get('ADVBOX_API_TOKEN');
+    const webhookSecret = Deno.env.get('RD_STATION_WEBHOOK_SECRET');
+
+    // Validate webhook secret if configured
+    if (webhookSecret) {
+      const receivedSecret = req.headers.get('X-RD-Webhook-Secret') || 
+                             req.headers.get('x-rd-webhook-secret') ||
+                             new URL(req.url).searchParams.get('secret');
+      
+      if (receivedSecret !== webhookSecret) {
+        console.error('Invalid webhook secret received');
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized - Invalid webhook secret' }),
+          { 
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      console.log('Webhook secret validated successfully');
+    } else {
+      console.warn('RD_STATION_WEBHOOK_SECRET not configured - webhook validation disabled');
+    }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
