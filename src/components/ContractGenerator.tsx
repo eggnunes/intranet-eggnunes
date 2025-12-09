@@ -1033,9 +1033,13 @@ Com base no objeto do contrato e na descrição dos honorários de êxito, redij
 2. O valor ou percentual devido
 3. Eventuais condições de pagamento
 
-IMPORTANTE: NÃO inicie com letras como "a)" ou "b)". Escreva apenas o texto da cláusula de forma direta.
+REGRAS IMPORTANTES:
+- NÃO inicie com letras como "a)" ou "b)". Escreva apenas o texto da cláusula de forma direta.
+- NÃO inclua títulos ou cabeçalhos como "Cláusula Terceira", "CLÁUSULA TERCEIRA - DOS HONORÁRIOS DE ÊXITO" ou similares.
+- NÃO inclua o texto introdutório "Em remuneração pelos serviços profissionais ora contratados serão devidos honorários advocatícios da seguinte forma:".
+- Comece diretamente com o texto da cláusula (ex: "Em caso de procedência da ação..." ou "O(a) CONTRATANTE pagará...").
 
-Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
+Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e sem cabeçalhos.`;
 
       const { data, error } = await supabase.functions.invoke('ai-assistant', {
         body: { 
@@ -1048,7 +1052,12 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
 
       const response = data?.content || data?.choices?.[0]?.message?.content;
       if (response) {
-        const clausulaLimpa = response.trim().replace(/^[a-z]\)\s*/i, '');
+        // Limpar resposta: remover letras iniciais, cabeçalhos e texto introdutório
+        let clausulaLimpa = response.trim()
+          .replace(/^[a-z]\)\s*/i, '') // Remove letras como "a)" ou "b)"
+          .replace(/^(Cláusula Terceira|CLÁUSULA TERCEIRA)[^\n]*\n*/gi, '') // Remove cabeçalho "Cláusula Terceira"
+          .replace(/^Em remuneração pelos serviços profissionais ora contratados serão devidos honorários advocatícios da seguinte forma:\s*/gi, '') // Remove texto introdutório
+          .trim();
         setExitoOptions(prev => prev.map(o => o.id === opcaoId ? { ...o, clausulaGerada: clausulaLimpa, gerando: false } : o));
         toast.success("Cláusula de honorários êxito gerada com sucesso!");
       }
