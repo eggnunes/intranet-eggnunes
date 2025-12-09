@@ -43,6 +43,7 @@ import SalaReuniao from "./pages/SalaReuniao";
 import PesquisaJurisprudencia from "./pages/PesquisaJurisprudencia";
 import AssistenteIA from "./pages/AssistenteIA";
 import SetorComercial from "./pages/SetorComercial";
+import Integracoes from "./pages/Integracoes";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -335,6 +336,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <SetorComercial />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/integracoes"
+              element={
+                <ProtectedRoute>
+                  <Integracoes />
                 </ProtectedRoute>
               }
             />

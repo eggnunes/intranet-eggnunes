@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
-import { LogOut, Home as HomeIcon, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, MoreHorizontal, Coffee, Home, UserPlus, DoorOpen, FileSignature } from 'lucide-react';
+import { LogOut, Home as HomeIcon, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, MoreHorizontal, Coffee, Home, UserPlus, DoorOpen, FileSignature, Link2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { UpdatesNotification } from '@/components/UpdatesNotification';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
@@ -232,6 +232,7 @@ export const Layout = ({ children }: LayoutProps) => {
     { icon: ClipboardIcon, path: '/solicitacoes-administrativas', label: 'Solicitações', description: 'Pedidos administrativos' },
     { icon: UserCircle, path: '/profile', label: 'Perfil', description: 'Editar perfil' },
     ...(isAdmin ? [{ icon: BarChart3, path: '/dashboard-sugestoes', label: 'Estatísticas', description: 'Dashboard de sugestões' }] : []),
+    ...(isAdmin ? [{ icon: Link2, path: '/integracoes', label: 'Integrações', description: 'Webhooks e integrações' }] : []),
     { icon: History, path: '/historico', label: 'Histórico', description: 'Histórico de uso' },
   ];
 
