@@ -44,6 +44,7 @@ import PesquisaJurisprudencia from "./pages/PesquisaJurisprudencia";
 import AssistenteIA from "./pages/AssistenteIA";
 import SetorComercial from "./pages/SetorComercial";
 import Integracoes from "./pages/Integracoes";
+import Notificacoes from "./pages/Notificacoes";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -344,6 +345,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Integracoes />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/notificacoes"
+              element={
+                <ProtectedRoute>
+                  <Notificacoes />
                 </ProtectedRoute>
               }
             />
