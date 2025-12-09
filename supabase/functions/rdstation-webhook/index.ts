@@ -23,14 +23,45 @@ serve(async (req) => {
     const payload = await req.json();
     console.log('RD Station webhook received:', JSON.stringify(payload, null, 2));
 
+    // Verificar se o negócio foi marcado como "ganho"
+    // RD Station envia different estruturas dependendo da configuração
+    const dealStage = payload.deal?.deal_stage?.name?.toLowerCase() || 
+                      payload.deal_stage?.name?.toLowerCase() || 
+                      payload.stage?.name?.toLowerCase() ||
+                      '';
+    const isWon = payload.deal?.win === true || 
+                  payload.win === true ||
+                  dealStage.includes('ganho') ||
+                  dealStage.includes('ganhou') ||
+                  dealStage.includes('won') ||
+                  dealStage.includes('fechado') ||
+                  dealStage.includes('convertido');
+
+    console.log('Deal stage:', dealStage, 'Is won:', isWon);
+
+    // Se não for um negócio ganho, apenas retornar sucesso sem processar
+    if (!isWon) {
+      console.log('Deal not won, skipping notifications');
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Webhook received but deal not won - no notifications sent',
+          deal_stage: dealStage
+        }),
+        { 
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
     // RD Station webhook structure for won deals
-    // Pode variar dependendo da configuração do webhook
     const dealName = payload.deal?.name || payload.name || 'Contrato não identificado';
     const clientName = payload.contact?.name || payload.deal?.contact?.name || 'Cliente';
     const productName = payload.deal?.deal_products?.[0]?.name || payload.product_name || 'Produto não especificado';
     const dealValue = payload.deal?.value || payload.value || 0;
 
-    console.log('Deal info:', { dealName, clientName, productName, dealValue });
+    console.log('Processing WON deal:', { dealName, clientName, productName, dealValue });
 
     // 1. Buscar todos os usuários administrativos para notificar
     const { data: adminUsers, error: adminError } = await supabase
