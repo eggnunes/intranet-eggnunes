@@ -1232,47 +1232,49 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
     const dataAtual = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
     const clausulaTerceira = gerarClausulaTerceira();
     
-    const paragrafos = [
-      'Parágrafo Primeiro - Na hipótese do(a) Contratante fazer acordo com a parte "ex-adversa", com ou sem o concurso do advogado, ou na hipótese de ser cassada a procuração outorgada (a qualquer tempo), e ainda caso não prossiga a ação por motivo que independa da vontade dos Contratados, os valores referentes aos honorários continuarão devidos.',
-      'Parágrafo Segundo – Caso o(a) Contratante queira sustentação oral em seu favor em instâncias superiores, o que é opcional em um processo, pagará o valor constante na tabela de honorários mínimos da OAB/MG vigente à época.',
-      'Parágrafo Terceiro - O não pagamento de qualquer prestação, caso haja parcelamento dos honorários, implicará na revogação dos poderes, além do acréscimo de multa de 20% sobre o devido para o caso da necessidade de cobrança judicial.',
-      'Parágrafo Quarto – O atraso no pagamento de qualquer parcela, caso tenha optado pelo pagamento parcelado, acarretará o vencimento antecipado das demais - que poderão ser cobradas judicialmente.',
-      'Parágrafo Quinto – Ficam os herdeiros do(a) Contratante comprometidos também ao pagamento dos valores acordados neste contrato em eventual ausência do(a) Contratante quando do recebimento.',
-      'Parágrafo Sexto - O(a) Contratante autoriza, caso seja necessário, penhora em contracheque de salário/pensão em caso de não pagamento dos honorários.',
-      'Parágrafo Sétimo – Caso o(a) Contratante tenha optado por pagamento via boleto bancário, fica ciente que cada boleto terá o acréscimo de R$4,00 referente à taxas bancárias.',
-      'Parágrafo Oitavo – Na hipótese de desistência pelo(a) Contratante após assinatura deste contrato, e antes do ingresso da ação, serão devidos honorários de R$500,00 (quinhentos reais) a título de consultoria prestada.',
-      `Parágrafo Nono - O(a) Contratante declara estar ciente que poderá receber citação/intimação judicial através do número de telefone ${client.telefone || '[TELEFONE]'}.`
-    ];
-    
-    const demaisClausulas = [
-      { titulo: 'Cláusula Quarta', texto: 'Os honorários de condenação (sucumbência), se houver, pertencerão aos Contratados, sem exclusão dos que ora são combinados, em conformidade com os artigos 23 da Lei nº 8.906/94 e 35, parágrafo 1º, do Código de Ética e Disciplina da Ordem dos Advogados do Brasil.' },
-      { titulo: 'Cláusula Quinta', texto: 'O(a) Contratante obriga-se a informar aos Contratados qualquer mudança de endereço residencial e/ou comercial, telefone residencial, comercial ou celular e endereço eletrônico (e-mail), sob pena de se dar por válida a intimação/comunicação realizada pelos advogados ao endereço residencial e/ou eletrônico constante deste contrato, que é expressamente aceito como domicílio do(a) Contratante.' },
-      { titulo: 'Cláusula Sexta', texto: 'Eleito para o presente contrato, para dirimir dúvidas e/ou pendências dele decorrentes, o foro da comarca de Belo Horizonte-MG, renunciando as partes a qualquer outro, por mais privilegiado que seja.' },
-    ];
-
     let texto = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS\n\n`;
-    texto += `CONTRATANTE: ${qualification}\n\n`;
-    texto += `CONTRATADOS: EGG NUNES SOCIEDADE INDIVIDUAL DE ADVOCACIA, inscrita no CNPJ sob o nº 10.378.694/0001-59, com sede na Praça Sete de Setembro, 228, sala 215, Centro, Belo Horizonte-MG, CEP: 30160-001, representada pelo sócio IGOR LIMA EGG NUNES, OAB/MG 142.116.\n\n`;
-    texto += `Têm entre si justo e contratado a prestação de serviços advocatícios, mediante as cláusulas e condições seguintes:\n\n`;
-    texto += `CLÁUSULA PRIMEIRA - DO OBJETO\n\n`;
-    texto += `${clausulaPrimeiraGerada || 'Os Contratados comprometem-se, em cumprimento ao mandato recebido, a requerer para o(a) Contratante, em face do [PARTE CONTRÁRIA], a [OBJETO DO CONTRATO].'}\n\n`;
-    texto += `CLÁUSULA SEGUNDA - DAS OBRIGAÇÕES\n\n`;
-    texto += `Os Contratados se obrigam a fornecer ao(à) Contratante todos os esclarecimentos sobre a evolução do feito judicial, bem como deixar à sua disposição, sempre que solicitado, os documentos pertinentes ao processo, desde que para conferência, incumbindo ao(à) Contratante dar ciência aos Contratados sobre qualquer notícia pertinente à demanda de que venha a ter conhecimento.\n\n`;
-    texto += `CLÁUSULA TERCEIRA - DOS HONORÁRIOS\n\n`;
+    texto += `que entre si fazem, de um lado, como contratados, o escritório EGG NUNES ADVOGADOS ASSOCIADOS, inscrito no CNPJ sob o número 10.378.694/0001-59, neste ato representado por seu sócio Marcos Luiz Egg Nunes, OAB/MG 115.283, com escritório à Rua São Paulo nº 1104 / 9º andar – Belo Horizonte/MG, e o advogado RAFAEL EGG NUNES, OAB/MG 118.395, também com endereço à Rua São Paulo nº 1104 / 9º andar – Belo Horizonte/MG; e de outro lado, como cliente, ora contratante, ${qualification}, ajustam, entre si, com fulcro no artigo 22 da Lei nº 8.906/94, mediante as seguintes cláusulas e condições, contrato de honorários advocatícios.\n\n`;
+    
+    texto += `Cláusula Primeira\n\n`;
+    texto += `${clausulaPrimeiraGerada || 'Os Contratados comprometem-se, em cumprimento ao mandato recebido, a requerer para o(a) Contratante, em face do …………………, a ………………………………..'}\n\n`;
+    texto += `Parágrafo Único - A atuação compreende o processo de forma completa, inclusive eventuais e cabíveis fases recursais.\n\n`;
+    
+    texto += `Cláusula Segunda\n\n`;
+    texto += `O(a) Contratante, que reconhece já haver recebido a orientação preventiva comportamental e jurídica para a consecução dos serviços, inclusive dos riscos sobre êxito na causa, fornecerá aos Contratados os documentos e meios necessários à comprovação processual do seu pretendido direito.\n\n`;
+    
+    texto += `Cláusula Terceira\n\n`;
+    texto += `Em remuneração pelos serviços profissionais ora contratados serão devidos honorários advocatícios da seguinte forma:\n\n`;
     texto += `${clausulaTerceira}\n\n`;
-    paragrafos.forEach(p => {
-      texto += `${p}\n\n`;
-    });
-    demaisClausulas.forEach(c => {
-      texto += `${c.titulo.toUpperCase()}\n\n${c.texto}\n\n`;
-    });
+    
+    texto += `Parágrafo Primeiro - Na hipótese do(a) Contratante fazer acordo com a parte "ex-adversa", com ou sem o concurso do advogado, ou na hipótese de ser cassada a procuração outorgada (a qualquer tempo), e ainda caso não prossiga a ação por motivo que independa da vontade dos Contratados, os valores referentes aos honorários continuarão devidos.\n\n`;
+    texto += `Parágrafo Segundo – Caso o(a) Contratante queira sustentação oral em seu favor em instâncias superiores, o que é opcional em um processo, pagará o valor constante na tabela de honorários mínimos da OAB/MG vigente à época.\n\n`;
+    texto += `Parágrafo Terceiro - O não pagamento de qualquer prestação, caso haja parcelamento dos honorários, implicará na revogação dos poderes, além do acréscimo de multa de 20% sobre o devido para o caso da necessidade de cobrança judicial.\n\n`;
+    texto += `Parágrafo Quarto – O atraso no pagamento de qualquer parcela, caso tenha optado pelo pagamento parcelado, acarretará o vencimento antecipado das demais - que poderão ser cobradas judicialmente.\n\n`;
+    texto += `Parágrafo Quinto – Ficam os herdeiros do(a) Contratante comprometidos também ao pagamento dos valores acordados neste contrato em eventual ausência do(a) Contratante quando do recebimento.\n\n`;
+    texto += `Parágrafo Sexto - O(a) Contratante autoriza, caso seja necessário, penhora em contracheque de salário/pensão em caso de não pagamento dos honorários.\n\n`;
+    texto += `Parágrafo Sétimo – Caso o(a) Contratante tenha optado por pagamento via boleto bancário, fica ciente que cada boleto terá o acréscimo de R$4,00 referente à taxas bancárias.\n\n`;
+    texto += `Parágrafo Oitavo – Na hipótese de desistência pelo(a) Contratante após assinatura deste contrato, e antes do ingresso da ação, serão devidos honorários de R$500,00 (quinhentos reais) a título de consultoria prestada.\n\n`;
+    texto += `Parágrafo Nono - O(a) Contratante declara estar ciente que poderá receber citação/intimação judicial através do número de telefone ${client.telefone || '[telefone do cliente]'}.\n\n`;
+    
+    texto += `Cláusula Quarta\n\n`;
+    texto += `Os honorários de condenação (sucumbência), se houver, pertencerão aos Contratados, sem exclusão dos que ora são combinados, em conformidade com os artigos 23 da Lei nº 8.906/94 e 35, parágrafo 1º, do Código de Ética e Disciplina da Ordem dos Advogados do Brasil.\n\n`;
+    
+    texto += `Cláusula Quinta\n\n`;
+    texto += `O(a) Contratante pagará ainda as custas e despesas judiciais, além de quaisquer outras que decorrerem do serviço, mediante apresentação de demonstrativos analíticos pelos Contratados (caso haja referidas despesas).\n\n`;
+    
+    texto += `Cláusula Sexta\n\n`;
+    texto += `O(a) Contratante obriga-se a informar aos Contratados qualquer mudança de endereço residencial e/ou comercial, telefone residencial, comercial ou celular e endereço eletrônico (e-mail), sob pena de se dar por válida a intimação/comunicação realizada pelos advogados ao endereço residencial e/ou eletrônico constante deste contrato, que é expressamente aceito como domicílio do(a) Contratante.\n\n`;
+    
+    texto += `Cláusula Sétima\n\n`;
+    texto += `Eleito para o presente contrato, para dirimir dúvidas e/ou pendências dele decorrentes, o foro da comarca de Belo Horizonte-MG, renunciando as partes a qualquer outro, por mais privilegiado que seja.\n\n`;
+    
     texto += `E por estarem assim justos e contratados, assinam o presente instrumento, em duas vias de igual teor e forma, juntamente com duas testemunhas.\n\n`;
     texto += `Belo Horizonte, ${dataAtual}.\n\n\n`;
     texto += `_______________________________________\n`;
     texto += `${client.nomeCompleto.toUpperCase()}\n`;
     texto += `CONTRATANTE\n\n\n`;
     texto += `_______________________________________\n`;
-    texto += `EGG NUNES SOCIEDADE INDIVIDUAL DE ADVOCACIA\n`;
+    texto += `EGG NUNES ADVOGADOS ASSOCIADOS\n`;
     texto += `CONTRATADOS\n\n\n`;
     texto += `TESTEMUNHAS:\n\n`;
     texto += `1. _______________________________________\n`;
