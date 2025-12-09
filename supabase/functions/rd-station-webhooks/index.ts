@@ -39,8 +39,11 @@ serve(async (req) => {
       const data = await response.json();
       console.log('Webhooks listed:', data);
       
+      // RD Station returns { webhooks: [...] } - extract the array
+      const webhooksArray = data.webhooks || data || [];
+      
       return new Response(
-        JSON.stringify({ webhooks: data }),
+        JSON.stringify({ webhooks: webhooksArray }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
