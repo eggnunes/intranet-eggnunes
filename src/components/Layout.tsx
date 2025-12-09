@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { LogOut, Home as HomeIcon, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, MoreHorizontal, Coffee, Home, UserPlus, DoorOpen, FileSignature } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { UpdatesNotification } from '@/components/UpdatesNotification';
+import { NotificationsPanel } from '@/components/NotificationsPanel';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
@@ -442,6 +443,7 @@ export const Layout = ({ children }: LayoutProps) => {
               </nav>
             </div>
             <div className="flex items-center gap-2 md:gap-4">
+              <NotificationsPanel />
               <UpdatesNotification />
               <ThemeToggle />
               <div className="text-sm text-muted-foreground hidden md:flex items-center gap-2">
