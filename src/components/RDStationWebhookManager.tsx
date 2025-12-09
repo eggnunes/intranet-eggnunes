@@ -32,7 +32,7 @@ export function RDStationWebhookManager() {
   const [webhookToDelete, setWebhookToDelete] = useState<string | null>(null);
 
   const supabaseUrl = "https://igzcajgwqfpcgybxanjo.supabase.co";
-  const expectedWebhookUrl = `${supabaseUrl}/functions/v1/rdstation-webhook`;
+  const baseWebhookUrl = `${supabaseUrl}/functions/v1/rdstation-webhook`;
 
   const fetchWebhooks = async () => {
     setLoading(true);
@@ -111,10 +111,17 @@ export function RDStationWebhookManager() {
     fetchWebhooks();
   }, []);
 
+  // Check if webhook belongs to our intranet (URL starts with our base URL)
   const isOurWebhook = (webhook: RDStationWebhook) => 
-    webhook.url === expectedWebhookUrl && webhook.event_type === 'crm_deal_updated';
+    webhook.url.startsWith(baseWebhookUrl) && webhook.event_type === 'crm_deal_updated';
+  
+  // Check if webhook has secret configured (URL contains ?secret=)
+  const hasSecureWebhook = (webhook: RDStationWebhook) =>
+    isOurWebhook(webhook) && webhook.url.includes('?secret=');
 
-  const hasOurWebhook = webhooks.some(isOurWebhook);
+  const ourWebhooks = webhooks.filter(isOurWebhook);
+  const hasOurWebhook = ourWebhooks.length > 0;
+  const isSecure = ourWebhooks.some(hasSecureWebhook);
 
   return (
     <Card>
@@ -142,12 +149,21 @@ export function RDStationWebhookManager() {
         {/* Status */}
         <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
           {hasOurWebhook ? (
-            <>
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              <span className="text-sm font-medium text-green-700 dark:text-green-400">
-                Webhook configurado e ativo
-              </span>
-            </>
+            isSecure ? (
+              <>
+                <CheckCircle className="h-5 w-5 text-green-500" />
+                <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                  Webhook configurado e protegido com senha
+                </span>
+              </>
+            ) : (
+              <>
+                <AlertCircle className="h-5 w-5 text-amber-500" />
+                <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                  Webhook ativo, mas sem proteção de senha
+                </span>
+              </>
+            )
           ) : (
             <>
               <AlertCircle className="h-5 w-5 text-amber-500" />
@@ -158,8 +174,8 @@ export function RDStationWebhookManager() {
           )}
         </div>
 
-        {/* Create button */}
-        {!hasOurWebhook && (
+        {/* Create/Recreate button */}
+        {!hasOurWebhook ? (
           <Button onClick={createWebhook} disabled={creating} className="w-full">
             {creating ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -168,7 +184,13 @@ export function RDStationWebhookManager() {
             )}
             Criar Webhook de Fechamento de Contrato
           </Button>
-        )}
+        ) : !isSecure ? (
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              O webhook atual não tem a senha de segurança. Delete o webhook antigo e crie um novo para adicionar a proteção.
+            </p>
+          </div>
+        ) : null}
 
         {/* Webhooks list */}
         {loading ? (
@@ -186,7 +208,7 @@ export function RDStationWebhookManager() {
                 }`}
               >
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <Badge variant={isOurWebhook(webhook) ? "default" : "secondary"}>
                       {webhook.event_type}
                     </Badge>
@@ -194,9 +216,14 @@ export function RDStationWebhookManager() {
                     {isOurWebhook(webhook) && (
                       <Badge className="bg-green-500">Intranet</Badge>
                     )}
+                    {hasSecureWebhook(webhook) && (
+                      <Badge className="bg-blue-500">Protegido</Badge>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground truncate">
-                    {webhook.url}
+                    {webhook.url.includes('?secret=') 
+                      ? webhook.url.split('?')[0] + '?secret=***' 
+                      : webhook.url}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     ID: {webhook.uuid}

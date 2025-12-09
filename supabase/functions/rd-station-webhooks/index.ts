@@ -27,7 +27,16 @@ serve(async (req) => {
 
     const baseUrl = 'https://crm.rdstation.com/api/v1/webhooks';
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const webhookUrl = `${supabaseUrl}/functions/v1/rdstation-webhook`;
+    const webhookSecret = Deno.env.get('RD_STATION_WEBHOOK_SECRET');
+    
+    // Build webhook URL with secret if configured
+    let webhookUrl = `${supabaseUrl}/functions/v1/rdstation-webhook`;
+    if (webhookSecret) {
+      webhookUrl = `${webhookUrl}?secret=${encodeURIComponent(webhookSecret)}`;
+      console.log('Webhook URL will include security secret');
+    } else {
+      console.warn('RD_STATION_WEBHOOK_SECRET not configured - webhook will be unprotected');
+    }
 
     if (action === 'list') {
       // List all webhooks
