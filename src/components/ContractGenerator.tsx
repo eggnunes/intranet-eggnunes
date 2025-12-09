@@ -1243,7 +1243,6 @@ Retorne APENAS a cláusula reescrita, sem explicações adicionais.`;
     texto += `O(a) Contratante, que reconhece já haver recebido a orientação preventiva comportamental e jurídica para a consecução dos serviços, inclusive dos riscos sobre êxito na causa, fornecerá aos Contratados os documentos e meios necessários à comprovação processual do seu pretendido direito.\n\n`;
     
     texto += `Cláusula Terceira\n\n`;
-    texto += `Em remuneração pelos serviços profissionais ora contratados serão devidos honorários advocatícios da seguinte forma:\n\n`;
     texto += `${clausulaTerceira}\n\n`;
     
     texto += `Parágrafo Primeiro - Na hipótese do(a) Contratante fazer acordo com a parte "ex-adversa", com ou sem o concurso do advogado, ou na hipótese de ser cassada a procuração outorgada (a qualquer tempo), e ainda caso não prossiga a ação por motivo que independa da vontade dos Contratados, os valores referentes aos honorários continuarão devidos.\n\n`;
