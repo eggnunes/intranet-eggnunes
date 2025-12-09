@@ -223,6 +223,7 @@ export const Layout = ({ children }: LayoutProps) => {
   ];
 
   const maisMenuItems = [
+    { icon: Bell, path: '/notificacoes', label: 'Notificações', description: 'Suas notificações' },
     { icon: Megaphone, path: '/mural-avisos', label: 'Mural de Avisos', description: 'Comunicados e eventos' },
     { icon: DoorOpen, path: '/sala-reuniao', label: 'Sala de Reunião', description: 'Reservar sala' },
     { icon: MessageSquare, path: '/forum', label: 'Fórum', description: 'Discussões da equipe' },
