@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
-import { LogOut, Home as HomeIcon, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, MoreHorizontal, Coffee, Home, UserPlus, DoorOpen, FileSignature, Link2 } from 'lucide-react';
+import { LogOut, Home as HomeIcon, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, MoreHorizontal, Coffee, Home, UserPlus, DoorOpen, FileSignature, Link2, Target } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { UpdatesNotification } from '@/components/UpdatesNotification';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
@@ -224,6 +224,7 @@ export const Layout = ({ children }: LayoutProps) => {
 
   const maisMenuItems = [
     { icon: Bell, path: '/notificacoes', label: 'Notificações', description: 'Suas notificações' },
+    { icon: Target, path: '/lead-tracking', label: 'Tracking de Leads', description: 'UTMs e formulários' },
     { icon: Megaphone, path: '/mural-avisos', label: 'Mural de Avisos', description: 'Comunicados e eventos' },
     { icon: DoorOpen, path: '/sala-reuniao', label: 'Sala de Reunião', description: 'Reservar sala' },
     { icon: MessageSquare, path: '/forum', label: 'Fórum', description: 'Discussões da equipe' },
