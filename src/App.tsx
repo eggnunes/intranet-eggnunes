@@ -45,6 +45,7 @@ import AssistenteIA from "./pages/AssistenteIA";
 import SetorComercial from "./pages/SetorComercial";
 import Integracoes from "./pages/Integracoes";
 import Notificacoes from "./pages/Notificacoes";
+import LeadTracking from "./pages/LeadTracking";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -353,6 +354,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Notificacoes />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/lead-tracking"
+              element={
+                <ProtectedRoute>
+                  <LeadTracking />
                 </ProtectedRoute>
               }
             />

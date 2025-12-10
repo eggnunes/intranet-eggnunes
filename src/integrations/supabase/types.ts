@@ -456,6 +456,74 @@ export type Database = {
         }
         Relationships: []
       }
+      captured_leads: {
+        Row: {
+          created_at: string
+          email: string | null
+          form_id: string | null
+          id: string
+          ip_address: string | null
+          landing_page: string | null
+          name: string
+          phone: string
+          rd_station_sync_error: string | null
+          rd_station_synced: boolean | null
+          referrer: string | null
+          user_agent: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          form_id?: string | null
+          id?: string
+          ip_address?: string | null
+          landing_page?: string | null
+          name: string
+          phone: string
+          rd_station_sync_error?: string | null
+          rd_station_synced?: boolean | null
+          referrer?: string | null
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          form_id?: string | null
+          id?: string
+          ip_address?: string | null
+          landing_page?: string | null
+          name?: string
+          phone?: string
+          rd_station_sync_error?: string | null
+          rd_station_synced?: boolean | null
+          referrer?: string | null
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "captured_leads_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "lead_capture_forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chatguru_birthday_messages_log: {
         Row: {
           chatguru_message_id: string | null
@@ -1322,6 +1390,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      lead_capture_forms: {
+        Row: {
+          campaign_id: string | null
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean | null
+          name: string
+          redirect_to_whatsapp: boolean | null
+          updated_at: string
+          whatsapp_message: string | null
+          whatsapp_number: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          redirect_to_whatsapp?: boolean | null
+          updated_at?: string
+          whatsapp_message?: string | null
+          whatsapp_number: string
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          redirect_to_whatsapp?: boolean | null
+          updated_at?: string
+          whatsapp_message?: string | null
+          whatsapp_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_capture_forms_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "utm_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       meeting_room_bookings: {
         Row: {
@@ -2632,6 +2747,51 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      utm_campaigns: {
+        Row: {
+          base_url: string
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          updated_at: string
+          utm_campaign: string
+          utm_content: string | null
+          utm_medium: string
+          utm_source: string
+          utm_term: string | null
+          whatsapp_number: string | null
+        }
+        Insert: {
+          base_url: string
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          updated_at?: string
+          utm_campaign: string
+          utm_content?: string | null
+          utm_medium: string
+          utm_source: string
+          utm_term?: string | null
+          whatsapp_number?: string | null
+        }
+        Update: {
+          base_url?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          utm_campaign?: string
+          utm_content?: string | null
+          utm_medium?: string
+          utm_source?: string
+          utm_term?: string | null
+          whatsapp_number?: string | null
         }
         Relationships: []
       }
