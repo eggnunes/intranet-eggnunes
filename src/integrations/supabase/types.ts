@@ -469,6 +469,7 @@ export type Database = {
           landing_page: string | null
           name: string
           phone: string
+          product_name: string | null
           rd_station_sync_error: string | null
           rd_station_synced: boolean | null
           referrer: string | null
@@ -488,6 +489,7 @@ export type Database = {
           landing_page?: string | null
           name: string
           phone: string
+          product_name?: string | null
           rd_station_sync_error?: string | null
           rd_station_synced?: boolean | null
           referrer?: string | null
@@ -507,6 +509,7 @@ export type Database = {
           landing_page?: string | null
           name?: string
           phone?: string
+          product_name?: string | null
           rd_station_sync_error?: string | null
           rd_station_synced?: boolean | null
           referrer?: string | null
@@ -1391,6 +1394,33 @@ export type Database = {
           query?: string
           response?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      landing_page_product_mappings: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          product_name: string
+          updated_at: string
+          url_pattern: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          product_name: string
+          updated_at?: string
+          url_pattern: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          product_name?: string
+          updated_at?: string
+          url_pattern?: string
         }
         Relationships: []
       }
