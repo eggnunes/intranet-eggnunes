@@ -39,6 +39,7 @@ interface AdminPermissionRecord {
   perm_admin_requests: string;
   perm_task_rules: string;
   perm_recruitment: string;
+  perm_lead_tracking: string;
 }
 
 interface GroupPermission {
@@ -62,6 +63,7 @@ interface GroupPermission {
   perm_admin_requests: string;
   perm_task_rules: string;
   perm_recruitment: string;
+  perm_lead_tracking: string;
 }
 
 const PERMISSION_FEATURES = [
@@ -82,6 +84,7 @@ const PERMISSION_FEATURES = [
   { key: 'admin_requests', label: 'Solicitações Admin' },
   { key: 'task_rules', label: 'Regras de Tarefas' },
   { key: 'recruitment', label: 'Contratação' },
+  { key: 'lead_tracking', label: 'Tracking de Leads' },
 ];
 
 const PERMISSION_LEVELS = [

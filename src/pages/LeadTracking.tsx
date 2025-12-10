@@ -1,13 +1,48 @@
-import { useState } from 'react';
 import { Layout } from '@/components/Layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Link2, BarChart3, FileText, Target } from 'lucide-react';
+import { Link2, BarChart3, FileText, Target, ShieldAlert } from 'lucide-react';
 import { UTMGenerator } from '@/components/UTMGenerator';
 import { LeadFormsManager } from '@/components/LeadFormsManager';
 import { LeadsDashboard } from '@/components/LeadsDashboard';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 
 export default function LeadTracking() {
+  const { canView, loading } = useAdminPermissions();
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="min-h-[50vh] flex items-center justify-center">
+          <div className="text-muted-foreground">Carregando...</div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!canView('lead_tracking')) {
+    return (
+      <Layout>
+        <div className="space-y-6">
+          <Card className="border-destructive/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <ShieldAlert className="h-5 w-5" />
+                Acesso Restrito
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Você não tem permissão para acessar esta página. 
+                Esta funcionalidade está disponível apenas para sócios.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="space-y-6">
