@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bell } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -103,7 +103,7 @@ export const UpdatesNotification = () => {
     <Sheet open={isOpen} onOpenChange={handleOpenChange}>
       <SheetTrigger asChild>
         <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
+          <Sparkles className="h-5 w-5" />
           {unreadCount > 0 && (
             <Badge 
               variant="destructive" 
@@ -117,7 +117,7 @@ export const UpdatesNotification = () => {
       <SheetContent side="right" className="w-[400px] max-w-[90vw] sm:w-[540px] sm:max-w-[540px] z-[100]">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5" />
+            <Sparkles className="h-5 w-5" />
             Atualizações da Intranet
           </SheetTitle>
           <SheetDescription>
