@@ -51,6 +51,32 @@ serve(async (req) => {
                        req.headers.get('x-real-ip') || 
                        'unknown';
 
+    // Find matching product based on landing page URL
+    let product_name: string | null = null;
+    if (landing_page) {
+      console.log('Checking URL mappings for:', landing_page);
+      
+      const { data: mappings } = await supabase
+        .from('landing_page_product_mappings')
+        .select('url_pattern, product_name');
+      
+      if (mappings && mappings.length > 0) {
+        // Find matching pattern (check if landing_page contains the pattern)
+        const match = mappings.find(m => {
+          const pattern = m.url_pattern.toLowerCase();
+          const url = landing_page.toLowerCase();
+          // Support both exact match and contains
+          return url.includes(pattern) || 
+                 url.match(new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+        });
+        
+        if (match) {
+          product_name = match.product_name;
+          console.log('Matched product:', product_name, 'for URL pattern:', match.url_pattern);
+        }
+      }
+    }
+
     // Save lead to database
     const { data: lead, error: insertError } = await supabase
       .from('captured_leads')
@@ -68,6 +94,7 @@ serve(async (req) => {
         referrer: referrer || null,
         user_agent: user_agent || null,
         ip_address,
+        product_name,
         rd_station_synced: false,
       })
       .select()
@@ -81,7 +108,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Lead saved:', lead.id);
+    console.log('Lead saved:', lead.id, 'Product:', product_name);
 
     // Sync with RD Station if token is available
     let rdStationSynced = false;
@@ -103,6 +130,7 @@ serve(async (req) => {
             cf_utm_content: utm_content || undefined,
             cf_utm_term: utm_term || undefined,
             cf_landing_page: landing_page || undefined,
+            cf_produto: product_name || undefined,
           }
         };
 
@@ -162,6 +190,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         lead_id: lead.id,
+        product_name,
         rd_station_synced: rdStationSynced,
         whatsapp_url: whatsappUrl,
       }),
