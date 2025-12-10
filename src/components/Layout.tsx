@@ -1,9 +1,8 @@
-import { ReactNode, useEffect, useState, useMemo } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { LogOut, Home as HomeIcon, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, Coffee, Home, UserPlus, DoorOpen, FileSignature, Link2, Target, Bot, Brain, Search as SearchIcon, Sparkles, Settings, FileText } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { UpdatesNotification } from '@/components/UpdatesNotification';
@@ -241,7 +240,7 @@ export const Layout = ({ children }: LayoutProps) => {
     { icon: Bot, path: '/assistente-ia', label: 'Assistente IA', description: 'Chat com inteligência artificial' },
     { icon: Sparkles, path: '/agentes-ia', label: 'Agentes de IA', description: 'Agentes especializados' },
     { icon: SearchIcon, path: '/pesquisa-jurisprudencia', label: 'Pesquisa Jurisprudência', description: 'Busca em jurisprudência' },
-    { icon: FileText, path: '/rotadoc', label: 'RotaDoc', description: 'Organização de documentos' },
+    { icon: FileText, path: '/tools/rotadoc', label: 'RotaDoc', description: 'Organização de documentos' },
   ];
 
   const comunicacaoMenuItems = [
@@ -272,7 +271,7 @@ export const Layout = ({ children }: LayoutProps) => {
   ];
 
   // All searchable items for global search
-  const allSearchableItems = useMemo(() => [
+  const allSearchableItems = [
     { icon: HomeIcon, path: '/dashboard', label: 'Dashboard', description: 'Página inicial', category: 'Geral' },
     { icon: FileSignature, path: '/setor-comercial', label: 'Setor Comercial', description: 'Geração de contratos', category: 'Geral' },
     ...advboxMenuItems.map(item => ({ ...item, category: 'Advbox' })),
@@ -282,7 +281,7 @@ export const Layout = ({ children }: LayoutProps) => {
     ...escritorioMenuItems.map(item => ({ ...item, category: 'Escritório' })),
     ...minhaContaMenuItems.map(item => ({ ...item, category: 'Minha Conta' })),
     ...configuracoesMenuItems.map(item => ({ ...item, category: 'Configurações' })),
-  ], [advboxMenuItems, rhMenuItems, iaMenuItems, comunicacaoMenuItems, escritorioMenuItems, minhaContaMenuItems, configuracoesMenuItems]);
+  ];
 
   const handleSearchSelect = (path: string) => {
     setSearchOpen(false);
