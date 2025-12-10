@@ -458,7 +458,7 @@ export const Layout = ({ children }: LayoutProps) => {
                 <Button 
                   variant="ghost" 
                   onClick={() => navigate('/dashboard')}
-                  className="gap-2"
+                  className="gap-1.5"
                   size="sm"
                 >
                   <HomeIcon className="w-4 h-4" />
@@ -532,187 +532,138 @@ export const Layout = ({ children }: LayoutProps) => {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
+                {/* Menu "Mais" com IA, Comunicação, Escritório, Conta, Configurações */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="gap-1" size="sm">
-                      <Brain className="w-4 h-4" />
-                      IA
-                      <ChevronDown className="w-3 h-3" />
+                    <Button variant="ghost" className="gap-1 relative" size="sm">
+                      <ChevronDown className="w-4 h-4" />
+                      Mais
+                      {pendingUsersCount > 0 && (
+                        <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px]">{pendingUsersCount}</Badge>
+                      )}
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-56 bg-card border-border z-50">
-                    <DropdownMenuLabel>Inteligência Artificial</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
+                  <DropdownMenuContent align="start" className="w-64 bg-card border-border z-50">
+                    {/* IA */}
+                    <DropdownMenuLabel className="flex items-center gap-2">
+                      <Brain className="w-4 h-4" />
+                      Inteligência Artificial
+                    </DropdownMenuLabel>
                     {iaMenuItems.map((item) => (
                       <DropdownMenuItem 
                         key={item.path}
                         onClick={() => navigate(item.path)}
-                        className="gap-2 cursor-pointer"
+                        className="gap-2 cursor-pointer pl-6"
                       >
                         <item.icon className="w-4 h-4" />
-                        <div className="flex flex-col">
-                          <span className="font-medium">{item.label}</span>
-                          <span className="text-xs text-muted-foreground">{item.description}</span>
-                        </div>
+                        <span>{item.label}</span>
                       </DropdownMenuItem>
                     ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="gap-1" size="sm">
+                    
+                    <DropdownMenuSeparator />
+                    
+                    {/* Comunicação */}
+                    <DropdownMenuLabel className="flex items-center gap-2">
                       <Megaphone className="w-4 h-4" />
                       Comunicação
-                      <ChevronDown className="w-3 h-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-56 bg-card border-border z-50">
-                    <DropdownMenuLabel>Comunicação</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
+                    </DropdownMenuLabel>
                     {comunicacaoMenuItems.map((item) => (
                       <DropdownMenuItem 
                         key={item.path}
                         onClick={() => navigate(item.path)}
-                        className="gap-2 cursor-pointer"
+                        className="gap-2 cursor-pointer pl-6"
                       >
                         <item.icon className="w-4 h-4" />
-                        <div className="flex flex-col">
-                          <span className="font-medium">{item.label}</span>
-                          <span className="text-xs text-muted-foreground">{item.description}</span>
-                        </div>
+                        <span>{item.label}</span>
                       </DropdownMenuItem>
                     ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="gap-1" size="sm">
+                    
+                    <DropdownMenuSeparator />
+                    
+                    {/* Escritório */}
+                    <DropdownMenuLabel className="flex items-center gap-2">
                       <DoorOpen className="w-4 h-4" />
                       Escritório
-                      <ChevronDown className="w-3 h-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-56 bg-card border-border z-50">
-                    <DropdownMenuLabel>Escritório</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
+                    </DropdownMenuLabel>
                     {escritorioMenuItems.map((item) => (
                       <DropdownMenuItem 
                         key={item.path}
                         onClick={() => navigate(item.path)}
-                        className="gap-2 cursor-pointer"
+                        className="gap-2 cursor-pointer pl-6"
                       >
                         <item.icon className="w-4 h-4" />
-                        <div className="flex flex-col">
-                          <span className="font-medium">{item.label}</span>
-                          <span className="text-xs text-muted-foreground">{item.description}</span>
-                        </div>
+                        <span>{item.label}</span>
                       </DropdownMenuItem>
                     ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="gap-1" size="sm">
-                      <UserCircle className="w-4 h-4" />
-                      Conta
-                      <ChevronDown className="w-3 h-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-56 bg-card border-border z-50">
-                    <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
+                    
                     <DropdownMenuSeparator />
+                    
+                    {/* Minha Conta */}
+                    <DropdownMenuLabel className="flex items-center gap-2">
+                      <UserCircle className="w-4 h-4" />
+                      Minha Conta
+                    </DropdownMenuLabel>
                     {minhaContaMenuItems.map((item) => (
                       <DropdownMenuItem 
                         key={item.path}
                         onClick={() => navigate(item.path)}
-                        className="gap-2 cursor-pointer"
+                        className="gap-2 cursor-pointer pl-6"
                       >
                         <item.icon className="w-4 h-4" />
-                        <div className="flex flex-col">
-                          <span className="font-medium">{item.label}</span>
-                          <span className="text-xs text-muted-foreground">{item.description}</span>
-                        </div>
+                        <span>{item.label}</span>
                       </DropdownMenuItem>
                     ))}
+                    
+                    {/* Configurações (só admin) */}
+                    {configuracoesMenuItems.length > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="flex items-center gap-2">
+                          <Settings className="w-4 h-4" />
+                          Configurações
+                        </DropdownMenuLabel>
+                        {configuracoesMenuItems.map((item) => (
+                          <DropdownMenuItem 
+                            key={item.path}
+                            onClick={() => navigate(item.path)}
+                            className="gap-2 cursor-pointer pl-6"
+                          >
+                            <item.icon className="w-4 h-4" />
+                            <span>{item.label}</span>
+                            {item.badgeCount !== undefined && item.badgeCount > 0 && (
+                              <Badge variant="destructive" className="ml-auto h-5 w-5 p-0 flex items-center justify-center text-xs">{item.badgeCount}</Badge>
+                            )}
+                          </DropdownMenuItem>
+                        ))}
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
-
-                {configuracoesMenuItems.length > 0 && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="gap-1 relative" size="sm">
-                        <Settings className="w-4 h-4" />
-                        Configurações
-                        <ChevronDown className="w-3 h-3" />
-                        {pendingUsersCount > 0 && (
-                          <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs">{pendingUsersCount}</Badge>
-                        )}
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-56 bg-card border-border z-50">
-                      <DropdownMenuLabel>Configurações</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {configuracoesMenuItems.map((item) => (
-                        <DropdownMenuItem 
-                          key={item.path}
-                          onClick={() => navigate(item.path)}
-                          className="gap-2 cursor-pointer"
-                        >
-                          <item.icon className="w-4 h-4" />
-                          <div className="flex flex-col">
-                            <span className="font-medium">{item.label}</span>
-                            <span className="text-xs text-muted-foreground">{item.description}</span>
-                          </div>
-                          {item.badgeCount !== undefined && item.badgeCount > 0 && (
-                            <Badge variant="destructive" className="ml-auto">{item.badgeCount}</Badge>
-                          )}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
               </nav>
             </div>
-            <div className="flex items-center gap-2 md:gap-3">
+            <div className="flex items-center gap-1 md:gap-2">
               {/* Global Search Button */}
-              <Button 
-                variant="outline" 
-                className="hidden md:flex items-center gap-2 text-muted-foreground h-9 px-3"
-                onClick={() => setSearchOpen(true)}
-              >
-                <SearchIcon className="w-4 h-4" />
-                <span className="text-sm">Buscar...</span>
-                <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:flex">
-                  <span className="text-xs">⌘</span>K
-                </kbd>
-              </Button>
               <Button 
                 variant="ghost" 
                 size="icon"
-                className="md:hidden"
                 onClick={() => setSearchOpen(true)}
+                title="Buscar (Ctrl+K)"
               >
                 <SearchIcon className="w-4 h-4" />
               </Button>
               <NotificationsPanel />
               <UpdatesNotification />
               <ThemeToggle />
-              <div className="text-sm text-muted-foreground hidden md:flex items-center gap-2">
-                {profile?.avatar_url && (
-                  <img 
-                    src={profile.avatar_url} 
-                    alt={profile.full_name}
-                    className="w-8 h-8 rounded-full object-cover"
-                  />
-                )}
-                <span className="hidden xl:inline">{user?.email}</span>
-              </div>
-              <Button variant="outline" onClick={signOut} className="gap-2 hidden md:flex">
+              {profile?.avatar_url && (
+                <img 
+                  src={profile.avatar_url} 
+                  alt={profile.full_name}
+                  className="w-8 h-8 rounded-full object-cover hidden md:block cursor-pointer"
+                  onClick={() => navigate('/profile')}
+                />
+              )}
+              <Button variant="ghost" size="icon" onClick={signOut} className="hidden md:flex" title="Sair">
                 <LogOut className="w-4 h-4" />
-                Sair
               </Button>
               
               {/* Mobile Menu */}
