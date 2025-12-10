@@ -435,31 +435,68 @@ export function LeadFormsManager() {
       {/* Instructions Card */}
       <Card>
         <CardHeader>
-          <CardTitle>Como Usar os Formulários</CardTitle>
+          <CardTitle>Como Incorporar os Formulários no seu Site</CardTitle>
+          <CardDescription>
+            Siga os passos abaixo para adicionar o formulário de captura na sua landing page
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <h4 className="font-medium">1. Crie um formulário</h4>
-            <p className="text-sm text-muted-foreground">
-              Clique em "Novo Formulário" e configure o número do WhatsApp e a mensagem padrão.
-            </p>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <div className="border-l-4 border-primary pl-4 space-y-2">
+              <h4 className="font-semibold">Passo 1: Crie o formulário</h4>
+              <p className="text-sm text-muted-foreground">
+                Clique em "Novo Formulário" acima, configure o número do WhatsApp e a mensagem que o lead enviará.
+              </p>
+            </div>
+
+            <div className="border-l-4 border-primary pl-4 space-y-2">
+              <h4 className="font-semibold">Passo 2: Copie o código de incorporação</h4>
+              <p className="text-sm text-muted-foreground">
+                Clique no ícone de código {"</>"} no formulário criado e copie todo o conteúdo (HTML + CSS + JavaScript).
+              </p>
+            </div>
+
+            <div className="border-l-4 border-primary pl-4 space-y-2">
+              <h4 className="font-semibold">Passo 3: Cole na sua landing page</h4>
+              <p className="text-sm text-muted-foreground">
+                Cole o código no local onde deseja que o formulário apareça. Funciona em qualquer site: WordPress, Wix, HTML puro, etc.
+              </p>
+              <div className="bg-muted p-3 rounded-lg text-xs font-mono">
+                <p className="text-muted-foreground mb-2">Exemplo de onde colar no HTML:</p>
+                <code>{`<body>`}</code><br />
+                <code className="ml-4">{`<div id="secao-contato">`}</code><br />
+                <code className="ml-8 text-primary">{`<!-- COLE O CÓDIGO DO FORMULÁRIO AQUI -->`}</code><br />
+                <code className="ml-4">{`</div>`}</code><br />
+                <code>{`</body>`}</code>
+              </div>
+            </div>
+
+            <div className="border-l-4 border-primary pl-4 space-y-2">
+              <h4 className="font-semibold">Passo 4: Configure os parâmetros UTM nos anúncios</h4>
+              <p className="text-sm text-muted-foreground">
+                Use os templates dinâmicos do Gerador de UTM. O formulário captura automaticamente os parâmetros da URL.
+              </p>
+            </div>
           </div>
-          <div className="space-y-2">
-            <h4 className="font-medium">2. Copie o código de incorporação</h4>
-            <p className="text-sm text-muted-foreground">
-              Clique no ícone de código {'</>'} e copie todo o HTML/CSS/JS gerado.
-            </p>
+
+          <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+            <h4 className="font-semibold text-sm">O que acontece quando um lead preenche o formulário?</h4>
+            <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1">
+              <li>Os dados do lead são salvos no banco de dados da intranet</li>
+              <li>O lead é sincronizado automaticamente com o RD Station</li>
+              <li>Se configurado, o WhatsApp abre com a mensagem pré-preenchida</li>
+              <li>Você vê todos os dados no Dashboard de Leads, incluindo a origem (campanha, anúncio, etc.)</li>
+            </ol>
           </div>
-          <div className="space-y-2">
-            <h4 className="font-medium">3. Cole na sua landing page</h4>
+
+          <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-lg space-y-2">
+            <h4 className="font-semibold text-sm flex items-center gap-2">
+              <ExternalLink className="h-4 w-4" />
+              Dica para WordPress
+            </h4>
             <p className="text-sm text-muted-foreground">
-              Cole o código no local onde deseja que o formulário apareça. O formulário já captura automaticamente os parâmetros UTM da URL.
-            </p>
-          </div>
-          <div className="space-y-2">
-            <h4 className="font-medium">4. Use URLs com UTMs</h4>
-            <p className="text-sm text-muted-foreground">
-              Gere URLs na aba "Gerador UTM" e use-as nas suas campanhas. Quando o lead preencher o formulário, os dados de rastreamento serão salvos automaticamente.
+              Use um bloco "HTML Personalizado" ou o plugin "Insert Headers and Footers" para adicionar o código. 
+              Se estiver usando Elementor, use o widget "HTML".
             </p>
           </div>
         </CardContent>
