@@ -31,6 +31,7 @@ export type Database = {
           perm_financial: string
           perm_forum: string
           perm_home_office: string
+          perm_lead_tracking: string
           perm_onboarding: string
           perm_recruitment: string
           perm_suggestions: string
@@ -55,6 +56,7 @@ export type Database = {
           perm_financial?: string
           perm_forum?: string
           perm_home_office?: string
+          perm_lead_tracking?: string
           perm_onboarding?: string
           perm_recruitment?: string
           perm_suggestions?: string
@@ -79,6 +81,7 @@ export type Database = {
           perm_financial?: string
           perm_forum?: string
           perm_home_office?: string
+          perm_lead_tracking?: string
           perm_onboarding?: string
           perm_recruitment?: string
           perm_suggestions?: string
@@ -1556,6 +1559,7 @@ export type Database = {
           perm_financial: string
           perm_forum: string
           perm_home_office: string
+          perm_lead_tracking: string
           perm_onboarding: string
           perm_recruitment: string
           perm_suggestions: string
@@ -1580,6 +1584,7 @@ export type Database = {
           perm_financial?: string
           perm_forum?: string
           perm_home_office?: string
+          perm_lead_tracking?: string
           perm_onboarding?: string
           perm_recruitment?: string
           perm_suggestions?: string
@@ -1604,6 +1609,7 @@ export type Database = {
           perm_financial?: string
           perm_forum?: string
           perm_home_office?: string
+          perm_lead_tracking?: string
           perm_onboarding?: string
           perm_recruitment?: string
           perm_suggestions?: string

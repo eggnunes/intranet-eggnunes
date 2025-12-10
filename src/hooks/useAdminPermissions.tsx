@@ -22,7 +22,8 @@ export type PermissionFeature =
   | 'collection'
   | 'admin_requests'
   | 'task_rules'
-  | 'recruitment';
+  | 'recruitment'
+  | 'lead_tracking';
 
 export interface AdminPermissions {
   perm_financial: PermissionLevel;
@@ -42,6 +43,7 @@ export interface AdminPermissions {
   perm_admin_requests: PermissionLevel;
   perm_task_rules: PermissionLevel;
   perm_recruitment: PermissionLevel;
+  perm_lead_tracking: PermissionLevel;
 }
 
 export const useAdminPermissions = () => {
@@ -106,6 +108,7 @@ export const useAdminPermissions = () => {
           perm_admin_requests: 'edit',
           perm_task_rules: 'edit',
           perm_recruitment: 'edit',
+          perm_lead_tracking: 'edit',
         };
         setPermissions(fullPermissions);
         setGroupPermissions(fullPermissions);
@@ -150,6 +153,7 @@ export const useAdminPermissions = () => {
           perm_admin_requests: groupData.perm_admin_requests as PermissionLevel,
           perm_task_rules: groupData.perm_task_rules as PermissionLevel,
           perm_recruitment: groupData.perm_recruitment as PermissionLevel,
+          perm_lead_tracking: groupData.perm_lead_tracking as PermissionLevel,
         };
         setGroupPermissions(basePermissions);
       } else {
@@ -172,6 +176,7 @@ export const useAdminPermissions = () => {
           perm_admin_requests: 'view',
           perm_task_rules: 'none',
           perm_recruitment: 'none',
+          perm_lead_tracking: 'none',
         };
         setGroupPermissions(basePermissions);
       }
@@ -207,6 +212,7 @@ export const useAdminPermissions = () => {
           perm_admin_requests: (individualData.perm_admin_requests as PermissionLevel) || basePermissions.perm_admin_requests,
           perm_task_rules: (individualData.perm_task_rules as PermissionLevel) || basePermissions.perm_task_rules,
           perm_recruitment: (individualData.perm_recruitment as PermissionLevel) || basePermissions.perm_recruitment,
+          perm_lead_tracking: (individualData.perm_lead_tracking as PermissionLevel) || basePermissions.perm_lead_tracking,
         };
         setPermissions(mergedPermissions);
       } else {
