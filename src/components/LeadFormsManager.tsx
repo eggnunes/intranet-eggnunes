@@ -296,6 +296,19 @@ export function LeadFormsManager() {
                 <DialogTitle>Criar Novo Formulário</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                {/* Campos que serão coletados */}
+                <div className="p-3 bg-muted rounded-lg space-y-2">
+                  <Label className="text-sm font-semibold">Campos que o lead irá preencher:</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className="bg-background">Nome *</Badge>
+                    <Badge variant="outline" className="bg-background">Telefone *</Badge>
+                    <Badge variant="outline" className="bg-background">E-mail</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    * Campos obrigatórios. Além disso, são capturados automaticamente: UTM parameters, URL da página, referrer.
+                  </p>
+                </div>
+
                 <div className="space-y-2">
                   <Label>Nome do Formulário *</Label>
                   <Input
