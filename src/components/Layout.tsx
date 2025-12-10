@@ -1,15 +1,17 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
-import { LogOut, Home as HomeIcon, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, MoreHorizontal, Coffee, Home, UserPlus, DoorOpen, FileSignature, Link2, Target } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { LogOut, Home as HomeIcon, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, Coffee, Home, UserPlus, DoorOpen, FileSignature, Link2, Target, Bot, Brain, Search as SearchIcon, Sparkles, Settings, FileText } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { UpdatesNotification } from '@/components/UpdatesNotification';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Drawer, DrawerContent, DrawerTrigger } from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
+import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -26,6 +28,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const [unreadAnnouncementsCount, setUnreadAnnouncementsCount] = useState(0);
   const [criticalTasksCount, setCriticalTasksCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
@@ -35,6 +38,18 @@ export const Layout = ({ children }: LayoutProps) => {
   const handleBack = () => {
     navigate(-1);
   };
+
+  // Keyboard shortcut for search
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setSearchOpen((open) => !open);
+      }
+    };
+    document.addEventListener('keydown', down);
+    return () => document.removeEventListener('keydown', down);
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -201,6 +216,7 @@ export const Layout = ({ children }: LayoutProps) => {
     setUnreadAnnouncementsCount(unreadCount);
   };
 
+  // Menu items organized by category
   const advboxMenuItems = [
     { icon: Briefcase, path: '/processos', label: 'Processos', description: 'Dashboard de processos' },
     { icon: Cake, path: '/aniversarios-clientes', label: 'Aniversários Clientes', description: 'Clientes aniversariantes' },
@@ -219,24 +235,59 @@ export const Layout = ({ children }: LayoutProps) => {
     { icon: Home, path: '/home-office', label: 'Home Office', description: 'Escala de home office' },
     { icon: UserPlus, path: '/contratacao', label: 'Contratação', description: 'Gestão de currículos' },
     { icon: BookOpen, path: '/onboarding', label: 'Onboarding', description: 'Materiais de integração' },
-    { icon: Coffee, path: '/copa-cozinha', label: 'Copa/Cozinha', description: 'Sugestões de alimentos' },
   ];
 
-  const maisMenuItems = [
-    { icon: Bell, path: '/notificacoes', label: 'Notificações', description: 'Suas notificações' },
-    { icon: Target, path: '/lead-tracking', label: 'Tracking de Leads', description: 'UTMs e formulários' },
+  const iaMenuItems = [
+    { icon: Bot, path: '/assistente-ia', label: 'Assistente IA', description: 'Chat com inteligência artificial' },
+    { icon: Sparkles, path: '/agentes-ia', label: 'Agentes de IA', description: 'Agentes especializados' },
+    { icon: SearchIcon, path: '/pesquisa-jurisprudencia', label: 'Pesquisa Jurisprudência', description: 'Busca em jurisprudência' },
+    { icon: FileText, path: '/rotadoc', label: 'RotaDoc', description: 'Organização de documentos' },
+  ];
+
+  const comunicacaoMenuItems = [
     { icon: Megaphone, path: '/mural-avisos', label: 'Mural de Avisos', description: 'Comunicados e eventos' },
-    { icon: DoorOpen, path: '/sala-reuniao', label: 'Sala de Reunião', description: 'Reservar sala' },
+    { icon: Bell, path: '/notificacoes', label: 'Notificações', description: 'Suas notificações' },
     { icon: MessageSquare, path: '/forum', label: 'Fórum', description: 'Discussões da equipe' },
-    { icon: FileStack, path: '/documentos-uteis', label: 'Documentos', description: 'Documentos úteis' },
     { icon: Lightbulb, path: '/sugestoes', label: 'Sugestões', description: 'Envie suas ideias' },
-    { icon: Camera, path: '/galeria-eventos', label: 'Galeria de Eventos', description: 'Fotos dos eventos' },
+  ];
+
+  const escritorioMenuItems = [
+    { icon: Coffee, path: '/copa-cozinha', label: 'Copa/Cozinha', description: 'Sugestões de alimentos' },
+    { icon: DoorOpen, path: '/sala-reuniao', label: 'Sala de Reunião', description: 'Reservar sala' },
+    { icon: FileStack, path: '/documentos-uteis', label: 'Documentos', description: 'Documentos úteis' },
     { icon: ClipboardIcon, path: '/solicitacoes-administrativas', label: 'Solicitações', description: 'Pedidos administrativos' },
+    { icon: Camera, path: '/galeria-eventos', label: 'Galeria de Eventos', description: 'Fotos dos eventos' },
+  ];
+
+  const minhaContaMenuItems = [
     { icon: UserCircle, path: '/profile', label: 'Perfil', description: 'Editar perfil' },
-    ...(isAdmin ? [{ icon: BarChart3, path: '/dashboard-sugestoes', label: 'Estatísticas', description: 'Dashboard de sugestões' }] : []),
-    ...(isAdmin ? [{ icon: Link2, path: '/integracoes', label: 'Integrações', description: 'Webhooks e integrações' }] : []),
     { icon: History, path: '/historico', label: 'Histórico', description: 'Histórico de uso' },
   ];
+
+  const configuracoesMenuItems = [
+    ...(isAdmin ? [{ icon: Shield, path: '/admin', label: 'Admin', description: 'Painel administrativo', badgeCount: pendingUsersCount }] : []),
+    ...(isAdmin ? [{ icon: Target, path: '/lead-tracking', label: 'Tracking de Leads', description: 'UTMs e formulários' }] : []),
+    ...(isAdmin ? [{ icon: Link2, path: '/integracoes', label: 'Integrações', description: 'Webhooks e integrações' }] : []),
+    ...(isAdmin ? [{ icon: BarChart3, path: '/dashboard-sugestoes', label: 'Estatísticas', description: 'Dashboard de sugestões' }] : []),
+  ];
+
+  // All searchable items for global search
+  const allSearchableItems = useMemo(() => [
+    { icon: HomeIcon, path: '/dashboard', label: 'Dashboard', description: 'Página inicial', category: 'Geral' },
+    { icon: FileSignature, path: '/setor-comercial', label: 'Setor Comercial', description: 'Geração de contratos', category: 'Geral' },
+    ...advboxMenuItems.map(item => ({ ...item, category: 'Advbox' })),
+    ...rhMenuItems.map(item => ({ ...item, category: 'RH' })),
+    ...iaMenuItems.map(item => ({ ...item, category: 'Inteligência Artificial' })),
+    ...comunicacaoMenuItems.map(item => ({ ...item, category: 'Comunicação' })),
+    ...escritorioMenuItems.map(item => ({ ...item, category: 'Escritório' })),
+    ...minhaContaMenuItems.map(item => ({ ...item, category: 'Minha Conta' })),
+    ...configuracoesMenuItems.map(item => ({ ...item, category: 'Configurações' })),
+  ], [advboxMenuItems, rhMenuItems, iaMenuItems, comunicacaoMenuItems, escritorioMenuItems, minhaContaMenuItems, configuracoesMenuItems]);
+
+  const handleSearchSelect = (path: string) => {
+    setSearchOpen(false);
+    navigate(path);
+  };
 
   const NavItems = () => (
     <>
@@ -248,19 +299,6 @@ export const Layout = ({ children }: LayoutProps) => {
         <HomeIcon className="w-4 h-4" />
         Dashboard
       </Button>
-      {isAdmin && (
-        <Button 
-          variant="ghost" 
-          onClick={() => { navigate('/admin'); setMobileMenuOpen(false); }}
-          className="gap-2 justify-start relative"
-        >
-          <Shield className="w-4 h-4" />
-          Admin
-          {pendingUsersCount > 0 && (
-            <Badge variant="destructive" className="ml-2">{pendingUsersCount}</Badge>
-          )}
-        </Button>
-      )}
       <Button 
         variant="ghost" 
         onClick={() => { navigate('/setor-comercial'); setMobileMenuOpen(false); }}
@@ -301,8 +339,8 @@ export const Layout = ({ children }: LayoutProps) => {
         ))}
       </div>
       <div className="px-2 py-2">
-        <p className="text-xs font-semibold text-muted-foreground mb-2">MAIS</p>
-        {maisMenuItems.map((item) => (
+        <p className="text-xs font-semibold text-muted-foreground mb-2">INTELIGÊNCIA ARTIFICIAL</p>
+        {iaMenuItems.map((item) => (
           <Button 
             key={item.path}
             variant="ghost" 
@@ -314,47 +352,123 @@ export const Layout = ({ children }: LayoutProps) => {
           </Button>
         ))}
       </div>
+      <div className="px-2 py-2">
+        <p className="text-xs font-semibold text-muted-foreground mb-2">COMUNICAÇÃO</p>
+        {comunicacaoMenuItems.map((item) => (
+          <Button 
+            key={item.path}
+            variant="ghost" 
+            onClick={() => { navigate(item.path); setMobileMenuOpen(false); }}
+            className="gap-2 justify-start w-full mb-1"
+          >
+            <item.icon className="w-4 h-4" />
+            {item.label}
+          </Button>
+        ))}
+      </div>
+      <div className="px-2 py-2">
+        <p className="text-xs font-semibold text-muted-foreground mb-2">ESCRITÓRIO</p>
+        {escritorioMenuItems.map((item) => (
+          <Button 
+            key={item.path}
+            variant="ghost" 
+            onClick={() => { navigate(item.path); setMobileMenuOpen(false); }}
+            className="gap-2 justify-start w-full mb-1"
+          >
+            <item.icon className="w-4 h-4" />
+            {item.label}
+          </Button>
+        ))}
+      </div>
+      <div className="px-2 py-2">
+        <p className="text-xs font-semibold text-muted-foreground mb-2">MINHA CONTA</p>
+        {minhaContaMenuItems.map((item) => (
+          <Button 
+            key={item.path}
+            variant="ghost" 
+            onClick={() => { navigate(item.path); setMobileMenuOpen(false); }}
+            className="gap-2 justify-start w-full mb-1"
+          >
+            <item.icon className="w-4 h-4" />
+            {item.label}
+          </Button>
+        ))}
+      </div>
+      {configuracoesMenuItems.length > 0 && (
+        <div className="px-2 py-2">
+          <p className="text-xs font-semibold text-muted-foreground mb-2">CONFIGURAÇÕES</p>
+          {configuracoesMenuItems.map((item) => (
+            <Button 
+              key={item.path}
+              variant="ghost" 
+              onClick={() => { navigate(item.path); setMobileMenuOpen(false); }}
+              className="gap-2 justify-start w-full mb-1 relative"
+            >
+              <item.icon className="w-4 h-4" />
+              {item.label}
+              {item.badgeCount !== undefined && item.badgeCount > 0 && (
+                <Badge variant="destructive" className="ml-auto">{item.badgeCount}</Badge>
+              )}
+            </Button>
+          ))}
+        </div>
+      )}
     </>
   );
 
   return (
     <div className="min-h-[100dvh] bg-background" style={{ overflowX: 'hidden', overflowY: 'visible' }}>
+      {/* Global Search Dialog */}
+      <CommandDialog open={searchOpen} onOpenChange={setSearchOpen}>
+        <CommandInput placeholder="Buscar na intranet... (Ctrl+K)" />
+        <CommandList>
+          <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
+          {['Geral', 'Advbox', 'RH', 'Inteligência Artificial', 'Comunicação', 'Escritório', 'Minha Conta', 'Configurações'].map((category) => {
+            const items = allSearchableItems.filter(item => item.category === category);
+            if (items.length === 0) return null;
+            return (
+              <CommandGroup key={category} heading={category}>
+                {items.map((item) => (
+                  <CommandItem
+                    key={item.path}
+                    onSelect={() => handleSearchSelect(item.path)}
+                    className="gap-2 cursor-pointer"
+                  >
+                    <item.icon className="w-4 h-4" />
+                    <span>{item.label}</span>
+                    <span className="text-xs text-muted-foreground ml-auto">{item.description}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            );
+          })}
+        </CommandList>
+      </CommandDialog>
+
       <header className="border-b border-border bg-card sticky top-0 z-50 backdrop-blur-sm bg-card/95">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-20">
-            <div className="flex items-center gap-8">
+            <div className="flex items-center gap-4">
               <img 
                 src={logoEggNunes} 
                 alt="Egg Nunes Advogados" 
                 className="h-12 cursor-pointer"
                 onClick={() => navigate('/dashboard')}
               />
-              <nav className="hidden lg:flex items-center gap-2">
+              <nav className="hidden lg:flex items-center gap-1">
                 <Button 
                   variant="ghost" 
                   onClick={() => navigate('/dashboard')}
                   className="gap-2"
+                  size="sm"
                 >
                   <HomeIcon className="w-4 h-4" />
                   Dashboard
                 </Button>
-                {isAdmin && (
-                  <Button 
-                    variant="ghost" 
-                    onClick={() => navigate('/admin')}
-                    className="gap-2 relative"
-                  >
-                    <Shield className="w-4 h-4" />
-                    Admin
-                    {pendingUsersCount > 0 && (
-                      <Badge variant="destructive" className="ml-2">{pendingUsersCount}</Badge>
-                    )}
-                  </Button>
-                )}
                 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="gap-2">
+                    <Button variant="ghost" className="gap-1" size="sm">
                       <Briefcase className="w-4 h-4" />
                       Advbox
                       <ChevronDown className="w-3 h-3" />
@@ -385,7 +499,8 @@ export const Layout = ({ children }: LayoutProps) => {
                 <Button 
                   variant="ghost" 
                   onClick={() => navigate('/setor-comercial')}
-                  className="gap-2"
+                  className="gap-1"
+                  size="sm"
                 >
                   <FileSignature className="w-4 h-4" />
                   Comercial
@@ -393,7 +508,7 @@ export const Layout = ({ children }: LayoutProps) => {
                 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="gap-2">
+                    <Button variant="ghost" className="gap-1" size="sm">
                       <Users className="w-4 h-4" />
                       RH
                       <ChevronDown className="w-3 h-3" />
@@ -417,18 +532,19 @@ export const Layout = ({ children }: LayoutProps) => {
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-                
+
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="gap-2">
-                      <MoreHorizontal className="w-4 h-4" />
-                      Mais
+                    <Button variant="ghost" className="gap-1" size="sm">
+                      <Brain className="w-4 h-4" />
+                      IA
+                      <ChevronDown className="w-3 h-3" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-56 bg-card border-border z-50">
-                    <DropdownMenuLabel>Outras Opções</DropdownMenuLabel>
+                    <DropdownMenuLabel>Inteligência Artificial</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    {maisMenuItems.map((item) => (
+                    {iaMenuItems.map((item) => (
                       <DropdownMenuItem 
                         key={item.path}
                         onClick={() => navigate(item.path)}
@@ -443,9 +559,145 @@ export const Layout = ({ children }: LayoutProps) => {
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="gap-1" size="sm">
+                      <Megaphone className="w-4 h-4" />
+                      Comunicação
+                      <ChevronDown className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56 bg-card border-border z-50">
+                    <DropdownMenuLabel>Comunicação</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {comunicacaoMenuItems.map((item) => (
+                      <DropdownMenuItem 
+                        key={item.path}
+                        onClick={() => navigate(item.path)}
+                        className="gap-2 cursor-pointer"
+                      >
+                        <item.icon className="w-4 h-4" />
+                        <div className="flex flex-col">
+                          <span className="font-medium">{item.label}</span>
+                          <span className="text-xs text-muted-foreground">{item.description}</span>
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="gap-1" size="sm">
+                      <DoorOpen className="w-4 h-4" />
+                      Escritório
+                      <ChevronDown className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56 bg-card border-border z-50">
+                    <DropdownMenuLabel>Escritório</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {escritorioMenuItems.map((item) => (
+                      <DropdownMenuItem 
+                        key={item.path}
+                        onClick={() => navigate(item.path)}
+                        className="gap-2 cursor-pointer"
+                      >
+                        <item.icon className="w-4 h-4" />
+                        <div className="flex flex-col">
+                          <span className="font-medium">{item.label}</span>
+                          <span className="text-xs text-muted-foreground">{item.description}</span>
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="gap-1" size="sm">
+                      <UserCircle className="w-4 h-4" />
+                      Conta
+                      <ChevronDown className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56 bg-card border-border z-50">
+                    <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {minhaContaMenuItems.map((item) => (
+                      <DropdownMenuItem 
+                        key={item.path}
+                        onClick={() => navigate(item.path)}
+                        className="gap-2 cursor-pointer"
+                      >
+                        <item.icon className="w-4 h-4" />
+                        <div className="flex flex-col">
+                          <span className="font-medium">{item.label}</span>
+                          <span className="text-xs text-muted-foreground">{item.description}</span>
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {configuracoesMenuItems.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="gap-1 relative" size="sm">
+                        <Settings className="w-4 h-4" />
+                        Configurações
+                        <ChevronDown className="w-3 h-3" />
+                        {pendingUsersCount > 0 && (
+                          <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs">{pendingUsersCount}</Badge>
+                        )}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-56 bg-card border-border z-50">
+                      <DropdownMenuLabel>Configurações</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {configuracoesMenuItems.map((item) => (
+                        <DropdownMenuItem 
+                          key={item.path}
+                          onClick={() => navigate(item.path)}
+                          className="gap-2 cursor-pointer"
+                        >
+                          <item.icon className="w-4 h-4" />
+                          <div className="flex flex-col">
+                            <span className="font-medium">{item.label}</span>
+                            <span className="text-xs text-muted-foreground">{item.description}</span>
+                          </div>
+                          {item.badgeCount !== undefined && item.badgeCount > 0 && (
+                            <Badge variant="destructive" className="ml-auto">{item.badgeCount}</Badge>
+                          )}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </nav>
             </div>
-            <div className="flex items-center gap-2 md:gap-4">
+            <div className="flex items-center gap-2 md:gap-3">
+              {/* Global Search Button */}
+              <Button 
+                variant="outline" 
+                className="hidden md:flex items-center gap-2 text-muted-foreground h-9 px-3"
+                onClick={() => setSearchOpen(true)}
+              >
+                <SearchIcon className="w-4 h-4" />
+                <span className="text-sm">Buscar...</span>
+                <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:flex">
+                  <span className="text-xs">⌘</span>K
+                </kbd>
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                className="md:hidden"
+                onClick={() => setSearchOpen(true)}
+              >
+                <SearchIcon className="w-4 h-4" />
+              </Button>
               <NotificationsPanel />
               <UpdatesNotification />
               <ThemeToggle />
