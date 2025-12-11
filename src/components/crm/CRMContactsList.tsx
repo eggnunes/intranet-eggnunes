@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Search, Eye, Mail, Phone, Building, MapPin, Globe, Linkedin, Twitter, Facebook, Calendar, Tag, FileText, Edit2, Save, X, History, UserCircle, CheckCircle, Circle, Video, MessageSquare, Package } from 'lucide-react';
+import { Loader2, Search, Eye, Mail, Phone, Building, MapPin, Globe, Linkedin, Twitter, Facebook, Calendar, Tag, FileText, Edit2, Save, X, History, UserCircle, CheckCircle, Circle, Video, MessageSquare, Package, Award, Target } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -62,6 +62,7 @@ interface Deal {
   value: number;
   product_name: string | null;
   owner_id: string | null;
+  campaign_name: string | null;
   stage?: {
     name: string;
     is_won: boolean;
@@ -85,7 +86,7 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
   const [contactDeals, setContactDeals] = useState<Deal[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [profiles, setProfiles] = useState<Record<string, { full_name: string }>>({});
-  const [contactDealsMap, setContactDealsMap] = useState<Record<string, { owner_id: string | null; product_name: string | null }>>({});
+  const [contactDealsMap, setContactDealsMap] = useState<Record<string, { owner_id: string | null; product_name: string | null; campaign_name: string | null }>>({});
 
   useEffect(() => {
     fetchContacts();
@@ -108,17 +109,21 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
   };
 
   const fetchContactDealsMapping = async () => {
-    // Fetch first deal for each contact to show owner and product
+    // Fetch first deal for each contact to show owner, product and campaign
     const { data: deals } = await supabase
       .from('crm_deals')
-      .select('contact_id, owner_id, product_name')
+      .select('contact_id, owner_id, product_name, campaign_name')
       .not('contact_id', 'is', null);
     
     if (deals) {
-      const mapping: Record<string, { owner_id: string | null; product_name: string | null }> = {};
+      const mapping: Record<string, { owner_id: string | null; product_name: string | null; campaign_name: string | null }> = {};
       deals.forEach(deal => {
         if (deal.contact_id && !mapping[deal.contact_id]) {
-          mapping[deal.contact_id] = { owner_id: deal.owner_id, product_name: deal.product_name };
+          mapping[deal.contact_id] = { 
+            owner_id: deal.owner_id, 
+            product_name: deal.product_name,
+            campaign_name: deal.campaign_name 
+          };
         }
       });
       setContactDealsMap(mapping);
@@ -167,7 +172,7 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
       const { data: deals } = await supabase
         .from('crm_deals')
         .select(`
-          id, name, value, product_name, owner_id, rd_station_id,
+          id, name, value, product_name, owner_id, rd_station_id, campaign_name,
           stage:crm_deal_stages(name, is_won, is_lost)
         `)
         .eq('contact_id', contactId)
@@ -206,6 +211,36 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
               allActivities.push(a as Activity);
             }
           });
+        }
+      }
+      
+      // 3. If still empty, try to fetch all activities and filter by deal name matching contact name
+      if (allActivities.length === 0) {
+        const { data: contact } = await supabase
+          .from('crm_contacts')
+          .select('name')
+          .eq('id', contactId)
+          .single();
+        
+        if (contact?.name) {
+          // Find deals by contact name
+          const { data: dealsByName } = await supabase
+            .from('crm_deals')
+            .select('id')
+            .ilike('name', `%${contact.name}%`);
+          
+          if (dealsByName && dealsByName.length > 0) {
+            const dealIdsByName = dealsByName.map(d => d.id);
+            const { data: activitiesByDealName } = await supabase
+              .from('crm_activities')
+              .select('*')
+              .in('deal_id', dealIdsByName)
+              .order('created_at', { ascending: false });
+            
+            if (activitiesByDealName) {
+              allActivities = activitiesByDealName as Activity[];
+            }
+          }
         }
       }
       
@@ -389,13 +424,14 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
                 <TableHead className="hidden lg:table-cell">Responsável</TableHead>
                 <TableHead className="hidden lg:table-cell">Produto</TableHead>
                 <TableHead className="hidden md:table-cell">Origem</TableHead>
+                <TableHead className="hidden md:table-cell">Qualificado</TableHead>
                 <TableHead>Data</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredContacts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     {contacts.length === 0 
                       ? 'Nenhum contato. Sincronize com o RD Station.'
                       : 'Nenhum contato encontrado.'}
@@ -403,11 +439,14 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
                 </TableRow>
               ) : (
                 filteredContacts.map((contact) => {
-                  // Get first deal to show owner and product
+                  // Get first deal to show owner, product and campaign
                   const contactDeal = contactDealsMap[contact.id];
                   const ownerName = contactDeal?.owner_id && profiles[contactDeal.owner_id] 
                     ? profiles[contactDeal.owner_id].full_name 
                     : null;
+                  // Origin: use utm_source, or campaign_name from deal as fallback
+                  const origin = contact.utm_source || contactDeal?.campaign_name;
+                  const isQualified = (contact.lead_score || 0) > 0;
                   
                   return (
                     <TableRow 
@@ -455,12 +494,25 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
                         )}
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
-                        {contact.utm_source ? (
-                          <Badge variant="outline" className="text-xs">
-                            {contact.utm_source}
+                        {origin ? (
+                          <Badge variant="outline" className="text-xs truncate max-w-[120px]">
+                            <Target className="h-3 w-3 mr-1" />
+                            {origin}
                           </Badge>
                         ) : (
                           <span className="text-muted-foreground text-xs">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {isQualified ? (
+                          <Badge variant="default" className="text-xs bg-green-600">
+                            <Award className="h-3 w-3 mr-1" />
+                            Sim
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">
+                            Não
+                          </Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
@@ -599,19 +651,51 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
                   </div>
                 )}
 
-                {/* UTM Info */}
-                {(selectedContact.utm_source || selectedContact.utm_medium || selectedContact.utm_campaign || selectedContact.utm_content || selectedContact.utm_term) && (
-                  <div className="border-t pt-4">
-                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Origem do Lead (UTM)</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedContact.utm_source && <Badge variant="outline"><Tag className="h-3 w-3 mr-1" />Fonte: {selectedContact.utm_source}</Badge>}
-                      {selectedContact.utm_medium && <Badge variant="outline">Mídia: {selectedContact.utm_medium}</Badge>}
-                      {selectedContact.utm_campaign && <Badge variant="outline">Campanha: {selectedContact.utm_campaign}</Badge>}
-                      {selectedContact.utm_content && <Badge variant="outline">Conteúdo: {selectedContact.utm_content}</Badge>}
-                      {selectedContact.utm_term && <Badge variant="outline">Termo: {selectedContact.utm_term}</Badge>}
-                    </div>
+                {/* Tracking & Origin Info - Always show this section */}
+                <div className="border-t pt-4">
+                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Origem e Tracking</h4>
+                  
+                  {/* Qualification Status */}
+                  <div className="mb-4">
+                    <p className="text-xs text-muted-foreground mb-1">Status de Qualificação</p>
+                    {(selectedContact.lead_score || 0) > 0 ? (
+                      <Badge variant="default" className="bg-green-600">
+                        <Award className="h-3 w-3 mr-1" />
+                        Lead Qualificado ({selectedContact.lead_score} pontos)
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">
+                        Não Qualificado
+                      </Badge>
+                    )}
                   </div>
-                )}
+                  
+                  {/* UTM or Campaign Info */}
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {selectedContact.utm_source && <Badge variant="outline"><Tag className="h-3 w-3 mr-1" />Fonte: {selectedContact.utm_source}</Badge>}
+                    {selectedContact.utm_medium && <Badge variant="outline">Mídia: {selectedContact.utm_medium}</Badge>}
+                    {selectedContact.utm_campaign && <Badge variant="outline">Campanha UTM: {selectedContact.utm_campaign}</Badge>}
+                    {selectedContact.utm_content && <Badge variant="outline">Conteúdo: {selectedContact.utm_content}</Badge>}
+                    {selectedContact.utm_term && <Badge variant="outline">Termo: {selectedContact.utm_term}</Badge>}
+                  </div>
+                  
+                  {/* Campaign from deals if no UTM */}
+                  {!selectedContact.utm_source && !selectedContact.utm_campaign && contactDeals.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {contactDeals.filter(d => d.campaign_name).map(deal => (
+                        <Badge key={deal.id} variant="outline">
+                          <Target className="h-3 w-3 mr-1" />
+                          Campanha: {deal.campaign_name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Show message if no tracking data */}
+                  {!selectedContact.utm_source && !selectedContact.utm_campaign && contactDeals.filter(d => d.campaign_name).length === 0 && (
+                    <p className="text-xs text-muted-foreground">Nenhuma informação de origem disponível</p>
+                  )}
+                </div>
 
                 {/* Conversions */}
                 {(selectedContact.first_conversion || selectedContact.last_conversion) && (
@@ -660,12 +744,6 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
                 {/* Metadata */}
                 <div className="border-t pt-4 flex items-center justify-between flex-wrap gap-4">
                   <div className="flex items-center gap-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Lead Score</p>
-                      <Badge variant={selectedContact.lead_score && selectedContact.lead_score > 50 ? 'default' : 'secondary'}>
-                        {selectedContact.lead_score || 0} pontos
-                      </Badge>
-                    </div>
                     {selectedContact.rd_station_id && (
                       <div>
                         <p className="text-xs text-muted-foreground">ID RD Station</p>
@@ -705,6 +783,12 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
                                 <p className="text-xs text-violet-600 mt-1 flex items-center gap-1">
                                   <Package className="h-3 w-3" />
                                   {deal.product_name}
+                                </p>
+                              )}
+                              {deal.campaign_name && (
+                                <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                                  <Target className="h-3 w-3" />
+                                  Campanha: {deal.campaign_name}
                                 </p>
                               )}
                               {deal.owner_id && profiles[deal.owner_id] && (
