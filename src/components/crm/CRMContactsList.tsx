@@ -160,29 +160,59 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
     setLoading(false);
   };
 
-  const fetchContactDetails = async (contactId: string) => {
+  const fetchContactDetails = async (contactId: string, contactRdStationId: string | null) => {
     setLoadingDetails(true);
     try {
-      // Fetch activities
-      const { data: activities } = await supabase
-        .from('crm_activities')
-        .select('*')
-        .eq('contact_id', contactId)
-        .order('created_at', { ascending: false });
-      
-      setContactActivities(activities || []);
-
-      // Fetch deals
+      // First fetch deals associated with this contact
       const { data: deals } = await supabase
         .from('crm_deals')
         .select(`
-          id, name, value, product_name, owner_id,
+          id, name, value, product_name, owner_id, rd_station_id,
           stage:crm_deal_stages(name, is_won, is_lost)
         `)
         .eq('contact_id', contactId)
         .order('created_at', { ascending: false });
       
       setContactDeals(deals as Deal[] || []);
+
+      // Fetch activities - try multiple approaches
+      let allActivities: Activity[] = [];
+      
+      // 1. Try by contact_id
+      const { data: activitiesByContact } = await supabase
+        .from('crm_activities')
+        .select('*')
+        .eq('contact_id', contactId)
+        .order('created_at', { ascending: false });
+      
+      if (activitiesByContact && activitiesByContact.length > 0) {
+        allActivities = [...activitiesByContact];
+      }
+      
+      // 2. Also fetch by deal_ids associated with this contact
+      if (deals && deals.length > 0) {
+        const dealIds = deals.map(d => d.id);
+        const { data: activitiesByDeal } = await supabase
+          .from('crm_activities')
+          .select('*')
+          .in('deal_id', dealIds)
+          .order('created_at', { ascending: false });
+        
+        if (activitiesByDeal && activitiesByDeal.length > 0) {
+          // Merge and dedupe
+          const existingIds = new Set(allActivities.map(a => a.id));
+          activitiesByDeal.forEach(a => {
+            if (!existingIds.has(a.id)) {
+              allActivities.push(a as Activity);
+            }
+          });
+        }
+      }
+      
+      // Sort by created_at descending
+      allActivities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      
+      setContactActivities(allActivities);
     } catch (error) {
       console.error('Error fetching contact details:', error);
     } finally {
@@ -195,7 +225,7 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
     setIsEditing(false);
     setContactActivities([]);
     setContactDeals([]);
-    fetchContactDetails(contact.id);
+    fetchContactDetails(contact.id, contact.rd_station_id);
   };
 
   const getActivityIcon = (type: string) => {
@@ -354,19 +384,18 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Telefone</TableHead>
-                <TableHead>Responsável</TableHead>
-                <TableHead>Produto</TableHead>
-                <TableHead>Origem</TableHead>
+                <TableHead className="hidden sm:table-cell">Email</TableHead>
+                <TableHead className="hidden md:table-cell">Telefone</TableHead>
+                <TableHead className="hidden lg:table-cell">Responsável</TableHead>
+                <TableHead className="hidden lg:table-cell">Produto</TableHead>
+                <TableHead className="hidden md:table-cell">Origem</TableHead>
                 <TableHead>Data</TableHead>
-                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredContacts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     {contacts.length === 0 
                       ? 'Nenhum contato. Sincronize com o RD Station.'
                       : 'Nenhum contato encontrado.'}
@@ -381,9 +410,15 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
                     : null;
                   
                   return (
-                    <TableRow key={contact.id}>
-                      <TableCell className="font-medium">{contact.name}</TableCell>
-                      <TableCell>
+                    <TableRow 
+                      key={contact.id} 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleSelectContact(contact)}
+                    >
+                      <TableCell className="font-medium text-primary hover:underline">
+                        {contact.name}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         {contact.email && (
                           <div className="flex items-center gap-1 text-sm">
                             <Mail className="h-3 w-3 text-muted-foreground" />
@@ -391,7 +426,7 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
                           </div>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         {contact.phone && (
                           <div className="flex items-center gap-1 text-sm">
                             <Phone className="h-3 w-3 text-muted-foreground" />
@@ -399,40 +434,37 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
                           </div>
                         )}
                       </TableCell>
-                      <TableCell>
-                        {ownerName && (
+                      <TableCell className="hidden lg:table-cell">
+                        {ownerName ? (
                           <div className="flex items-center gap-1 text-sm">
                             <UserCircle className="h-3 w-3 text-muted-foreground" />
                             <span className="truncate max-w-[100px]">{ownerName}</span>
                           </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
                         )}
                       </TableCell>
-                      <TableCell>
-                        {contactDeal?.product_name && (
+                      <TableCell className="hidden lg:table-cell">
+                        {contactDeal?.product_name ? (
                           <Badge variant="secondary" className="text-xs truncate max-w-[120px]">
                             <Package className="h-3 w-3 mr-1" />
                             {contactDeal.product_name}
                           </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
                         )}
                       </TableCell>
-                      <TableCell>
-                        {contact.utm_source && (
+                      <TableCell className="hidden md:table-cell">
+                        {contact.utm_source ? (
                           <Badge variant="outline" className="text-xs">
                             {contact.utm_source}
                           </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {new Date(contact.created_at).toLocaleDateString('pt-BR')}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleSelectContact(contact)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
                       </TableCell>
                     </TableRow>
                   );

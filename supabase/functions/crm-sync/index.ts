@@ -511,7 +511,7 @@ async function syncContacts(rdToken: string, supabase: any) {
 
   console.log(`Total contacts to sync: ${allContacts.length}`);
 
-  // Transform contacts data - including ALL UTM and tracking fields
+  // Transform contacts data - including ALL UTM and tracking fields + original created_at
   const contactsData = allContacts.map(contact => ({
     rd_station_id: contact._id,
     name: contact.name || contact.emails?.[0]?.email || 'Sem nome',
@@ -531,15 +531,17 @@ async function syncContacts(rdToken: string, supabase: any) {
     notes: contact.notes || null,
     custom_fields: contact.custom_fields || {},
     lead_score: contact.score || 0,
-    // UTM tracking fields - from RD Station contact data
-    utm_source: contact.traffic_source || contact.utm_source || contact.custom_fields?.utm_source || null,
-    utm_medium: contact.traffic_medium || contact.utm_medium || contact.custom_fields?.utm_medium || null,
-    utm_campaign: contact.traffic_campaign || contact.utm_campaign || contact.custom_fields?.utm_campaign || null,
-    utm_content: contact.utm_content || contact.custom_fields?.utm_content || null,
-    utm_term: contact.utm_term || contact.custom_fields?.utm_term || null,
+    // UTM tracking fields - try multiple possible field names
+    utm_source: contact.traffic_source || contact.lead_source || contact.utm_source || contact.custom_fields?.utm_source || contact.custom_fields?.cf_utm_source || null,
+    utm_medium: contact.traffic_medium || contact.utm_medium || contact.custom_fields?.utm_medium || contact.custom_fields?.cf_utm_medium || null,
+    utm_campaign: contact.traffic_campaign || contact.utm_campaign || contact.custom_fields?.utm_campaign || contact.custom_fields?.cf_utm_campaign || null,
+    utm_content: contact.utm_content || contact.custom_fields?.utm_content || contact.custom_fields?.cf_utm_content || null,
+    utm_term: contact.utm_term || contact.custom_fields?.utm_term || contact.custom_fields?.cf_utm_term || null,
     // Conversion tracking
-    first_conversion: contact.first_conversion?.content || contact.first_conversion_date || null,
-    last_conversion: contact.last_conversion?.content || contact.last_conversion_date || null
+    first_conversion: contact.first_conversion?.content || contact.first_conversion?.identifier || contact.first_conversion_date || null,
+    last_conversion: contact.last_conversion?.content || contact.last_conversion?.identifier || contact.last_conversion_date || null,
+    // Use original created_at from RD Station if available
+    created_at: contact.created_at || new Date().toISOString()
   }));
 
   // Batch upsert in chunks of 500 for faster processing
