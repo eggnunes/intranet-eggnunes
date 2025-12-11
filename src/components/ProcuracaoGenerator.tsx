@@ -202,10 +202,10 @@ Retorne APENAS o texto dos poderes especiais, sem explicações adicionais.`;
       
       setLoadingTemplates(true);
       try {
+        // Carregar todos os templates (visíveis para todos os usuários)
         const { data, error } = await supabase
           .from('special_powers_templates')
           .select('id, name, description, is_default')
-          .or(`user_id.eq.${user.id},is_default.eq.true`)
           .order('is_default', { ascending: false })
           .order('name');
         
@@ -241,11 +241,10 @@ Retorne APENAS o texto dos poderes especiais, sem explicações adicionais.`;
 
       if (error) throw error;
 
-      // Recarregar templates
+      // Recarregar templates (todos visíveis para todos)
       const { data } = await supabase
         .from('special_powers_templates')
         .select('id, name, description, is_default')
-        .or(`user_id.eq.${user.id},is_default.eq.true`)
         .order('is_default', { ascending: false })
         .order('name');
       
