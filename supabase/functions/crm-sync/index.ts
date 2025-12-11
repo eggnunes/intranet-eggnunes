@@ -623,7 +623,7 @@ async function syncDeals(rdToken: string, supabase: any) {
   while (true) {
     const { data: contactsBatch } = await supabase
       .from('crm_contacts')
-      .select('id, rd_station_id')
+      .select('id, rd_station_id, name, email')
       .range(contactPage * contactLimit, (contactPage + 1) * contactLimit - 1);
     
     if (!contactsBatch || contactsBatch.length === 0) break;
@@ -632,7 +632,10 @@ async function syncDeals(rdToken: string, supabase: any) {
     contactPage++;
   }
   
-  const contactMap = new Map(allContacts.map((c: any) => [c.rd_station_id, c.id]));
+  // Create multiple maps for contact lookup
+  const contactMapById = new Map(allContacts.map((c: any) => [c.rd_station_id, c.id]));
+  const contactMapByName = new Map(allContacts.map((c: any) => [c.name?.toLowerCase()?.trim(), c.id]));
+  const contactMapByEmail = new Map(allContacts.filter((c: any) => c.email).map((c: any) => [c.email?.toLowerCase()?.trim(), c.id]));
 
   // Get user/owner mappings from profiles
   const { data: profiles } = await supabase
@@ -644,10 +647,27 @@ async function syncDeals(rdToken: string, supabase: any) {
     profiles?.map((p: any) => [p.email?.toLowerCase(), p.id]) || []
   );
 
-  // Transform deals data - including owner_id
+  // Transform deals data - including owner_id and contact_id with multiple lookup strategies
   const dealsData = allDeals.map(deal => {
     const stageInfo = stageMap.get(deal.deal_stage?._id);
-    const contactId = deal.contacts?.[0]?._id ? contactMap.get(deal.contacts[0]._id) : null;
+    
+    // Try multiple strategies to find contact_id
+    let contactId = null;
+    
+    // 1. Try by contact._id from deal
+    if (deal.contacts?.[0]?._id) {
+      contactId = contactMapById.get(deal.contacts[0]._id);
+    }
+    
+    // 2. Try by deal name (deals often have same name as contact)
+    if (!contactId && deal.name) {
+      contactId = contactMapByName.get(deal.name?.toLowerCase()?.trim());
+    }
+    
+    // 3. Try by contact email
+    if (!contactId && deal.contacts?.[0]?.emails?.[0]?.email) {
+      contactId = contactMapByEmail.get(deal.contacts[0].emails[0].email?.toLowerCase()?.trim());
+    }
     
     // Try to match owner by email
     let ownerId = null;
@@ -670,7 +690,9 @@ async function syncDeals(rdToken: string, supabase: any) {
       product_name: deal.deal_products?.[0]?.name || null,
       campaign_name: deal.campaign?.name || null,
       notes: deal.notes || null,
-      custom_fields: deal.custom_fields || {}
+      custom_fields: deal.custom_fields || {},
+      // Use original created_at from RD Station
+      created_at: deal.created_at || new Date().toISOString()
     };
   });
 
@@ -805,14 +827,27 @@ async function syncActivities(rdToken: string, supabase: any) {
   while (true) {
     const { data: contactsBatch } = await supabase
       .from('crm_contacts')
-      .select('id, rd_station_id')
+      .select('id, rd_station_id, name, email')
       .range(contactPage * 1000, (contactPage + 1) * 1000 - 1);
     if (!contactsBatch || contactsBatch.length === 0) break;
     allContacts = [...allContacts, ...contactsBatch];
     if (contactsBatch.length < 1000) break;
     contactPage++;
   }
-  const contactMap = new Map(allContacts.map((c: any) => [c.rd_station_id, c.id]));
+  const contactMapById = new Map(allContacts.map((c: any) => [c.rd_station_id, c.id]));
+  const contactMapByName = new Map(allContacts.map((c: any) => [c.name?.toLowerCase()?.trim(), c.id]));
+
+  // Get deal to contact mapping for activities that only have deal
+  const { data: dealsWithContact } = await supabase
+    .from('crm_deals')
+    .select('id, contact_id, name')
+    .not('contact_id', 'is', null);
+  const dealToContactMap = new Map(
+    dealsWithContact?.map((d: any) => [d.id, d.contact_id]) || []
+  );
+  const dealNameToContactMap = new Map(
+    dealsWithContact?.map((d: any) => [d.name?.toLowerCase()?.trim(), d.contact_id]) || []
+  );
 
   // Get user mappings
   const { data: profiles } = await supabase
@@ -839,7 +874,28 @@ async function syncActivities(rdToken: string, supabase: any) {
         dealId = dealMap.get(activity._deal_rd_id);
       }
       
-      const contactId = activity.contact?._id ? contactMap.get(activity.contact._id) : null;
+      // Try multiple strategies to find contact_id
+      let contactId = null;
+      
+      // 1. Try by contact._id
+      if (activity.contact?._id) {
+        contactId = contactMapById.get(activity.contact._id);
+      }
+      
+      // 2. Try by contact name
+      if (!contactId && activity.contact?.name) {
+        contactId = contactMapByName.get(activity.contact.name?.toLowerCase()?.trim());
+      }
+      
+      // 3. Try by deal's contact_id
+      if (!contactId && dealId) {
+        contactId = dealToContactMap.get(dealId);
+      }
+      
+      // 4. Try by deal name (activity subject often contains deal name)
+      if (!contactId && activity.deal?.name) {
+        contactId = dealNameToContactMap.get(activity.deal.name?.toLowerCase()?.trim());
+      }
       
       let ownerId = null;
       if (activity.user?.email) {
