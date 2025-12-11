@@ -69,19 +69,21 @@ All colors MUST be HSL.
   }
 
   html {
-    scroll-behavior: smooth;
-    height: auto;
-    min-height: 100%;
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: scroll !important;
+    -webkit-overflow-scrolling: touch;
   }
 
   body {
     @apply bg-background text-foreground;
-    overflow-x: hidden;
-    overflow-y: auto;
     min-height: 100%;
     height: auto;
+    overflow-x: hidden;
+    overflow-y: scroll !important;
     -webkit-overflow-scrolling: touch;
-    touch-action: pan-y;
+    touch-action: pan-x pan-y;
+    overscroll-behavior-y: auto;
   }
   
   /* Fix mobile scroll issues */
@@ -89,6 +91,7 @@ All colors MUST be HSL.
     min-height: 100%;
     height: auto;
     overflow: visible;
+    position: relative;
   }
 }
 
@@ -113,5 +116,12 @@ All colors MUST be HSL.
   
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
+  
+  /* Force enable scrolling on mobile */
+  .mobile-scroll-fix {
+    -webkit-overflow-scrolling: touch !important;
+    overflow-y: auto !important;
+    touch-action: pan-y !important;
   }
 }

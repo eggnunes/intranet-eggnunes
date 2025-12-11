@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useState, useLayoutEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -33,6 +33,26 @@ export const Layout = ({ children }: LayoutProps) => {
   const { toast } = useToast();
   const showBackButton = location.pathname !== '/dashboard' && location.pathname !== '/';
   
+  // Fix mobile scroll on route change and drawer close
+  useLayoutEffect(() => {
+    const enableScroll = () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.body.style.touchAction = '';
+      document.documentElement.style.overflow = '';
+      // Force scroll to be enabled
+      document.body.style.overflowY = 'scroll';
+    };
+    
+    enableScroll();
+    
+    // Run again after a short delay to counter any drawer effects
+    const timeout = setTimeout(enableScroll, 100);
+    
+    return () => clearTimeout(timeout);
+  }, [location.pathname, mobileMenuOpen]);
   
   const handleBack = () => {
     navigate(-1);
@@ -428,7 +448,7 @@ export const Layout = ({ children }: LayoutProps) => {
   );
 
   return (
-    <div className="min-h-[100dvh] bg-background" style={{ overflowX: 'hidden', overflowY: 'visible' }}>
+    <div className="min-h-[100dvh] bg-background">
       {/* Global Search Dialog */}
       <CommandDialog open={searchOpen} onOpenChange={setSearchOpen}>
         <CommandInput placeholder="Buscar na intranet... (Ctrl+K)" />

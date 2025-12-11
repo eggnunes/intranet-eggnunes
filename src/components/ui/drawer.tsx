@@ -3,9 +3,37 @@ import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/lib/utils";
 
-const Drawer = ({ shouldScaleBackground = true, ...props }: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
-  <DrawerPrimitive.Root shouldScaleBackground={shouldScaleBackground} {...props} />
-);
+const Drawer = ({ 
+  shouldScaleBackground = false,
+  onOpenChange,
+  ...props 
+}: React.ComponentProps<typeof DrawerPrimitive.Root>) => {
+  const handleOpenChange = React.useCallback((open: boolean) => {
+    onOpenChange?.(open);
+    
+    // Restore scroll when drawer closes
+    if (!open) {
+      requestAnimationFrame(() => {
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.pointerEvents = '';
+        document.documentElement.style.overflow = '';
+        // Force scroll to be enabled
+        document.body.style.overflowY = 'scroll';
+      });
+    }
+  }, [onOpenChange]);
+  
+  return (
+    <DrawerPrimitive.Root 
+      shouldScaleBackground={shouldScaleBackground} 
+      onOpenChange={handleOpenChange}
+      {...props} 
+    />
+  );
+};
 Drawer.displayName = "Drawer";
 
 const DrawerTrigger = DrawerPrimitive.Trigger;
