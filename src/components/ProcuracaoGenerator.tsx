@@ -62,24 +62,28 @@ interface PowerTemplate {
   is_default?: boolean;
 }
 
-// Modelo de procuração base
-const PROCURACAO_TEMPLATE = `PROCURAÇÃO AD JUDICIA ET EXTRA
+// Lista de advogados conforme modelo oficial da procuração
+const ADVOGADOS_OFICIAIS = [
+  { nome: "GUILHERME ZARDO DA ROCHA", nacionalidade: "brasileiro", estadoCivil: "casado", oab: "OAB/MG sob o n. 93.714" },
+  { nome: "MARCOS LUIZ EGG NUNES", nacionalidade: "brasileiro", estadoCivil: "casado", oab: "OAB/MG sob o n. 115.283" },
+  { nome: "RAFAEL EGG NUNES", nacionalidade: "brasileiro", estadoCivil: "casado", oab: "OAB/MG sob o n. 118.395" },
+  { nome: "MARCOS GERALDO NUNES", nacionalidade: "brasileiro", estadoCivil: "casado", oab: "OAB/MG sob o n. 75.904" },
+  { nome: "MARIANA ALVES AMORIM CORRÊA FULGÊNCIO", nacionalidade: "brasileira", estadoCivil: "casada", oab: "OAB/MG sob o n. 140.619" },
+  { nome: "MARIA CECILIA BELO", nacionalidade: "brasileira", estadoCivil: "solteira", oab: "OAB/MG sob o n. 179.649" },
+  { nome: "WENMISON JOSÉ DA SILVA RODRIGUES", nacionalidade: "brasileiro", estadoCivil: "casado", oab: "OAB/MG sob o n. 207.900" },
+  { nome: "NÁGILA RODRIGUES", nacionalidade: "brasileira", estadoCivil: "solteira", oab: "OAB/SP sob o n. 421.746" },
+  { nome: "KARISTON RICHARD SOARES COELHO", nacionalidade: "brasileiro", estadoCivil: "solteiro", oab: "OAB/MG sob o n. 231.047" },
+  { nome: "RAFAEL FELIPPE MONTI", nacionalidade: "brasileiro", estadoCivil: "solteiro", oab: "OAB/MG sob o n. 232.112" },
+  { nome: "JÚLIA MOARES DUTRA PEDRA", nacionalidade: "brasileira", estadoCivil: "solteira", oab: "OAB/MG sob o n. 199.902" },
+  { nome: "JORDÂNIA LUÍZE GUEDES ALMEIDA", nacionalidade: "brasileira", estadoCivil: "solteira", oab: "OAB/MG sob o n. 239.069" },
+  { nome: "LUDMILA NICEA MATOS DE MAGALHÃES SILVA FIALHO", nacionalidade: "brasileira", estadoCivil: "casada", oab: "OAB/MG sob o n. 153.142" },
+  { nome: "JENNIFER KAROLINE DARIO DE SÁ", nacionalidade: "brasileira", estadoCivil: "solteira", oab: "OAB/MG sob o n. 202.042" },
+];
 
-[qualificação do cliente]
+const ENDERECO_ESCRITORIO = "Rua São Paulo, nº 1.104, 9º andar, Centro, Belo Horizonte/MG, CEP 30170-131";
 
-
-OUTORGA amplos poderes, como sua bastante procuradora aos advogados que subscrevem esta procuração, EGG NUNES ADVOGADOS ASSOCIADOS, inscrito no CNPJ/MF sob o nº 10.378.694/0001-59, MARCOS LUIZ EGG NUNES, inscrito na OAB/MG sob o nº 115.283, CPF: 043.411.986-88, RAFAEL EGG NUNES, inscrito na OAB/MG sob o nº 118.395, CPF: 106.261.286-09, LAÍS PASSOS CAMPOLINA, inscrito na OAB/MG sob o nº 171.816, CPF: 111.466.086-06, MARIANA AMORIM, inscrito na OAB/MG sob o nº 229.188, CPF: 149.498.576-05, LUCAS TAVEIRA, inscrito na OAB/MG sob o nº 220.426, CPF: 133.660.326-70, ANDREI SGANZERLA DE ALMEIDA, inscrito na OAB/MG sob o nº 195.608, CPF: 067.116.316-10, EMANUELLE OLIVEIRA SANTANA, inscrito na OAB/MG sob o nº 224.011, CPF: 127.809.266-44, escritório profissional na Rua São Paulo, 1104, salas 901, 902 e 903, Centro, CEP 30.170-131, Belo Horizonte/MG, para, no foro em geral, o fim especial de, em juízo ou fora dele, propor demandas, sendo parte ativa ou passiva, promover investigações, auditorias, notificações extrajudiciais, acordos judiciais, podendo os constituídos substabelecê-los a outros advogados, com ou sem reservas de iguais poderes, e, ainda, agir nas Instâncias do Poder Judiciário e do Poder Executivo da União, Estados, Distrito Federal e Municípios, do Ministério Público Estadual e Federal e de todas as outras repartições públicas, podendo os outorgados atuarem em conjunto ou separadamente.
-
-OUTORGA, ainda, os poderes da cláusula "ad judicia et extra", e para o foro em geral, com as seguintes ressalvas e os seguintes poderes especiais: confessar, reconhecer procedência do pedido, transigir, desistir, renunciar ao direito sob o qual se funda a ação, receber citação inicial, intimação, interpor todos os recursos legais, e todos os demais atos necessários ao fiel cumprimento do mandato, prestar compromisso.
-
-[inserir aqui os poderes especiais, caso tenha]
-
-Belo Horizonte/MG, [data].
-
-
-
-_____________________________________
-[nome completo do cliente]`;
+// Texto do corpo da procuração conforme modelo oficial
+const TEXTO_PODERES = `aos quais confere(m) os poderes da cláusula "ad judicia", para defesa dos direitos ou interesses do(a) Outorgante perante instância judicial ou administrativa, podendo, para tanto, requerer e assinar o que for necessário, representar o(a) Outorgante junto às repartições públicas, ingressar em juízo como Autor(a), promover as ações ou medidas cautelares que entender cabíveis, arguir exceções, transigir, desistir, renunciar, receber e dar quitação, interpor e seguir os recursos legais, assinar declaração de hipossuficiência econômica, bem como fazer tudo mais que necessário for ao completo desempenho do presente mandato, para o qual lhe são outorgados amplos poderes, inclusive o substabelecimento.`;
 
 export const ProcuracaoGenerator = ({ 
   open, 
@@ -202,28 +206,26 @@ export const ProcuracaoGenerator = ({
     toast.success(`Template "${template.name}" carregado`);
   };
 
-  // Gerar poderes especiais com IA baseado no objeto do contrato
+  // Gerar poderes especiais com IA
   const gerarPoderesComIA = async () => {
-    if (!objetoContrato?.trim()) {
-      toast.error("Objeto do contrato não informado. Primeiro gere o contrato para usar esta função.");
-      return;
-    }
-
     setGerandoPoderes(true);
     try {
+      const contexto = objetoContrato?.trim() 
+        ? `Objeto do contrato: ${objetoContrato}`
+        : `Cliente: ${client?.nomeCompleto || 'não informado'}`;
+      
       const prompt = `Você é um advogado especialista em procurações advocatícias.
 
-Gere os poderes especiais para uma procuração com base no seguinte objeto do contrato:
+Gere os poderes especiais para uma procuração com base no seguinte contexto:
 
-Objeto do contrato: ${objetoContrato}
+${contexto}
 
-Os poderes especiais devem ser específicos e relacionados ao objeto do contrato, permitindo que o advogado execute todas as ações necessárias para a defesa dos interesses do cliente.
+Os poderes especiais devem ser específicos e relacionados ao contexto informado, permitindo que o advogado execute todas as ações necessárias para a defesa dos interesses do cliente.
 
 Formato esperado:
-- Comece com "Outorga ainda poderes especiais para:" seguido dos poderes específicos.
 - Os poderes devem ser listados de forma clara e direta.
 - O texto deve ser em português jurídico formal.
-- O texto final deve estar em negrito quando inserido no documento.
+- Seja objetivo e conciso.
 
 Retorne APENAS o texto dos poderes especiais, sem explicações adicionais.`;
 
@@ -249,23 +251,31 @@ Retorne APENAS o texto dos poderes especiais, sem explicações adicionais.`;
     }
   };
 
-  // Gerar texto da procuração
+  // Gerar texto da procuração para preview
   const gerarTextoProcuracao = (): string => {
     if (!client) return "";
     
     const dataAtual = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
     
-    let texto = PROCURACAO_TEMPLATE
-      .replace('[qualificação do cliente]', qualification)
-      .replace('[data]', dataAtual)
-      .replace('[nome completo do cliente]', client.nomeCompleto.toUpperCase());
+    // Montar lista de advogados
+    const advogadosTexto = ADVOGADOS_OFICIAIS.map(adv => 
+      `${adv.nome}, ${adv.nacionalidade}, ${adv.estadoCivil}, advogado(a) inscrito(a) na ${adv.oab}`
+    ).join('\n');
     
-    // Inserir poderes especiais ou remover placeholder
+    let texto = `PROCURAÇÃO
+
+${qualification}; nomeia(m) e constitui(em), seus bastantes procuradores os advogados:
+
+${advogadosTexto}
+
+todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
+
+    // Inserir poderes especiais se houver
     if (temPoderesEspeciais && poderesEspeciais.trim()) {
-      texto = texto.replace('[inserir aqui os poderes especiais, caso tenha]', poderesEspeciais.trim());
-    } else {
-      texto = texto.replace('\n\n[inserir aqui os poderes especiais, caso tenha]', '');
+      texto += `\n\n${poderesEspeciais.trim()}`;
     }
+    
+    texto += `\n\nBelo Horizonte, ${dataAtual}.\n\n\n_____________________________________\n${client.nomeCompleto.toUpperCase()}`;
     
     return texto;
   };
@@ -282,7 +292,7 @@ Retorne APENAS o texto dos poderes especiais, sem explicações adicionais.`;
     setShowPreview(false);
   };
 
-  // Gerar PDF da procuração
+  // Gerar PDF da procuração conforme modelo oficial
   const gerarPDF = async () => {
     if (!client) return;
     
@@ -296,10 +306,13 @@ Retorne APENAS o texto dos poderes especiais, sem explicações adicionais.`;
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 25;
-      const contentWidth = pageWidth - (margin * 2);
+      const marginLeft = 20;
+      const marginRight = 20;
+      const contentWidth = pageWidth - marginLeft - marginRight;
+      const fontSize = 9;
+      const lineHeight = 4.5;
       
-      // Adicionar logo
+      // Adicionar logo centralizada
       try {
         const img = new Image();
         img.src = logoEggnunes;
@@ -308,88 +321,90 @@ Retorne APENAS o texto dos poderes especiais, sem explicações adicionais.`;
           img.onerror = reject;
         });
         
-        const logoWidth = 50;
+        const logoWidth = 45;
         const logoHeight = (img.height / img.width) * logoWidth;
         const logoX = (pageWidth - logoWidth) / 2;
-        doc.addImage(img, 'PNG', logoX, 15, logoWidth, logoHeight);
+        doc.addImage(img, 'PNG', logoX, 12, logoWidth, logoHeight);
       } catch (e) {
         console.warn('Não foi possível carregar a logo:', e);
       }
 
-      let yPosition = 50;
+      let yPosition = 38;
       
-      // Título
+      // Título PROCURAÇÃO em negrito e centralizado
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
-      doc.text('PROCURAÇÃO AD JUDICIA ET EXTRA', pageWidth / 2, yPosition, { align: 'center' });
-      yPosition += 15;
+      doc.text('PROCURAÇÃO', pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 10;
 
-      // Qualificação do cliente
+      // Qualificação do cliente em negrito
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(fontSize);
+      const qualificationText = qualification + "; nomeia(m) e constitui(em), seus bastantes procuradores os advogados:";
+      const qualificationLines = doc.splitTextToSize(qualificationText, contentWidth);
+      doc.text(qualificationLines, marginLeft, yPosition);
+      yPosition += qualificationLines.length * lineHeight + 4;
+
+      // Tabela de advogados
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(11);
-      const qualificationLines = doc.splitTextToSize(qualification, contentWidth);
-      doc.text(qualificationLines, margin, yPosition);
-      yPosition += qualificationLines.length * 5 + 10;
-
-      // Texto principal da procuração (dividido em parágrafos)
-      const paragrafos = [
-        `OUTORGA amplos poderes, como sua bastante procuradora aos advogados que subscrevem esta procuração, EGG NUNES ADVOGADOS ASSOCIADOS, inscrito no CNPJ/MF sob o nº 10.378.694/0001-59, MARCOS LUIZ EGG NUNES, inscrito na OAB/MG sob o nº 115.283, CPF: 043.411.986-88, RAFAEL EGG NUNES, inscrito na OAB/MG sob o nº 118.395, CPF: 106.261.286-09, LAÍS PASSOS CAMPOLINA, inscrito na OAB/MG sob o nº 171.816, CPF: 111.466.086-06, MARIANA AMORIM, inscrito na OAB/MG sob o nº 229.188, CPF: 149.498.576-05, LUCAS TAVEIRA, inscrito na OAB/MG sob o nº 220.426, CPF: 133.660.326-70, ANDREI SGANZERLA DE ALMEIDA, inscrito na OAB/MG sob o nº 195.608, CPF: 067.116.316-10, EMANUELLE OLIVEIRA SANTANA, inscrito na OAB/MG sob o nº 224.011, CPF: 127.809.266-44, escritório profissional na Rua São Paulo, 1104, salas 901, 902 e 903, Centro, CEP 30.170-131, Belo Horizonte/MG, para, no foro em geral, o fim especial de, em juízo ou fora dele, propor demandas, sendo parte ativa ou passiva, promover investigações, auditorias, notificações extrajudiciais, acordos judiciais, podendo os constituídos substabelecê-los a outros advogados, com ou sem reservas de iguais poderes, e, ainda, agir nas Instâncias do Poder Judiciário e do Poder Executivo da União, Estados, Distrito Federal e Municípios, do Ministério Público Estadual e Federal e de todas as outras repartições públicas, podendo os outorgados atuarem em conjunto ou separadamente.`,
-        `OUTORGA, ainda, os poderes da cláusula "ad judicia et extra", e para o foro em geral, com as seguintes ressalvas e os seguintes poderes especiais: confessar, reconhecer procedência do pedido, transigir, desistir, renunciar ao direito sob o qual se funda a ação, receber citação inicial, intimação, interpor todos os recursos legais, e todos os demais atos necessários ao fiel cumprimento do mandato, prestar compromisso.`
-      ];
-
-      for (const paragrafo of paragrafos) {
-        const lines = doc.splitTextToSize(paragrafo, contentWidth);
+      doc.setFontSize(8);
+      
+      for (const adv of ADVOGADOS_OFICIAIS) {
+        // Nome do advogado em negrito
+        doc.setFont('helvetica', 'bold');
+        const nomeText = adv.nome;
+        doc.text(nomeText, marginLeft, yPosition);
         
-        // Verificar se precisa de nova página
-        if (yPosition + (lines.length * 5) > pageHeight - 40) {
-          doc.addPage();
-          yPosition = margin;
-        }
+        // Dados do advogado em fonte normal
+        doc.setFont('helvetica', 'normal');
+        const dadosText = `, ${adv.nacionalidade}, ${adv.estadoCivil}, advogado(a) inscrito(a) na ${adv.oab}`;
+        const nomeWidth = doc.getTextWidth(nomeText);
+        doc.text(dadosText, marginLeft + nomeWidth, yPosition);
         
-        doc.text(lines, margin, yPosition);
-        yPosition += lines.length * 5 + 8;
+        yPosition += lineHeight;
       }
+
+      yPosition += 3;
+
+      // Texto do escritório
+      doc.setFontSize(fontSize);
+      const escritorioText = `todos com escritório na ${ENDERECO_ESCRITORIO}, `;
+      doc.text(escritorioText, marginLeft, yPosition);
+      yPosition += lineHeight + 2;
+
+      // Texto dos poderes
+      const poderesLines = doc.splitTextToSize(TEXTO_PODERES, contentWidth);
+      doc.text(poderesLines, marginLeft, yPosition);
+      yPosition += poderesLines.length * lineHeight + 3;
 
       // Poderes especiais em negrito (se houver)
       if (temPoderesEspeciais && poderesEspeciais.trim()) {
         doc.setFont('helvetica', 'bold');
-        const poderesLines = doc.splitTextToSize(poderesEspeciais.trim(), contentWidth);
-        
-        // Verificar se precisa de nova página
-        if (yPosition + (poderesLines.length * 5) > pageHeight - 40) {
-          doc.addPage();
-          yPosition = margin;
-        }
-        
-        doc.text(poderesLines, margin, yPosition);
-        yPosition += poderesLines.length * 5 + 10;
+        const poderesEspeciaisLines = doc.splitTextToSize(poderesEspeciais.trim(), contentWidth);
+        doc.text(poderesEspeciaisLines, marginLeft, yPosition);
+        yPosition += poderesEspeciaisLines.length * lineHeight + 5;
         doc.setFont('helvetica', 'normal');
       }
 
       // Data e local
       const dataAtual = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-      yPosition += 10;
-      
-      // Verificar se precisa de nova página
-      if (yPosition + 50 > pageHeight - 40) {
-        doc.addPage();
-        yPosition = margin;
-      }
-      
-      doc.text(`Belo Horizonte/MG, ${dataAtual}.`, margin, yPosition);
-      yPosition += 25;
+      yPosition += 8;
+      doc.text(`Belo Horizonte, ${dataAtual}.`, marginLeft, yPosition);
+      yPosition += 15;
 
-      // Linha de assinatura
+      // Linha de assinatura centralizada
       doc.text('_____________________________________', pageWidth / 2, yPosition, { align: 'center' });
-      yPosition += 6;
+      yPosition += 5;
+      
+      // Nome do cliente em negrito e centralizado
       doc.setFont('helvetica', 'bold');
       doc.text(client.nomeCompleto.toUpperCase(), pageWidth / 2, yPosition, { align: 'center' });
 
-      // Rodapé
+      // Rodapé conforme modelo
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
-      doc.text('Rua São Paulo, 1104 - 9º andar - Centro - Belo Horizonte/MG - CEP: 30.170-131', pageWidth / 2, pageHeight - 15, { align: 'center' });
-      doc.text('Tel: (31) 3226-8742 | www.eggnunes.com.br', pageWidth / 2, pageHeight - 10, { align: 'center' });
+      doc.text('31 3226-8742 | escritorio@eggnunes.com.br | www.eggnunes.com.br', pageWidth / 2, pageHeight - 15, { align: 'center' });
+      doc.text('Rua São Paulo, 1104 - 9º andar - Centro - Belo Horizonte - MG - 30170-131', pageWidth / 2, pageHeight - 10, { align: 'center' });
 
       // Salvar PDF
       const nomeArquivo = `Procuracao_${client.nomeCompleto.replace(/\s+/g, '_')}_${format(new Date(), 'ddMMyyyy')}.pdf`;
@@ -523,8 +538,7 @@ Retorne APENAS o texto dos poderes especiais, sem explicações adicionais.`;
                         variant="outline" 
                         size="sm"
                         onClick={gerarPoderesComIA}
-                        disabled={gerandoPoderes || !objetoContrato?.trim()}
-                        title={!objetoContrato?.trim() ? "Primeiro gere o contrato para usar esta função" : ""}
+                        disabled={gerandoPoderes}
                       >
                         {gerandoPoderes ? (
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
