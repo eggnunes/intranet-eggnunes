@@ -59,3 +59,9 @@ verify_jwt = true
 
 [functions.capture-lead]
 verify_jwt = false
+
+[functions.crm-sync]
+verify_jwt = true
+
+[functions.crm-webhook]
+verify_jwt = false
