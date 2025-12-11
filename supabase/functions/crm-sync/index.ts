@@ -728,86 +728,7 @@ async function syncDeals(rdToken: string, supabase: any) {
 async function syncActivities(rdToken: string, supabase: any) {
   console.log('Syncing activities from RD Station...');
   
-  let allActivities: any[] = [];
-  let page = 1;
-  const limit = 200;
-  
-  // Try both activities and tasks endpoints
-  const endpoints = ['activities', 'tasks'];
-  
-  for (const endpoint of endpoints) {
-    page = 1;
-    console.log(`Trying endpoint: /${endpoint}`);
-    
-    while (true) {
-      try {
-        const response = await fetch(
-          `${RD_STATION_API_URL}/${endpoint}?token=${rdToken}&page=${page}&limit=${limit}`
-        );
-        
-        if (!response.ok) {
-          console.log(`${endpoint} fetch returned ${response.status}`);
-          break;
-        }
-
-        const data = await response.json();
-        const items = data[endpoint] || data.tasks || data.activities || [];
-        
-        if (items.length === 0) break;
-        
-        allActivities = [...allActivities, ...items];
-        console.log(`Fetched ${endpoint} page ${page}, total: ${allActivities.length}`);
-        
-        if (items.length < limit) break;
-        page++;
-        
-        if (page > 50) break;
-      } catch (error) {
-        console.error(`Error fetching ${endpoint}:`, error);
-        break;
-      }
-    }
-    
-    if (allActivities.length > 0) break;
-  }
-
-  // Also fetch activities from each deal
-  console.log('Fetching deal activities...');
-  const { data: deals } = await supabase
-    .from('crm_deals')
-    .select('rd_station_id');
-  
-  if (deals && deals.length > 0) {
-    for (const deal of deals.slice(0, 100)) { // Limit to first 100 deals
-      try {
-        const response = await fetch(
-          `${RD_STATION_API_URL}/deals/${deal.rd_station_id}/activities?token=${rdToken}&limit=50`
-        );
-        
-        if (response.ok) {
-          const data = await response.json();
-          const dealActivities = data.activities || [];
-          if (dealActivities.length > 0) {
-            // Add deal reference
-            dealActivities.forEach((a: any) => {
-              a._deal_rd_id = deal.rd_station_id;
-            });
-            allActivities = [...allActivities, ...dealActivities];
-          }
-        }
-      } catch (error) {
-        // Continue with other deals
-      }
-    }
-  }
-
-  console.log(`Total activities to sync: ${allActivities.length}`);
-
-  if (allActivities.length === 0) {
-    return { activities: 0 };
-  }
-
-  // Get deal and contact mappings - fetch all
+  // First, get ALL deals with their rd_station_ids to fetch activities per deal
   let allDeals: any[] = [];
   let dealPage = 0;
   while (true) {
@@ -820,9 +741,13 @@ async function syncActivities(rdToken: string, supabase: any) {
     if (dealsBatch.length < 1000) break;
     dealPage++;
   }
-  const dealMap = new Map(allDeals.map((d: any) => [d.rd_station_id, d.id]));
-  const dealMapByName = new Map(allDeals.map((d: any) => [d.name?.toLowerCase()?.trim(), { id: d.id, contact_id: d.contact_id }]));
+  console.log(`Found ${allDeals.length} deals to fetch activities from`);
 
+  // Create maps for lookups
+  const dealMapByRdId = new Map(allDeals.map((d: any) => [d.rd_station_id, { id: d.id, contact_id: d.contact_id, name: d.name }]));
+  const dealMapByName = new Map(allDeals.map((d: any) => [d.name?.toLowerCase()?.trim(), { id: d.id, contact_id: d.contact_id }]));
+  
+  // Get contacts
   let allContacts: any[] = [];
   let contactPage = 0;
   while (true) {
@@ -835,23 +760,8 @@ async function syncActivities(rdToken: string, supabase: any) {
     if (contactsBatch.length < 1000) break;
     contactPage++;
   }
-  const contactMapById = new Map(allContacts.map((c: any) => [c.rd_station_id, c.id]));
+  const contactMapByRdId = new Map(allContacts.map((c: any) => [c.rd_station_id, c.id]));
   const contactMapByName = new Map(allContacts.map((c: any) => [c.name?.toLowerCase()?.trim(), c.id]));
-
-  // Get deal to contact mapping for activities that only have deal
-  const { data: dealsWithContact } = await supabase
-    .from('crm_deals')
-    .select('id, contact_id, name, rd_station_id')
-    .not('contact_id', 'is', null);
-  const dealToContactMap = new Map(
-    dealsWithContact?.map((d: any) => [d.id, d.contact_id]) || []
-  );
-  const dealNameToContactMap = new Map(
-    dealsWithContact?.map((d: any) => [d.name?.toLowerCase()?.trim(), d.contact_id]) || []
-  );
-  const dealRdIdToContactMap = new Map(
-    dealsWithContact?.map((d: any) => [d.rd_station_id, d.contact_id]) || []
-  );
 
   // Get user mappings
   const { data: profiles } = await supabase
@@ -861,7 +771,77 @@ async function syncActivities(rdToken: string, supabase: any) {
     profiles?.map((p: any) => [p.email?.toLowerCase(), p.id]) || []
   );
 
-  // Transform activities - dedupe by _id
+  let allActivities: any[] = [];
+  
+  // Fetch activities from EACH deal (most reliable way)
+  console.log('Fetching activities from each deal...');
+  let processedDeals = 0;
+  for (const deal of allDeals) {
+    if (!deal.rd_station_id) continue;
+    
+    try {
+      const response = await fetch(
+        `${RD_STATION_API_URL}/deals/${deal.rd_station_id}/activities?token=${rdToken}&limit=100`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        const dealActivities = data.activities || [];
+        if (dealActivities.length > 0) {
+          // Add deal info directly to each activity for guaranteed mapping
+          dealActivities.forEach((a: any) => {
+            a._mapped_deal_id = deal.id;
+            a._mapped_contact_id = deal.contact_id;
+            a._deal_rd_id = deal.rd_station_id;
+          });
+          allActivities = [...allActivities, ...dealActivities];
+        }
+      }
+    } catch (error) {
+      // Continue with other deals
+    }
+    
+    processedDeals++;
+    if (processedDeals % 50 === 0) {
+      console.log(`Processed ${processedDeals}/${allDeals.length} deals, found ${allActivities.length} activities`);
+    }
+  }
+
+  // Also try the general activities endpoint
+  console.log('Also fetching from general activities endpoint...');
+  let page = 1;
+  const limit = 200;
+  
+  while (page <= 20) {
+    try {
+      const response = await fetch(
+        `${RD_STATION_API_URL}/activities?token=${rdToken}&page=${page}&limit=${limit}`
+      );
+      
+      if (!response.ok) break;
+
+      const data = await response.json();
+      const items = data.activities || [];
+      
+      if (items.length === 0) break;
+      
+      allActivities = [...allActivities, ...items];
+      console.log(`Fetched activities page ${page}, total: ${allActivities.length}`);
+      
+      if (items.length < limit) break;
+      page++;
+    } catch (error) {
+      break;
+    }
+  }
+
+  console.log(`Total activities to sync: ${allActivities.length}`);
+
+  if (allActivities.length === 0) {
+    return { activities: 0 };
+  }
+
+  // Transform and dedupe activities
   const seenIds = new Set<string>();
   const activitiesData = allActivities
     .filter(activity => {
@@ -870,19 +850,25 @@ async function syncActivities(rdToken: string, supabase: any) {
       return true;
     })
     .map(activity => {
-      // Get deal ID from activity or from _deal_rd_id
-      let dealId = null;
-      let contactId = null;
+      // Use pre-mapped IDs if available (from deal-specific fetch)
+      let dealId = activity._mapped_deal_id || null;
+      let contactId = activity._mapped_contact_id || null;
       
-      // Try to get deal by rd_station_id
-      if (activity.deal?._id) {
-        dealId = dealMap.get(activity.deal._id);
-        // Also try to get contact from this deal
-        contactId = dealRdIdToContactMap.get(activity.deal._id);
+      // If not pre-mapped, try to find by rd_station_id
+      if (!dealId && activity.deal?._id) {
+        const dealInfo = dealMapByRdId.get(activity.deal._id);
+        if (dealInfo) {
+          dealId = dealInfo.id;
+          contactId = dealInfo.contact_id;
+        }
       }
+      
       if (!dealId && activity._deal_rd_id) {
-        dealId = dealMap.get(activity._deal_rd_id);
-        contactId = dealRdIdToContactMap.get(activity._deal_rd_id);
+        const dealInfo = dealMapByRdId.get(activity._deal_rd_id);
+        if (dealInfo) {
+          dealId = dealInfo.id;
+          contactId = dealInfo.contact_id;
+        }
       }
       
       // Try by deal name
@@ -894,24 +880,13 @@ async function syncActivities(rdToken: string, supabase: any) {
         }
       }
       
-      // Try contact by _id
+      // Try contact directly
       if (!contactId && activity.contact?._id) {
-        contactId = contactMapById.get(activity.contact._id);
+        contactId = contactMapByRdId.get(activity.contact._id);
       }
       
-      // Try contact by name
       if (!contactId && activity.contact?.name) {
         contactId = contactMapByName.get(activity.contact.name?.toLowerCase()?.trim());
-      }
-      
-      // Try by deal's contact_id
-      if (!contactId && dealId) {
-        contactId = dealToContactMap.get(dealId);
-      }
-      
-      // Try by deal name -> contact
-      if (!contactId && activity.deal?.name) {
-        contactId = dealNameToContactMap.get(activity.deal.name?.toLowerCase()?.trim());
       }
       
       let ownerId = null;
@@ -923,12 +898,11 @@ async function syncActivities(rdToken: string, supabase: any) {
         createdBy = emailToProfileMap.get(activity.created_by.email.toLowerCase()) || null;
       }
 
-      // Map RD Station activity types
+      // Map activity type
       let type = 'task';
       const activityType = activity.type?.toString() || '';
       const subject = (activity.subject || activity.name || activity.title || '').toLowerCase();
       
-      // RD Station types: 0=note, 1=call, 2=email, 3=meeting
       if (activityType === '0' || activityType === 'note') type = 'note';
       else if (activityType === '1' || activityType === 'call' || subject.includes('ligação') || subject.includes('call')) type = 'call';
       else if (activityType === '2' || activityType === 'email' || subject.includes('email') || subject.includes('e-mail')) type = 'email';
@@ -952,6 +926,11 @@ async function syncActivities(rdToken: string, supabase: any) {
     });
 
   console.log(`Filtered unique activities: ${activitiesData.length}`);
+  
+  // Count how many have mappings
+  const withDeal = activitiesData.filter(a => a.deal_id).length;
+  const withContact = activitiesData.filter(a => a.contact_id).length;
+  console.log(`Activities with deal_id: ${withDeal}, with contact_id: ${withContact}`);
 
   // Batch upsert
   const BATCH_SIZE = 500;
@@ -978,5 +957,5 @@ async function syncActivities(rdToken: string, supabase: any) {
     status: 'success'
   });
 
-  return { activities: activitiesCreated };
+  return { activities: activitiesCreated, with_deal: withDeal, with_contact: withContact };
 }

@@ -168,8 +168,19 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
   const fetchContactDetails = async (contactId: string, contactRdStationId: string | null) => {
     setLoadingDetails(true);
     try {
-      // First fetch deals associated with this contact
-      const { data: deals } = await supabase
+      // Get contact name for fallback lookups
+      const { data: contact } = await supabase
+        .from('crm_contacts')
+        .select('name')
+        .eq('id', contactId)
+        .single();
+      
+      const contactName = contact?.name || '';
+
+      // Fetch deals - first by contact_id, then also by name match
+      let allDeals: Deal[] = [];
+      
+      const { data: dealsByContactId } = await supabase
         .from('crm_deals')
         .select(`
           id, name, value, product_name, owner_id, rd_station_id, campaign_name,
@@ -178,70 +189,65 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
         .eq('contact_id', contactId)
         .order('created_at', { ascending: false });
       
-      setContactDeals(deals as Deal[] || []);
-
-      // Fetch activities - try multiple approaches
-      let allActivities: Activity[] = [];
-      
-      // 1. Try by contact_id
-      const { data: activitiesByContact } = await supabase
-        .from('crm_activities')
-        .select('*')
-        .eq('contact_id', contactId)
-        .order('created_at', { ascending: false });
-      
-      if (activitiesByContact && activitiesByContact.length > 0) {
-        allActivities = [...activitiesByContact];
+      if (dealsByContactId) {
+        allDeals = [...dealsByContactId as Deal[]];
       }
       
-      // 2. Also fetch by deal_ids associated with this contact
-      if (deals && deals.length > 0) {
-        const dealIds = deals.map(d => d.id);
-        const { data: activitiesByDeal } = await supabase
-          .from('crm_activities')
-          .select('*')
-          .in('deal_id', dealIds)
+      // Also try to find deals by name match (deals often have same name as contact)
+      if (contactName) {
+        const { data: dealsByName } = await supabase
+          .from('crm_deals')
+          .select(`
+            id, name, value, product_name, owner_id, rd_station_id, campaign_name,
+            stage:crm_deal_stages(name, is_won, is_lost)
+          `)
+          .ilike('name', `%${contactName}%`)
           .order('created_at', { ascending: false });
         
-        if (activitiesByDeal && activitiesByDeal.length > 0) {
-          // Merge and dedupe
-          const existingIds = new Set(allActivities.map(a => a.id));
-          activitiesByDeal.forEach(a => {
-            if (!existingIds.has(a.id)) {
-              allActivities.push(a as Activity);
+        if (dealsByName) {
+          const existingDealIds = new Set(allDeals.map(d => d.id));
+          dealsByName.forEach(d => {
+            if (!existingDealIds.has(d.id)) {
+              allDeals.push(d as Deal);
             }
           });
         }
       }
       
-      // 3. If still empty, try to fetch all activities and filter by deal name matching contact name
-      if (allActivities.length === 0) {
-        const { data: contact } = await supabase
-          .from('crm_contacts')
-          .select('name')
-          .eq('id', contactId)
-          .single();
-        
-        if (contact?.name) {
-          // Find deals by contact name
-          const { data: dealsByName } = await supabase
-            .from('crm_deals')
-            .select('id')
-            .ilike('name', `%${contact.name}%`);
-          
-          if (dealsByName && dealsByName.length > 0) {
-            const dealIdsByName = dealsByName.map(d => d.id);
-            const { data: activitiesByDealName } = await supabase
-              .from('crm_activities')
-              .select('*')
-              .in('deal_id', dealIdsByName)
-              .order('created_at', { ascending: false });
-            
-            if (activitiesByDealName) {
-              allActivities = activitiesByDealName as Activity[];
+      setContactDeals(allDeals);
+
+      // Fetch activities using multiple strategies
+      let allActivities: Activity[] = [];
+      const existingActivityIds = new Set<string>();
+      
+      const addActivities = (activities: Activity[] | null) => {
+        if (activities) {
+          activities.forEach(a => {
+            if (!existingActivityIds.has(a.id)) {
+              existingActivityIds.add(a.id);
+              allActivities.push(a);
             }
-          }
+          });
         }
+      };
+      
+      // 1. By contact_id
+      const { data: activitiesByContact } = await supabase
+        .from('crm_activities')
+        .select('*')
+        .eq('contact_id', contactId)
+        .order('created_at', { ascending: false });
+      addActivities(activitiesByContact as Activity[]);
+      
+      // 2. By deal_ids from all deals associated with this contact
+      if (allDeals.length > 0) {
+        const dealIds = allDeals.map(d => d.id);
+        const { data: activitiesByDeal } = await supabase
+          .from('crm_activities')
+          .select('*')
+          .in('deal_id', dealIds)
+          .order('created_at', { ascending: false });
+        addActivities(activitiesByDeal as Activity[]);
       }
       
       // Sort by created_at descending
