@@ -3,7 +3,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, User, DollarSign, Calendar, ChevronDown, Phone, Mail, RefreshCw, GripVertical } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Loader2, Search, User, DollarSign, Calendar, ChevronDown, Phone, Mail, RefreshCw, GripVertical, Eye, Building, MapPin, Globe, Linkedin, Twitter, Facebook, Tag, FileText, Package, Target, Edit2, Save, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -36,6 +40,37 @@ interface DealStage {
   pipeline_id: string;
 }
 
+interface Contact {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  job_title: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  lead_score: number | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
+  website: string | null;
+  linkedin: string | null;
+  twitter: string | null;
+  facebook: string | null;
+  birthday: string | null;
+  first_conversion: string | null;
+  last_conversion: string | null;
+  notes: string | null;
+  rd_station_id: string | null;
+  custom_fields: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
 interface Deal {
   id: string;
   name: string;
@@ -44,11 +79,16 @@ interface Deal {
   contact_id: string | null;
   expected_close_date: string | null;
   created_at: string;
-  contact?: {
-    name: string;
-    email: string | null;
-    phone: string | null;
-  };
+  updated_at: string;
+  product_name: string | null;
+  campaign_name: string | null;
+  notes: string | null;
+  rd_station_id: string | null;
+  custom_fields: Record<string, unknown> | null;
+  won: boolean | null;
+  closed_at: string | null;
+  loss_reason: string | null;
+  contact?: Contact;
 }
 
 interface CRMDealsKanbanProps {
@@ -61,6 +101,7 @@ const DraggableDealCard = ({
   stage, 
   stages, 
   onMove, 
+  onView,
   movingDeal,
   formatCurrency 
 }: { 
@@ -68,6 +109,7 @@ const DraggableDealCard = ({
   stage: DealStage;
   stages: DealStage[];
   onMove: (dealId: string, newStageId: string, currentStageId: string) => void;
+  onView: (deal: Deal) => void;
   movingDeal: string | null;
   formatCurrency: (value: number) => string;
 }) => {
@@ -96,8 +138,8 @@ const DraggableDealCard = ({
           >
             <GripVertical className="h-4 w-4 text-slate-400" />
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm leading-tight break-words">{deal.name}</p>
+          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onView(deal)}>
+            <p className="font-semibold text-sm leading-tight break-words hover:text-primary">{deal.name}</p>
             {deal.contact && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1.5">
                 <User className="h-3 w-3 shrink-0" />
@@ -106,31 +148,44 @@ const DraggableDealCard = ({
             )}
           </div>
           
-          {/* Dropdown to move */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-7 px-2 text-xs shrink-0">
-                Mover
-                <ChevronDown className="h-3 w-3 ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 z-50">
-              {stages
-                .filter(s => s.id !== stage.id)
-                .map(targetStage => (
-                  <DropdownMenuItem
-                    key={targetStage.id}
-                    onClick={() => onMove(deal.id, targetStage.id, stage.id)}
-                    disabled={movingDeal === deal.id}
-                  >
-                    Mover para {targetStage.name}
-                  </DropdownMenuItem>
-                ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-1 shrink-0">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onView(deal)}>
+              <Eye className="h-3.5 w-3.5" />
+            </Button>
+            
+            {/* Dropdown to move */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
+                  Mover
+                  <ChevronDown className="h-3 w-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 z-50">
+                {stages
+                  .filter(s => s.id !== stage.id)
+                  .map(targetStage => (
+                    <DropdownMenuItem
+                      key={targetStage.id}
+                      onClick={() => onMove(deal.id, targetStage.id, stage.id)}
+                      disabled={movingDeal === deal.id}
+                    >
+                      Mover para {targetStage.name}
+                    </DropdownMenuItem>
+                  ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1">
+          {deal.product_name && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <Package className="h-3 w-3 text-violet-600 shrink-0" />
+              <span className="truncate text-violet-600 font-medium">{deal.product_name}</span>
+            </div>
+          )}
+
           {deal.value > 0 && (
             <div className="flex items-center gap-1.5 text-xs">
               <DollarSign className="h-3 w-3 text-emerald-600 shrink-0" />
@@ -232,6 +287,10 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
   const [movingDeal, setMovingDeal] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
+  const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<Deal & { contact?: Partial<Contact> }>>({});
+  const [saving, setSaving] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -278,7 +337,7 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
   };
 
   const fetchDeals = async () => {
-    let allDeals: any[] = [];
+    let allDeals: Deal[] = [];
     let page = 0;
     const pageSize = 1000;
     
@@ -287,7 +346,7 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
         .from('crm_deals')
         .select(`
           *,
-          contact:crm_contacts(name, email, phone)
+          contact:crm_contacts(*)
         `)
         .order('created_at', { ascending: false })
         .range(page * pageSize, (page + 1) * pageSize - 1);
@@ -299,7 +358,7 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
       
       if (!dealsBatch || dealsBatch.length === 0) break;
       
-      allDeals = [...allDeals, ...dealsBatch];
+      allDeals = [...allDeals, ...dealsBatch as Deal[]];
       
       if (dealsBatch.length < pageSize) break;
       page++;
@@ -347,13 +406,124 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
       const matchesStage = deal.stage_id === stageId;
       const matchesSearch = searchTerm === '' || 
         deal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        deal.contact?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+        deal.contact?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        deal.product_name?.toLowerCase().includes(searchTerm.toLowerCase());
       return matchesStage && matchesSearch;
     });
   };
 
   const getStageValue = (stageId: string) => {
     return getStageDeals(stageId).reduce((sum, deal) => sum + (Number(deal.value) || 0), 0);
+  };
+
+  const handleViewDeal = (deal: Deal) => {
+    setSelectedDeal(deal);
+    setIsEditing(false);
+  };
+
+  const handleEditClick = () => {
+    if (selectedDeal) {
+      setEditForm({ 
+        ...selectedDeal,
+        contact: selectedDeal.contact ? { ...selectedDeal.contact } : undefined
+      });
+      setIsEditing(true);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditForm({});
+  };
+
+  const handleSave = async () => {
+    if (!selectedDeal) return;
+    setSaving(true);
+
+    try {
+      // Update deal
+      const { error: dealError } = await supabase
+        .from('crm_deals')
+        .update({
+          name: editForm.name,
+          value: editForm.value,
+          notes: editForm.notes,
+          expected_close_date: editForm.expected_close_date,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedDeal.id);
+
+      if (dealError) throw dealError;
+
+      // Update contact if exists
+      if (selectedDeal.contact_id && editForm.contact) {
+        const { error: contactError } = await supabase
+          .from('crm_contacts')
+          .update({
+            name: editForm.contact.name,
+            email: editForm.contact.email,
+            phone: editForm.contact.phone,
+            company: editForm.contact.company,
+            job_title: editForm.contact.job_title,
+            address: editForm.contact.address,
+            city: editForm.contact.city,
+            state: editForm.contact.state,
+            country: editForm.contact.country,
+            website: editForm.contact.website,
+            linkedin: editForm.contact.linkedin,
+            twitter: editForm.contact.twitter,
+            facebook: editForm.contact.facebook,
+            notes: editForm.contact.notes,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', selectedDeal.contact_id);
+
+        if (contactError) {
+          console.error('Error updating contact:', contactError);
+        }
+      }
+
+      // Sync to RD Station if enabled
+      if (syncEnabled && selectedDeal.rd_station_id) {
+        await supabase.functions.invoke('crm-sync', {
+          body: {
+            action: 'update_deal',
+            data: {
+              deal_id: selectedDeal.id,
+              updates: {
+                name: editForm.name,
+                value: editForm.value,
+                notes: editForm.notes,
+                expected_close_date: editForm.expected_close_date
+              }
+            }
+          }
+        });
+
+        if (selectedDeal.contact?.rd_station_id && editForm.contact) {
+          await supabase.functions.invoke('crm-sync', {
+            body: {
+              action: 'update_contact',
+              data: {
+                contact_id: selectedDeal.contact_id,
+                rd_station_id: selectedDeal.contact.rd_station_id,
+                updates: editForm.contact
+              }
+            }
+          });
+        }
+      }
+
+      toast.success('Dados salvos com sucesso');
+      fetchDeals();
+      setSelectedDeal(null);
+      setIsEditing(false);
+    } catch (error: any) {
+      console.error('Error saving:', error);
+      toast.error('Erro ao salvar');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleMoveToStage = async (dealId: string, newStageId: string, currentStageId: string) => {
@@ -457,6 +627,8 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
     );
   }
 
+  const currentStage = selectedDeal ? stages.find(s => s.id === selectedDeal.stage_id) : null;
+
   return (
     <div className="space-y-4">
       {/* Search */}
@@ -509,6 +681,7 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                       stage={stage}
                       stages={stages}
                       onMove={handleMoveToStage}
+                      onView={handleViewDeal}
                       movingDeal={movingDeal}
                       formatCurrency={formatCurrency}
                     />
@@ -535,6 +708,430 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {/* Deal Detail Modal */}
+      <Dialog open={!!selectedDeal} onOpenChange={() => { setSelectedDeal(null); setIsEditing(false); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle>{isEditing ? 'Editar Oportunidade' : selectedDeal?.name}</DialogTitle>
+              {!isEditing && (
+                <Button variant="outline" size="sm" onClick={handleEditClick}>
+                  <Edit2 className="h-4 w-4 mr-2" />
+                  Editar
+                </Button>
+              )}
+            </div>
+          </DialogHeader>
+
+          {selectedDeal && !isEditing && (
+            <Tabs defaultValue="deal" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="deal">Oportunidade</TabsTrigger>
+                <TabsTrigger value="contact">Contato</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="deal" className="space-y-6 mt-4">
+                {/* Deal Basic Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Informações da Oportunidade</h4>
+                    
+                    <div className="flex items-center gap-2">
+                      <Target className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">{selectedDeal.name}</span>
+                    </div>
+
+                    {selectedDeal.value > 0 && (
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="h-4 w-4 text-emerald-600" />
+                        <span className="font-semibold text-emerald-600">{formatCurrency(selectedDeal.value)}</span>
+                      </div>
+                    )}
+
+                    {currentStage && (
+                      <div className="flex items-center gap-2">
+                        <Badge variant={currentStage.is_won ? 'default' : currentStage.is_lost ? 'destructive' : 'secondary'}>
+                          Etapa: {currentStage.name}
+                        </Badge>
+                      </div>
+                    )}
+
+                    {selectedDeal.expected_close_date && (
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <span>Previsão: {new Date(selectedDeal.expected_close_date).toLocaleDateString('pt-BR')}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Produto & Campanha</h4>
+                    
+                    {selectedDeal.product_name && (
+                      <div className="flex items-center gap-2">
+                        <Package className="h-4 w-4 text-violet-600" />
+                        <span className="text-violet-600 font-medium">{selectedDeal.product_name}</span>
+                      </div>
+                    )}
+
+                    {selectedDeal.campaign_name && (
+                      <div className="flex items-center gap-2">
+                        <Tag className="h-4 w-4 text-muted-foreground" />
+                        <span>Campanha: {selectedDeal.campaign_name}</span>
+                      </div>
+                    )}
+
+                    {selectedDeal.won !== null && (
+                      <Badge variant={selectedDeal.won ? 'default' : 'destructive'}>
+                        {selectedDeal.won ? 'Ganho' : 'Perdido'}
+                      </Badge>
+                    )}
+
+                    {selectedDeal.loss_reason && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Motivo da perda</p>
+                        <p className="text-sm">{selectedDeal.loss_reason}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Notes */}
+                {selectedDeal.notes && (
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-2">Observações</h4>
+                    <p className="text-sm whitespace-pre-wrap bg-muted/50 p-3 rounded-md">{selectedDeal.notes}</p>
+                  </div>
+                )}
+
+                {/* Custom Fields */}
+                {selectedDeal.custom_fields && Object.keys(selectedDeal.custom_fields).length > 0 && (
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Campos Personalizados</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {Object.entries(selectedDeal.custom_fields).map(([key, value]) => (
+                        <div key={key} className="bg-muted/50 p-2 rounded">
+                          <p className="text-xs text-muted-foreground">{key}</p>
+                          <p className="text-sm">{String(value)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Metadata */}
+                <div className="border-t pt-4 flex items-center justify-between flex-wrap gap-4 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Criado em</p>
+                    <p>{new Date(selectedDeal.created_at).toLocaleString('pt-BR')}</p>
+                  </div>
+                  {selectedDeal.rd_station_id && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">ID RD Station</p>
+                      <p className="font-mono text-xs">{selectedDeal.rd_station_id}</p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="contact" className="space-y-6 mt-4">
+                {selectedDeal.contact ? (
+                  <>
+                    {/* Contact Basic Info */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Informações de Contato</h4>
+                        
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{selectedDeal.contact.name}</span>
+                        </div>
+
+                        {selectedDeal.contact.email && (
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-4 w-4 text-muted-foreground" />
+                            <a href={`mailto:${selectedDeal.contact.email}`} className="text-primary hover:underline">
+                              {selectedDeal.contact.email}
+                            </a>
+                          </div>
+                        )}
+
+                        {selectedDeal.contact.phone && (
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-muted-foreground" />
+                            <a href={`tel:${selectedDeal.contact.phone}`} className="text-primary hover:underline">
+                              {selectedDeal.contact.phone}
+                            </a>
+                          </div>
+                        )}
+
+                        {selectedDeal.contact.birthday && (
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                            <span>Aniversário: {new Date(selectedDeal.contact.birthday).toLocaleDateString('pt-BR')}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-3">
+                        <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Empresa</h4>
+                        
+                        {selectedDeal.contact.company && (
+                          <div className="flex items-center gap-2">
+                            <Building className="h-4 w-4 text-muted-foreground" />
+                            <span>{selectedDeal.contact.company}</span>
+                          </div>
+                        )}
+
+                        {selectedDeal.contact.job_title && (
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            <span>{selectedDeal.contact.job_title}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Address */}
+                    {(selectedDeal.contact.address || selectedDeal.contact.city || selectedDeal.contact.state) && (
+                      <div className="border-t pt-4">
+                        <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Endereço</h4>
+                        <div className="flex items-start gap-2">
+                          <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <div>
+                            {selectedDeal.contact.address && <p>{selectedDeal.contact.address}</p>}
+                            <p>{[selectedDeal.contact.city, selectedDeal.contact.state, selectedDeal.contact.country].filter(Boolean).join(', ')}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Social Media */}
+                    {(selectedDeal.contact.website || selectedDeal.contact.linkedin || selectedDeal.contact.twitter || selectedDeal.contact.facebook) && (
+                      <div className="border-t pt-4">
+                        <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Redes Sociais</h4>
+                        <div className="flex flex-wrap gap-3">
+                          {selectedDeal.contact.website && (
+                            <a href={selectedDeal.contact.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
+                              <Globe className="h-4 w-4" /> Website
+                            </a>
+                          )}
+                          {selectedDeal.contact.linkedin && (
+                            <a href={selectedDeal.contact.linkedin} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
+                              <Linkedin className="h-4 w-4" /> LinkedIn
+                            </a>
+                          )}
+                          {selectedDeal.contact.twitter && (
+                            <a href={selectedDeal.contact.twitter} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
+                              <Twitter className="h-4 w-4" /> Twitter
+                            </a>
+                          )}
+                          {selectedDeal.contact.facebook && (
+                            <a href={selectedDeal.contact.facebook} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
+                              <Facebook className="h-4 w-4" /> Facebook
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* UTM Info */}
+                    {(selectedDeal.contact.utm_source || selectedDeal.contact.utm_medium || selectedDeal.contact.utm_campaign || selectedDeal.contact.utm_content || selectedDeal.contact.utm_term) && (
+                      <div className="border-t pt-4">
+                        <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Origem do Lead (UTM)</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedDeal.contact.utm_source && <Badge variant="outline"><Tag className="h-3 w-3 mr-1" />Fonte: {selectedDeal.contact.utm_source}</Badge>}
+                          {selectedDeal.contact.utm_medium && <Badge variant="outline">Mídia: {selectedDeal.contact.utm_medium}</Badge>}
+                          {selectedDeal.contact.utm_campaign && <Badge variant="outline">Campanha: {selectedDeal.contact.utm_campaign}</Badge>}
+                          {selectedDeal.contact.utm_content && <Badge variant="outline">Conteúdo: {selectedDeal.contact.utm_content}</Badge>}
+                          {selectedDeal.contact.utm_term && <Badge variant="outline">Termo: {selectedDeal.contact.utm_term}</Badge>}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Conversions */}
+                    {(selectedDeal.contact.first_conversion || selectedDeal.contact.last_conversion) && (
+                      <div className="border-t pt-4">
+                        <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Conversões</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                          {selectedDeal.contact.first_conversion && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Primeira Conversão</p>
+                              <p className="text-sm">{selectedDeal.contact.first_conversion}</p>
+                            </div>
+                          )}
+                          {selectedDeal.contact.last_conversion && (
+                            <div>
+                              <p className="text-xs text-muted-foreground">Última Conversão</p>
+                              <p className="text-sm">{selectedDeal.contact.last_conversion}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    {selectedDeal.contact.notes && (
+                      <div className="border-t pt-4">
+                        <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-2">Observações</h4>
+                        <p className="text-sm whitespace-pre-wrap bg-muted/50 p-3 rounded-md">{selectedDeal.contact.notes}</p>
+                      </div>
+                    )}
+
+                    {/* Custom Fields */}
+                    {selectedDeal.contact.custom_fields && Object.keys(selectedDeal.contact.custom_fields).length > 0 && (
+                      <div className="border-t pt-4">
+                        <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Campos Personalizados</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.entries(selectedDeal.contact.custom_fields).map(([key, value]) => (
+                            <div key={key} className="bg-muted/50 p-2 rounded">
+                              <p className="text-xs text-muted-foreground">{key}</p>
+                              <p className="text-sm">{String(value)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Lead Score & Metadata */}
+                    <div className="border-t pt-4 flex items-center justify-between flex-wrap gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Lead Score</p>
+                        <Badge variant={selectedDeal.contact.lead_score && selectedDeal.contact.lead_score > 50 ? 'default' : 'secondary'}>
+                          {selectedDeal.contact.lead_score || 0} pontos
+                        </Badge>
+                      </div>
+                      {selectedDeal.contact.rd_station_id && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">ID RD Station</p>
+                          <p className="font-mono text-xs">{selectedDeal.contact.rd_station_id}</p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Nenhum contato associado a esta oportunidade
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
+
+          {/* Edit Form */}
+          {selectedDeal && isEditing && (
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <h4 className="font-semibold">Oportunidade</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Nome</Label>
+                    <Input
+                      value={editForm.name || ''}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Valor</Label>
+                    <Input
+                      type="number"
+                      value={editForm.value || ''}
+                      onChange={(e) => setEditForm({ ...editForm, value: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Previsão de Fechamento</Label>
+                    <Input
+                      type="date"
+                      value={editForm.expected_close_date || ''}
+                      onChange={(e) => setEditForm({ ...editForm, expected_close_date: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Observações</Label>
+                  <Textarea
+                    value={editForm.notes || ''}
+                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+              </div>
+
+              {selectedDeal.contact && (
+                <div className="space-y-4 border-t pt-4">
+                  <h4 className="font-semibold">Contato</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Nome</Label>
+                      <Input
+                        value={editForm.contact?.name || ''}
+                        onChange={(e) => setEditForm({ ...editForm, contact: { ...editForm.contact, name: e.target.value } })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <Input
+                        type="email"
+                        value={editForm.contact?.email || ''}
+                        onChange={(e) => setEditForm({ ...editForm, contact: { ...editForm.contact, email: e.target.value } })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Telefone</Label>
+                      <Input
+                        value={editForm.contact?.phone || ''}
+                        onChange={(e) => setEditForm({ ...editForm, contact: { ...editForm.contact, phone: e.target.value } })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Empresa</Label>
+                      <Input
+                        value={editForm.contact?.company || ''}
+                        onChange={(e) => setEditForm({ ...editForm, contact: { ...editForm.contact, company: e.target.value } })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Cargo</Label>
+                      <Input
+                        value={editForm.contact?.job_title || ''}
+                        onChange={(e) => setEditForm({ ...editForm, contact: { ...editForm.contact, job_title: e.target.value } })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Cidade</Label>
+                      <Input
+                        value={editForm.contact?.city || ''}
+                        onChange={(e) => setEditForm({ ...editForm, contact: { ...editForm.contact, city: e.target.value } })}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Observações do Contato</Label>
+                    <Textarea
+                      value={editForm.contact?.notes || ''}
+                      onChange={(e) => setEditForm({ ...editForm, contact: { ...editForm.contact, notes: e.target.value } })}
+                      rows={3}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={handleCancelEdit} disabled={saving}>
+                  <X className="h-4 w-4 mr-2" />
+                  Cancelar
+                </Button>
+                <Button onClick={handleSave} disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                  Salvar
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
