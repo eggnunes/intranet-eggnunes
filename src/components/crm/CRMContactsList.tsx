@@ -41,15 +41,37 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
   }, []);
 
   const fetchContacts = async () => {
-    const { data, error } = await supabase
-      .from('crm_contacts')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (error) {
+    try {
+      // Fetch all contacts using pagination to bypass 1000 row limit
+      const allContacts: Contact[] = [];
+      const pageSize = 1000;
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('crm_contacts')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (error) {
+          console.error('Error fetching contacts:', error);
+          break;
+        }
+
+        if (data && data.length > 0) {
+          allContacts.push(...data);
+          page++;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      setContacts(allContacts);
+    } catch (error) {
       console.error('Error fetching contacts:', error);
-    } else {
-      setContacts(data || []);
     }
     setLoading(false);
   };
