@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Layout } from '@/components/Layout';
 import { TOTPCodeDisplay } from '@/components/TOTPCodeDisplay';
 import { TOTPAccountForm } from '@/components/TOTPAccountForm';
+import { QRCodeImporter } from '@/components/QRCodeImporter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Shield, RefreshCw } from 'lucide-react';
@@ -84,6 +85,32 @@ export default function CodigosAutenticacao() {
     }
   };
 
+  const handleBatchImport = async (accountsToImport: { name: string; description: string; secret_key: string }[]) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const insertData = accountsToImport.map(acc => ({
+        name: acc.name,
+        description: acc.description || null,
+        secret_key: acc.secret_key,
+        created_by: user?.id,
+      }));
+
+      const { error } = await supabase
+        .from('totp_accounts')
+        .insert(insertData);
+
+      if (error) throw error;
+      
+      toast.success(`${accountsToImport.length} conta(s) importada(s) com sucesso!`);
+      fetchAccounts();
+    } catch (error: any) {
+      console.error('Error importing accounts:', error);
+      toast.error(error.message || 'Erro ao importar contas');
+      throw error;
+    }
+  };
+
   const handleEdit = (account: TOTPAccount) => {
     setEditingAccount(account);
     setFormOpen(true);
@@ -136,6 +163,13 @@ export default function CodigosAutenticacao() {
             )}
           </div>
         </div>
+
+        {isAdmin && (
+          <QRCodeImporter 
+            onImport={handleBatchImport}
+            existingSecrets={accounts.map(a => a.secret_key)}
+          />
+        )}
 
         <Card>
           <CardHeader>
