@@ -88,19 +88,38 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
   };
 
   const fetchDeals = async () => {
-    const { data, error } = await supabase
-      .from('crm_deals')
-      .select(`
-        *,
-        contact:crm_contacts(name, email, phone)
-      `)
-      .order('created_at', { ascending: false });
+    // Fetch ALL deals with pagination to avoid 1000 limit
+    let allDeals: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
     
-    if (error) {
-      console.error('Error fetching deals:', error);
-      return;
+    while (true) {
+      const { data: dealsBatch, error } = await supabase
+        .from('crm_deals')
+        .select(`
+          *,
+          contact:crm_contacts(name, email, phone)
+        `)
+        .order('created_at', { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+      
+      if (error) {
+        console.error('Error fetching deals:', error);
+        break;
+      }
+      
+      if (!dealsBatch || dealsBatch.length === 0) break;
+      
+      allDeals = [...allDeals, ...dealsBatch];
+      
+      if (dealsBatch.length < pageSize) break;
+      page++;
+      
+      // Safety limit
+      if (page > 20) break;
     }
-    setDeals(data || []);
+    
+    setDeals(allDeals);
   };
 
   const formatCurrency = (value: number) => {
