@@ -129,10 +129,30 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
     }).format(value);
   };
 
-  const getStageColor = (stage: DealStage) => {
-    if (stage.is_won) return 'bg-green-500/10 border-green-500/30 text-green-700';
-    if (stage.is_lost) return 'bg-red-500/10 border-red-500/30 text-red-700';
-    return 'bg-card border-border';
+  const getStageHeaderColor = (stage: DealStage, index: number) => {
+    if (stage.is_won) return 'bg-emerald-600 text-white';
+    if (stage.is_lost) return 'bg-red-600 text-white';
+    
+    // Cores variadas para cada estágio
+    const colors = [
+      'bg-blue-600 text-white',
+      'bg-violet-600 text-white',
+      'bg-amber-500 text-white',
+      'bg-cyan-600 text-white',
+      'bg-pink-600 text-white',
+      'bg-indigo-600 text-white',
+      'bg-orange-500 text-white',
+      'bg-teal-600 text-white',
+      'bg-rose-600 text-white',
+      'bg-sky-600 text-white',
+    ];
+    return colors[index % colors.length];
+  };
+
+  const getStageColumnColor = (stage: DealStage) => {
+    if (stage.is_won) return 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800';
+    if (stage.is_lost) return 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800';
+    return 'bg-muted/30 border-border';
   };
 
   const getStageDeals = (stageId: string) => {
@@ -244,37 +264,40 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
 
       {/* Kanban Board */}
       <ScrollArea className="w-full whitespace-nowrap pb-4">
-        <div className="flex gap-4 min-w-max">
-          {stages.map((stage) => {
+        <div className="flex gap-4 min-w-max pr-4">
+          {stages.map((stage, index) => {
             const stageDeals = getStageDeals(stage.id);
             const stageValue = getStageValue(stage.id);
 
             return (
               <div
                 key={stage.id}
-                className={`w-80 flex-shrink-0 rounded-lg border ${getStageColor(stage)}`}
+                className={`w-80 flex-shrink-0 rounded-xl border shadow-sm overflow-hidden ${getStageColumnColor(stage)}`}
               >
-                <div className="p-4 border-b border-inherit">
+                {/* Header colorido */}
+                <div className={`p-4 ${getStageHeaderColor(stage, index)}`}>
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">{stage.name}</h3>
-                    <Badge variant="secondary">{stageDeals.length}</Badge>
+                    <h3 className="font-semibold text-sm uppercase tracking-wide">{stage.name}</h3>
+                    <Badge className="bg-white/20 text-white border-white/30 hover:bg-white/30">
+                      {stageDeals.length}
+                    </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <p className="text-sm mt-1 opacity-90">
                     {formatCurrency(stageValue)}
                   </p>
                 </div>
 
                 <ScrollArea className="h-[calc(100vh-400px)] min-h-[400px]">
-                  <div className="p-2 space-y-2">
+                  <div className="p-3 space-y-3">
                     {stageDeals.map((deal) => (
-                      <Card key={deal.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                        <CardContent className="p-3">
+                      <Card key={deal.id} className="cursor-pointer hover:shadow-lg transition-all duration-200 border-border/50 bg-card hover:border-primary/30">
+                        <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm truncate">{deal.name}</p>
+                              <p className="font-semibold text-sm leading-tight line-clamp-2">{deal.name}</p>
                               {deal.contact && (
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                                  <User className="h-3 w-3" />
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-2">
+                                  <User className="h-3.5 w-3.5 shrink-0" />
                                   <span className="truncate">{deal.contact.name}</span>
                                 </div>
                               )}
@@ -283,11 +306,11 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                             {/* Mobile: Dropdown to move */}
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
+                                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 hover:bg-primary/10">
                                   <ChevronDown className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
+                              <DropdownMenuContent align="end" className="w-48">
                                 {stages
                                   .filter(s => s.id !== stage.id)
                                   .map(targetStage => (
@@ -303,19 +326,19 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                             </DropdownMenu>
                           </div>
 
-                          <div className="mt-2 space-y-1">
+                          <div className="mt-3 space-y-1.5">
                             {deal.value > 0 && (
-                              <div className="flex items-center gap-1 text-xs">
-                                <DollarSign className="h-3 w-3 text-green-600" />
-                                <span className="font-medium text-green-600">
+                              <div className="flex items-center gap-1.5 text-xs">
+                                <DollarSign className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                <span className="font-semibold text-emerald-600">
                                   {formatCurrency(deal.value)}
                                 </span>
                               </div>
                             )}
                             
                             {deal.expected_close_date && (
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <Calendar className="h-3 w-3" />
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Calendar className="h-3.5 w-3.5 shrink-0" />
                                 <span>
                                   {new Date(deal.expected_close_date).toLocaleDateString('pt-BR')}
                                 </span>
@@ -323,15 +346,15 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                             )}
 
                             {deal.contact?.phone && (
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <Phone className="h-3 w-3" />
-                                <span>{deal.contact.phone}</span>
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Phone className="h-3.5 w-3.5 shrink-0" />
+                                <span className="truncate">{deal.contact.phone}</span>
                               </div>
                             )}
 
                             {deal.contact?.email && (
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <Mail className="h-3 w-3" />
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Mail className="h-3.5 w-3.5 shrink-0" />
                                 <span className="truncate">{deal.contact.email}</span>
                               </div>
                             )}
