@@ -4,8 +4,9 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Loader2, Search, User, DollarSign, Calendar, ChevronDown, Phone, Mail } from 'lucide-react';
+import { Loader2, Search, User, DollarSign, Calendar, ChevronDown, Phone, Mail, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,9 +44,11 @@ interface CRMDealsKanbanProps {
 }
 
 export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
+  const { user } = useAuth();
   const [stages, setStages] = useState<DealStage[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [movingDeal, setMovingDeal] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
@@ -128,29 +131,55 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
   };
 
   const handleMoveToStage = async (dealId: string, newStageId: string, currentStageId: string) => {
-    if (syncEnabled) {
-      toast.error('Modo espelho ativo. Mova a oportunidade no RD Station.');
-      return;
+    if (newStageId === currentStageId) return;
+
+    setMovingDeal(dealId);
+
+    try {
+      if (syncEnabled) {
+        // Bidirectional sync - update RD Station and local
+        const { data, error } = await supabase.functions.invoke('crm-sync', {
+          body: {
+            action: 'update_deal_stage',
+            data: {
+              deal_id: dealId,
+              stage_id: newStageId,
+              user_id: user?.id
+            }
+          }
+        });
+
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || 'Erro ao sincronizar');
+
+        toast.success(`Oportunidade movida para ${data.stage_name}`);
+      } else {
+        // Local only update
+        const { error } = await supabase
+          .from('crm_deals')
+          .update({ stage_id: newStageId })
+          .eq('id', dealId);
+
+        if (error) throw error;
+
+        // Log history
+        await supabase.from('crm_deal_history').insert({
+          deal_id: dealId,
+          from_stage_id: currentStageId,
+          to_stage_id: newStageId,
+          changed_by: user?.id
+        });
+
+        toast.success('Oportunidade movida');
+      }
+
+      fetchDeals();
+    } catch (error: any) {
+      console.error('Error moving deal:', error);
+      toast.error(error?.message || 'Erro ao mover oportunidade');
+    } finally {
+      setMovingDeal(null);
     }
-
-    const { error } = await supabase
-      .from('crm_deals')
-      .update({ stage_id: newStageId })
-      .eq('id', dealId);
-
-    if (error) {
-      toast.error('Erro ao mover oportunidade');
-      return;
-    }
-
-    // Log history
-    await supabase.from('crm_deal_history').insert({
-      deal_id: dealId,
-      from_stage_id: currentStageId,
-      to_stage_id: newStageId
-    });
-
-    fetchDeals();
   };
 
   if (loading) {
@@ -187,8 +216,9 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
           />
         </div>
         {syncEnabled && (
-          <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
-            Somente visualização - Edite no RD Station
+          <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">
+            <RefreshCw className="h-3 w-3 mr-1" />
+            Sync bidirecional com RD Station
           </Badge>
         )}
       </div>
@@ -245,7 +275,7 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                                     <DropdownMenuItem
                                       key={targetStage.id}
                                       onClick={() => handleMoveToStage(deal.id, targetStage.id, stage.id)}
-                                      disabled={syncEnabled}
+                                      disabled={movingDeal === deal.id}
                                     >
                                       Mover para {targetStage.name}
                                     </DropdownMenuItem>

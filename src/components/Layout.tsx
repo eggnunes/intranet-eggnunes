@@ -299,14 +299,25 @@ export const Layout = ({ children }: LayoutProps) => {
         <HomeIcon className="w-4 h-4" />
         Dashboard
       </Button>
-      <Button 
-        variant="ghost" 
-        onClick={() => { navigate('/setor-comercial'); setMobileMenuOpen(false); }}
-        className="gap-2 justify-start"
-      >
-        <FileSignature className="w-4 h-4" />
-        Setor Comercial
-      </Button>
+      <div className="px-2 py-2">
+        <p className="text-xs font-semibold text-muted-foreground mb-2">COMERCIAL</p>
+        <Button 
+          variant="ghost" 
+          onClick={() => { navigate('/setor-comercial'); setMobileMenuOpen(false); }}
+          className="gap-2 justify-start w-full mb-1"
+        >
+          <FileSignature className="w-4 h-4" />
+          Contratos
+        </Button>
+        <Button 
+          variant="ghost" 
+          onClick={() => { navigate('/crm'); setMobileMenuOpen(false); }}
+          className="gap-2 justify-start w-full mb-1"
+        >
+          <Users className="w-4 h-4" />
+          CRM
+        </Button>
+      </div>
       <div className="px-2 py-2">
         <p className="text-xs font-semibold text-muted-foreground mb-2">ADVBOX</p>
         {advboxMenuItems.map((item) => (
@@ -496,15 +507,39 @@ export const Layout = ({ children }: LayoutProps) => {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                <Button 
-                  variant="ghost" 
-                  onClick={() => navigate('/setor-comercial')}
-                  className="gap-1"
-                  size="sm"
-                >
-                  <FileSignature className="w-4 h-4" />
-                  Comercial
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="gap-1" size="sm">
+                      <FileSignature className="w-4 h-4" />
+                      Comercial
+                      <ChevronDown className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56 bg-card border-border z-50">
+                    <DropdownMenuLabel>Setor Comercial</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => navigate('/setor-comercial')}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <FileSignature className="w-4 h-4" />
+                      <div className="flex flex-col">
+                        <span className="font-medium">Contratos</span>
+                        <span className="text-xs text-muted-foreground">Geração de contratos</span>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => navigate('/crm')}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <Users className="w-4 h-4" />
+                      <div className="flex flex-col">
+                        <span className="font-medium">CRM</span>
+                        <span className="text-xs text-muted-foreground">Leads e oportunidades</span>
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

@@ -77,8 +77,8 @@ export const CRMSettings = ({ onSettingsChange }: CRMSettingsProps) => {
     setSyncEnabled(enabled);
     onSettingsChange();
     toast.success(enabled 
-      ? 'Modo espelho ativado - dados sincronizam do RD Station'
-      : 'Modo independente ativado - CRM opera localmente'
+      ? 'Sync bidirecional ativado - alterações sincronizam com RD Station'
+      : 'Modo independente ativado - CRM opera somente local'
     );
   };
 
@@ -86,7 +86,8 @@ export const CRMSettings = ({ onSettingsChange }: CRMSettingsProps) => {
     const types: Record<string, string> = {
       full: 'Sincronização Completa',
       manual: 'Manual',
-      webhook: 'Webhook'
+      webhook: 'Webhook',
+      bidirectional: 'Bidirecional'
     };
     return types[type] || type;
   };
@@ -96,7 +97,9 @@ export const CRMSettings = ({ onSettingsChange }: CRMSettingsProps) => {
       pipeline: 'Pipeline',
       contact: 'Contato',
       deal: 'Oportunidade',
-      stage: 'Etapa'
+      stage: 'Etapa',
+      deal_stage: 'Etapa de Oportunidade',
+      activity: 'Atividade'
     };
     return types[type] || type;
   };
@@ -122,9 +125,9 @@ export const CRMSettings = ({ onSettingsChange }: CRMSettingsProps) => {
         <CardContent className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <Label htmlFor="sync-mode" className="text-base">Modo Espelho (RD Station)</Label>
+              <Label htmlFor="sync-mode" className="text-base">Sincronização com RD Station</Label>
               <p className="text-sm text-muted-foreground">
-                Quando ativado, os dados são sincronizados do RD Station e edição é desabilitada
+                Quando ativado, alterações feitas aqui são sincronizadas automaticamente com o RD Station
               </p>
             </div>
             <Switch
@@ -136,13 +139,13 @@ export const CRMSettings = ({ onSettingsChange }: CRMSettingsProps) => {
           </div>
 
           {syncEnabled && (
-            <div className="flex items-start gap-3 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-              <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+              <CheckCircle className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <p className="font-medium text-yellow-700">Modo Espelho Ativo</p>
-                <p className="text-sm text-yellow-600">
-                  Os dados são somente leitura. Para editar leads e oportunidades, use o RD Station.
-                  Quando você cancelar o RD Station, desative este modo para operar o CRM de forma independente.
+                <p className="font-medium text-blue-700">Sync Bidirecional Ativo</p>
+                <p className="text-sm text-blue-600">
+                  Alterações feitas na intranet são sincronizadas automaticamente com o RD Station.
+                  Você pode editar leads e oportunidades aqui - as mudanças aparecem em ambos os sistemas.
                 </p>
               </div>
             </div>
@@ -154,7 +157,7 @@ export const CRMSettings = ({ onSettingsChange }: CRMSettingsProps) => {
               <div className="space-y-1">
                 <p className="font-medium text-green-700">Modo Independente</p>
                 <p className="text-sm text-green-600">
-                  O CRM opera de forma independente. Você pode criar, editar e excluir leads e oportunidades diretamente na intranet.
+                  O CRM opera de forma independente. Alterações feitas aqui não são sincronizadas com o RD Station.
                 </p>
               </div>
             </div>
