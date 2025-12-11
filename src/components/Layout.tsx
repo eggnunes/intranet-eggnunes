@@ -274,6 +274,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const allSearchableItems = [
     { icon: HomeIcon, path: '/dashboard', label: 'Dashboard', description: 'Página inicial', category: 'Geral' },
     { icon: FileSignature, path: '/setor-comercial', label: 'Setor Comercial', description: 'Geração de contratos', category: 'Geral' },
+    { icon: Users, path: '/crm', label: 'CRM', description: 'Gestão de leads e oportunidades', category: 'Geral' },
     ...advboxMenuItems.map(item => ({ ...item, category: 'Advbox' })),
     ...rhMenuItems.map(item => ({ ...item, category: 'RH' })),
     ...iaMenuItems.map(item => ({ ...item, category: 'Inteligência Artificial' })),
