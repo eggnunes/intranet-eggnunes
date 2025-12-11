@@ -8,7 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Search, User, DollarSign, Calendar, ChevronDown, Phone, Mail, RefreshCw, GripVertical, Eye, Building, MapPin, Globe, Linkedin, Twitter, Facebook, Tag, FileText, Package, Target, Edit2, Save, X, History, UserCircle, CheckCircle, Circle, Video, MessageSquare } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, Search, User, DollarSign, Calendar, ChevronDown, Phone, Mail, RefreshCw, GripVertical, Eye, Building, MapPin, Globe, Linkedin, Twitter, Facebook, Tag, FileText, Package, Target, Edit2, Save, X, History, UserCircle, CheckCircle, Circle, Video, MessageSquare, Filter, ArrowUpDown, SortAsc, SortDesc } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -121,6 +122,18 @@ interface CRMDealsKanbanProps {
   syncEnabled: boolean;
 }
 
+type SortOption = 'name_asc' | 'name_desc' | 'created_asc' | 'created_desc' | 'value_asc' | 'value_desc' | 'updated_desc';
+type FilterQualification = 'all' | 'qualified' | 'not_qualified';
+
+interface FilterState {
+  sortBy: SortOption;
+  qualification: FilterQualification;
+  ownerId: string;
+  productName: string;
+  campaignName: string;
+  utmSource: string;
+}
+
 // Componente de card arrastável
 const DraggableDealCard = ({ 
   deal, 
@@ -129,7 +142,8 @@ const DraggableDealCard = ({
   onMove, 
   onView,
   movingDeal,
-  formatCurrency 
+  formatCurrency,
+  profiles
 }: { 
   deal: Deal; 
   stage: DealStage;
@@ -138,6 +152,7 @@ const DraggableDealCard = ({
   onView: (deal: Deal) => void;
   movingDeal: string | null;
   formatCurrency: (value: number) => string;
+  profiles: Record<string, { full_name: string; email: string }>;
 }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: deal.id,
@@ -243,6 +258,14 @@ const DraggableDealCard = ({
               <span className="truncate">{deal.contact.email}</span>
             </div>
           )}
+
+          {/* Responsável */}
+          {deal.owner_id && profiles[deal.owner_id] && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <UserCircle className="h-3 w-3 text-blue-600 shrink-0" />
+              <span className="truncate text-blue-600 font-medium">{profiles[deal.owner_id].full_name}</span>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -320,6 +343,15 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
   const [dealActivities, setDealActivities] = useState<Activity[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(false);
   const [profiles, setProfiles] = useState<Record<string, { full_name: string; email: string }>>({});
+  const [filters, setFilters] = useState<FilterState>({
+    sortBy: 'created_desc',
+    qualification: 'all',
+    ownerId: 'all',
+    productName: 'all',
+    campaignName: 'all',
+    utmSource: 'all',
+  });
+  const [showFilters, setShowFilters] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -448,15 +480,66 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
   };
 
   const getStageDeals = (stageId: string) => {
-    return deals.filter(deal => {
+    let filtered = deals.filter(deal => {
       const matchesStage = deal.stage_id === stageId;
       const matchesSearch = searchTerm === '' || 
         deal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         deal.contact?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         deal.product_name?.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchesStage && matchesSearch;
+      
+      // Filter by owner
+      const matchesOwner = filters.ownerId === 'all' || deal.owner_id === filters.ownerId;
+      
+      // Filter by product
+      const matchesProduct = filters.productName === 'all' || deal.product_name === filters.productName;
+      
+      // Filter by campaign
+      const matchesCampaign = filters.campaignName === 'all' || deal.campaign_name === filters.campaignName;
+      
+      // Filter by UTM source
+      const matchesUtmSource = filters.utmSource === 'all' || deal.contact?.utm_source === filters.utmSource;
+      
+      // Filter by qualification (lead_score)
+      let matchesQualification = true;
+      if (filters.qualification === 'qualified') {
+        matchesQualification = (deal.contact?.lead_score || 0) > 0;
+      } else if (filters.qualification === 'not_qualified') {
+        matchesQualification = !deal.contact?.lead_score || deal.contact.lead_score === 0;
+      }
+      
+      return matchesStage && matchesSearch && matchesOwner && matchesProduct && matchesCampaign && matchesUtmSource && matchesQualification;
     });
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      switch (filters.sortBy) {
+        case 'name_asc':
+          return a.name.localeCompare(b.name);
+        case 'name_desc':
+          return b.name.localeCompare(a.name);
+        case 'created_asc':
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case 'created_desc':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'value_asc':
+          return (a.value || 0) - (b.value || 0);
+        case 'value_desc':
+          return (b.value || 0) - (a.value || 0);
+        case 'updated_desc':
+          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
   };
+
+  // Get unique values for filters
+  const uniqueOwners = [...new Set(deals.map(d => d.owner_id).filter(Boolean))];
+  const uniqueProducts = [...new Set(deals.map(d => d.product_name).filter(Boolean))];
+  const uniqueCampaigns = [...new Set(deals.map(d => d.campaign_name).filter(Boolean))];
+  const uniqueUtmSources = [...new Set(deals.map(d => d.contact?.utm_source).filter(Boolean))];
 
   const getStageValue = (stageId: string) => {
     return getStageDeals(stageId).reduce((sum, deal) => sum + (Number(deal.value) || 0), 0);
@@ -741,22 +824,159 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
 
   return (
     <div className="space-y-4">
-      {/* Search */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar oportunidades..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
+      {/* Search and Filters */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar oportunidades..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          
+          <Button
+            variant={showFilters ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="h-4 w-4 mr-2" />
+            Filtros
+          </Button>
+
+          <Select
+            value={filters.sortBy}
+            onValueChange={(value: SortOption) => setFilters({ ...filters, sortBy: value })}
+          >
+            <SelectTrigger className="w-[200px]">
+              <ArrowUpDown className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Ordenar por" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="created_desc">Mais recentes</SelectItem>
+              <SelectItem value="created_asc">Mais antigos</SelectItem>
+              <SelectItem value="name_asc">Nome A-Z</SelectItem>
+              <SelectItem value="name_desc">Nome Z-A</SelectItem>
+              <SelectItem value="value_desc">Maior valor</SelectItem>
+              <SelectItem value="value_asc">Menor valor</SelectItem>
+              <SelectItem value="updated_desc">Última atualização</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          {syncEnabled && (
+            <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Sync bidirecional
+            </Badge>
+          )}
         </div>
-        {syncEnabled && (
-          <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">
-            <RefreshCw className="h-3 w-3 mr-1" />
-            Sync bidirecional com RD Station
-          </Badge>
+
+        {/* Filter Row */}
+        {showFilters && (
+          <div className="flex items-center gap-3 flex-wrap p-3 bg-muted/50 rounded-lg">
+            <Select
+              value={filters.ownerId}
+              onValueChange={(value) => setFilters({ ...filters, ownerId: value })}
+            >
+              <SelectTrigger className="w-[180px]">
+                <UserCircle className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Responsável" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos responsáveis</SelectItem>
+                {uniqueOwners.map(ownerId => (
+                  <SelectItem key={ownerId} value={ownerId as string}>
+                    {profiles[ownerId as string]?.full_name || 'Sem nome'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={filters.qualification}
+              onValueChange={(value: FilterQualification) => setFilters({ ...filters, qualification: value })}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Qualificação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="qualified">Qualificados</SelectItem>
+                <SelectItem value="not_qualified">Não qualificados</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={filters.productName}
+              onValueChange={(value) => setFilters({ ...filters, productName: value })}
+            >
+              <SelectTrigger className="w-[180px]">
+                <Package className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Produto" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos produtos</SelectItem>
+                {uniqueProducts.map(product => (
+                  <SelectItem key={product} value={product as string}>
+                    {product}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={filters.campaignName}
+              onValueChange={(value) => setFilters({ ...filters, campaignName: value })}
+            >
+              <SelectTrigger className="w-[180px]">
+                <Tag className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Campanha" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas campanhas</SelectItem>
+                {uniqueCampaigns.map(campaign => (
+                  <SelectItem key={campaign} value={campaign as string}>
+                    {campaign}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={filters.utmSource}
+              onValueChange={(value) => setFilters({ ...filters, utmSource: value })}
+            >
+              <SelectTrigger className="w-[180px]">
+                <Globe className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Fonte UTM" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas fontes</SelectItem>
+                {uniqueUtmSources.map(source => (
+                  <SelectItem key={source} value={source as string}>
+                    {source}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setFilters({
+                sortBy: 'created_desc',
+                qualification: 'all',
+                ownerId: 'all',
+                productName: 'all',
+                campaignName: 'all',
+                utmSource: 'all',
+              })}
+            >
+              Limpar filtros
+            </Button>
+          </div>
         )}
       </div>
 
@@ -794,6 +1014,7 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                       onView={handleViewDeal}
                       movingDeal={movingDeal}
                       formatCurrency={formatCurrency}
+                      profiles={profiles}
                     />
                   ))}
                 </DroppableColumn>
@@ -944,6 +1165,41 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                   </div>
                 )}
 
+                {/* UTM Tracking Info in Deal Tab for quick access */}
+                {selectedDeal.contact && (selectedDeal.contact.utm_source || selectedDeal.contact.utm_medium || selectedDeal.contact.utm_campaign) && (
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Origem do Lead</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {(selectedDeal.contact.utm_medium || selectedDeal.contact.utm_source) && (
+                        <div className="bg-muted/50 p-2 rounded">
+                          <p className="text-xs text-muted-foreground">Fonte</p>
+                          <p className="text-sm font-medium truncate">
+                            {[selectedDeal.contact.utm_medium, selectedDeal.contact.utm_source].filter(Boolean).join(' | ')}
+                          </p>
+                        </div>
+                      )}
+                      {selectedDeal.contact.utm_campaign && (
+                        <div className="bg-muted/50 p-2 rounded">
+                          <p className="text-xs text-muted-foreground">Campanha</p>
+                          <p className="text-sm font-medium truncate">{selectedDeal.contact.utm_campaign}</p>
+                        </div>
+                      )}
+                      {selectedDeal.contact.utm_content && (
+                        <div className="bg-muted/50 p-2 rounded">
+                          <p className="text-xs text-muted-foreground">UTM Content</p>
+                          <p className="text-sm truncate">{selectedDeal.contact.utm_content}</p>
+                        </div>
+                      )}
+                      {selectedDeal.contact.utm_term && (
+                        <div className="bg-muted/50 p-2 rounded">
+                          <p className="text-xs text-muted-foreground">UTM Term</p>
+                          <p className="text-sm truncate">{selectedDeal.contact.utm_term}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Metadata */}
                 <div className="border-t pt-4 flex items-center justify-between flex-wrap gap-4 text-sm">
                   <div>
@@ -1060,19 +1316,83 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                       </div>
                     )}
 
-                    {/* UTM Info */}
-                    {(selectedDeal.contact.utm_source || selectedDeal.contact.utm_medium || selectedDeal.contact.utm_campaign || selectedDeal.contact.utm_content || selectedDeal.contact.utm_term) && (
-                      <div className="border-t pt-4">
-                        <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Origem do Lead (UTM)</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedDeal.contact.utm_source && <Badge variant="outline"><Tag className="h-3 w-3 mr-1" />Fonte: {selectedDeal.contact.utm_source}</Badge>}
-                          {selectedDeal.contact.utm_medium && <Badge variant="outline">Mídia: {selectedDeal.contact.utm_medium}</Badge>}
-                          {selectedDeal.contact.utm_campaign && <Badge variant="outline">Campanha: {selectedDeal.contact.utm_campaign}</Badge>}
-                          {selectedDeal.contact.utm_content && <Badge variant="outline">Conteúdo: {selectedDeal.contact.utm_content}</Badge>}
-                          {selectedDeal.contact.utm_term && <Badge variant="outline">Termo: {selectedDeal.contact.utm_term}</Badge>}
+                    {/* UTM Info - Complete like RD Station */}
+                    <div className="border-t pt-4">
+                      <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Origem e Tracking do Lead</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/* Fonte (UTM Medium | UTM Source combined) */}
+                        {(selectedDeal.contact.utm_medium || selectedDeal.contact.utm_source) && (
+                          <div className="bg-muted/50 p-3 rounded-md">
+                            <p className="text-xs text-muted-foreground font-medium">Fonte</p>
+                            <p className="text-sm font-semibold">
+                              {[selectedDeal.contact.utm_medium, selectedDeal.contact.utm_source].filter(Boolean).join(' | ')}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Campanha */}
+                        {selectedDeal.contact.utm_campaign && (
+                          <div className="bg-muted/50 p-3 rounded-md">
+                            <p className="text-xs text-muted-foreground font-medium">Campanha</p>
+                            <p className="text-sm font-semibold">{selectedDeal.contact.utm_campaign}</p>
+                          </div>
+                        )}
+
+                        {/* UTM Source */}
+                        {selectedDeal.contact.utm_source && (
+                          <div className="bg-muted/50 p-3 rounded-md">
+                            <p className="text-xs text-muted-foreground font-medium">UTM Source</p>
+                            <p className="text-sm">{selectedDeal.contact.utm_source}</p>
+                          </div>
+                        )}
+
+                        {/* UTM Medium */}
+                        {selectedDeal.contact.utm_medium && (
+                          <div className="bg-muted/50 p-3 rounded-md">
+                            <p className="text-xs text-muted-foreground font-medium">UTM Medium</p>
+                            <p className="text-sm">{selectedDeal.contact.utm_medium}</p>
+                          </div>
+                        )}
+
+                        {/* UTM Campaign */}
+                        {selectedDeal.contact.utm_campaign && (
+                          <div className="bg-muted/50 p-3 rounded-md">
+                            <p className="text-xs text-muted-foreground font-medium">UTM Campaign</p>
+                            <p className="text-sm">{selectedDeal.contact.utm_campaign}</p>
+                          </div>
+                        )}
+
+                        {/* UTM Content */}
+                        {selectedDeal.contact.utm_content && (
+                          <div className="bg-muted/50 p-3 rounded-md">
+                            <p className="text-xs text-muted-foreground font-medium">UTM Content</p>
+                            <p className="text-sm">{selectedDeal.contact.utm_content}</p>
+                          </div>
+                        )}
+
+                        {/* UTM Term */}
+                        {selectedDeal.contact.utm_term && (
+                          <div className="bg-muted/50 p-3 rounded-md">
+                            <p className="text-xs text-muted-foreground font-medium">UTM Term</p>
+                            <p className="text-sm">{selectedDeal.contact.utm_term}</p>
+                          </div>
+                        )}
+
+                        {/* Lead Qualificado */}
+                        <div className="bg-muted/50 p-3 rounded-md">
+                          <p className="text-xs text-muted-foreground font-medium">Lead Qualificado</p>
+                          <Badge variant={(selectedDeal.contact.lead_score || 0) > 0 ? 'default' : 'secondary'}>
+                            {(selectedDeal.contact.lead_score || 0) > 0 ? 'Sim' : 'Não'}
+                          </Badge>
+                        </div>
+
+                        {/* Lead Score */}
+                        <div className="bg-muted/50 p-3 rounded-md">
+                          <p className="text-xs text-muted-foreground font-medium">Qualificação (Score)</p>
+                          <p className="text-sm font-semibold">{selectedDeal.contact.lead_score || 0}</p>
                         </div>
                       </div>
-                    )}
+                    </div>
 
                     {/* Conversions */}
                     {(selectedDeal.contact.first_conversion || selectedDeal.contact.last_conversion) && (
