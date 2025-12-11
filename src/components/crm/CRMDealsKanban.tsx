@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Loader2, Search, User, DollarSign, Calendar, ChevronDown, Phone, Mail, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -263,7 +262,7 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
       </div>
 
       {/* Kanban Board */}
-      <ScrollArea className="w-full whitespace-nowrap pb-4">
+      <div className="w-full overflow-x-auto pb-4">
         <div className="flex gap-5 min-w-max px-1 py-1">
           {stages.map((stage, index) => {
             const stageDeals = getStageDeals(stage.id);
@@ -272,13 +271,13 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
             return (
               <div
                 key={stage.id}
-                className={`w-72 flex-shrink-0 rounded-xl border-2 shadow-sm ${getStageColumnColor(stage)}`}
+                className={`w-80 flex-shrink-0 rounded-xl border-2 shadow-sm ${getStageColumnColor(stage)}`}
               >
                 {/* Header colorido */}
                 <div className={`p-4 rounded-t-lg ${getStageHeaderColor(stage, index)}`}>
                   <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-sm uppercase tracking-wide">{stage.name}</h3>
-                    <Badge className="bg-white/20 text-white border-white/30 hover:bg-white/30">
+                    <h3 className="font-semibold text-sm uppercase tracking-wide truncate mr-2">{stage.name}</h3>
+                    <Badge className="bg-white/20 text-white border-white/30 hover:bg-white/30 shrink-0">
                       {stageDeals.length}
                     </Badge>
                   </div>
@@ -287,14 +286,14 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                   </p>
                 </div>
 
-                <ScrollArea className="h-[calc(100vh-400px)] min-h-[400px]">
+                <div className="h-[calc(100vh-400px)] min-h-[400px] overflow-y-auto">
                   <div className="p-3 space-y-3">
                     {stageDeals.map((deal) => (
-                      <Card key={deal.id} className="cursor-grab active:cursor-grabbing hover:shadow-lg transition-all duration-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950 hover:border-primary/50 rounded-lg">
+                      <Card key={deal.id} className="hover:shadow-lg transition-all duration-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950 hover:border-primary/50 rounded-lg">
                         <CardContent className="p-3">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-sm leading-tight">{deal.name}</p>
+                              <p className="font-semibold text-sm leading-tight break-words">{deal.name}</p>
                               {deal.contact && (
                                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1.5">
                                   <User className="h-3 w-3 shrink-0" />
@@ -311,7 +310,7 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                                   <ChevronDown className="h-3 w-3 ml-1" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuContent align="end" className="w-48 z-50">
                                 {stages
                                   .filter(s => s.id !== stage.id)
                                   .map(targetStage => (
@@ -370,13 +369,12 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                       </div>
                     )}
                   </div>
-                </ScrollArea>
+                </div>
               </div>
             );
           })}
         </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      </div>
     </div>
   );
 };
