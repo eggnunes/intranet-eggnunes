@@ -62,27 +62,28 @@ interface PowerTemplate {
   is_default?: boolean;
 }
 
-// Lista de advogados conforme modelo oficial da procuração
+// Lista de advogados conforme modelo oficial da procuração (EXATAMENTE como no modelo)
 const ADVOGADOS_OFICIAIS = [
-  { nome: "GUILHERME ZARDO DA ROCHA", nacionalidade: "brasileiro", estadoCivil: "casado", oab: "OAB/MG sob o n. 93.714" },
-  { nome: "MARCOS LUIZ EGG NUNES", nacionalidade: "brasileiro", estadoCivil: "casado", oab: "OAB/MG sob o n. 115.283" },
-  { nome: "RAFAEL EGG NUNES", nacionalidade: "brasileiro", estadoCivil: "casado", oab: "OAB/MG sob o n. 118.395" },
-  { nome: "MARCOS GERALDO NUNES", nacionalidade: "brasileiro", estadoCivil: "casado", oab: "OAB/MG sob o n. 75.904" },
-  { nome: "MARIANA ALVES AMORIM CORRÊA FULGÊNCIO", nacionalidade: "brasileira", estadoCivil: "casada", oab: "OAB/MG sob o n. 140.619" },
-  { nome: "MARIA CECILIA BELO", nacionalidade: "brasileira", estadoCivil: "solteira", oab: "OAB/MG sob o n. 179.649" },
-  { nome: "WENMISON JOSÉ DA SILVA RODRIGUES", nacionalidade: "brasileiro", estadoCivil: "casado", oab: "OAB/MG sob o n. 207.900" },
-  { nome: "NÁGILA RODRIGUES", nacionalidade: "brasileira", estadoCivil: "solteira", oab: "OAB/SP sob o n. 421.746" },
-  { nome: "KARISTON RICHARD SOARES COELHO", nacionalidade: "brasileiro", estadoCivil: "solteiro", oab: "OAB/MG sob o n. 231.047" },
-  { nome: "RAFAEL FELIPPE MONTI", nacionalidade: "brasileiro", estadoCivil: "solteiro", oab: "OAB/MG sob o n. 232.112" },
-  { nome: "JÚLIA MOARES DUTRA PEDRA", nacionalidade: "brasileira", estadoCivil: "solteira", oab: "OAB/MG sob o n. 199.902" },
-  { nome: "JORDÂNIA LUÍZE GUEDES ALMEIDA", nacionalidade: "brasileira", estadoCivil: "solteira", oab: "OAB/MG sob o n. 239.069" },
-  { nome: "LUDMILA NICEA MATOS DE MAGALHÃES SILVA FIALHO", nacionalidade: "brasileira", estadoCivil: "casada", oab: "OAB/MG sob o n. 153.142" },
-  { nome: "JENNIFER KAROLINE DARIO DE SÁ", nacionalidade: "brasileira", estadoCivil: "solteira", oab: "OAB/MG sob o n. 202.042" },
+  { nome: "GUILHERME ZARDO DA ROCHA", nacionalidade: "brasileiro", estadoCivil: "casado", oab: "advogado inscrito na OAB/MG sob o n. 93.714" },
+  { nome: "MARCOS LUIZ EGG NUNES", nacionalidade: "brasileiro", estadoCivil: "casado", oab: "advogado inscrito na OAB/MG sob o n. 115.283" },
+  { nome: "RAFAEL EGG NUNES", nacionalidade: "brasileiro", estadoCivil: "casado", oab: "advogado inscrito na OAB/MG sob o n. 118.395" },
+  { nome: "MARCOS GERALDO NUNES", nacionalidade: "brasileiro", estadoCivil: "casado", oab: "advogado inscrito na OAB/MG sob o n. 75.904" },
+  { nome: "MARIANA ALVES AMORIM CORRÊA FULGÊNCIO", nacionalidade: "brasileira", estadoCivil: "casada", oab: "advogada inscrita na OAB/MG sob o n. 140.619" },
+  { nome: "MARIA CECILIA BELO", nacionalidade: "brasileira", estadoCivil: "solteira", oab: "advogada inscrita na OAB/MG sob o n.179.649" },
+  { nome: "WENMISON JOSÉ DA SILVA RODRIGUES", nacionalidade: "brasileiro", estadoCivil: "casado", oab: "advogado inscrito na OAB/MG sob o n. 207.900" },
+  { nome: "NÁGILA RODRIGUES", nacionalidade: "brasileira", estadoCivil: "solteira", oab: "advogada inscrita na OAB/SP sob o n. 421.746" },
+  { nome: "KARISTON RICHARD SOARES COELHO", nacionalidade: "brasileiro", estadoCivil: "solteiro", oab: "advogado inscrito na OAB/MG sob o n. 231.047" },
+  { nome: "RAFAEL FELIPPE MONTI", nacionalidade: "brasileiro", estadoCivil: "solteiro", oab: "advogado inscrito na OAB/MG sob o nº 232.112" },
+  { nome: "JÚLIA MOARES DUTRA PEDRA", nacionalidade: "brasileira", estadoCivil: "solteira", oab: "advogada inscrita na OAB/MG sob o n. 199.902" },
+  { nome: "JORDÂNIA LUÍZE GUEDES ALMEIDA", nacionalidade: "brasileira", estadoCivil: "solteira", oab: "advogada inscrita na OAB/MG sob o n. 239.069" },
+  { nome: "LUDMILA NICEA MATOS DE MAGALHÃES SILVA FIALHO", nacionalidade: "brasileira", estadoCivil: "casada", oab: "advogada inscrita na OAB/MG sob o n. 153.142" },
+  { nome: "JENNIFER KAROLINE DARIO DE SÁ", nacionalidade: "brasileira", estadoCivil: "solteira", oab: "advogada inscrita na OAB/MG sob o n. 202.042" },
 ];
 
-const ENDERECO_ESCRITORIO = "Rua São Paulo, nº 1.104, 9º andar, Centro, Belo Horizonte/MG, CEP 30170-131";
+// Endereço do escritório conforme modelo oficial
+const ENDERECO_ESCRITORIO = "Rua São Paulo, nº 1.104, 9º andar, nesta capital";
 
-// Texto do corpo da procuração conforme modelo oficial
+// Texto do corpo da procuração conforme modelo oficial (EXATAMENTE como no modelo)
 const TEXTO_PODERES = `aos quais confere(m) os poderes da cláusula "ad judicia", para defesa dos direitos ou interesses do(a) Outorgante perante instância judicial ou administrativa, podendo, para tanto, requerer e assinar o que for necessário, representar o(a) Outorgante junto às repartições públicas, ingressar em juízo como Autor(a), promover as ações ou medidas cautelares que entender cabíveis, arguir exceções, transigir, desistir, renunciar, receber e dar quitação, interpor e seguir os recursos legais, assinar declaração de hipossuficiência econômica, bem como fazer tudo mais que necessário for ao completo desempenho do presente mandato, para o qual lhe são outorgados amplos poderes, inclusive o substabelecimento.`;
 
 export const ProcuracaoGenerator = ({ 
@@ -378,7 +379,7 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
     setShowPreview(false);
   };
 
-  // Gerar PDF da procuração conforme modelo oficial
+  // Gerar PDF da procuração conforme modelo oficial EXATO
   const gerarPDF = async () => {
     if (!client) return;
     
@@ -392,11 +393,9 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const marginLeft = 20;
-      const marginRight = 20;
+      const marginLeft = 15;
+      const marginRight = 15;
       const contentWidth = pageWidth - marginLeft - marginRight;
-      const fontSize = 9;
-      const lineHeight = 4.5;
       
       // Adicionar logo centralizada
       try {
@@ -407,76 +406,71 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
           img.onerror = reject;
         });
         
-        const logoWidth = 45;
+        const logoWidth = 40;
         const logoHeight = (img.height / img.width) * logoWidth;
         const logoX = (pageWidth - logoWidth) / 2;
-        doc.addImage(img, 'PNG', logoX, 12, logoWidth, logoHeight);
+        doc.addImage(img, 'PNG', logoX, 10, logoWidth, logoHeight);
       } catch (e) {
         console.warn('Não foi possível carregar a logo:', e);
       }
 
-      let yPosition = 38;
+      let yPosition = 32;
       
       // Título PROCURAÇÃO em negrito e centralizado
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
       doc.text('PROCURAÇÃO', pageWidth / 2, yPosition, { align: 'center' });
-      yPosition += 10;
+      yPosition += 8;
 
-      // Qualificação do cliente em negrito
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(fontSize);
+      // Qualificação do cliente (texto normal, conforme modelo)
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
       const qualificationText = qualification + "; nomeia(m) e constitui(em), seus bastantes procuradores os advogados:";
       const qualificationLines = doc.splitTextToSize(qualificationText, contentWidth);
-      doc.text(qualificationLines, marginLeft, yPosition);
-      yPosition += qualificationLines.length * lineHeight + 4;
+      doc.text(qualificationLines, marginLeft, yPosition, { align: 'justify', maxWidth: contentWidth });
+      yPosition += qualificationLines.length * 3.8 + 3;
 
-      // Tabela de advogados
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
+      // Tabela de advogados (formato tabela conforme modelo)
+      doc.setFontSize(7.5);
+      const colNome = marginLeft;
+      const colNacionalidade = marginLeft + 75;
+      const colEstadoCivil = marginLeft + 95;
+      const colOab = marginLeft + 115;
+      const lineHeightTable = 3.5;
       
       for (const adv of ADVOGADOS_OFICIAIS) {
-        // Nome do advogado em negrito
         doc.setFont('helvetica', 'bold');
-        const nomeText = adv.nome;
-        doc.text(nomeText, marginLeft, yPosition);
+        doc.text(adv.nome, colNome, yPosition);
         
-        // Dados do advogado em fonte normal
         doc.setFont('helvetica', 'normal');
-        const dadosText = `, ${adv.nacionalidade}, ${adv.estadoCivil}, advogado(a) inscrito(a) na ${adv.oab}`;
-        const nomeWidth = doc.getTextWidth(nomeText);
-        doc.text(dadosText, marginLeft + nomeWidth, yPosition);
+        doc.text(adv.nacionalidade, colNacionalidade, yPosition);
+        doc.text(adv.estadoCivil, colEstadoCivil, yPosition);
+        doc.text(adv.oab, colOab, yPosition);
         
-        yPosition += lineHeight;
+        yPosition += lineHeightTable;
       }
 
-      yPosition += 3;
+      yPosition += 2;
 
-      // Texto do escritório
-      doc.setFontSize(fontSize);
-      const escritorioText = `todos com escritório na ${ENDERECO_ESCRITORIO}, `;
-      doc.text(escritorioText, marginLeft, yPosition);
-      yPosition += lineHeight + 2;
-
-      // Texto dos poderes
-      const poderesLines = doc.splitTextToSize(TEXTO_PODERES, contentWidth);
-      doc.text(poderesLines, marginLeft, yPosition);
-      yPosition += poderesLines.length * lineHeight + 3;
-
-      // Poderes especiais em negrito (se houver)
+      // Texto do escritório + poderes (tudo junto conforme modelo)
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      
+      let textoPoderesCompleto = `todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
+      
+      // Adicionar poderes especiais se houver
       if (temPoderesEspeciais && poderesEspeciais.trim()) {
-        doc.setFont('helvetica', 'bold');
-        const poderesEspeciaisLines = doc.splitTextToSize(poderesEspeciais.trim(), contentWidth);
-        doc.text(poderesEspeciaisLines, marginLeft, yPosition);
-        yPosition += poderesEspeciaisLines.length * lineHeight + 5;
-        doc.setFont('helvetica', 'normal');
+        textoPoderesCompleto += ` ${poderesEspeciais.trim()}`;
       }
+      
+      const poderesLines = doc.splitTextToSize(textoPoderesCompleto, contentWidth);
+      doc.text(poderesLines, marginLeft, yPosition, { align: 'justify', maxWidth: contentWidth });
+      yPosition += poderesLines.length * 3.8 + 6;
 
       // Data e local
       const dataAtual = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-      yPosition += 8;
       doc.text(`Belo Horizonte, ${dataAtual}.`, marginLeft, yPosition);
-      yPosition += 15;
+      yPosition += 12;
 
       // Linha de assinatura centralizada
       doc.text('_____________________________________', pageWidth / 2, yPosition, { align: 'center' });
@@ -486,7 +480,7 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
       doc.setFont('helvetica', 'bold');
       doc.text(client.nomeCompleto.toUpperCase(), pageWidth / 2, yPosition, { align: 'center' });
 
-      // Rodapé conforme modelo
+      // Rodapé conforme modelo exato
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.text('31 3226-8742 | escritorio@eggnunes.com.br | www.eggnunes.com.br', pageWidth / 2, pageHeight - 15, { align: 'center' });
