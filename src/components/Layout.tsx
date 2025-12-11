@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
-import { LogOut, Home as HomeIcon, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, Coffee, Home, UserPlus, DoorOpen, FileSignature, Link2, Target, Bot, Brain, Search as SearchIcon, Sparkles, Settings, FileText } from 'lucide-react';
+import { LogOut, Home as HomeIcon, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, Coffee, Home, UserPlus, DoorOpen, FileSignature, Link2, Target, Bot, Brain, Search as SearchIcon, Sparkles, Settings, FileText, KeyRound } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { UpdatesNotification } from '@/components/UpdatesNotification';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
@@ -273,6 +273,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const escritorioMenuItems = [
     { icon: Coffee, path: '/copa-cozinha', label: 'Copa/Cozinha', description: 'Sugestões de alimentos' },
     { icon: DoorOpen, path: '/sala-reuniao', label: 'Sala de Reunião', description: 'Reservar sala' },
+    { icon: KeyRound, path: '/codigos-autenticacao', label: 'Códigos TOTP', description: 'Autenticação de tribunais' },
     { icon: FileStack, path: '/documentos-uteis', label: 'Documentos', description: 'Documentos úteis' },
     { icon: ClipboardIcon, path: '/solicitacoes-administrativas', label: 'Solicitações', description: 'Pedidos administrativos' },
     { icon: Camera, path: '/galeria-eventos', label: 'Galeria de Eventos', description: 'Fotos dos eventos' },
