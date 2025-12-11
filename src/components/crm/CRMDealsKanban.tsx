@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, User, DollarSign, Calendar, ChevronDown, Phone, Mail, RefreshCw } from 'lucide-react';
+import { Loader2, Search, User, DollarSign, Calendar, ChevronDown, Phone, Mail, RefreshCw, GripVertical } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -13,6 +13,19 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  closestCenter,
+} from '@dnd-kit/core';
+import { useDraggable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 
 interface DealStage {
   id: string;
@@ -42,6 +55,175 @@ interface CRMDealsKanbanProps {
   syncEnabled: boolean;
 }
 
+// Componente de card arrastável
+const DraggableDealCard = ({ 
+  deal, 
+  stage, 
+  stages, 
+  onMove, 
+  movingDeal,
+  formatCurrency 
+}: { 
+  deal: Deal; 
+  stage: DealStage;
+  stages: DealStage[];
+  onMove: (dealId: string, newStageId: string, currentStageId: string) => void;
+  movingDeal: string | null;
+  formatCurrency: (value: number) => string;
+}) => {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: deal.id,
+    data: { deal, stageId: stage.id }
+  });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <Card 
+      ref={setNodeRef} 
+      style={style}
+      className={`hover:shadow-lg transition-all duration-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950 hover:border-primary/50 rounded-lg ${isDragging ? 'shadow-xl ring-2 ring-primary' : ''}`}
+    >
+      <CardContent className="p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div 
+            {...attributes} 
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-1 -ml-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+          >
+            <GripVertical className="h-4 w-4 text-slate-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm leading-tight break-words">{deal.name}</p>
+            {deal.contact && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1.5">
+                <User className="h-3 w-3 shrink-0" />
+                <span className="truncate">{deal.contact.name}</span>
+              </div>
+            )}
+          </div>
+          
+          {/* Dropdown to move */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs shrink-0">
+                Mover
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 z-50">
+              {stages
+                .filter(s => s.id !== stage.id)
+                .map(targetStage => (
+                  <DropdownMenuItem
+                    key={targetStage.id}
+                    onClick={() => onMove(deal.id, targetStage.id, stage.id)}
+                    disabled={movingDeal === deal.id}
+                  >
+                    Mover para {targetStage.name}
+                  </DropdownMenuItem>
+                ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1">
+          {deal.value > 0 && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <DollarSign className="h-3 w-3 text-emerald-600 shrink-0" />
+              <span className="font-semibold text-emerald-600">
+                {formatCurrency(deal.value)}
+              </span>
+            </div>
+          )}
+          
+          {deal.expected_close_date && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Calendar className="h-3 w-3 shrink-0" />
+              <span>
+                {new Date(deal.expected_close_date).toLocaleDateString('pt-BR')}
+              </span>
+            </div>
+          )}
+
+          {deal.contact?.phone && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Phone className="h-3 w-3 shrink-0" />
+              <span className="truncate">{deal.contact.phone}</span>
+            </div>
+          )}
+
+          {deal.contact?.email && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Mail className="h-3 w-3 shrink-0" />
+              <span className="truncate">{deal.contact.email}</span>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+// Componente de coluna droppable
+const DroppableColumn = ({ 
+  stage, 
+  index,
+  children,
+  stageDeals,
+  stageValue,
+  getStageHeaderColor,
+  getStageColumnColor,
+  formatCurrency,
+}: { 
+  stage: DealStage; 
+  index: number;
+  children: React.ReactNode;
+  stageDeals: Deal[];
+  stageValue: number;
+  getStageHeaderColor: (stage: DealStage, index: number) => string;
+  getStageColumnColor: (stage: DealStage) => string;
+  formatCurrency: (value: number) => string;
+}) => {
+  const { isOver, setNodeRef } = useDroppable({
+    id: stage.id,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`w-80 flex-shrink-0 rounded-xl border-2 shadow-sm transition-all duration-200 ${getStageColumnColor(stage)} ${isOver ? 'ring-2 ring-primary ring-offset-2' : ''}`}
+    >
+      {/* Header colorido */}
+      <div className={`p-4 rounded-t-lg ${getStageHeaderColor(stage, index)}`}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-sm uppercase tracking-wide truncate mr-2">{stage.name}</h3>
+          <Badge className="bg-white/20 text-white border-white/30 hover:bg-white/30 shrink-0">
+            {stageDeals.length}
+          </Badge>
+        </div>
+        <p className="text-sm mt-1 opacity-90">
+          {formatCurrency(stageValue)}
+        </p>
+      </div>
+
+      <div className="h-[calc(100vh-400px)] min-h-[400px] overflow-y-auto">
+        <div className="p-3 space-y-3">
+          {children}
+          {stageDeals.length === 0 && (
+            <div className="text-center py-8 text-sm text-muted-foreground">
+              Nenhuma oportunidade
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
   const { user } = useAuth();
   const [stages, setStages] = useState<DealStage[]>([]);
@@ -49,6 +231,15 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
   const [loading, setLoading] = useState(true);
   const [movingDeal, setMovingDeal] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
   useEffect(() => {
     fetchData();
@@ -87,7 +278,6 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
   };
 
   const fetchDeals = async () => {
-    // Fetch ALL deals with pagination to avoid 1000 limit
     let allDeals: any[] = [];
     let page = 0;
     const pageSize = 1000;
@@ -114,7 +304,6 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
       if (dealsBatch.length < pageSize) break;
       page++;
       
-      // Safety limit
       if (page > 20) break;
     }
     
@@ -132,7 +321,6 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
     if (stage.is_won) return 'bg-emerald-600 text-white';
     if (stage.is_lost) return 'bg-red-600 text-white';
     
-    // Cores variadas para cada estágio
     const colors = [
       'bg-blue-600 text-white',
       'bg-violet-600 text-white',
@@ -173,9 +361,11 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
 
     setMovingDeal(dealId);
 
+    // Optimistic update
+    setDeals(prev => prev.map(d => d.id === dealId ? { ...d, stage_id: newStageId } : d));
+
     try {
       if (syncEnabled) {
-        // Bidirectional sync - update RD Station and local
         const { data, error } = await supabase.functions.invoke('crm-sync', {
           body: {
             action: 'update_deal_stage',
@@ -192,7 +382,6 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
 
         toast.success(`Oportunidade movida para ${data.stage_name}`);
       } else {
-        // Local only update
         const { error } = await supabase
           .from('crm_deals')
           .update({ stage_id: newStageId })
@@ -200,7 +389,6 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
 
         if (error) throw error;
 
-        // Log history
         await supabase.from('crm_deal_history').insert({
           deal_id: dealId,
           from_stage_id: currentStageId,
@@ -208,15 +396,44 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
           changed_by: user?.id
         });
 
-        toast.success('Oportunidade movida');
+        const targetStage = stages.find(s => s.id === newStageId);
+        toast.success(`Oportunidade movida para ${targetStage?.name || 'nova etapa'}`);
       }
 
       fetchDeals();
     } catch (error: any) {
       console.error('Error moving deal:', error);
+      // Revert optimistic update
+      setDeals(prev => prev.map(d => d.id === dealId ? { ...d, stage_id: currentStageId } : d));
       toast.error(error?.message || 'Erro ao mover oportunidade');
     } finally {
       setMovingDeal(null);
+    }
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const deal = deals.find(d => d.id === active.id);
+    if (deal) {
+      setActiveDeal(deal);
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDeal(null);
+
+    if (!over) return;
+
+    const dealId = active.id as string;
+    const deal = deals.find(d => d.id === dealId);
+    if (!deal) return;
+
+    const newStageId = over.id as string;
+    const currentStageId = deal.stage_id;
+
+    if (newStageId !== currentStageId && stages.some(s => s.id === newStageId)) {
+      handleMoveToStage(dealId, newStageId, currentStageId);
     }
   };
 
@@ -261,120 +478,63 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
         )}
       </div>
 
-      {/* Kanban Board */}
-      <div className="w-full overflow-x-auto pb-4">
-        <div className="flex gap-5 min-w-max px-1 py-1">
-          {stages.map((stage, index) => {
-            const stageDeals = getStageDeals(stage.id);
-            const stageValue = getStageValue(stage.id);
+      {/* Kanban Board with DnD */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="w-full overflow-x-auto pb-4">
+          <div className="flex gap-5 min-w-max px-1 py-1">
+            {stages.map((stage, index) => {
+              const stageDeals = getStageDeals(stage.id);
+              const stageValue = getStageValue(stage.id);
 
-            return (
-              <div
-                key={stage.id}
-                className={`w-80 flex-shrink-0 rounded-xl border-2 shadow-sm ${getStageColumnColor(stage)}`}
-              >
-                {/* Header colorido */}
-                <div className={`p-4 rounded-t-lg ${getStageHeaderColor(stage, index)}`}>
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-sm uppercase tracking-wide truncate mr-2">{stage.name}</h3>
-                    <Badge className="bg-white/20 text-white border-white/30 hover:bg-white/30 shrink-0">
-                      {stageDeals.length}
-                    </Badge>
-                  </div>
-                  <p className="text-sm mt-1 opacity-90">
-                    {formatCurrency(stageValue)}
-                  </p>
-                </div>
-
-                <div className="h-[calc(100vh-400px)] min-h-[400px] overflow-y-auto">
-                  <div className="p-3 space-y-3">
-                    {stageDeals.map((deal) => (
-                      <Card key={deal.id} className="hover:shadow-lg transition-all duration-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950 hover:border-primary/50 rounded-lg">
-                        <CardContent className="p-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-sm leading-tight break-words">{deal.name}</p>
-                              {deal.contact && (
-                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1.5">
-                                  <User className="h-3 w-3 shrink-0" />
-                                  <span className="truncate">{deal.contact.name}</span>
-                                </div>
-                              )}
-                            </div>
-                            
-                            {/* Dropdown to move */}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm" className="h-7 px-2 text-xs shrink-0">
-                                  Mover
-                                  <ChevronDown className="h-3 w-3 ml-1" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-48 z-50">
-                                {stages
-                                  .filter(s => s.id !== stage.id)
-                                  .map(targetStage => (
-                                    <DropdownMenuItem
-                                      key={targetStage.id}
-                                      onClick={() => handleMoveToStage(deal.id, targetStage.id, stage.id)}
-                                      disabled={movingDeal === deal.id}
-                                    >
-                                      Mover para {targetStage.name}
-                                    </DropdownMenuItem>
-                                  ))}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-
-                          <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1">
-                            {deal.value > 0 && (
-                              <div className="flex items-center gap-1.5 text-xs">
-                                <DollarSign className="h-3 w-3 text-emerald-600 shrink-0" />
-                                <span className="font-semibold text-emerald-600">
-                                  {formatCurrency(deal.value)}
-                                </span>
-                              </div>
-                            )}
-                            
-                            {deal.expected_close_date && (
-                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                <Calendar className="h-3 w-3 shrink-0" />
-                                <span>
-                                  {new Date(deal.expected_close_date).toLocaleDateString('pt-BR')}
-                                </span>
-                              </div>
-                            )}
-
-                            {deal.contact?.phone && (
-                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                <Phone className="h-3 w-3 shrink-0" />
-                                <span className="truncate">{deal.contact.phone}</span>
-                              </div>
-                            )}
-
-                            {deal.contact?.email && (
-                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                <Mail className="h-3 w-3 shrink-0" />
-                                <span className="truncate">{deal.contact.email}</span>
-                              </div>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-
-                    {stageDeals.length === 0 && (
-                      <div className="text-center py-8 text-sm text-muted-foreground">
-                        Nenhuma oportunidade
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+              return (
+                <DroppableColumn
+                  key={stage.id}
+                  stage={stage}
+                  index={index}
+                  stageDeals={stageDeals}
+                  stageValue={stageValue}
+                  getStageHeaderColor={getStageHeaderColor}
+                  getStageColumnColor={getStageColumnColor}
+                  formatCurrency={formatCurrency}
+                >
+                  {stageDeals.map((deal) => (
+                    <DraggableDealCard
+                      key={deal.id}
+                      deal={deal}
+                      stage={stage}
+                      stages={stages}
+                      onMove={handleMoveToStage}
+                      movingDeal={movingDeal}
+                      formatCurrency={formatCurrency}
+                    />
+                  ))}
+                </DroppableColumn>
+              );
+            })}
+          </div>
         </div>
-      </div>
+
+        {/* Drag Overlay */}
+        <DragOverlay>
+          {activeDeal ? (
+            <Card className="w-72 shadow-2xl border-2 border-primary bg-white dark:bg-slate-950 rounded-lg opacity-90">
+              <CardContent className="p-3">
+                <p className="font-semibold text-sm">{activeDeal.name}</p>
+                {activeDeal.value > 0 && (
+                  <p className="text-xs text-emerald-600 font-medium mt-1">
+                    {formatCurrency(activeDeal.value)}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   );
 };
