@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Search, User, DollarSign, Calendar, ChevronDown, Phone, Mail, RefreshCw, GripVertical, Eye, Building, MapPin, Globe, Linkedin, Twitter, Facebook, Tag, FileText, Package, Target, Edit2, Save, X } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Loader2, Search, User, DollarSign, Calendar, ChevronDown, Phone, Mail, RefreshCw, GripVertical, Eye, Building, MapPin, Globe, Linkedin, Twitter, Facebook, Tag, FileText, Package, Target, Edit2, Save, X, History, UserCircle, CheckCircle, Circle, Video, MessageSquare } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -77,6 +78,7 @@ interface Deal {
   value: number;
   stage_id: string;
   contact_id: string | null;
+  owner_id: string | null;
   expected_close_date: string | null;
   created_at: string;
   updated_at: string;
@@ -89,6 +91,30 @@ interface Deal {
   closed_at: string | null;
   loss_reason: string | null;
   contact?: Contact;
+  owner?: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+}
+
+interface Activity {
+  id: string;
+  type: string;
+  title: string;
+  description: string | null;
+  due_date: string | null;
+  completed: boolean;
+  completed_at: string | null;
+  created_at: string;
+  created_by: string | null;
+  owner_id: string | null;
+  owner?: {
+    full_name: string;
+  };
+  creator?: {
+    full_name: string;
+  };
 }
 
 interface CRMDealsKanbanProps {
@@ -291,6 +317,9 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Deal & { contact?: Partial<Contact> }>>({});
   const [saving, setSaving] = useState(false);
+  const [dealActivities, setDealActivities] = useState<Activity[]>([]);
+  const [loadingActivities, setLoadingActivities] = useState(false);
+  const [profiles, setProfiles] = useState<Record<string, { full_name: string; email: string }>>({});
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -319,8 +348,25 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
   }, []);
 
   const fetchData = async () => {
-    await Promise.all([fetchStages(), fetchDeals()]);
+    await Promise.all([fetchStages(), fetchDeals(), fetchProfiles()]);
     setLoading(false);
+  };
+
+  const fetchProfiles = async () => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, email');
+    
+    if (error) {
+      console.error('Error fetching profiles:', error);
+      return;
+    }
+    
+    const profileMap: Record<string, { full_name: string; email: string }> = {};
+    data?.forEach(p => {
+      profileMap[p.id] = { full_name: p.full_name, email: p.email };
+    });
+    setProfiles(profileMap);
   };
 
   const fetchStages = async () => {
@@ -416,9 +462,73 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
     return getStageDeals(stageId).reduce((sum, deal) => sum + (Number(deal.value) || 0), 0);
   };
 
-  const handleViewDeal = (deal: Deal) => {
+  const fetchDealActivities = async (dealId: string, contactId: string | null) => {
+    setLoadingActivities(true);
+    try {
+      let query = supabase
+        .from('crm_activities')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      // Get activities for deal OR contact
+      if (contactId) {
+        query = query.or(`deal_id.eq.${dealId},contact_id.eq.${contactId}`);
+      } else {
+        query = query.eq('deal_id', dealId);
+      }
+
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('Error fetching activities:', error);
+        setDealActivities([]);
+      } else {
+        setDealActivities(data || []);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setDealActivities([]);
+    } finally {
+      setLoadingActivities(false);
+    }
+  };
+
+  const handleViewDeal = async (deal: Deal) => {
     setSelectedDeal(deal);
     setIsEditing(false);
+    setDealActivities([]);
+    fetchDealActivities(deal.id, deal.contact_id);
+  };
+
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'call':
+        return <Phone className="h-4 w-4" />;
+      case 'email':
+        return <Mail className="h-4 w-4" />;
+      case 'meeting':
+        return <Video className="h-4 w-4" />;
+      case 'task':
+        return <CheckCircle className="h-4 w-4" />;
+      case 'note':
+        return <FileText className="h-4 w-4" />;
+      case 'whatsapp':
+        return <MessageSquare className="h-4 w-4" />;
+      default:
+        return <Circle className="h-4 w-4" />;
+    }
+  };
+
+  const getActivityTypeName = (type: string) => {
+    const types: Record<string, string> = {
+      call: 'Ligação',
+      email: 'E-mail',
+      meeting: 'Reunião',
+      task: 'Tarefa',
+      note: 'Nota',
+      whatsapp: 'WhatsApp'
+    };
+    return types[type] || type;
   };
 
   const handleEditClick = () => {
@@ -726,9 +836,13 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
 
           {selectedDeal && !isEditing && (
             <Tabs defaultValue="deal" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="deal">Oportunidade</TabsTrigger>
                 <TabsTrigger value="contact">Contato</TabsTrigger>
+                <TabsTrigger value="history">
+                  <History className="h-4 w-4 mr-1" />
+                  Histórico
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="deal" className="space-y-6 mt-4">
@@ -761,6 +875,16 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
                         <span>Previsão: {new Date(selectedDeal.expected_close_date).toLocaleDateString('pt-BR')}</span>
+                      </div>
+                    )}
+
+                    {/* Responsável */}
+                    {selectedDeal.owner_id && profiles[selectedDeal.owner_id] && (
+                      <div className="flex items-center gap-2">
+                        <UserCircle className="h-4 w-4 text-blue-600" />
+                        <span className="text-blue-600 font-medium">
+                          Responsável: {profiles[selectedDeal.owner_id].full_name}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -1014,6 +1138,79 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                   <div className="text-center py-8 text-muted-foreground">
                     Nenhum contato associado a esta oportunidade
                   </div>
+                )}
+              </TabsContent>
+
+              {/* History Tab */}
+              <TabsContent value="history" className="space-y-4 mt-4">
+                <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Histórico de Atividades</h4>
+                
+                {loadingActivities ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : dealActivities.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground bg-muted/30 rounded-lg">
+                    <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>Nenhuma atividade registrada</p>
+                  </div>
+                ) : (
+                  <ScrollArea className="h-[400px] pr-4">
+                    <div className="space-y-3">
+                      {dealActivities.map((activity) => (
+                        <Card key={activity.id} className={activity.completed ? 'opacity-60' : ''}>
+                          <CardContent className="py-3">
+                            <div className="flex items-start gap-3">
+                              <div className={`p-2 rounded-full shrink-0 ${activity.completed ? 'bg-green-500/10 text-green-600' : 'bg-primary/10 text-primary'}`}>
+                                {getActivityIcon(activity.type)}
+                              </div>
+                              
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <p className={`font-medium text-sm ${activity.completed ? 'line-through' : ''}`}>
+                                      {activity.title}
+                                    </p>
+                                    {activity.description && (
+                                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                        {activity.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <Badge variant="secondary" className="shrink-0 text-xs">
+                                    {getActivityTypeName(activity.type)}
+                                  </Badge>
+                                </div>
+                                
+                                <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-muted-foreground">
+                                  {activity.owner_id && profiles[activity.owner_id] && (
+                                    <span className="flex items-center gap-1">
+                                      <UserCircle className="h-3 w-3" />
+                                      {profiles[activity.owner_id].full_name}
+                                    </span>
+                                  )}
+                                  {activity.due_date && (
+                                    <span className="flex items-center gap-1">
+                                      <Calendar className="h-3 w-3" />
+                                      {new Date(activity.due_date).toLocaleDateString('pt-BR')}
+                                    </span>
+                                  )}
+                                  <span className="flex items-center gap-1">
+                                    Criado: {new Date(activity.created_at).toLocaleDateString('pt-BR')}
+                                  </span>
+                                  {activity.completed && (
+                                    <Badge variant="outline" className="text-green-600 border-green-600/20 text-xs">
+                                      Concluída
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 )}
               </TabsContent>
             </Tabs>
