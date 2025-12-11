@@ -40,10 +40,14 @@ serve(async (req) => {
       case 'sync_deals':
         result = await syncDeals(rdToken, supabase);
         break;
+      case 'sync_activities':
+        result = await syncActivities(rdToken, supabase);
+        break;
       case 'full_sync':
         const pipelinesResult = await syncPipelines(rdToken, supabase);
         const contactsResult = await syncContacts(rdToken, supabase);
         const dealsResult = await syncDeals(rdToken, supabase);
+        const activitiesResult = await syncActivities(rdToken, supabase);
         
         // Update last sync timestamp
         await supabase
@@ -54,7 +58,8 @@ serve(async (req) => {
         result = {
           pipelines: pipelinesResult,
           contacts: contactsResult,
-          deals: dealsResult
+          deals: dealsResult,
+          activities: activitiesResult
         };
         break;
       
@@ -506,7 +511,7 @@ async function syncContacts(rdToken: string, supabase: any) {
 
   console.log(`Total contacts to sync: ${allContacts.length}`);
 
-  // Transform contacts data
+  // Transform contacts data - including ALL UTM and tracking fields
   const contactsData = allContacts.map(contact => ({
     rd_station_id: contact._id,
     name: contact.name || contact.emails?.[0]?.email || 'Sem nome',
@@ -525,7 +530,16 @@ async function syncContacts(rdToken: string, supabase: any) {
     birthday: contact.birthday || null,
     notes: contact.notes || null,
     custom_fields: contact.custom_fields || {},
-    lead_score: contact.score || 0
+    lead_score: contact.score || 0,
+    // UTM tracking fields - from RD Station contact data
+    utm_source: contact.traffic_source || contact.utm_source || contact.custom_fields?.utm_source || null,
+    utm_medium: contact.traffic_medium || contact.utm_medium || contact.custom_fields?.utm_medium || null,
+    utm_campaign: contact.traffic_campaign || contact.utm_campaign || contact.custom_fields?.utm_campaign || null,
+    utm_content: contact.utm_content || contact.custom_fields?.utm_content || null,
+    utm_term: contact.utm_term || contact.custom_fields?.utm_term || null,
+    // Conversion tracking
+    first_conversion: contact.first_conversion?.content || contact.first_conversion_date || null,
+    last_conversion: contact.last_conversion?.content || contact.last_conversion_date || null
   }));
 
   // Batch upsert in chunks of 500 for faster processing
@@ -618,16 +632,33 @@ async function syncDeals(rdToken: string, supabase: any) {
   
   const contactMap = new Map(allContacts.map((c: any) => [c.rd_station_id, c.id]));
 
-  // Transform deals data
+  // Get user/owner mappings from profiles
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, email');
+  
+  // Create email to profile ID map for owner matching
+  const emailToProfileMap = new Map<string, string>(
+    profiles?.map((p: any) => [p.email?.toLowerCase(), p.id]) || []
+  );
+
+  // Transform deals data - including owner_id
   const dealsData = allDeals.map(deal => {
     const stageInfo = stageMap.get(deal.deal_stage?._id);
     const contactId = deal.contacts?.[0]?._id ? contactMap.get(deal.contacts[0]._id) : null;
+    
+    // Try to match owner by email
+    let ownerId = null;
+    if (deal.user?.email) {
+      ownerId = emailToProfileMap.get(deal.user.email.toLowerCase()) || null;
+    }
 
     return {
       rd_station_id: deal._id,
       contact_id: contactId || null,
       pipeline_id: stageInfo?.pipeline_id || null,
       stage_id: stageInfo?.id || null,
+      owner_id: ownerId,
       name: deal.name || 'Deal sem nome',
       value: deal.amount_total || 0,
       expected_close_date: deal.prediction_date || null,
@@ -667,4 +698,130 @@ async function syncDeals(rdToken: string, supabase: any) {
   });
 
   return { deals: dealsCreated };
+}
+
+// Sync activities/tasks from RD Station
+async function syncActivities(rdToken: string, supabase: any) {
+  console.log('Syncing activities from RD Station...');
+  
+  let allActivities: any[] = [];
+  let page = 1;
+  const limit = 200;
+  
+  // Fetch tasks/activities from RD Station
+  while (true) {
+    const response = await fetch(
+      `${RD_STATION_API_URL}/tasks?token=${rdToken}&page=${page}&limit=${limit}`
+    );
+    
+    if (!response.ok) {
+      console.log(`Activities fetch returned ${response.status}, may not have tasks endpoint`);
+      break;
+    }
+
+    const data = await response.json();
+    const tasks = data.tasks || data.activities || [];
+    
+    if (tasks.length === 0) break;
+    
+    allActivities = [...allActivities, ...tasks];
+    console.log(`Fetched activities page ${page}, total: ${allActivities.length}`);
+    
+    if (tasks.length < limit) break;
+    page++;
+    
+    if (page > 50) break;
+  }
+
+  console.log(`Total activities to sync: ${allActivities.length}`);
+
+  if (allActivities.length === 0) {
+    return { activities: 0 };
+  }
+
+  // Get deal and contact mappings
+  const { data: deals } = await supabase
+    .from('crm_deals')
+    .select('id, rd_station_id');
+  const dealMap = new Map(deals?.map((d: any) => [d.rd_station_id, d.id]) || []);
+
+  const { data: contacts } = await supabase
+    .from('crm_contacts')
+    .select('id, rd_station_id');
+  const contactMap = new Map(contacts?.map((c: any) => [c.rd_station_id, c.id]) || []);
+
+  // Get user mappings
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, email');
+  const emailToProfileMap = new Map(
+    profiles?.map((p: any) => [p.email?.toLowerCase(), p.id]) || []
+  );
+
+  // Transform activities
+  const activitiesData = allActivities.map(activity => {
+    const dealId = activity.deal?._id ? dealMap.get(activity.deal._id) : null;
+    const contactId = activity.contact?._id ? contactMap.get(activity.contact._id) : null;
+    let ownerId = null;
+    if (activity.user?.email) {
+      ownerId = emailToProfileMap.get(activity.user.email.toLowerCase()) || null;
+    }
+    let createdBy = null;
+    if (activity.created_by?.email) {
+      createdBy = emailToProfileMap.get(activity.created_by.email.toLowerCase()) || null;
+    }
+
+    // Map RD Station task types
+    let type = activity.type || 'task';
+    if (activity.subject?.toLowerCase().includes('ligação') || activity.subject?.toLowerCase().includes('call')) {
+      type = 'call';
+    } else if (activity.subject?.toLowerCase().includes('email') || activity.subject?.toLowerCase().includes('e-mail')) {
+      type = 'email';
+    } else if (activity.subject?.toLowerCase().includes('reunião') || activity.subject?.toLowerCase().includes('meeting')) {
+      type = 'meeting';
+    } else if (activity.subject?.toLowerCase().includes('whatsapp')) {
+      type = 'whatsapp';
+    }
+
+    return {
+      rd_station_id: activity._id,
+      deal_id: dealId,
+      contact_id: contactId,
+      owner_id: ownerId,
+      created_by: createdBy,
+      type: type,
+      title: activity.subject || activity.name || activity.title || 'Atividade',
+      description: activity.notes || activity.description || null,
+      due_date: activity.date || activity.due_date || null,
+      completed: activity.done || activity.completed || false,
+      completed_at: activity.done_at || activity.completed_at || null,
+      created_at: activity.created_at || new Date().toISOString()
+    };
+  });
+
+  // Batch upsert
+  const BATCH_SIZE = 500;
+  let activitiesCreated = 0;
+
+  for (let i = 0; i < activitiesData.length; i += BATCH_SIZE) {
+    const batch = activitiesData.slice(i, i + BATCH_SIZE);
+    const { error } = await supabase
+      .from('crm_activities')
+      .upsert(batch, { onConflict: 'rd_station_id' });
+
+    if (error) {
+      console.error('Error upserting activities batch:', error);
+    } else {
+      activitiesCreated += batch.length;
+    }
+  }
+
+  // Log sync
+  await supabase.from('crm_sync_log').insert({
+    sync_type: 'manual',
+    entity_type: 'activity',
+    status: 'success'
+  });
+
+  return { activities: activitiesCreated };
 }
