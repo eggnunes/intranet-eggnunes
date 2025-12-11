@@ -46,6 +46,7 @@ import SetorComercial from "./pages/SetorComercial";
 import Integracoes from "./pages/Integracoes";
 import Notificacoes from "./pages/Notificacoes";
 import LeadTracking from "./pages/LeadTracking";
+import CRM from "./pages/CRM";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -362,6 +363,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <LeadTracking />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/crm"
+              element={
+                <ProtectedRoute>
+                  <CRM />
                 </ProtectedRoute>
               }
             />

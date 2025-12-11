@@ -710,6 +710,487 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_activities: {
+        Row: {
+          completed: boolean | null
+          completed_at: string | null
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          deal_id: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          owner_id: string | null
+          rd_station_id: string | null
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          completed?: boolean | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deal_id?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          owner_id?: string | null
+          rd_station_id?: string | null
+          title: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          completed?: boolean | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deal_id?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          owner_id?: string | null
+          rd_station_id?: string | null
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_activities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "crm_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_activities_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "crm_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_contact_tags: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          id: string
+          tag_id: string | null
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          tag_id?: string | null
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          tag_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_contact_tags_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "crm_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_contact_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "crm_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_contacts: {
+        Row: {
+          address: string | null
+          birthday: string | null
+          city: string | null
+          company: string | null
+          country: string | null
+          created_at: string
+          custom_fields: Json | null
+          email: string | null
+          facebook: string | null
+          first_conversion: string | null
+          id: string
+          job_title: string | null
+          last_conversion: string | null
+          lead_score: number | null
+          linkedin: string | null
+          name: string
+          notes: string | null
+          phone: string | null
+          rd_station_id: string | null
+          state: string | null
+          twitter: string | null
+          updated_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          birthday?: string | null
+          city?: string | null
+          company?: string | null
+          country?: string | null
+          created_at?: string
+          custom_fields?: Json | null
+          email?: string | null
+          facebook?: string | null
+          first_conversion?: string | null
+          id?: string
+          job_title?: string | null
+          last_conversion?: string | null
+          lead_score?: number | null
+          linkedin?: string | null
+          name: string
+          notes?: string | null
+          phone?: string | null
+          rd_station_id?: string | null
+          state?: string | null
+          twitter?: string | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          birthday?: string | null
+          city?: string | null
+          company?: string | null
+          country?: string | null
+          created_at?: string
+          custom_fields?: Json | null
+          email?: string | null
+          facebook?: string | null
+          first_conversion?: string | null
+          id?: string
+          job_title?: string | null
+          last_conversion?: string | null
+          lead_score?: number | null
+          linkedin?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          rd_station_id?: string | null
+          state?: string | null
+          twitter?: string | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          website?: string | null
+        }
+        Relationships: []
+      }
+      crm_deal_history: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          deal_id: string | null
+          from_stage_id: string | null
+          id: string
+          notes: string | null
+          to_stage_id: string | null
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          deal_id?: string | null
+          from_stage_id?: string | null
+          id?: string
+          notes?: string | null
+          to_stage_id?: string | null
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          deal_id?: string | null
+          from_stage_id?: string | null
+          id?: string
+          notes?: string | null
+          to_stage_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_deal_history_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "crm_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_deal_history_from_stage_id_fkey"
+            columns: ["from_stage_id"]
+            isOneToOne: false
+            referencedRelation: "crm_deal_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_deal_history_to_stage_id_fkey"
+            columns: ["to_stage_id"]
+            isOneToOne: false
+            referencedRelation: "crm_deal_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_deal_stages: {
+        Row: {
+          created_at: string
+          id: string
+          is_lost: boolean | null
+          is_won: boolean | null
+          name: string
+          order_index: number
+          pipeline_id: string | null
+          rd_station_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_lost?: boolean | null
+          is_won?: boolean | null
+          name: string
+          order_index?: number
+          pipeline_id?: string | null
+          rd_station_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_lost?: boolean | null
+          is_won?: boolean | null
+          name?: string
+          order_index?: number
+          pipeline_id?: string | null
+          rd_station_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_deal_stages_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "crm_pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_deals: {
+        Row: {
+          campaign_name: string | null
+          closed_at: string | null
+          contact_id: string | null
+          created_at: string
+          custom_fields: Json | null
+          expected_close_date: string | null
+          id: string
+          loss_reason: string | null
+          name: string
+          notes: string | null
+          owner_id: string | null
+          pipeline_id: string | null
+          product_name: string | null
+          rd_station_id: string | null
+          stage_id: string | null
+          updated_at: string
+          value: number | null
+          won: boolean | null
+        }
+        Insert: {
+          campaign_name?: string | null
+          closed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          custom_fields?: Json | null
+          expected_close_date?: string | null
+          id?: string
+          loss_reason?: string | null
+          name: string
+          notes?: string | null
+          owner_id?: string | null
+          pipeline_id?: string | null
+          product_name?: string | null
+          rd_station_id?: string | null
+          stage_id?: string | null
+          updated_at?: string
+          value?: number | null
+          won?: boolean | null
+        }
+        Update: {
+          campaign_name?: string | null
+          closed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          custom_fields?: Json | null
+          expected_close_date?: string | null
+          id?: string
+          loss_reason?: string | null
+          name?: string
+          notes?: string | null
+          owner_id?: string | null
+          pipeline_id?: string | null
+          product_name?: string | null
+          rd_station_id?: string | null
+          stage_id?: string | null
+          updated_at?: string
+          value?: number | null
+          won?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_deals_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "crm_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_deals_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "crm_pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_deals_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "crm_deal_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_pipelines: {
+        Row: {
+          created_at: string
+          id: string
+          is_default: boolean | null
+          name: string
+          rd_station_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          name: string
+          rd_station_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          rd_station_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      crm_settings: {
+        Row: {
+          created_at: string
+          id: string
+          last_full_sync_at: string | null
+          rd_station_sync_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_full_sync_at?: string | null
+          rd_station_sync_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_full_sync_at?: string | null
+          rd_station_sync_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      crm_sync_log: {
+        Row: {
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          error_message: string | null
+          id: string
+          status: string
+          sync_type: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type: string
+          error_message?: string | null
+          id?: string
+          status: string
+          sync_type: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string
+          error_message?: string | null
+          id?: string
+          status?: string
+          sync_type?: string
+        }
+        Relationships: []
+      }
+      crm_tags: {
+        Row: {
+          color: string | null
+          created_at: string
+          id: string
+          name: string
+          rd_station_id: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          rd_station_id?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          rd_station_id?: string | null
+        }
+        Relationships: []
+      }
       customer_birthday_exclusions: {
         Row: {
           created_at: string
