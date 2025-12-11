@@ -36,7 +36,7 @@ export const CRMDashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [syncEnabled, setSyncEnabled] = useState(false); // Default: modo independente
+  const [syncEnabled, setSyncEnabled] = useState(true); // Sync bidirecional ativo por padrão
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
 
