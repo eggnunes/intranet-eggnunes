@@ -479,8 +479,8 @@ async function syncContacts(rdToken: string, supabase: any) {
   let page = 1;
   const limit = 200;
   
-  // Paginate through all contacts (max 5 pages to avoid timeout)
-  while (page <= 5) {
+  // Paginate through ALL contacts without limit
+  while (true) {
     const response = await fetch(
       `${RD_STATION_API_URL}/contacts?token=${rdToken}&page=${page}&limit=${limit}`
     );
@@ -499,6 +499,9 @@ async function syncContacts(rdToken: string, supabase: any) {
     
     if (contacts.length < limit) break;
     page++;
+    
+    // Safety limit to prevent infinite loops
+    if (page > 100) break;
   }
 
   console.log(`Total contacts to sync: ${allContacts.length}`);
@@ -525,8 +528,8 @@ async function syncContacts(rdToken: string, supabase: any) {
     lead_score: contact.score || 0
   }));
 
-  // Batch upsert in chunks of 200
-  const BATCH_SIZE = 200;
+  // Batch upsert in chunks of 500 for faster processing
+  const BATCH_SIZE = 500;
   let contactsCreated = 0;
 
   for (let i = 0; i < contactsData.length; i += BATCH_SIZE) {
@@ -560,8 +563,8 @@ async function syncDeals(rdToken: string, supabase: any) {
   let page = 1;
   const limit = 200;
   
-  // Paginate through all deals (max 5 pages to avoid timeout)
-  while (page <= 5) {
+  // Paginate through ALL deals without limit
+  while (true) {
     const response = await fetch(
       `${RD_STATION_API_URL}/deals?token=${rdToken}&page=${page}&limit=${limit}`
     );
@@ -580,6 +583,9 @@ async function syncDeals(rdToken: string, supabase: any) {
     
     if (deals.length < limit) break;
     page++;
+    
+    // Safety limit to prevent infinite loops
+    if (page > 100) break;
   }
 
   console.log(`Total deals to sync: ${allDeals.length}`);
@@ -593,12 +599,24 @@ async function syncDeals(rdToken: string, supabase: any) {
     stages?.map((s: any) => [s.rd_station_id, s]) || []
   );
 
-  // Get contact mappings
-  const { data: contacts } = await supabase
-    .from('crm_contacts')
-    .select('id, rd_station_id');
+  // Get contact mappings - fetch all without limit
+  let allContacts: any[] = [];
+  let contactPage = 0;
+  const contactLimit = 1000;
   
-  const contactMap = new Map(contacts?.map((c: any) => [c.rd_station_id, c.id]) || []);
+  while (true) {
+    const { data: contactsBatch } = await supabase
+      .from('crm_contacts')
+      .select('id, rd_station_id')
+      .range(contactPage * contactLimit, (contactPage + 1) * contactLimit - 1);
+    
+    if (!contactsBatch || contactsBatch.length === 0) break;
+    allContacts = [...allContacts, ...contactsBatch];
+    if (contactsBatch.length < contactLimit) break;
+    contactPage++;
+  }
+  
+  const contactMap = new Map(allContacts.map((c: any) => [c.rd_station_id, c.id]));
 
   // Transform deals data
   const dealsData = allDeals.map(deal => {
@@ -623,8 +641,8 @@ async function syncDeals(rdToken: string, supabase: any) {
     };
   });
 
-  // Batch upsert in chunks of 200
-  const BATCH_SIZE = 200;
+  // Batch upsert in chunks of 500 for faster processing
+  const BATCH_SIZE = 500;
   let dealsCreated = 0;
 
   for (let i = 0; i < dealsData.length; i += BATCH_SIZE) {

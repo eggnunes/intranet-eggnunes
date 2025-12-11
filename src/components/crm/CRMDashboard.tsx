@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, AlertCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, AlertCircle, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CRMContactsList } from './CRMContactsList';
@@ -20,6 +21,8 @@ interface CRMStats {
   lostDeals: number;
 }
 
+type PeriodFilter = 'all' | '7d' | '30d' | '90d' | '365d';
+
 export const CRMDashboard = () => {
   const [stats, setStats] = useState<CRMStats>({
     totalContacts: 0,
@@ -33,11 +36,12 @@ export const CRMDashboard = () => {
   const [syncing, setSyncing] = useState(false);
   const [syncEnabled, setSyncEnabled] = useState(true);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
 
   useEffect(() => {
     fetchStats();
     fetchSettings();
-  }, []);
+  }, [periodFilter]);
 
   const fetchSettings = async () => {
     const { data } = await supabase
@@ -51,26 +55,75 @@ export const CRMDashboard = () => {
     }
   };
 
+  const getDateFilter = () => {
+    if (periodFilter === 'all') return null;
+    
+    const days = parseInt(periodFilter.replace('d', ''));
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    return date.toISOString();
+  };
+
   const fetchStats = async () => {
     try {
-      // Fetch contacts count
-      const { count: contactsCount } = await supabase
-        .from('crm_contacts')
-        .select('*', { count: 'exact', head: true });
+      const dateFilter = getDateFilter();
+      
+      // Fetch ALL contacts with pagination
+      let totalContacts = 0;
+      if (dateFilter) {
+        const { count } = await supabase
+          .from('crm_contacts')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', dateFilter);
+        totalContacts = count || 0;
+      } else {
+        const { count } = await supabase
+          .from('crm_contacts')
+          .select('*', { count: 'exact', head: true });
+        totalContacts = count || 0;
+      }
 
-      // Fetch deals stats
-      const { data: deals } = await supabase
-        .from('crm_deals')
-        .select('value, won, closed_at');
+      // Fetch ALL deals with pagination to avoid 1000 limit
+      let allDeals: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      
+      while (true) {
+        let query = supabase
+          .from('crm_deals')
+          .select('value, won, closed_at, created_at')
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (dateFilter) {
+          query = query.gte('created_at', dateFilter);
+        }
+        
+        const { data: dealsBatch, error } = await query;
+        
+        if (error) {
+          console.error('Error fetching deals:', error);
+          break;
+        }
+        
+        if (!dealsBatch || dealsBatch.length === 0) break;
+        
+        allDeals = [...allDeals, ...dealsBatch];
+        
+        if (dealsBatch.length < pageSize) break;
+        page++;
+        
+        // Safety limit
+        if (page > 50) break;
+      }
 
-      const totalDeals = deals?.length || 0;
-      const totalValue = deals?.reduce((sum, d) => sum + (Number(d.value) || 0), 0) || 0;
-      const openDeals = deals?.filter(d => d.closed_at === null).length || 0;
-      const wonDeals = deals?.filter(d => d.won === true).length || 0;
-      const lostDeals = deals?.filter(d => d.won === false && d.closed_at !== null).length || 0;
+      const totalDeals = allDeals.length;
+      const totalValue = allDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
+      const openDeals = allDeals.filter(d => d.closed_at === null).length;
+      const wonDeals = allDeals.filter(d => d.won === true).length;
+      const lostDeals = allDeals.filter(d => d.won === false && d.closed_at !== null).length;
 
       setStats({
-        totalContacts: contactsCount || 0,
+        totalContacts,
         totalDeals,
         totalValue,
         openDeals,
@@ -114,6 +167,16 @@ export const CRMDashboard = () => {
     }).format(value);
   };
 
+  const getPeriodLabel = (period: PeriodFilter) => {
+    switch (period) {
+      case 'all': return 'Todos os períodos';
+      case '7d': return 'Últimos 7 dias';
+      case '30d': return 'Últimos 30 dias';
+      case '90d': return 'Últimos 90 dias';
+      case '365d': return 'Último ano';
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -132,7 +195,7 @@ export const CRMDashboard = () => {
             Gestão de leads e oportunidades
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           {syncEnabled && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
@@ -166,6 +229,24 @@ export const CRMDashboard = () => {
         </div>
       </div>
 
+      {/* Filtro de Período */}
+      <div className="flex items-center gap-2">
+        <Calendar className="h-4 w-4 text-muted-foreground" />
+        <span className="text-sm text-muted-foreground">Período:</span>
+        <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os períodos</SelectItem>
+            <SelectItem value="7d">Últimos 7 dias</SelectItem>
+            <SelectItem value="30d">Últimos 30 dias</SelectItem>
+            <SelectItem value="90d">Últimos 90 dias</SelectItem>
+            <SelectItem value="365d">Último ano</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card>
@@ -174,7 +255,7 @@ export const CRMDashboard = () => {
               <Users className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Contatos</span>
             </div>
-            <p className="text-2xl font-bold mt-1">{stats.totalContacts}</p>
+            <p className="text-2xl font-bold mt-1">{stats.totalContacts.toLocaleString('pt-BR')}</p>
           </CardContent>
         </Card>
         
@@ -184,7 +265,7 @@ export const CRMDashboard = () => {
               <Target className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Oportunidades</span>
             </div>
-            <p className="text-2xl font-bold mt-1">{stats.totalDeals}</p>
+            <p className="text-2xl font-bold mt-1">{stats.totalDeals.toLocaleString('pt-BR')}</p>
           </CardContent>
         </Card>
         
@@ -204,7 +285,7 @@ export const CRMDashboard = () => {
               <Activity className="h-4 w-4 text-blue-500" />
               <span className="text-sm text-muted-foreground">Em Aberto</span>
             </div>
-            <p className="text-2xl font-bold mt-1 text-blue-600">{stats.openDeals}</p>
+            <p className="text-2xl font-bold mt-1 text-blue-600">{stats.openDeals.toLocaleString('pt-BR')}</p>
           </CardContent>
         </Card>
         
@@ -214,7 +295,7 @@ export const CRMDashboard = () => {
               <Activity className="h-4 w-4 text-green-500" />
               <span className="text-sm text-muted-foreground">Ganhas</span>
             </div>
-            <p className="text-2xl font-bold mt-1 text-green-600">{stats.wonDeals}</p>
+            <p className="text-2xl font-bold mt-1 text-green-600">{stats.wonDeals.toLocaleString('pt-BR')}</p>
           </CardContent>
         </Card>
         
@@ -224,7 +305,7 @@ export const CRMDashboard = () => {
               <Activity className="h-4 w-4 text-red-500" />
               <span className="text-sm text-muted-foreground">Perdidas</span>
             </div>
-            <p className="text-2xl font-bold mt-1 text-red-600">{stats.lostDeals}</p>
+            <p className="text-2xl font-bold mt-1 text-red-600">{stats.lostDeals.toLocaleString('pt-BR')}</p>
           </CardContent>
         </Card>
       </div>
