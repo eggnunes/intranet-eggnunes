@@ -290,11 +290,11 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                 <ScrollArea className="h-[calc(100vh-400px)] min-h-[400px]">
                   <div className="p-3 space-y-3">
                     {stageDeals.map((deal) => (
-                      <Card key={deal.id} className="cursor-pointer hover:shadow-lg transition-all duration-200 border-border/50 bg-card hover:border-primary/30">
+                      <Card key={deal.id} className="cursor-pointer hover:shadow-lg transition-all duration-200 border-border bg-slate-50 dark:bg-slate-900/50 hover:border-primary/50 overflow-hidden">
                         <CardContent className="p-4">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-sm leading-tight line-clamp-2">{deal.name}</p>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0 overflow-hidden">
+                              <p className="font-semibold text-sm leading-tight break-words">{deal.name}</p>
                               {deal.contact && (
                                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-2">
                                   <User className="h-3.5 w-3.5 shrink-0" />

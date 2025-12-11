@@ -4,13 +4,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, AlertCircle, Calendar } from 'lucide-react';
+import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, AlertCircle, Calendar, Settings } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CRMContactsList } from './CRMContactsList';
 import { CRMDealsKanban } from './CRMDealsKanban';
 import { CRMActivities } from './CRMActivities';
 import { CRMSettings } from './CRMSettings';
+import { useUserRole } from '@/hooks/useUserRole';
 
 interface CRMStats {
   totalContacts: number;
@@ -24,6 +25,7 @@ interface CRMStats {
 type PeriodFilter = 'all' | '7d' | '30d' | '90d' | '365d';
 
 export const CRMDashboard = () => {
+  const { isAdmin } = useUserRole();
   const [stats, setStats] = useState<CRMStats>({
     totalContacts: 0,
     totalDeals: 0,
@@ -34,7 +36,7 @@ export const CRMDashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [syncEnabled, setSyncEnabled] = useState(true);
+  const [syncEnabled, setSyncEnabled] = useState(false); // Default: modo independente
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
 
@@ -196,24 +198,28 @@ export const CRMDashboard = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-4">
-          {syncEnabled && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
-                <AlertCircle className="h-3 w-3 mr-1" />
-                Modo Espelho
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            {syncEnabled ? (
+              <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Sync Bidirecional
               </Badge>
-              {lastSync && (
-                <span>
-                  Última sync: {new Date(lastSync).toLocaleDateString('pt-BR', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </span>
-              )}
-            </div>
-          )}
+            ) : (
+              <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                Modo Independente
+              </Badge>
+            )}
+            {lastSync && (
+              <span>
+                Última sync: {new Date(lastSync).toLocaleDateString('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </span>
+            )}
+          </div>
           <Button
             onClick={handleFullSync}
             disabled={syncing}
@@ -312,11 +318,16 @@ export const CRMDashboard = () => {
 
       {/* Tabs */}
       <Tabs defaultValue="kanban" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex">
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'} lg:w-auto lg:inline-flex`}>
           <TabsTrigger value="kanban">Pipeline</TabsTrigger>
           <TabsTrigger value="contacts">Contatos</TabsTrigger>
           <TabsTrigger value="activities">Atividades</TabsTrigger>
-          <TabsTrigger value="settings">Configurações</TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="settings" className="flex items-center gap-1">
+              <Settings className="h-3.5 w-3.5" />
+              Configurações
+            </TabsTrigger>
+          )}
         </TabsList>
         
         <TabsContent value="kanban" className="mt-6">
@@ -331,9 +342,11 @@ export const CRMDashboard = () => {
           <CRMActivities syncEnabled={syncEnabled} />
         </TabsContent>
         
-        <TabsContent value="settings" className="mt-6">
-          <CRMSettings onSettingsChange={fetchSettings} />
-        </TabsContent>
+        {isAdmin && (
+          <TabsContent value="settings" className="mt-6">
+            <CRMSettings onSettingsChange={fetchSettings} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

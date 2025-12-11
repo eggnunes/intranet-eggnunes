@@ -60,7 +60,7 @@ export const CRMSettings = ({ onSettingsChange }: CRMSettingsProps) => {
 
   const handleToggleSync = async (enabled: boolean) => {
     if (!isSocio) {
-      toast.error('Apenas sócios podem alterar esta configuração');
+      toast.error('Apenas sócios e administradores podem alterar esta configuração');
       return;
     }
 
