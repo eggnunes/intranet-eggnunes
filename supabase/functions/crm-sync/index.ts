@@ -708,29 +708,73 @@ async function syncActivities(rdToken: string, supabase: any) {
   let page = 1;
   const limit = 200;
   
-  // Fetch tasks/activities from RD Station
-  while (true) {
-    const response = await fetch(
-      `${RD_STATION_API_URL}/tasks?token=${rdToken}&page=${page}&limit=${limit}`
-    );
+  // Try both activities and tasks endpoints
+  const endpoints = ['activities', 'tasks'];
+  
+  for (const endpoint of endpoints) {
+    page = 1;
+    console.log(`Trying endpoint: /${endpoint}`);
     
-    if (!response.ok) {
-      console.log(`Activities fetch returned ${response.status}, may not have tasks endpoint`);
-      break;
-    }
+    while (true) {
+      try {
+        const response = await fetch(
+          `${RD_STATION_API_URL}/${endpoint}?token=${rdToken}&page=${page}&limit=${limit}`
+        );
+        
+        if (!response.ok) {
+          console.log(`${endpoint} fetch returned ${response.status}`);
+          break;
+        }
 
-    const data = await response.json();
-    const tasks = data.tasks || data.activities || [];
+        const data = await response.json();
+        const items = data[endpoint] || data.tasks || data.activities || [];
+        
+        if (items.length === 0) break;
+        
+        allActivities = [...allActivities, ...items];
+        console.log(`Fetched ${endpoint} page ${page}, total: ${allActivities.length}`);
+        
+        if (items.length < limit) break;
+        page++;
+        
+        if (page > 50) break;
+      } catch (error) {
+        console.error(`Error fetching ${endpoint}:`, error);
+        break;
+      }
+    }
     
-    if (tasks.length === 0) break;
-    
-    allActivities = [...allActivities, ...tasks];
-    console.log(`Fetched activities page ${page}, total: ${allActivities.length}`);
-    
-    if (tasks.length < limit) break;
-    page++;
-    
-    if (page > 50) break;
+    if (allActivities.length > 0) break;
+  }
+
+  // Also fetch activities from each deal
+  console.log('Fetching deal activities...');
+  const { data: deals } = await supabase
+    .from('crm_deals')
+    .select('rd_station_id');
+  
+  if (deals && deals.length > 0) {
+    for (const deal of deals.slice(0, 100)) { // Limit to first 100 deals
+      try {
+        const response = await fetch(
+          `${RD_STATION_API_URL}/deals/${deal.rd_station_id}/activities?token=${rdToken}&limit=50`
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          const dealActivities = data.activities || [];
+          if (dealActivities.length > 0) {
+            // Add deal reference
+            dealActivities.forEach((a: any) => {
+              a._deal_rd_id = deal.rd_station_id;
+            });
+            allActivities = [...allActivities, ...dealActivities];
+          }
+        }
+      } catch (error) {
+        // Continue with other deals
+      }
+    }
   }
 
   console.log(`Total activities to sync: ${allActivities.length}`);
@@ -739,16 +783,34 @@ async function syncActivities(rdToken: string, supabase: any) {
     return { activities: 0 };
   }
 
-  // Get deal and contact mappings
-  const { data: deals } = await supabase
-    .from('crm_deals')
-    .select('id, rd_station_id');
-  const dealMap = new Map(deals?.map((d: any) => [d.rd_station_id, d.id]) || []);
+  // Get deal and contact mappings - fetch all
+  let allDeals: any[] = [];
+  let dealPage = 0;
+  while (true) {
+    const { data: dealsBatch } = await supabase
+      .from('crm_deals')
+      .select('id, rd_station_id')
+      .range(dealPage * 1000, (dealPage + 1) * 1000 - 1);
+    if (!dealsBatch || dealsBatch.length === 0) break;
+    allDeals = [...allDeals, ...dealsBatch];
+    if (dealsBatch.length < 1000) break;
+    dealPage++;
+  }
+  const dealMap = new Map(allDeals.map((d: any) => [d.rd_station_id, d.id]));
 
-  const { data: contacts } = await supabase
-    .from('crm_contacts')
-    .select('id, rd_station_id');
-  const contactMap = new Map(contacts?.map((c: any) => [c.rd_station_id, c.id]) || []);
+  let allContacts: any[] = [];
+  let contactPage = 0;
+  while (true) {
+    const { data: contactsBatch } = await supabase
+      .from('crm_contacts')
+      .select('id, rd_station_id')
+      .range(contactPage * 1000, (contactPage + 1) * 1000 - 1);
+    if (!contactsBatch || contactsBatch.length === 0) break;
+    allContacts = [...allContacts, ...contactsBatch];
+    if (contactsBatch.length < 1000) break;
+    contactPage++;
+  }
+  const contactMap = new Map(allContacts.map((c: any) => [c.rd_station_id, c.id]));
 
   // Get user mappings
   const { data: profiles } = await supabase
@@ -758,46 +820,63 @@ async function syncActivities(rdToken: string, supabase: any) {
     profiles?.map((p: any) => [p.email?.toLowerCase(), p.id]) || []
   );
 
-  // Transform activities
-  const activitiesData = allActivities.map(activity => {
-    const dealId = activity.deal?._id ? dealMap.get(activity.deal._id) : null;
-    const contactId = activity.contact?._id ? contactMap.get(activity.contact._id) : null;
-    let ownerId = null;
-    if (activity.user?.email) {
-      ownerId = emailToProfileMap.get(activity.user.email.toLowerCase()) || null;
-    }
-    let createdBy = null;
-    if (activity.created_by?.email) {
-      createdBy = emailToProfileMap.get(activity.created_by.email.toLowerCase()) || null;
-    }
+  // Transform activities - dedupe by _id
+  const seenIds = new Set<string>();
+  const activitiesData = allActivities
+    .filter(activity => {
+      if (!activity._id || seenIds.has(activity._id)) return false;
+      seenIds.add(activity._id);
+      return true;
+    })
+    .map(activity => {
+      // Get deal ID from activity or from _deal_rd_id
+      let dealId = null;
+      if (activity.deal?._id) {
+        dealId = dealMap.get(activity.deal._id);
+      } else if (activity._deal_rd_id) {
+        dealId = dealMap.get(activity._deal_rd_id);
+      }
+      
+      const contactId = activity.contact?._id ? contactMap.get(activity.contact._id) : null;
+      
+      let ownerId = null;
+      if (activity.user?.email) {
+        ownerId = emailToProfileMap.get(activity.user.email.toLowerCase()) || null;
+      }
+      let createdBy = null;
+      if (activity.created_by?.email) {
+        createdBy = emailToProfileMap.get(activity.created_by.email.toLowerCase()) || null;
+      }
 
-    // Map RD Station task types
-    let type = activity.type || 'task';
-    if (activity.subject?.toLowerCase().includes('ligação') || activity.subject?.toLowerCase().includes('call')) {
-      type = 'call';
-    } else if (activity.subject?.toLowerCase().includes('email') || activity.subject?.toLowerCase().includes('e-mail')) {
-      type = 'email';
-    } else if (activity.subject?.toLowerCase().includes('reunião') || activity.subject?.toLowerCase().includes('meeting')) {
-      type = 'meeting';
-    } else if (activity.subject?.toLowerCase().includes('whatsapp')) {
-      type = 'whatsapp';
-    }
+      // Map RD Station activity types
+      let type = 'task';
+      const activityType = activity.type?.toString() || '';
+      const subject = (activity.subject || activity.name || activity.title || '').toLowerCase();
+      
+      // RD Station types: 0=note, 1=call, 2=email, 3=meeting
+      if (activityType === '0' || activityType === 'note') type = 'note';
+      else if (activityType === '1' || activityType === 'call' || subject.includes('ligação') || subject.includes('call')) type = 'call';
+      else if (activityType === '2' || activityType === 'email' || subject.includes('email') || subject.includes('e-mail')) type = 'email';
+      else if (activityType === '3' || activityType === 'meeting' || subject.includes('reunião') || subject.includes('meeting')) type = 'meeting';
+      else if (subject.includes('whatsapp')) type = 'whatsapp';
 
-    return {
-      rd_station_id: activity._id,
-      deal_id: dealId,
-      contact_id: contactId,
-      owner_id: ownerId,
-      created_by: createdBy,
-      type: type,
-      title: activity.subject || activity.name || activity.title || 'Atividade',
-      description: activity.notes || activity.description || null,
-      due_date: activity.date || activity.due_date || null,
-      completed: activity.done || activity.completed || false,
-      completed_at: activity.done_at || activity.completed_at || null,
-      created_at: activity.created_at || new Date().toISOString()
-    };
-  });
+      return {
+        rd_station_id: activity._id,
+        deal_id: dealId,
+        contact_id: contactId,
+        owner_id: ownerId,
+        created_by: createdBy,
+        type: type,
+        title: activity.subject || activity.name || activity.title || 'Atividade',
+        description: activity.text || activity.notes || activity.description || null,
+        due_date: activity.date || activity.due_date || null,
+        completed: activity.done || activity.completed || false,
+        completed_at: activity.done_at || activity.completed_at || null,
+        created_at: activity.created_at || new Date().toISOString()
+      };
+    });
+
+  console.log(`Filtered unique activities: ${activitiesData.length}`);
 
   // Batch upsert
   const BATCH_SIZE = 500;
@@ -813,6 +892,7 @@ async function syncActivities(rdToken: string, supabase: any) {
       console.error('Error upserting activities batch:', error);
     } else {
       activitiesCreated += batch.length;
+      console.log(`Upserted activities batch, total: ${activitiesCreated}`);
     }
   }
 

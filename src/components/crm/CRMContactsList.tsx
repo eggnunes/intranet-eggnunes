@@ -85,10 +85,12 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
   const [contactDeals, setContactDeals] = useState<Deal[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [profiles, setProfiles] = useState<Record<string, { full_name: string }>>({});
+  const [contactDealsMap, setContactDealsMap] = useState<Record<string, { owner_id: string | null; product_name: string | null }>>({});
 
   useEffect(() => {
     fetchContacts();
     fetchProfiles();
+    fetchContactDealsMapping();
   }, []);
 
   const fetchProfiles = async () => {
@@ -102,6 +104,24 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
         profileMap[p.id] = { full_name: p.full_name };
       });
       setProfiles(profileMap);
+    }
+  };
+
+  const fetchContactDealsMapping = async () => {
+    // Fetch first deal for each contact to show owner and product
+    const { data: deals } = await supabase
+      .from('crm_deals')
+      .select('contact_id, owner_id, product_name')
+      .not('contact_id', 'is', null);
+    
+    if (deals) {
+      const mapping: Record<string, { owner_id: string | null; product_name: string | null }> = {};
+      deals.forEach(deal => {
+        if (deal.contact_id && !mapping[deal.contact_id]) {
+          mapping[deal.contact_id] = { owner_id: deal.owner_id, product_name: deal.product_name };
+        }
+      });
+      setContactDealsMap(mapping);
     }
   };
 
@@ -336,7 +356,8 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
                 <TableHead>Nome</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Telefone</TableHead>
-                <TableHead>Empresa</TableHead>
+                <TableHead>Responsável</TableHead>
+                <TableHead>Produto</TableHead>
                 <TableHead>Origem</TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead></TableHead>
@@ -345,61 +366,77 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
             <TableBody>
               {filteredContacts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     {contacts.length === 0 
                       ? 'Nenhum contato. Sincronize com o RD Station.'
                       : 'Nenhum contato encontrado.'}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredContacts.map((contact) => (
-                  <TableRow key={contact.id}>
-                    <TableCell className="font-medium">{contact.name}</TableCell>
-                    <TableCell>
-                      {contact.email && (
-                        <div className="flex items-center gap-1 text-sm">
-                          <Mail className="h-3 w-3 text-muted-foreground" />
-                          <span className="truncate max-w-[200px]">{contact.email}</span>
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {contact.phone && (
-                        <div className="flex items-center gap-1 text-sm">
-                          <Phone className="h-3 w-3 text-muted-foreground" />
-                          <span>{contact.phone}</span>
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {contact.company && (
-                        <div className="flex items-center gap-1 text-sm">
-                          <Building className="h-3 w-3 text-muted-foreground" />
-                          <span>{contact.company}</span>
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {contact.utm_source && (
-                        <Badge variant="outline" className="text-xs">
-                          {contact.utm_source}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(contact.created_at).toLocaleDateString('pt-BR')}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleSelectContact(contact)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                filteredContacts.map((contact) => {
+                  // Get first deal to show owner and product
+                  const contactDeal = contactDealsMap[contact.id];
+                  const ownerName = contactDeal?.owner_id && profiles[contactDeal.owner_id] 
+                    ? profiles[contactDeal.owner_id].full_name 
+                    : null;
+                  
+                  return (
+                    <TableRow key={contact.id}>
+                      <TableCell className="font-medium">{contact.name}</TableCell>
+                      <TableCell>
+                        {contact.email && (
+                          <div className="flex items-center gap-1 text-sm">
+                            <Mail className="h-3 w-3 text-muted-foreground" />
+                            <span className="truncate max-w-[150px]">{contact.email}</span>
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {contact.phone && (
+                          <div className="flex items-center gap-1 text-sm">
+                            <Phone className="h-3 w-3 text-muted-foreground" />
+                            <span>{contact.phone}</span>
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {ownerName && (
+                          <div className="flex items-center gap-1 text-sm">
+                            <UserCircle className="h-3 w-3 text-muted-foreground" />
+                            <span className="truncate max-w-[100px]">{ownerName}</span>
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {contactDeal?.product_name && (
+                          <Badge variant="secondary" className="text-xs truncate max-w-[120px]">
+                            <Package className="h-3 w-3 mr-1" />
+                            {contactDeal.product_name}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {contact.utm_source && (
+                          <Badge variant="outline" className="text-xs">
+                            {contact.utm_source}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(contact.created_at).toLocaleDateString('pt-BR')}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleSelectContact(contact)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
