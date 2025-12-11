@@ -150,9 +150,9 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
   };
 
   const getStageColumnColor = (stage: DealStage) => {
-    if (stage.is_won) return 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800';
-    if (stage.is_lost) return 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800';
-    return 'bg-muted/30 border-border';
+    if (stage.is_won) return 'bg-emerald-100 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700';
+    if (stage.is_lost) return 'bg-red-100 dark:bg-red-950/50 border-red-300 dark:border-red-700';
+    return 'bg-slate-200/70 dark:bg-slate-800/70 border-slate-300 dark:border-slate-600';
   };
 
   const getStageDeals = (stageId: string) => {
@@ -264,7 +264,7 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
 
       {/* Kanban Board */}
       <ScrollArea className="w-full whitespace-nowrap pb-4">
-        <div className="flex gap-4 min-w-max pr-4">
+        <div className="flex gap-5 min-w-max px-1 py-1">
           {stages.map((stage, index) => {
             const stageDeals = getStageDeals(stage.id);
             const stageValue = getStageValue(stage.id);
@@ -272,10 +272,10 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
             return (
               <div
                 key={stage.id}
-                className={`w-80 flex-shrink-0 rounded-xl border shadow-sm overflow-hidden ${getStageColumnColor(stage)}`}
+                className={`w-72 flex-shrink-0 rounded-xl border-2 shadow-sm ${getStageColumnColor(stage)}`}
               >
                 {/* Header colorido */}
-                <div className={`p-4 ${getStageHeaderColor(stage, index)}`}>
+                <div className={`p-4 rounded-t-lg ${getStageHeaderColor(stage, index)}`}>
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-sm uppercase tracking-wide">{stage.name}</h3>
                     <Badge className="bg-white/20 text-white border-white/30 hover:bg-white/30">
@@ -290,24 +290,25 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                 <ScrollArea className="h-[calc(100vh-400px)] min-h-[400px]">
                   <div className="p-3 space-y-3">
                     {stageDeals.map((deal) => (
-                      <Card key={deal.id} className="cursor-pointer hover:shadow-lg transition-all duration-200 border-border bg-slate-50 dark:bg-slate-900/50 hover:border-primary/50 overflow-hidden">
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0 overflow-hidden">
-                              <p className="font-semibold text-sm leading-tight break-words">{deal.name}</p>
+                      <Card key={deal.id} className="cursor-grab active:cursor-grabbing hover:shadow-lg transition-all duration-200 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950 hover:border-primary/50 rounded-lg">
+                        <CardContent className="p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-sm leading-tight">{deal.name}</p>
                               {deal.contact && (
-                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-2">
-                                  <User className="h-3.5 w-3.5 shrink-0" />
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1.5">
+                                  <User className="h-3 w-3 shrink-0" />
                                   <span className="truncate">{deal.contact.name}</span>
                                 </div>
                               )}
                             </div>
                             
-                            {/* Mobile: Dropdown to move */}
+                            {/* Dropdown to move */}
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 hover:bg-primary/10">
-                                  <ChevronDown className="h-4 w-4" />
+                                <Button variant="outline" size="sm" className="h-7 px-2 text-xs shrink-0">
+                                  Mover
+                                  <ChevronDown className="h-3 w-3 ml-1" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-48">
@@ -326,10 +327,10 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                             </DropdownMenu>
                           </div>
 
-                          <div className="mt-3 space-y-1.5">
+                          <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1">
                             {deal.value > 0 && (
                               <div className="flex items-center gap-1.5 text-xs">
-                                <DollarSign className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                <DollarSign className="h-3 w-3 text-emerald-600 shrink-0" />
                                 <span className="font-semibold text-emerald-600">
                                   {formatCurrency(deal.value)}
                                 </span>
@@ -338,7 +339,7 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                             
                             {deal.expected_close_date && (
                               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                <Calendar className="h-3.5 w-3.5 shrink-0" />
+                                <Calendar className="h-3 w-3 shrink-0" />
                                 <span>
                                   {new Date(deal.expected_close_date).toLocaleDateString('pt-BR')}
                                 </span>
@@ -347,14 +348,14 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
 
                             {deal.contact?.phone && (
                               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                <Phone className="h-3.5 w-3.5 shrink-0" />
+                                <Phone className="h-3 w-3 shrink-0" />
                                 <span className="truncate">{deal.contact.phone}</span>
                               </div>
                             )}
 
                             {deal.contact?.email && (
                               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                <Mail className="h-3.5 w-3.5 shrink-0" />
+                                <Mail className="h-3 w-3 shrink-0" />
                                 <span className="truncate">{deal.contact.email}</span>
                               </div>
                             )}
