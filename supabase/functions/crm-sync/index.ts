@@ -26,7 +26,7 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const { action } = await req.json();
+    const { action, data } = await req.json();
 
     let result: any = {};
 
@@ -57,6 +57,21 @@ serve(async (req) => {
           deals: dealsResult
         };
         break;
+      
+      // Bidirectional sync actions - Update RD Station when local changes happen
+      case 'update_deal':
+        result = await updateDealInRdStation(rdToken, supabase, data);
+        break;
+      case 'update_deal_stage':
+        result = await updateDealStageInRdStation(rdToken, supabase, data);
+        break;
+      case 'update_contact':
+        result = await updateContactInRdStation(rdToken, supabase, data);
+        break;
+      case 'create_activity':
+        result = await createActivityInRdStation(rdToken, supabase, data);
+        break;
+        
       default:
         return new Response(
           JSON.stringify({ error: 'Ação inválida' }),
@@ -76,6 +91,292 @@ serve(async (req) => {
     );
   }
 });
+
+// ==================== Bidirectional Sync Functions ====================
+
+async function updateDealInRdStation(rdToken: string, supabase: any, data: any) {
+  const { deal_id, updates } = data;
+  
+  // Get the local deal with RD Station ID
+  const { data: deal, error: dealError } = await supabase
+    .from('crm_deals')
+    .select('rd_station_id, name, value, notes')
+    .eq('id', deal_id)
+    .single();
+  
+  if (dealError || !deal?.rd_station_id) {
+    throw new Error('Deal não encontrado ou não sincronizado com RD Station');
+  }
+
+  // Update in RD Station
+  const rdUpdates: any = {};
+  if (updates.name !== undefined) rdUpdates.name = updates.name;
+  if (updates.value !== undefined) rdUpdates.amount_total = updates.value;
+  if (updates.notes !== undefined) rdUpdates.notes = updates.notes;
+  if (updates.expected_close_date !== undefined) rdUpdates.prediction_date = updates.expected_close_date;
+
+  const response = await fetch(
+    `${RD_STATION_API_URL}/deals/${deal.rd_station_id}?token=${rdToken}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(rdUpdates)
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('RD Station update error:', errorText);
+    throw new Error(`Erro ao atualizar deal no RD Station: ${response.status}`);
+  }
+
+  // Update locally
+  await supabase
+    .from('crm_deals')
+    .update(updates)
+    .eq('id', deal_id);
+
+  // Log sync
+  await supabase.from('crm_sync_log').insert({
+    sync_type: 'bidirectional',
+    entity_type: 'deal',
+    entity_id: deal_id,
+    status: 'success'
+  });
+
+  return { updated: true, rd_station_id: deal.rd_station_id };
+}
+
+async function updateDealStageInRdStation(rdToken: string, supabase: any, data: any) {
+  const { deal_id, stage_id, user_id } = data;
+  
+  // Get the local deal and stage with RD Station IDs
+  const { data: deal, error: dealError } = await supabase
+    .from('crm_deals')
+    .select('rd_station_id, stage_id')
+    .eq('id', deal_id)
+    .single();
+  
+  if (dealError || !deal?.rd_station_id) {
+    throw new Error('Deal não encontrado ou não sincronizado com RD Station');
+  }
+
+  const { data: stage, error: stageError } = await supabase
+    .from('crm_deal_stages')
+    .select('rd_station_id, name, is_won, is_lost')
+    .eq('id', stage_id)
+    .single();
+
+  if (stageError || !stage?.rd_station_id) {
+    throw new Error('Etapa não encontrada ou não sincronizada com RD Station');
+  }
+
+  // Update stage in RD Station
+  const response = await fetch(
+    `${RD_STATION_API_URL}/deals/${deal.rd_station_id}?token=${rdToken}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deal_stage_id: stage.rd_station_id
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('RD Station stage update error:', errorText);
+    throw new Error(`Erro ao atualizar etapa no RD Station: ${response.status}`);
+  }
+
+  const previousStageId = deal.stage_id;
+
+  // Update locally
+  const updateData: any = { stage_id };
+  if (stage.is_won) {
+    updateData.won = true;
+    updateData.closed_at = new Date().toISOString();
+  } else if (stage.is_lost) {
+    updateData.won = false;
+    updateData.closed_at = new Date().toISOString();
+  }
+
+  await supabase
+    .from('crm_deals')
+    .update(updateData)
+    .eq('id', deal_id);
+
+  // Record history
+  await supabase.from('crm_deal_history').insert({
+    deal_id,
+    from_stage_id: previousStageId,
+    to_stage_id: stage_id,
+    changed_by: user_id
+  });
+
+  // Log sync
+  await supabase.from('crm_sync_log').insert({
+    sync_type: 'bidirectional',
+    entity_type: 'deal_stage',
+    entity_id: deal_id,
+    status: 'success'
+  });
+
+  return { updated: true, stage_name: stage.name };
+}
+
+async function updateContactInRdStation(rdToken: string, supabase: any, data: any) {
+  const { contact_id, updates } = data;
+  
+  // Get the local contact with RD Station ID
+  const { data: contact, error: contactError } = await supabase
+    .from('crm_contacts')
+    .select('rd_station_id')
+    .eq('id', contact_id)
+    .single();
+  
+  if (contactError || !contact?.rd_station_id) {
+    throw new Error('Contato não encontrado ou não sincronizado com RD Station');
+  }
+
+  // Map local fields to RD Station fields
+  const rdUpdates: any = {};
+  if (updates.name !== undefined) rdUpdates.name = updates.name;
+  if (updates.email !== undefined) rdUpdates.emails = [{ email: updates.email }];
+  if (updates.phone !== undefined) rdUpdates.phones = [{ phone: updates.phone }];
+  if (updates.company !== undefined) rdUpdates.organization = { name: updates.company };
+  if (updates.job_title !== undefined) rdUpdates.title = updates.job_title;
+  if (updates.notes !== undefined) rdUpdates.notes = updates.notes;
+  if (updates.linkedin !== undefined) rdUpdates.linkedin = updates.linkedin;
+  if (updates.facebook !== undefined) rdUpdates.facebook = updates.facebook;
+  if (updates.twitter !== undefined) rdUpdates.twitter = updates.twitter;
+  if (updates.website !== undefined) rdUpdates.website = updates.website;
+
+  const response = await fetch(
+    `${RD_STATION_API_URL}/contacts/${contact.rd_station_id}?token=${rdToken}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(rdUpdates)
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('RD Station contact update error:', errorText);
+    throw new Error(`Erro ao atualizar contato no RD Station: ${response.status}`);
+  }
+
+  // Update locally
+  await supabase
+    .from('crm_contacts')
+    .update(updates)
+    .eq('id', contact_id);
+
+  // Log sync
+  await supabase.from('crm_sync_log').insert({
+    sync_type: 'bidirectional',
+    entity_type: 'contact',
+    entity_id: contact_id,
+    status: 'success'
+  });
+
+  return { updated: true, rd_station_id: contact.rd_station_id };
+}
+
+async function createActivityInRdStation(rdToken: string, supabase: any, data: any) {
+  const { deal_id, contact_id, activity } = data;
+  
+  // Get RD Station IDs
+  let rdDealId = null;
+  let rdContactId = null;
+
+  if (deal_id) {
+    const { data: deal } = await supabase
+      .from('crm_deals')
+      .select('rd_station_id')
+      .eq('id', deal_id)
+      .single();
+    rdDealId = deal?.rd_station_id;
+  }
+
+  if (contact_id) {
+    const { data: contact } = await supabase
+      .from('crm_contacts')
+      .select('rd_station_id')
+      .eq('id', contact_id)
+      .single();
+    rdContactId = contact?.rd_station_id;
+  }
+
+  // Create activity/task in RD Station
+  const rdActivity: any = {
+    subject: activity.title,
+    type: mapActivityType(activity.type),
+    date: activity.due_date || new Date().toISOString()
+  };
+
+  if (rdDealId) rdActivity.deal_id = rdDealId;
+  if (rdContactId) rdActivity.contact_id = rdContactId;
+  if (activity.description) rdActivity.text = activity.description;
+
+  const response = await fetch(
+    `${RD_STATION_API_URL}/activities?token=${rdToken}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(rdActivity)
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('RD Station activity create error:', errorText);
+    throw new Error(`Erro ao criar atividade no RD Station: ${response.status}`);
+  }
+
+  const rdActivityResponse = await response.json();
+
+  // Create locally
+  const { data: localActivity, error: activityError } = await supabase
+    .from('crm_activities')
+    .insert({
+      ...activity,
+      deal_id,
+      contact_id,
+      rd_station_id: rdActivityResponse._id
+    })
+    .select()
+    .single();
+
+  if (activityError) {
+    console.error('Error creating local activity:', activityError);
+  }
+
+  // Log sync
+  await supabase.from('crm_sync_log').insert({
+    sync_type: 'bidirectional',
+    entity_type: 'activity',
+    entity_id: localActivity?.id,
+    status: 'success'
+  });
+
+  return { created: true, activity_id: localActivity?.id, rd_station_id: rdActivityResponse._id };
+}
+
+function mapActivityType(type: string): number {
+  // RD Station activity types: 0 = note, 1 = call, 2 = email, 3 = meeting, 4 = task
+  const typeMap: { [key: string]: number } = {
+    'note': 0,
+    'call': 1,
+    'email': 2,
+    'meeting': 3,
+    'task': 4
+  };
+  return typeMap[type] || 4;
+}
+
+// ==================== Import Functions ====================
 
 async function syncPipelines(rdToken: string, supabase: any) {
   console.log('Syncing pipelines from RD Station...');
