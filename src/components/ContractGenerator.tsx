@@ -254,31 +254,28 @@ export const ContractGenerator = ({
         
         setTemplates(successData || []);
 
-        // Carregar templates de honorários iniciais
+        // Carregar templates de honorários iniciais (todos os templates visíveis para todos)
         const { data: initialData } = await supabase
           .from('initial_fee_templates')
           .select('*')
-          .or(`user_id.eq.${user.id},is_default.eq.true`)
           .order('is_default', { ascending: false })
           .order('name');
         
         setInitialFeeTemplates(initialData || []);
 
-        // Carregar templates de parte contrária
+        // Carregar templates de parte contrária (todos os templates visíveis para todos)
         const { data: contraPartidaData } = await supabase
           .from('contra_partida_templates')
           .select('id, name, description, is_default')
-          .or(`user_id.eq.${user.id},is_default.eq.true`)
           .order('is_default', { ascending: false })
           .order('name');
         
         setContraPartidaTemplates(contraPartidaData || []);
 
-        // Carregar templates de objeto do contrato
+        // Carregar templates de objeto do contrato (todos os templates visíveis para todos)
         const { data: objetoData } = await supabase
           .from('objeto_contrato_templates')
           .select('id, name, description, is_default')
-          .or(`user_id.eq.${user.id},is_default.eq.true`)
           .order('is_default', { ascending: false })
           .order('name');
         
@@ -362,11 +359,10 @@ export const ContractGenerator = ({
 
       if (error) throw error;
 
-      // Recarregar templates
+      // Recarregar templates (todos visíveis para todos)
       const { data } = await supabase
         .from('contra_partida_templates')
         .select('id, name, description, is_default')
-        .or(`user_id.eq.${user.id},is_default.eq.true`)
         .order('is_default', { ascending: false })
         .order('name');
       
@@ -425,11 +421,10 @@ export const ContractGenerator = ({
 
       if (error) throw error;
 
-      // Recarregar templates
+      // Recarregar templates (todos visíveis para todos)
       const { data } = await supabase
         .from('objeto_contrato_templates')
         .select('id, name, description, is_default')
-        .or(`user_id.eq.${user.id},is_default.eq.true`)
         .order('is_default', { ascending: false })
         .order('name');
       
@@ -847,7 +842,6 @@ export const ContractGenerator = ({
       const { data } = await supabase
         .from('initial_fee_templates')
         .select('*')
-        .or(`user_id.eq.${user.id},is_default.eq.true`)
         .order('is_default', { ascending: false })
         .order('name');
       
@@ -899,7 +893,6 @@ export const ContractGenerator = ({
       const { data } = await supabase
         .from('initial_fee_templates')
         .select('*')
-        .or(`user_id.eq.${user.id},is_default.eq.true`)
         .order('is_default', { ascending: false })
         .order('name');
       
