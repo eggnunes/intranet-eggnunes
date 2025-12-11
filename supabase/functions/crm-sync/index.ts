@@ -813,7 +813,7 @@ async function syncActivities(rdToken: string, supabase: any) {
   while (true) {
     const { data: dealsBatch } = await supabase
       .from('crm_deals')
-      .select('id, rd_station_id')
+      .select('id, rd_station_id, name, contact_id')
       .range(dealPage * 1000, (dealPage + 1) * 1000 - 1);
     if (!dealsBatch || dealsBatch.length === 0) break;
     allDeals = [...allDeals, ...dealsBatch];
@@ -821,6 +821,7 @@ async function syncActivities(rdToken: string, supabase: any) {
     dealPage++;
   }
   const dealMap = new Map(allDeals.map((d: any) => [d.rd_station_id, d.id]));
+  const dealMapByName = new Map(allDeals.map((d: any) => [d.name?.toLowerCase()?.trim(), { id: d.id, contact_id: d.contact_id }]));
 
   let allContacts: any[] = [];
   let contactPage = 0;
@@ -840,13 +841,16 @@ async function syncActivities(rdToken: string, supabase: any) {
   // Get deal to contact mapping for activities that only have deal
   const { data: dealsWithContact } = await supabase
     .from('crm_deals')
-    .select('id, contact_id, name')
+    .select('id, contact_id, name, rd_station_id')
     .not('contact_id', 'is', null);
   const dealToContactMap = new Map(
     dealsWithContact?.map((d: any) => [d.id, d.contact_id]) || []
   );
   const dealNameToContactMap = new Map(
     dealsWithContact?.map((d: any) => [d.name?.toLowerCase()?.trim(), d.contact_id]) || []
+  );
+  const dealRdIdToContactMap = new Map(
+    dealsWithContact?.map((d: any) => [d.rd_station_id, d.contact_id]) || []
   );
 
   // Get user mappings
@@ -868,31 +872,44 @@ async function syncActivities(rdToken: string, supabase: any) {
     .map(activity => {
       // Get deal ID from activity or from _deal_rd_id
       let dealId = null;
-      if (activity.deal?._id) {
-        dealId = dealMap.get(activity.deal._id);
-      } else if (activity._deal_rd_id) {
-        dealId = dealMap.get(activity._deal_rd_id);
-      }
-      
-      // Try multiple strategies to find contact_id
       let contactId = null;
       
-      // 1. Try by contact._id
-      if (activity.contact?._id) {
+      // Try to get deal by rd_station_id
+      if (activity.deal?._id) {
+        dealId = dealMap.get(activity.deal._id);
+        // Also try to get contact from this deal
+        contactId = dealRdIdToContactMap.get(activity.deal._id);
+      }
+      if (!dealId && activity._deal_rd_id) {
+        dealId = dealMap.get(activity._deal_rd_id);
+        contactId = dealRdIdToContactMap.get(activity._deal_rd_id);
+      }
+      
+      // Try by deal name
+      if (!dealId && activity.deal?.name) {
+        const dealInfo = dealMapByName.get(activity.deal.name?.toLowerCase()?.trim());
+        if (dealInfo) {
+          dealId = dealInfo.id;
+          contactId = dealInfo.contact_id;
+        }
+      }
+      
+      // Try contact by _id
+      if (!contactId && activity.contact?._id) {
         contactId = contactMapById.get(activity.contact._id);
       }
       
-      // 2. Try by contact name
+      // Try contact by name
       if (!contactId && activity.contact?.name) {
         contactId = contactMapByName.get(activity.contact.name?.toLowerCase()?.trim());
       }
       
-      // 3. Try by deal's contact_id
+      // Try by deal's contact_id
       if (!contactId && dealId) {
         contactId = dealToContactMap.get(dealId);
       }
       
-      // 4. Try by deal name (activity subject often contains deal name)
+      // Try by deal name -> contact
       if (!contactId && activity.deal?.name) {
         contactId = dealNameToContactMap.get(activity.deal.name?.toLowerCase()?.trim());
       }
