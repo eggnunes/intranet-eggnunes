@@ -47,6 +47,7 @@ import Integracoes from "./pages/Integracoes";
 import Notificacoes from "./pages/Notificacoes";
 import LeadTracking from "./pages/LeadTracking";
 import CRM from "./pages/CRM";
+import CodigosAutenticacao from "./pages/CodigosAutenticacao";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -371,6 +372,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <CRM />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/codigos-autenticacao"
+              element={
+                <ProtectedRoute>
+                  <CodigosAutenticacao />
                 </ProtectedRoute>
               }
             />

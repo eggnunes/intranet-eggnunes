@@ -3150,6 +3150,36 @@ export type Database = {
         }
         Relationships: []
       }
+      totp_accounts: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+          secret_key: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          secret_key: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          secret_key?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       usage_history: {
         Row: {
           action: string
