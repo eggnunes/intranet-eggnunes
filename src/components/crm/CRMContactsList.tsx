@@ -5,9 +5,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Search, Eye, Mail, Phone, Building, MapPin, Globe, Linkedin, Twitter, Facebook, Calendar, Tag, FileText, Edit2, Save, X } from 'lucide-react';
+import { Loader2, Search, Eye, Mail, Phone, Building, MapPin, Globe, Linkedin, Twitter, Facebook, Calendar, Tag, FileText, Edit2, Save, X, History, UserCircle, CheckCircle, Circle, Video, MessageSquare, Package } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -42,6 +44,31 @@ interface Contact {
   custom_fields: Record<string, unknown> | null;
 }
 
+interface Activity {
+  id: string;
+  type: string;
+  title: string;
+  description: string | null;
+  due_date: string | null;
+  completed: boolean;
+  completed_at: string | null;
+  created_at: string;
+  owner_id: string | null;
+}
+
+interface Deal {
+  id: string;
+  name: string;
+  value: number;
+  product_name: string | null;
+  owner_id: string | null;
+  stage?: {
+    name: string;
+    is_won: boolean;
+    is_lost: boolean;
+  };
+}
+
 interface CRMContactsListProps {
   syncEnabled: boolean;
 }
@@ -54,10 +81,29 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Contact>>({});
   const [saving, setSaving] = useState(false);
+  const [contactActivities, setContactActivities] = useState<Activity[]>([]);
+  const [contactDeals, setContactDeals] = useState<Deal[]>([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [profiles, setProfiles] = useState<Record<string, { full_name: string }>>({});
 
   useEffect(() => {
     fetchContacts();
+    fetchProfiles();
   }, []);
+
+  const fetchProfiles = async () => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name');
+    
+    if (!error && data) {
+      const profileMap: Record<string, { full_name: string }> = {};
+      data.forEach(p => {
+        profileMap[p.id] = { full_name: p.full_name };
+      });
+      setProfiles(profileMap);
+    }
+  };
 
   const fetchContacts = async () => {
     try {
@@ -92,6 +138,64 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
       console.error('Error fetching contacts:', error);
     }
     setLoading(false);
+  };
+
+  const fetchContactDetails = async (contactId: string) => {
+    setLoadingDetails(true);
+    try {
+      // Fetch activities
+      const { data: activities } = await supabase
+        .from('crm_activities')
+        .select('*')
+        .eq('contact_id', contactId)
+        .order('created_at', { ascending: false });
+      
+      setContactActivities(activities || []);
+
+      // Fetch deals
+      const { data: deals } = await supabase
+        .from('crm_deals')
+        .select(`
+          id, name, value, product_name, owner_id,
+          stage:crm_deal_stages(name, is_won, is_lost)
+        `)
+        .eq('contact_id', contactId)
+        .order('created_at', { ascending: false });
+      
+      setContactDeals(deals as Deal[] || []);
+    } catch (error) {
+      console.error('Error fetching contact details:', error);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  const handleSelectContact = (contact: Contact) => {
+    setSelectedContact(contact);
+    setIsEditing(false);
+    setContactActivities([]);
+    setContactDeals([]);
+    fetchContactDetails(contact.id);
+  };
+
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'call': return <Phone className="h-4 w-4" />;
+      case 'email': return <Mail className="h-4 w-4" />;
+      case 'meeting': return <Video className="h-4 w-4" />;
+      case 'task': return <CheckCircle className="h-4 w-4" />;
+      case 'note': return <FileText className="h-4 w-4" />;
+      case 'whatsapp': return <MessageSquare className="h-4 w-4" />;
+      default: return <Circle className="h-4 w-4" />;
+    }
+  };
+
+  const getActivityTypeName = (type: string) => {
+    const types: Record<string, string> = {
+      call: 'Ligação', email: 'E-mail', meeting: 'Reunião',
+      task: 'Tarefa', note: 'Nota', whatsapp: 'WhatsApp'
+    };
+    return types[type] || type;
   };
 
   const filteredContacts = contacts.filter(contact => {
@@ -289,10 +393,7 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => {
-                          setSelectedContact(contact);
-                          setIsEditing(false);
-                        }}
+                        onClick={() => handleSelectContact(contact)}
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
@@ -321,213 +422,322 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
           </DialogHeader>
           
           {selectedContact && !isEditing && (
-            <div className="space-y-6">
-              {/* Basic Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Informações de Contato</h4>
-                  
-                  {selectedContact.email && (
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-muted-foreground" />
-                      <a href={`mailto:${selectedContact.email}`} className="text-primary hover:underline">
-                        {selectedContact.email}
-                      </a>
-                    </div>
-                  )}
-                  
-                  {selectedContact.phone && (
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
-                      <a href={`tel:${selectedContact.phone}`} className="text-primary hover:underline">
-                        {selectedContact.phone}
-                      </a>
-                    </div>
-                  )}
+            <Tabs defaultValue="info" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="info">Informações</TabsTrigger>
+                <TabsTrigger value="deals">
+                  <Package className="h-4 w-4 mr-1" />
+                  Oportunidades ({contactDeals.length})
+                </TabsTrigger>
+                <TabsTrigger value="history">
+                  <History className="h-4 w-4 mr-1" />
+                  Histórico
+                </TabsTrigger>
+              </TabsList>
 
-                  {selectedContact.birthday && (
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>Aniversário: {new Date(selectedContact.birthday).toLocaleDateString('pt-BR')}</span>
-                    </div>
-                  )}
+              {/* Info Tab */}
+              <TabsContent value="info" className="space-y-6 mt-4">
+                {/* Basic Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Informações de Contato</h4>
+                    
+                    {selectedContact.email && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <a href={`mailto:${selectedContact.email}`} className="text-primary hover:underline">
+                          {selectedContact.email}
+                        </a>
+                      </div>
+                    )}
+                    
+                    {selectedContact.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <a href={`tel:${selectedContact.phone}`} className="text-primary hover:underline">
+                          {selectedContact.phone}
+                        </a>
+                      </div>
+                    )}
+
+                    {selectedContact.birthday && (
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <span>Aniversário: {new Date(selectedContact.birthday).toLocaleDateString('pt-BR')}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Empresa</h4>
+                    
+                    {selectedContact.company && (
+                      <div className="flex items-center gap-2">
+                        <Building className="h-4 w-4 text-muted-foreground" />
+                        <span>{selectedContact.company}</span>
+                      </div>
+                    )}
+                    
+                    {selectedContact.job_title && (
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <span>{selectedContact.job_title}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Empresa</h4>
-                  
-                  {selectedContact.company && (
-                    <div className="flex items-center gap-2">
-                      <Building className="h-4 w-4 text-muted-foreground" />
-                      <span>{selectedContact.company}</span>
+                {/* Address */}
+                {(selectedContact.address || selectedContact.city || selectedContact.state || selectedContact.country) && (
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Endereço</h4>
+                    <div className="flex items-start gap-2">
+                      <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                      <div>
+                        {selectedContact.address && <p>{selectedContact.address}</p>}
+                        <p>{[selectedContact.city, selectedContact.state, selectedContact.country].filter(Boolean).join(', ')}</p>
+                      </div>
                     </div>
-                  )}
-                  
-                  {selectedContact.job_title && (
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <span>{selectedContact.job_title}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+                  </div>
+                )}
 
-              {/* Address */}
-              {(selectedContact.address || selectedContact.city || selectedContact.state || selectedContact.country) && (
-                <div className="border-t pt-4">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Endereço</h4>
-                  <div className="flex items-start gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                {/* Social Media */}
+                {(selectedContact.website || selectedContact.linkedin || selectedContact.twitter || selectedContact.facebook) && (
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Redes Sociais</h4>
+                    <div className="flex flex-wrap gap-3">
+                      {selectedContact.website && (
+                        <a href={selectedContact.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
+                          <Globe className="h-4 w-4" /> Website
+                        </a>
+                      )}
+                      {selectedContact.linkedin && (
+                        <a href={selectedContact.linkedin} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
+                          <Linkedin className="h-4 w-4" /> LinkedIn
+                        </a>
+                      )}
+                      {selectedContact.twitter && (
+                        <a href={selectedContact.twitter} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
+                          <Twitter className="h-4 w-4" /> Twitter
+                        </a>
+                      )}
+                      {selectedContact.facebook && (
+                        <a href={selectedContact.facebook} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
+                          <Facebook className="h-4 w-4" /> Facebook
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* UTM Info */}
+                {(selectedContact.utm_source || selectedContact.utm_medium || selectedContact.utm_campaign || selectedContact.utm_content || selectedContact.utm_term) && (
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Origem do Lead (UTM)</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedContact.utm_source && <Badge variant="outline"><Tag className="h-3 w-3 mr-1" />Fonte: {selectedContact.utm_source}</Badge>}
+                      {selectedContact.utm_medium && <Badge variant="outline">Mídia: {selectedContact.utm_medium}</Badge>}
+                      {selectedContact.utm_campaign && <Badge variant="outline">Campanha: {selectedContact.utm_campaign}</Badge>}
+                      {selectedContact.utm_content && <Badge variant="outline">Conteúdo: {selectedContact.utm_content}</Badge>}
+                      {selectedContact.utm_term && <Badge variant="outline">Termo: {selectedContact.utm_term}</Badge>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Conversions */}
+                {(selectedContact.first_conversion || selectedContact.last_conversion) && (
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Conversões</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      {selectedContact.first_conversion && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">Primeira Conversão</p>
+                          <p className="text-sm">{selectedContact.first_conversion}</p>
+                        </div>
+                      )}
+                      {selectedContact.last_conversion && (
+                        <div>
+                          <p className="text-xs text-muted-foreground">Última Conversão</p>
+                          <p className="text-sm">{selectedContact.last_conversion}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Notes */}
+                {selectedContact.notes && (
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-2">Observações</h4>
+                    <p className="text-sm whitespace-pre-wrap bg-muted/50 p-3 rounded-md">{selectedContact.notes}</p>
+                  </div>
+                )}
+
+                {/* Custom Fields */}
+                {selectedContact.custom_fields && Object.keys(selectedContact.custom_fields).length > 0 && (
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Campos Personalizados</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {Object.entries(selectedContact.custom_fields).map(([key, value]) => (
+                        <div key={key} className="bg-muted/50 p-2 rounded">
+                          <p className="text-xs text-muted-foreground">{key}</p>
+                          <p className="text-sm">{String(value)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Metadata */}
+                <div className="border-t pt-4 flex items-center justify-between flex-wrap gap-4">
+                  <div className="flex items-center gap-4">
                     <div>
-                      {selectedContact.address && <p>{selectedContact.address}</p>}
-                      <p>{[selectedContact.city, selectedContact.state, selectedContact.country].filter(Boolean).join(', ')}</p>
+                      <p className="text-xs text-muted-foreground">Lead Score</p>
+                      <Badge variant={selectedContact.lead_score && selectedContact.lead_score > 50 ? 'default' : 'secondary'}>
+                        {selectedContact.lead_score || 0} pontos
+                      </Badge>
                     </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Social Media */}
-              {(selectedContact.website || selectedContact.linkedin || selectedContact.twitter || selectedContact.facebook) && (
-                <div className="border-t pt-4">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Redes Sociais</h4>
-                  <div className="flex flex-wrap gap-3">
-                    {selectedContact.website && (
-                      <a href={selectedContact.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
-                        <Globe className="h-4 w-4" />
-                        Website
-                      </a>
-                    )}
-                    {selectedContact.linkedin && (
-                      <a href={selectedContact.linkedin} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
-                        <Linkedin className="h-4 w-4" />
-                        LinkedIn
-                      </a>
-                    )}
-                    {selectedContact.twitter && (
-                      <a href={selectedContact.twitter} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
-                        <Twitter className="h-4 w-4" />
-                        Twitter
-                      </a>
-                    )}
-                    {selectedContact.facebook && (
-                      <a href={selectedContact.facebook} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
-                        <Facebook className="h-4 w-4" />
-                        Facebook
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* UTM Info */}
-              {(selectedContact.utm_source || selectedContact.utm_medium || selectedContact.utm_campaign || selectedContact.utm_content || selectedContact.utm_term) && (
-                <div className="border-t pt-4">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Origem do Lead (UTM)</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedContact.utm_source && (
-                      <Badge variant="outline">
-                        <Tag className="h-3 w-3 mr-1" />
-                        Fonte: {selectedContact.utm_source}
-                      </Badge>
-                    )}
-                    {selectedContact.utm_medium && (
-                      <Badge variant="outline">
-                        Mídia: {selectedContact.utm_medium}
-                      </Badge>
-                    )}
-                    {selectedContact.utm_campaign && (
-                      <Badge variant="outline">
-                        Campanha: {selectedContact.utm_campaign}
-                      </Badge>
-                    )}
-                    {selectedContact.utm_content && (
-                      <Badge variant="outline">
-                        Conteúdo: {selectedContact.utm_content}
-                      </Badge>
-                    )}
-                    {selectedContact.utm_term && (
-                      <Badge variant="outline">
-                        Termo: {selectedContact.utm_term}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Conversions */}
-              {(selectedContact.first_conversion || selectedContact.last_conversion) && (
-                <div className="border-t pt-4">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Conversões</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    {selectedContact.first_conversion && (
+                    {selectedContact.rd_station_id && (
                       <div>
-                        <p className="text-xs text-muted-foreground">Primeira Conversão</p>
-                        <p className="text-sm">{selectedContact.first_conversion}</p>
-                      </div>
-                    )}
-                    {selectedContact.last_conversion && (
-                      <div>
-                        <p className="text-xs text-muted-foreground">Última Conversão</p>
-                        <p className="text-sm">{selectedContact.last_conversion}</p>
+                        <p className="text-xs text-muted-foreground">ID RD Station</p>
+                        <p className="text-xs font-mono">{selectedContact.rd_station_id}</p>
                       </div>
                     )}
                   </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">Criado em</p>
+                    <p className="text-sm">{new Date(selectedContact.created_at).toLocaleString('pt-BR')}</p>
+                  </div>
                 </div>
-              )}
+              </TabsContent>
 
-              {/* Notes */}
-              {selectedContact.notes && (
-                <div className="border-t pt-4">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-2">Observações</h4>
-                  <p className="text-sm whitespace-pre-wrap bg-muted/50 p-3 rounded-md">
-                    {selectedContact.notes}
-                  </p>
-                </div>
-              )}
-
-              {/* Custom Fields */}
-              {selectedContact.custom_fields && Object.keys(selectedContact.custom_fields).length > 0 && (
-                <div className="border-t pt-4">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Campos Personalizados</h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(selectedContact.custom_fields).map(([key, value]) => (
-                      <div key={key} className="bg-muted/50 p-2 rounded">
-                        <p className="text-xs text-muted-foreground">{key}</p>
-                        <p className="text-sm">{String(value)}</p>
-                      </div>
+              {/* Deals Tab */}
+              <TabsContent value="deals" className="space-y-4 mt-4">
+                <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Oportunidades e Produtos</h4>
+                
+                {loadingDetails ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : contactDeals.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground bg-muted/30 rounded-lg">
+                    <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>Nenhuma oportunidade associada</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {contactDeals.map((deal) => (
+                      <Card key={deal.id}>
+                        <CardContent className="py-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">{deal.name}</p>
+                              {deal.product_name && (
+                                <p className="text-xs text-violet-600 mt-1 flex items-center gap-1">
+                                  <Package className="h-3 w-3" />
+                                  {deal.product_name}
+                                </p>
+                              )}
+                              {deal.owner_id && profiles[deal.owner_id] && (
+                                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                  <UserCircle className="h-3 w-3" />
+                                  Responsável: {profiles[deal.owner_id].full_name}
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              {deal.value > 0 && (
+                                <p className="text-sm font-semibold text-emerald-600">
+                                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(deal.value)}
+                                </p>
+                              )}
+                              {deal.stage && (
+                                <Badge variant={deal.stage.is_won ? 'default' : deal.stage.is_lost ? 'destructive' : 'secondary'} className="text-xs mt-1">
+                                  {deal.stage.name}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+              </TabsContent>
 
-              {/* Metadata */}
-              <div className="border-t pt-4 flex items-center justify-between flex-wrap gap-4">
-                <div className="flex items-center gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Lead Score</p>
-                    <Badge variant={selectedContact.lead_score && selectedContact.lead_score > 50 ? 'default' : 'secondary'}>
-                      {selectedContact.lead_score || 0} pontos
-                    </Badge>
+              {/* History Tab */}
+              <TabsContent value="history" className="space-y-4 mt-4">
+                <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Histórico de Atividades</h4>
+                
+                {loadingDetails ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
                   </div>
-                  {selectedContact.rd_station_id && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">ID RD Station</p>
-                      <p className="text-xs font-mono">{selectedContact.rd_station_id}</p>
+                ) : contactActivities.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground bg-muted/30 rounded-lg">
+                    <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>Nenhuma atividade registrada</p>
+                  </div>
+                ) : (
+                  <ScrollArea className="h-[400px] pr-4">
+                    <div className="space-y-3">
+                      {contactActivities.map((activity) => (
+                        <Card key={activity.id} className={activity.completed ? 'opacity-60' : ''}>
+                          <CardContent className="py-3">
+                            <div className="flex items-start gap-3">
+                              <div className={`p-2 rounded-full shrink-0 ${activity.completed ? 'bg-green-500/10 text-green-600' : 'bg-primary/10 text-primary'}`}>
+                                {getActivityIcon(activity.type)}
+                              </div>
+                              
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <p className={`font-medium text-sm ${activity.completed ? 'line-through' : ''}`}>
+                                      {activity.title}
+                                    </p>
+                                    {activity.description && (
+                                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                        {activity.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <Badge variant="secondary" className="shrink-0 text-xs">
+                                    {getActivityTypeName(activity.type)}
+                                  </Badge>
+                                </div>
+                                
+                                <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-muted-foreground">
+                                  {activity.owner_id && profiles[activity.owner_id] && (
+                                    <span className="flex items-center gap-1">
+                                      <UserCircle className="h-3 w-3" />
+                                      {profiles[activity.owner_id].full_name}
+                                    </span>
+                                  )}
+                                  {activity.due_date && (
+                                    <span className="flex items-center gap-1">
+                                      <Calendar className="h-3 w-3" />
+                                      {new Date(activity.due_date).toLocaleDateString('pt-BR')}
+                                    </span>
+                                  )}
+                                  <span>
+                                    Criado: {new Date(activity.created_at).toLocaleDateString('pt-BR')}
+                                  </span>
+                                  {activity.completed && (
+                                    <Badge variant="outline" className="text-green-600 border-green-600/20 text-xs">
+                                      Concluída
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
-                  )}
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Criado em</p>
-                  <p className="text-sm">{new Date(selectedContact.created_at).toLocaleString('pt-BR')}</p>
-                  {selectedContact.updated_at && (
-                    <>
-                      <p className="text-xs text-muted-foreground mt-1">Atualizado em</p>
-                      <p className="text-sm">{new Date(selectedContact.updated_at).toLocaleString('pt-BR')}</p>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
+                  </ScrollArea>
+                )}
+              </TabsContent>
+            </Tabs>
           )}
 
           {/* Edit Form */}
