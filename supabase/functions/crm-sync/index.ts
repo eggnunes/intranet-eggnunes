@@ -479,8 +479,8 @@ async function syncContacts(rdToken: string, supabase: any) {
   let page = 1;
   const limit = 200;
   
-  // Paginate through all contacts
-  while (true) {
+  // Paginate through all contacts (max 5 pages to avoid timeout)
+  while (page <= 5) {
     const response = await fetch(
       `${RD_STATION_API_URL}/contacts?token=${rdToken}&page=${page}&limit=${limit}`
     );
@@ -499,45 +499,47 @@ async function syncContacts(rdToken: string, supabase: any) {
     
     if (contacts.length < limit) break;
     page++;
-    
-    // Safety limit
-    if (page > 50) break;
   }
 
   console.log(`Total contacts to sync: ${allContacts.length}`);
 
+  // Transform contacts data
+  const contactsData = allContacts.map(contact => ({
+    rd_station_id: contact._id,
+    name: contact.name || contact.emails?.[0]?.email || 'Sem nome',
+    email: contact.emails?.[0]?.email || null,
+    phone: contact.phones?.[0]?.phone || null,
+    company: contact.organization?.name || null,
+    job_title: contact.title || null,
+    address: contact.address?.street || null,
+    city: contact.address?.city || null,
+    state: contact.address?.state || null,
+    country: contact.address?.country || null,
+    website: contact.website || null,
+    linkedin: contact.linkedin || null,
+    facebook: contact.facebook || null,
+    twitter: contact.twitter || null,
+    birthday: contact.birthday || null,
+    notes: contact.notes || null,
+    custom_fields: contact.custom_fields || {},
+    lead_score: contact.score || 0
+  }));
+
+  // Batch upsert in chunks of 200
+  const BATCH_SIZE = 200;
   let contactsCreated = 0;
 
-  for (const contact of allContacts) {
-    const contactData = {
-      rd_station_id: contact._id,
-      name: contact.name || contact.emails?.[0]?.email || 'Sem nome',
-      email: contact.emails?.[0]?.email || null,
-      phone: contact.phones?.[0]?.phone || null,
-      company: contact.organization?.name || null,
-      job_title: contact.title || null,
-      address: contact.address?.street || null,
-      city: contact.address?.city || null,
-      state: contact.address?.state || null,
-      country: contact.address?.country || null,
-      website: contact.website || null,
-      linkedin: contact.linkedin || null,
-      facebook: contact.facebook || null,
-      twitter: contact.twitter || null,
-      birthday: contact.birthday || null,
-      notes: contact.notes || null,
-      custom_fields: contact.custom_fields || {},
-      lead_score: contact.score || 0
-    };
-
+  for (let i = 0; i < contactsData.length; i += BATCH_SIZE) {
+    const batch = contactsData.slice(i, i + BATCH_SIZE);
     const { error } = await supabase
       .from('crm_contacts')
-      .upsert(contactData, { onConflict: 'rd_station_id' });
+      .upsert(batch, { onConflict: 'rd_station_id' });
 
     if (error) {
-      console.error('Error upserting contact:', error);
+      console.error('Error upserting contacts batch:', error);
     } else {
-      contactsCreated++;
+      contactsCreated += batch.length;
+      console.log(`Upserted batch ${Math.floor(i / BATCH_SIZE) + 1}, total: ${contactsCreated}`);
     }
   }
 
@@ -558,8 +560,8 @@ async function syncDeals(rdToken: string, supabase: any) {
   let page = 1;
   const limit = 200;
   
-  // Paginate through all deals
-  while (true) {
+  // Paginate through all deals (max 5 pages to avoid timeout)
+  while (page <= 5) {
     const response = await fetch(
       `${RD_STATION_API_URL}/deals?token=${rdToken}&page=${page}&limit=${limit}`
     );
@@ -578,9 +580,6 @@ async function syncDeals(rdToken: string, supabase: any) {
     
     if (deals.length < limit) break;
     page++;
-    
-    // Safety limit
-    if (page > 50) break;
   }
 
   console.log(`Total deals to sync: ${allDeals.length}`);
@@ -601,15 +600,14 @@ async function syncDeals(rdToken: string, supabase: any) {
   
   const contactMap = new Map(contacts?.map((c: any) => [c.rd_station_id, c.id]) || []);
 
-  let dealsCreated = 0;
-
-  for (const deal of allDeals) {
+  // Transform deals data
+  const dealsData = allDeals.map(deal => {
     const stageInfo = stageMap.get(deal.deal_stage?._id);
     const contactId = deal.contacts?.[0]?._id ? contactMap.get(deal.contacts[0]._id) : null;
 
-    const dealData = {
+    return {
       rd_station_id: deal._id,
-      contact_id: contactId,
+      contact_id: contactId || null,
       pipeline_id: stageInfo?.pipeline_id || null,
       stage_id: stageInfo?.id || null,
       name: deal.name || 'Deal sem nome',
@@ -623,15 +621,23 @@ async function syncDeals(rdToken: string, supabase: any) {
       notes: deal.notes || null,
       custom_fields: deal.custom_fields || {}
     };
+  });
 
+  // Batch upsert in chunks of 200
+  const BATCH_SIZE = 200;
+  let dealsCreated = 0;
+
+  for (let i = 0; i < dealsData.length; i += BATCH_SIZE) {
+    const batch = dealsData.slice(i, i + BATCH_SIZE);
     const { error } = await supabase
       .from('crm_deals')
-      .upsert(dealData, { onConflict: 'rd_station_id' });
+      .upsert(batch, { onConflict: 'rd_station_id' });
 
     if (error) {
-      console.error('Error upserting deal:', error);
+      console.error('Error upserting deals batch:', error);
     } else {
-      dealsCreated++;
+      dealsCreated += batch.length;
+      console.log(`Upserted deals batch ${Math.floor(i / BATCH_SIZE) + 1}, total: ${dealsCreated}`);
     }
   }
 
