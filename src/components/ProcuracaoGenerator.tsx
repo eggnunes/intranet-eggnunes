@@ -106,9 +106,94 @@ export const ProcuracaoGenerator = ({
   const [showCreateDefaultTemplate, setShowCreateDefaultTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
+  
+  // Objeto do contrato detectado automaticamente
+  const [objetoContratoDetectado, setObjetoContratoDetectado] = useState<string | null>(null);
+  const [loadingContractDraft, setLoadingContractDraft] = useState(false);
+  const [poderesGeradosAutomaticamente, setPoderesGeradosAutomaticamente] = useState(false);
 
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
+
+  // Carregar rascunho de contrato existente para detectar objeto do contrato
+  useEffect(() => {
+    const loadContractDraft = async () => {
+      if (!open || !user || !client) return;
+      
+      setLoadingContractDraft(true);
+      try {
+        const { data, error } = await supabase
+          .from('contract_drafts')
+          .select('objeto_contrato')
+          .eq('client_id', client.id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        
+        if (error) throw error;
+        
+        if (data?.objeto_contrato) {
+          setObjetoContratoDetectado(data.objeto_contrato);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar rascunho de contrato:', error);
+      } finally {
+        setLoadingContractDraft(false);
+      }
+    };
+
+    loadContractDraft();
+  }, [user, open, client]);
+
+  // Gerar poderes automaticamente quando tem contrato e habilita poderes especiais
+  useEffect(() => {
+    const objetoParaUsar = objetoContrato || objetoContratoDetectado;
+    
+    if (temPoderesEspeciais && objetoParaUsar && !poderesEspeciais.trim() && !poderesGeradosAutomaticamente) {
+      gerarPoderesAutomaticamente(objetoParaUsar);
+    }
+  }, [temPoderesEspeciais, objetoContrato, objetoContratoDetectado]);
+
+  // Função para gerar poderes automaticamente
+  const gerarPoderesAutomaticamente = async (objeto: string) => {
+    setGerandoPoderes(true);
+    setPoderesGeradosAutomaticamente(true);
+    try {
+      const prompt = `Você é um advogado especialista em procurações advocatícias.
+
+Gere os poderes especiais para uma procuração com base no seguinte objeto do contrato:
+
+${objeto}
+
+Os poderes especiais devem ser específicos e relacionados ao objeto do contrato, permitindo que o advogado execute todas as ações necessárias para a defesa dos interesses do cliente neste caso específico.
+
+Formato esperado:
+- Os poderes devem ser listados de forma clara e direta.
+- O texto deve ser em português jurídico formal.
+- Seja objetivo e conciso.
+
+Retorne APENAS o texto dos poderes especiais, sem explicações adicionais.`;
+
+      const { data, error } = await supabase.functions.invoke('ai-assistant', {
+        body: { 
+          messages: [{ role: 'user', content: prompt }],
+          model: 'lovable'
+        }
+      });
+
+      if (error) throw error;
+
+      const response = data?.content || data?.choices?.[0]?.message?.content;
+      if (response) {
+        setPoderesEspeciais(response.trim());
+        toast.success("Poderes especiais gerados automaticamente com base no contrato!");
+      }
+    } catch (error) {
+      console.error('Erro ao gerar poderes especiais automaticamente:', error);
+      toast.error("Erro ao gerar poderes especiais. Tente manualmente.");
+    } finally {
+      setGerandoPoderes(false);
+    }
+  };
 
   // Carregar templates
   useEffect(() => {
@@ -206,12 +291,14 @@ export const ProcuracaoGenerator = ({
     toast.success(`Template "${template.name}" carregado`);
   };
 
-  // Gerar poderes especiais com IA
+  // Gerar poderes especiais com IA (manual - quando usuário clica no botão)
   const gerarPoderesComIA = async () => {
+    const objetoParaUsar = objetoContrato || objetoContratoDetectado;
+    
     setGerandoPoderes(true);
     try {
-      const contexto = objetoContrato?.trim() 
-        ? `Objeto do contrato: ${objetoContrato}`
+      const contexto = objetoParaUsar?.trim() 
+        ? `Objeto do contrato: ${objetoParaUsar}`
         : `Cliente: ${client?.nomeCompleto || 'não informado'}`;
       
       const prompt = `Você é um advogado especialista em procurações advocatícias.
@@ -480,6 +567,18 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
                 </CardHeader>
                 {temPoderesEspeciais && (
                   <CardContent className="space-y-4">
+                    {/* Indicador de contrato detectado */}
+                    {(objetoContrato || objetoContratoDetectado) && (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/10 text-primary text-sm">
+                        <FileText className="h-4 w-4" />
+                        <span>
+                          {gerandoPoderes 
+                            ? "Gerando poderes especiais com base no contrato..." 
+                            : "Contrato detectado - poderes gerados automaticamente"}
+                        </span>
+                      </div>
+                    )}
+                    
                     {/* Templates disponíveis */}
                     {templates.length > 0 && (
                       <div className="space-y-2">
