@@ -673,7 +673,7 @@ export const ContractGenerator = ({
     }
   };
 
-  // Salvar template de honorários êxito (usuário comum)
+  // Salvar template de honorários êxito (geral - acessível a todos)
   const salvarTemplate = async () => {
     const primeiraOpcao = exitoOptions[0];
     if (!templateName.trim() || !primeiraOpcao.descricao.trim() || !user) {
@@ -686,7 +686,8 @@ export const ContractGenerator = ({
       const { error } = await supabase
         .from('success_fee_templates')
         .insert({
-          user_id: user.id,
+          user_id: null,
+          is_default: true,
           name: templateName.trim(),
           description: primeiraOpcao.descricao.trim(),
         });
@@ -696,14 +697,14 @@ export const ContractGenerator = ({
       const { data } = await supabase
         .from('success_fee_templates')
         .select('id, name, description, is_default')
-        .or(`user_id.eq.${user.id},is_default.eq.true`)
-        .order('is_default', { ascending: false })
+        .eq('is_default', true)
         .order('name');
       
       setTemplates(data || []);
       setTemplateName("");
       setShowSaveTemplate(false);
-      toast.success("Template salvo com sucesso!");
+      setShowCreateDefaultExitoTemplate(false);
+      toast.success("Template geral salvo com sucesso!");
     } catch (error) {
       console.error('Erro ao salvar template:', error);
       toast.error("Erro ao salvar template");
@@ -859,9 +860,9 @@ export const ContractGenerator = ({
     }
   };
 
-  // Criar template padrão (apenas admin)
+  // Criar template geral de honorários iniciais (acessível a todos)
   const criarTemplatePadrao = async () => {
-    if (!initialTemplateName.trim() || !user || !isAdmin) {
+    if (!initialTemplateName.trim() || !user) {
       toast.error("Preencha o nome do template");
       return;
     }
@@ -901,10 +902,11 @@ export const ContractGenerator = ({
       setInitialTemplateName("");
       setInitialTemplateDescricao("");
       setShowCreateDefaultTemplate(false);
-      toast.success("Template padrão criado com sucesso!");
+      setShowSaveInitialTemplate(false);
+      toast.success("Template geral criado com sucesso!");
     } catch (error) {
-      console.error('Erro ao criar template padrão:', error);
-      toast.error("Erro ao criar template padrão");
+      console.error('Erro ao criar template:', error);
+      toast.error("Erro ao criar template");
     } finally {
       setSavingInitialTemplate(false);
     }
@@ -1273,17 +1275,21 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
     
     texto += `E por estarem assim justos e contratados, assinam o presente instrumento, em duas vias de igual teor e forma, juntamente com duas testemunhas.\n\n`;
     texto += `Belo Horizonte, ${dataAtual}.\n\n\n`;
+    texto += `[ASSINATURA_CONTRATANTE]\n`;
     texto += `_______________________________________\n`;
-    texto += `${client.nomeCompleto.toUpperCase()}\n`;
+    texto += `**${client.nomeCompleto.toUpperCase()}**\n`;
     texto += `CONTRATANTE\n\n\n`;
+    texto += `[ASSINATURA_CONTRATADO_1]\n`;
     texto += `_______________________________________\n`;
-    texto += `EGG NUNES ADVOGADOS ASSOCIADOS\n`;
-    texto += `CONTRATADOS\n\n\n`;
-    texto += `TESTEMUNHAS:\n\n`;
-    texto += `1. _______________________________________\n`;
-    texto += `Nome:\nCPF:\n\n`;
-    texto += `2. _______________________________________\n`;
-    texto += `Nome:\nCPF:\n`;
+    texto += `**EGG NUNES ADVOGADOS ASSOCIADOS**\n`;
+    texto += `Representado pelo sócio Marcos Luiz Egg Nunes, OAB/MG 115.283\n`;
+    texto += `CONTRATADO\n\n\n`;
+    texto += `[ASSINATURA_CONTRATADO_2]\n`;
+    texto += `_______________________________________\n`;
+    texto += `**RAFAEL EGG NUNES**, OAB/MG 118.395\n`;
+    texto += `CONTRATADO\n\n\n`;
+    texto += `[TESTEMUNHAS_LADO_A_LADO]\n`;
+    texto += `TESTEMUNHAS:\n`;
 
     return texto;
   };
@@ -1421,33 +1427,92 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
           continue;
         }
         
-        // Linhas de assinatura
+        // Marcadores de assinatura centralizada - Contratante
+        if (trimmedLine === '[ASSINATURA_CONTRATANTE]') {
+          continue; // Apenas marcador, não renderiza
+        }
+        
+        // Marcadores de assinatura centralizada - Contratados
+        if (trimmedLine === '[ASSINATURA_CONTRATADO_1]' || trimmedLine === '[ASSINATURA_CONTRATADO_2]') {
+          continue; // Apenas marcador, não renderiza
+        }
+        
+        // Marcador de testemunhas lado a lado
+        if (trimmedLine === '[TESTEMUNHAS_LADO_A_LADO]') {
+          continue; // Apenas marcador, não renderiza
+        }
+        
+        // Linhas de assinatura - centralizadas
         if (trimmedLine.startsWith('_____')) {
           checkPageBreak(8);
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(9);
-          doc.text(trimmedLine, marginLeft, yPos);
+          doc.text(trimmedLine, pageWidth / 2, yPos, { align: 'center' });
           yPos += lineHeight + 1;
           continue;
         }
         
-        // Nomes em negrito (Contratado:, Contratante:)
-        if (trimmedLine.startsWith('Contratado:') || trimmedLine.startsWith('Contratante:')) {
+        // Nomes em negrito cercados por ** - centralizado e em negrito
+        if (trimmedLine.startsWith('**') && trimmedLine.includes('**')) {
           checkPageBreak(6);
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(9);
-          doc.text(trimmedLine, marginLeft, yPos);
+          // Remover os ** do texto
+          const textoLimpo = trimmedLine.replace(/\*\*/g, '');
+          doc.text(textoLimpo, pageWidth / 2, yPos, { align: 'center' });
           yPos += lineHeight + 1;
           continue;
         }
         
-        // Testemunhas
-        if (trimmedLine === 'TESTEMUNHAS:' || trimmedLine === 'Testemunhas:') {
-          checkPageBreak(8);
+        // CONTRATANTE / CONTRATADO - centralizado
+        if (trimmedLine === 'CONTRATANTE' || trimmedLine === 'CONTRATADO') {
+          checkPageBreak(6);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          doc.text(trimmedLine, pageWidth / 2, yPos, { align: 'center' });
+          yPos += lineHeight + 2;
+          continue;
+        }
+        
+        // Representado pelo sócio... - centralizado
+        if (trimmedLine.startsWith('Representado pelo sócio')) {
+          checkPageBreak(6);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.text(trimmedLine, pageWidth / 2, yPos, { align: 'center' });
+          yPos += lineHeight + 1;
+          continue;
+        }
+        
+        // Testemunhas - centralizado com as duas lado a lado
+        if (trimmedLine === 'TESTEMUNHAS:') {
+          checkPageBreak(30);
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(9);
-          doc.text(trimmedLine, marginLeft, yPos);
+          doc.text(trimmedLine, pageWidth / 2, yPos, { align: 'center' });
+          yPos += lineHeight + 6;
+          
+          // Desenhar as duas testemunhas lado a lado
+          const col1X = marginLeft + 10;
+          const col2X = pageWidth / 2 + 10;
+          const colWidth = (contentWidth / 2) - 15;
+          
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          
+          // Testemunha 1
+          doc.text('1. ________________________', col1X, yPos);
+          doc.text('2. ________________________', col2X, yPos);
           yPos += lineHeight + 2;
+          
+          doc.text('Nome:', col1X, yPos);
+          doc.text('Nome:', col2X, yPos);
+          yPos += lineHeight + 1;
+          
+          doc.text('CPF:', col1X, yPos);
+          doc.text('CPF:', col2X, yPos);
+          yPos += lineHeight + 2;
+          
           continue;
         }
         
@@ -2084,16 +2149,16 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
                       Adicionar outra opção de pagamento
                     </Button>
                     
-                    {/* Salvar como template */}
+                    {/* Salvar como template geral */}
                     {!showSaveInitialTemplate && !showCreateDefaultTemplate && (
                       <Button 
                         variant="ghost" 
                         size="sm"
-                        onClick={() => setShowSaveInitialTemplate(true)}
+                        onClick={() => setShowCreateDefaultTemplate(true)}
                         className="w-full text-xs"
                       >
                         <Save className="h-3 w-3 mr-1" />
-                        Salvar primeira opção como template pessoal
+                        Salvar primeira opção como template geral
                       </Button>
                     )}
 
@@ -2326,16 +2391,16 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
                     Adicionar outra opção de êxito
                   </Button>
 
-                  {/* Salvar como template */}
+                  {/* Salvar como template geral */}
                   {exitoOptions[0]?.descricao && !showSaveTemplate && !showCreateDefaultExitoTemplate && (
                     <Button 
                       variant="ghost" 
                       size="sm"
-                      onClick={() => setShowSaveTemplate(true)}
+                      onClick={() => setShowCreateDefaultExitoTemplate(true)}
                       className="w-full text-xs"
                     >
                       <Save className="h-3 w-3 mr-1" />
-                      Salvar primeira opção como template pessoal
+                      Salvar primeira opção como template geral
                     </Button>
                   )}
 
