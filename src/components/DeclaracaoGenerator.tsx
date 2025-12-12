@@ -149,7 +149,7 @@ ${nomeCliente}`;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
       doc.text('DECLARAÇÃO DE HIPOSSUFICIÊNCIA', pageWidth / 2, yPosition, { align: 'center' });
-      yPosition += 12;
+      yPosition += 14;
 
       // Remover ponto e vírgula do final da qualificação se existir
       const qualificacaoLimpa = qualification.replace(/[;,.]$/, '').trim();
@@ -157,22 +157,13 @@ ${nomeCliente}`;
       // Nome do cliente em maiúsculo
       const nomeCliente = client.nomeCompleto.toUpperCase();
       
-      // Substituir o nome na qualificação pelo nome em maiúsculo (início da qualificação)
-      let qualificacaoComNomeMaiusculo = qualificacaoLimpa;
-      if (qualificacaoLimpa.toLowerCase().startsWith(client.nomeCompleto.toLowerCase())) {
-        qualificacaoComNomeMaiusculo = nomeCliente + qualificacaoLimpa.substring(client.nomeCompleto.length);
-      }
+      // Tamanho da fonte
+      const fontSize = 11;
+      const lineHeight = fontSize * 0.5;
       
-      // Verificar se precisa ajustar tamanho da fonte para caber na página
-      const availableHeight = 200; // Espaço disponível antes da assinatura
-      let fontSize = 11;
-      
-      // Primeiro, renderizar o nome do cliente em negrito e maiúsculo
+      // Nome do cliente em NEGRITO e MAIÚSCULO
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(fontSize);
-      
-      // Separar o nome do resto da qualificação
-      const restoQualificacao = qualificacaoComNomeMaiusculo.substring(nomeCliente.length);
       
       // Calcular largura do nome
       const larguraNome = doc.getTextWidth(nomeCliente);
@@ -180,21 +171,26 @@ ${nomeCliente}`;
       // Renderizar nome em negrito
       doc.text(nomeCliente, marginLeft, yPosition);
       
-      // Renderizar resto da qualificação + texto da declaração em fonte normal
+      // Resto da qualificação (sem o nome no início)
+      let restoQualificacao = qualificacaoLimpa;
+      if (qualificacaoLimpa.toLowerCase().startsWith(client.nomeCompleto.toLowerCase())) {
+        restoQualificacao = qualificacaoLimpa.substring(client.nomeCompleto.length);
+      }
+      
+      // Texto completo após o nome
+      const textoCompleto = restoQualificacao + ' ' + TEXTO_DECLARACAO;
+      
       doc.setFont('helvetica', 'normal');
-      const textoRestante = restoQualificacao + ' ' + TEXTO_DECLARACAO;
       
-      // Usar splitTextToSize para quebrar o texto considerando que a primeira linha começa após o nome
-      const primeiraLinhaEspaco = contentWidth - larguraNome - 1;
-      
-      // Pegar as primeiras palavras que cabem na primeira linha
-      const palavras = textoRestante.split(' ');
+      // Calcular quanto cabe na primeira linha após o nome
+      const espacoPrimeiraLinha = contentWidth - larguraNome - 2;
+      const palavras = textoCompleto.split(' ').filter(p => p.trim());
       let primeiraLinhaTxt = '';
       let indiceInicio = 0;
       
       for (let i = 0; i < palavras.length; i++) {
         const teste = primeiraLinhaTxt + (primeiraLinhaTxt ? ' ' : '') + palavras[i];
-        if (doc.getTextWidth(teste) <= primeiraLinhaEspaco) {
+        if (doc.getTextWidth(teste) <= espacoPrimeiraLinha) {
           primeiraLinhaTxt = teste;
           indiceInicio = i + 1;
         } else {
@@ -204,26 +200,39 @@ ${nomeCliente}`;
       
       // Renderizar resto da primeira linha
       doc.text(primeiraLinhaTxt, marginLeft + larguraNome + 1, yPosition);
-      yPosition += fontSize * 0.45;
+      yPosition += lineHeight;
       
-      // Resto do texto
-      const textoRestanteDepois = palavras.slice(indiceInicio).join(' ');
-      const linhasRestantes = doc.splitTextToSize(textoRestanteDepois, contentWidth);
-      const lineHeightFinal = fontSize * 0.45;
+      // Resto do texto - JUSTIFICADO MANUALMENTE
+      const textoRestante = palavras.slice(indiceInicio).join(' ');
+      const linhasRestantes = doc.splitTextToSize(textoRestante, contentWidth);
       
-      // Renderizar texto justificado
       for (let i = 0; i < linhasRestantes.length; i++) {
-        const linha = linhasRestantes[i];
-        // Última linha não deve ser justificada para evitar espaçamento estranho
+        const linha = linhasRestantes[i].trim();
+        
+        // Última linha alinhada à esquerda
         if (i === linhasRestantes.length - 1) {
           doc.text(linha, marginLeft, yPosition);
         } else {
-          doc.text(linha, marginLeft, yPosition, { align: 'justify', maxWidth: contentWidth });
+          // Justificar linha manualmente
+          const palavrasLinha = linha.split(' ').filter((p: string) => p.trim());
+          if (palavrasLinha.length > 1) {
+            const larguraTexto = palavrasLinha.reduce((acc: number, p: string) => acc + doc.getTextWidth(p), 0);
+            const espacoTotal = contentWidth - larguraTexto;
+            const espacoEntrePalavras = espacoTotal / (palavrasLinha.length - 1);
+            
+            let xPos = marginLeft;
+            for (let j = 0; j < palavrasLinha.length; j++) {
+              doc.text(palavrasLinha[j], xPos, yPosition);
+              xPos += doc.getTextWidth(palavrasLinha[j]) + espacoEntrePalavras;
+            }
+          } else {
+            doc.text(linha, marginLeft, yPosition);
+          }
         }
-        yPosition += lineHeightFinal;
+        yPosition += lineHeight;
       }
 
-      yPosition += 8;
+      yPosition += 10;
 
       // Data
       const dataAtual = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
