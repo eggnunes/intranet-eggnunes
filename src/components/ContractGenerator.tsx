@@ -1442,9 +1442,11 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
           continue; // Apenas marcador, não renderiza
         }
         
-        // Linhas de assinatura - centralizadas
+        // Linhas de assinatura - centralizadas com espaço acima para assinatura
         if (trimmedLine.startsWith('_____')) {
-          checkPageBreak(8);
+          checkPageBreak(18);
+          // Espaço para assinatura antes da linha
+          yPos += 12;
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(9);
           doc.text(trimmedLine, pageWidth / 2, yPos, { align: 'center' });
@@ -1470,7 +1472,7 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(9);
           doc.text(trimmedLine, pageWidth / 2, yPos, { align: 'center' });
-          yPos += lineHeight + 2;
+          yPos += lineHeight + 4;
           continue;
         }
         
@@ -1486,11 +1488,11 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
         
         // Testemunhas - centralizado com as duas lado a lado (apenas assinatura)
         if (trimmedLine === 'TESTEMUNHAS:') {
-          checkPageBreak(20);
+          checkPageBreak(30);
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(9);
           doc.text(trimmedLine, pageWidth / 2, yPos, { align: 'center' });
-          yPos += lineHeight + 6;
+          yPos += lineHeight + 12;
           
           // Desenhar as duas testemunhas lado a lado (apenas linha de assinatura)
           const col1X = marginLeft + 10;
