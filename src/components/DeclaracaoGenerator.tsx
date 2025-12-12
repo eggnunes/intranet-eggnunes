@@ -72,9 +72,12 @@ export const DeclaracaoGenerator = ({
     
     const dataAtual = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
     
+    // Remover ponto e vírgula do final da qualificação
+    const qualificacaoLimpa = qualification.replace(/[;,.]$/, '').trim();
+    
     let texto = `DECLARAÇÃO DE HIPOSSUFICIÊNCIA
 
-${qualification}; ${TEXTO_DECLARACAO}
+${qualificacaoLimpa} ${TEXTO_DECLARACAO}
 
 Belo Horizonte, ${dataAtual}.
 
@@ -139,11 +142,13 @@ ${client.nomeCompleto.toUpperCase()}`;
       doc.text('DECLARAÇÃO DE HIPOSSUFICIÊNCIA', pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 12;
 
-      // Qualificação + texto da declaração
+      // Qualificação + texto da declaração (sem ponto e vírgula extra após qualificação)
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
       
-      const textoCompleto = `${qualification}; ${TEXTO_DECLARACAO}`;
+      // Remover ponto e vírgula do final da qualificação se existir, e adicionar espaço correto
+      const qualificacaoLimpa = qualification.replace(/[;,.]$/, '').trim();
+      const textoCompleto = `${qualificacaoLimpa} ${TEXTO_DECLARACAO}`;
       const linhas = doc.splitTextToSize(textoCompleto, contentWidth);
       
       // Verificar se precisa ajustar tamanho da fonte para caber na página
@@ -161,8 +166,15 @@ ${client.nomeCompleto.toUpperCase()}`;
       const linhasFinais = doc.splitTextToSize(textoCompleto, contentWidth);
       const lineHeightFinal = fontSize * 0.45;
       
-      for (const linha of linhasFinais) {
-        doc.text(linha, marginLeft, yPosition, { align: 'justify', maxWidth: contentWidth });
+      // Renderizar texto justificado
+      for (let i = 0; i < linhasFinais.length; i++) {
+        const linha = linhasFinais[i];
+        // Última linha não deve ser justificada para evitar espaçamento estranho
+        if (i === linhasFinais.length - 1) {
+          doc.text(linha, marginLeft, yPosition);
+        } else {
+          doc.text(linha, marginLeft, yPosition, { align: 'justify', maxWidth: contentWidth });
+        }
         yPosition += lineHeightFinal;
       }
 

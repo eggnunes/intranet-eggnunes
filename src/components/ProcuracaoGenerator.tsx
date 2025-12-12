@@ -145,14 +145,8 @@ export const ProcuracaoGenerator = ({
     loadContractDraft();
   }, [user, open, client]);
 
-  // Gerar poderes automaticamente quando tem contrato e habilita poderes especiais
-  useEffect(() => {
-    const objetoParaUsar = objetoContrato || objetoContratoDetectado;
-    
-    if (temPoderesEspeciais && objetoParaUsar && !poderesEspeciais.trim() && !poderesGeradosAutomaticamente) {
-      gerarPoderesAutomaticamente(objetoParaUsar);
-    }
-  }, [temPoderesEspeciais, objetoContrato, objetoContratoDetectado]);
+  // Não gerar poderes automaticamente - deixar o usuário clicar no botão
+  // useEffect removido para evitar geração automática
 
   // Função para gerar poderes automaticamente
   const gerarPoderesAutomaticamente = async (objeto: string) => {
@@ -222,8 +216,8 @@ Retorne APENAS o texto dos poderes especiais, sem explicações adicionais.`;
     loadTemplates();
   }, [user, open]);
 
-  // Salvar template
-  const salvarTemplate = async (isDefault: boolean = false) => {
+  // Salvar template (sempre como template geral - acessível a todos)
+  const salvarTemplate = async (isDefault: boolean = true) => {
     if (!templateName.trim() || !poderesEspeciais.trim() || !user) {
       toast.error("Preencha o nome e os poderes especiais");
       return;
@@ -234,8 +228,8 @@ Retorne APENAS o texto dos poderes especiais, sem explicações adicionais.`;
       const { error } = await supabase
         .from('special_powers_templates')
         .insert({
-          user_id: isDefault ? null : user.id,
-          is_default: isDefault,
+          user_id: null,
+          is_default: true,
           name: templateName.trim(),
           description: poderesEspeciais.trim(),
         });
@@ -253,7 +247,7 @@ Retorne APENAS o texto dos poderes especiais, sem explicações adicionais.`;
       setTemplateName("");
       setShowSaveTemplate(false);
       setShowCreateDefaultTemplate(false);
-      toast.success(isDefault ? "Template padrão criado!" : "Template salvo!");
+      toast.success("Template geral salvo com sucesso!");
     } catch (error) {
       console.error('Erro ao salvar template:', error);
       toast.error("Erro ao salvar template");
@@ -422,13 +416,25 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
       doc.text('PROCURAÇÃO', pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 8;
 
-      // Qualificação do cliente (texto normal, conforme modelo)
+      // Qualificação do cliente (texto justificado, conforme modelo)
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
-      const qualificationText = qualification + "; nomeia(m) e constitui(em), seus bastantes procuradores os advogados:";
+      // Remover ponto e vírgula do final da qualificação se existir
+      const qualificacaoLimpa = qualification.replace(/[;,.]$/, '').trim();
+      const qualificationText = qualificacaoLimpa + "; nomeia(m) e constitui(em), seus bastantes procuradores os advogados:";
       const qualificationLines = doc.splitTextToSize(qualificationText, contentWidth);
-      doc.text(qualificationLines, marginLeft, yPosition, { align: 'justify', maxWidth: contentWidth });
-      yPosition += qualificationLines.length * 3.8 + 3;
+      
+      // Renderizar texto justificado
+      for (let i = 0; i < qualificationLines.length; i++) {
+        const linha = qualificationLines[i];
+        if (i === qualificationLines.length - 1) {
+          doc.text(linha, marginLeft, yPosition);
+        } else {
+          doc.text(linha, marginLeft, yPosition, { align: 'justify', maxWidth: contentWidth });
+        }
+        yPosition += 3.8;
+      }
+      yPosition += 3;
 
       // Tabela de advogados (formato tabela conforme modelo)
       doc.setFontSize(7.5);
@@ -464,8 +470,18 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
       }
       
       const poderesLines = doc.splitTextToSize(textoPoderesCompleto, contentWidth);
-      doc.text(poderesLines, marginLeft, yPosition, { align: 'justify', maxWidth: contentWidth });
-      yPosition += poderesLines.length * 3.8 + 6;
+      
+      // Renderizar texto justificado
+      for (let i = 0; i < poderesLines.length; i++) {
+        const linha = poderesLines[i];
+        if (i === poderesLines.length - 1) {
+          doc.text(linha, marginLeft, yPosition);
+        } else {
+          doc.text(linha, marginLeft, yPosition, { align: 'justify', maxWidth: contentWidth });
+        }
+        yPosition += 3.8;
+      }
+      yPosition += 6;
 
       // Data e local
       const dataAtual = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
@@ -562,13 +578,26 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
                   <CardContent className="space-y-4">
                     {/* Indicador de contrato detectado */}
                     {(objetoContrato || objetoContratoDetectado) && (
-                      <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/10 text-primary text-sm">
-                        <FileText className="h-4 w-4" />
-                        <span>
-                          {gerandoPoderes 
-                            ? "Gerando poderes especiais com base no contrato..." 
-                            : "Contrato detectado - poderes gerados automaticamente"}
-                        </span>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/10 text-primary text-sm">
+                          <FileText className="h-4 w-4" />
+                          <span>
+                            {gerandoPoderes 
+                              ? "Gerando poderes especiais com base no contrato..." 
+                              : "Contrato detectado - clique abaixo para gerar os poderes"}
+                          </span>
+                        </div>
+                        {!poderesEspeciais.trim() && !gerandoPoderes && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => gerarPoderesAutomaticamente(objetoContrato || objetoContratoDetectado || '')}
+                            className="w-full"
+                          >
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            Gerar poderes pelo objeto do contrato
+                          </Button>
+                        )}
                       </div>
                     )}
                     
@@ -644,10 +673,10 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setShowSaveTemplate(true)}
+                          onClick={() => setShowCreateDefaultTemplate(true)}
                         >
                           <Save className="h-4 w-4 mr-2" />
-                          Salvar como Template
+                          Salvar como Template Geral
                         </Button>
                       )}
                     </div>
