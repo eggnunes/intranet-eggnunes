@@ -443,6 +443,26 @@ export const CRMDashboard = () => {
           <CRMActivities syncEnabled={syncEnabled} />
         </TabsContent>
         
+        <TabsContent value="analytics" className="mt-6">
+          <CRMAnalytics />
+        </TabsContent>
+        
+        <TabsContent value="notifications" className="mt-6">
+          <CRMNotifications />
+        </TabsContent>
+        
+        <TabsContent value="followup" className="mt-6">
+          <CRMFollowUp />
+        </TabsContent>
+        
+        <TabsContent value="scoring" className="mt-6">
+          <CRMLeadScoring />
+        </TabsContent>
+        
+        <TabsContent value="whatsapp" className="mt-6">
+          <CRMWhatsAppLogs />
+        </TabsContent>
+        
         {isAdmin && (
           <TabsContent value="settings" className="mt-6">
             <CRMSettings onSettingsChange={fetchSettings} />
