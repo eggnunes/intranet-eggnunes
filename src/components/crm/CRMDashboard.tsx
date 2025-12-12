@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, AlertCircle, Calendar, Settings } from 'lucide-react';
+import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, Calendar, Settings, LayoutDashboard } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CRMContactsList } from './CRMContactsList';
@@ -26,6 +26,13 @@ interface CRMStats {
 
 type PeriodFilter = 'all' | '7d' | '30d' | '90d' | '365d';
 
+// IDs fixos dos responsáveis comerciais
+const RESPONSAVEIS_IDS: { id: string; name: string }[] = [
+  { id: '1eebbf27-a9f8-4877-a10d-aec9279e1fea', name: 'Daniel' },
+  { id: 'f83cbef4-8ff7-4168-8e28-6a15f0d2c1f9', name: 'Lucas' },
+  { id: '1703d91d-4781-4285-ad5c-ad71b108f1d0', name: 'Jhonny' },
+];
+
 export const CRMDashboard = () => {
   const { isAdmin } = useUserRole();
   const [stats, setStats] = useState<CRMStats>({
@@ -40,7 +47,7 @@ export const CRMDashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [syncEnabled, setSyncEnabled] = useState(true); // Sync bidirecional ativo por padrão
+  const [syncEnabled, setSyncEnabled] = useState(true);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
 
@@ -89,7 +96,7 @@ export const CRMDashboard = () => {
         totalContacts = count || 0;
       }
 
-      // Fetch ALL deals with pagination to avoid 1000 limit (incluindo owner_id)
+      // Fetch ALL deals with pagination to avoid 1000 limit
       let allDeals: any[] = [];
       let page = 0;
       const pageSize = 1000;
@@ -122,14 +129,6 @@ export const CRMDashboard = () => {
         if (page > 50) break;
       }
 
-      // Buscar profiles para mapear owner_id -> nome
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name');
-      
-      const profileMap = new Map<string, string>();
-      profiles?.forEach(p => profileMap.set(p.id, p.full_name));
-
       const totalDeals = allDeals.length;
       const totalValue = allDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
       const openDeals = allDeals.filter(d => d.closed_at === null).length;
@@ -139,25 +138,17 @@ export const CRMDashboard = () => {
       // Calcular contratos fechados no mês atual
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const monthlyWonDeals = allDeals.filter(d => {
-        if (d.won !== true || !d.closed_at) return false;
-        const closedDate = new Date(d.closed_at);
-        return closedDate >= startOfMonth;
-      }).length;
-
-      // Calcular contratos fechados por responsável no mês
-      const responsaveis = ['Daniel', 'Lucas', 'Johnny'];
       const monthlyWonByOwner = allDeals.filter(d => {
         if (d.won !== true || !d.closed_at) return false;
         const closedDate = new Date(d.closed_at);
         return closedDate >= startOfMonth;
       });
 
-      const dealsByOwner = responsaveis.map(name => {
-        const count = monthlyWonByOwner.filter(d => {
-          const ownerName = d.owner_id ? profileMap.get(d.owner_id) : '';
-          return ownerName?.toLowerCase().includes(name.toLowerCase());
-        }).length;
+      const monthlyWonDeals = monthlyWonByOwner.length;
+
+      // Calcular contratos fechados por responsável no mês usando owner_id direto
+      const dealsByOwner = RESPONSAVEIS_IDS.map(({ id, name }) => {
+        const count = monthlyWonByOwner.filter(d => d.owner_id === id).length;
         return { name, count };
       });
 
@@ -206,16 +197,6 @@ export const CRMDashboard = () => {
       style: 'currency',
       currency: 'BRL'
     }).format(value);
-  };
-
-  const getPeriodLabel = (period: PeriodFilter) => {
-    switch (period) {
-      case 'all': return 'Todos os períodos';
-      case '7d': return 'Últimos 7 dias';
-      case '30d': return 'Últimos 30 dias';
-      case '90d': return 'Últimos 90 dias';
-      case '365d': return 'Último ano';
-    }
   };
 
   if (loading) {
@@ -274,119 +255,13 @@ export const CRMDashboard = () => {
         </div>
       </div>
 
-      {/* Filtro de Período */}
-      <div className="flex items-center gap-2">
-        <Calendar className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">Período:</span>
-        <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os períodos</SelectItem>
-            <SelectItem value="7d">Últimos 7 dias</SelectItem>
-            <SelectItem value="30d">Últimos 30 dias</SelectItem>
-            <SelectItem value="90d">Últimos 90 dias</SelectItem>
-            <SelectItem value="365d">Último ano</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Contatos</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats.totalContacts.toLocaleString('pt-BR')}</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Oportunidades</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats.totalDeals.toLocaleString('pt-BR')}</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Valor Total</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{formatCurrency(stats.totalValue)}</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-blue-500" />
-              <span className="text-sm text-muted-foreground">Em Aberto</span>
-            </div>
-            <p className="text-2xl font-bold mt-1 text-blue-600">{stats.openDeals.toLocaleString('pt-BR')}</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-green-500" />
-              <span className="text-sm text-muted-foreground">Ganhas</span>
-            </div>
-            <p className="text-2xl font-bold mt-1 text-green-600">{stats.wonDeals.toLocaleString('pt-BR')}</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-red-500" />
-              <span className="text-sm text-muted-foreground">Perdidas</span>
-            </div>
-            <p className="text-2xl font-bold mt-1 text-red-600">{stats.lostDeals.toLocaleString('pt-BR')}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Contratos Fechados no Mês */}
-      <Card className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/20">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-green-600" />
-            Contratos Fechados no Mês
-          </CardTitle>
-          <CardDescription>
-            {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-8">
-            <div>
-              <p className="text-4xl font-bold text-green-600">{stats.monthlyWonDeals}</p>
-              <p className="text-sm text-muted-foreground">Total no mês</p>
-            </div>
-            <div className="flex-1 grid grid-cols-3 gap-4">
-              {(stats.dealsByOwner || []).map((owner) => (
-                <div key={owner.name} className="text-center p-3 rounded-lg bg-background/50">
-                  <p className="text-2xl font-bold">{owner.count}</p>
-                  <p className="text-sm text-muted-foreground">{owner.name}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tabs */}
+      {/* Tabs - Dashboard separado do Pipeline */}
       <Tabs defaultValue="kanban" className="w-full">
-        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'} lg:w-auto lg:inline-flex`}>
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} lg:w-auto lg:inline-flex`}>
+          <TabsTrigger value="dashboard" className="flex items-center gap-1">
+            <LayoutDashboard className="h-3.5 w-3.5" />
+            Dashboard
+          </TabsTrigger>
           <TabsTrigger value="kanban">Pipeline</TabsTrigger>
           <TabsTrigger value="contacts">Contatos</TabsTrigger>
           <TabsTrigger value="activities">Atividades</TabsTrigger>
@@ -397,6 +272,119 @@ export const CRMDashboard = () => {
             </TabsTrigger>
           )}
         </TabsList>
+
+        {/* Dashboard Tab */}
+        <TabsContent value="dashboard" className="mt-6 space-y-6">
+          {/* Filtro de Período */}
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Período:</span>
+            <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os períodos</SelectItem>
+                <SelectItem value="7d">Últimos 7 dias</SelectItem>
+                <SelectItem value="30d">Últimos 30 dias</SelectItem>
+                <SelectItem value="90d">Últimos 90 dias</SelectItem>
+                <SelectItem value="365d">Último ano</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* KPIs */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Contatos</span>
+                </div>
+                <p className="text-2xl font-bold mt-1">{stats.totalContacts.toLocaleString('pt-BR')}</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2">
+                  <Target className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Oportunidades</span>
+                </div>
+                <p className="text-2xl font-bold mt-1">{stats.totalDeals.toLocaleString('pt-BR')}</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Valor Total</span>
+                </div>
+                <p className="text-2xl font-bold mt-1">{formatCurrency(stats.totalValue)}</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm text-muted-foreground">Em Aberto</span>
+                </div>
+                <p className="text-2xl font-bold mt-1 text-blue-600">{stats.openDeals.toLocaleString('pt-BR')}</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-green-500" />
+                  <span className="text-sm text-muted-foreground">Ganhas</span>
+                </div>
+                <p className="text-2xl font-bold mt-1 text-green-600">{stats.wonDeals.toLocaleString('pt-BR')}</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-red-500" />
+                  <span className="text-sm text-muted-foreground">Perdidas</span>
+                </div>
+                <p className="text-2xl font-bold mt-1 text-red-600">{stats.lostDeals.toLocaleString('pt-BR')}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Contratos Fechados no Mês */}
+          <Card className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-green-600" />
+                Contratos Fechados no Mês
+              </CardTitle>
+              <CardDescription>
+                {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-8">
+                <div>
+                  <p className="text-4xl font-bold text-green-600">{stats.monthlyWonDeals}</p>
+                  <p className="text-sm text-muted-foreground">Total no mês</p>
+                </div>
+                <div className="flex-1 grid grid-cols-3 gap-4">
+                  {(stats.dealsByOwner || []).map((owner) => (
+                    <div key={owner.name} className="text-center p-3 rounded-lg bg-background/50">
+                      <p className="text-2xl font-bold">{owner.count}</p>
+                      <p className="text-sm text-muted-foreground">{owner.name}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
         
         <TabsContent value="kanban" className="mt-6">
           <CRMDealsKanban syncEnabled={syncEnabled} />
