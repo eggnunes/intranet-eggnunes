@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { generateTOTP, getTimeRemaining } from '@/lib/totp';
+import { getTimeRemaining } from '@/lib/totp';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Copy, Check, Eye, EyeOff, Trash2, Edit, Shield } from 'lucide-react';
+import { Copy, Check, Eye, EyeOff, Trash2, Edit, Shield, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -22,13 +22,18 @@ interface TOTPAccount {
   id: string;
   name: string;
   description: string | null;
-  secret_key: string;
+  secret_key?: string; // Only available to admins
 }
 
 interface TOTPCodeDisplayProps {
   accounts: TOTPAccount[];
   onEdit: (account: TOTPAccount) => void;
   onDelete: (id: string) => void;
+}
+
+interface ServerTOTPResponse {
+  codes: Record<string, { code: string; name: string; description: string | null }>;
+  timeRemaining: number;
 }
 
 export function TOTPCodeDisplay({ accounts, onEdit, onDelete }: TOTPCodeDisplayProps) {
@@ -38,31 +43,54 @@ export function TOTPCodeDisplay({ accounts, onEdit, onDelete }: TOTPCodeDisplayP
   const [visibleSecrets, setVisibleSecrets] = useState<Set<string>>(new Set());
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const { isAdmin } = useUserRole();
 
-  const generateAllCodes = useCallback(async () => {
-    const newCodes: Record<string, string> = {};
-    for (const account of accounts) {
-      newCodes[account.id] = await generateTOTP(account.secret_key);
+  // Fetch TOTP codes from server-side edge function
+  const fetchCodesFromServer = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase.functions.invoke<ServerTOTPResponse>('totp-generate', {
+        body: { accountIds: accounts.map(a => a.id) }
+      });
+
+      if (error) {
+        console.error('Error fetching TOTP codes:', error);
+        toast.error('Erro ao buscar códigos TOTP');
+        return;
+      }
+
+      if (data?.codes) {
+        const newCodes: Record<string, string> = {};
+        Object.entries(data.codes).forEach(([id, info]) => {
+          newCodes[id] = info.code;
+        });
+        setCodes(newCodes);
+      }
+    } catch (error) {
+      console.error('Error fetching TOTP codes:', error);
+    } finally {
+      setIsLoading(false);
     }
-    setCodes(newCodes);
   }, [accounts]);
 
   useEffect(() => {
-    generateAllCodes();
+    if (accounts.length > 0) {
+      fetchCodesFromServer();
+    }
 
     const interval = setInterval(() => {
       const remaining = getTimeRemaining();
       setTimeRemaining(remaining);
       
-      // Regenerate codes when timer resets
-      if (remaining === 30) {
-        generateAllCodes();
+      // Refresh codes from server when timer resets
+      if (remaining === 30 && accounts.length > 0) {
+        fetchCodesFromServer();
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [generateAllCodes]);
+  }, [fetchCodesFromServer, accounts]);
 
   const copyToClipboard = async (code: string, id: string) => {
     try {
@@ -123,6 +151,7 @@ export function TOTPCodeDisplay({ accounts, onEdit, onDelete }: TOTPCodeDisplayP
           <span className="text-sm text-muted-foreground">
             Novo código em: {timeRemaining}s
           </span>
+          {isLoading && <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />}
         </div>
         <Progress value={progressValue} className="h-2" />
       </div>
@@ -167,6 +196,7 @@ export function TOTPCodeDisplay({ accounts, onEdit, onDelete }: TOTPCodeDisplayP
                   variant="outline"
                   size="icon"
                   onClick={() => copyToClipboard(codes[account.id] || '', account.id)}
+                  disabled={!codes[account.id] || codes[account.id] === '------'}
                 >
                   {copiedId === account.id ? (
                     <Check className="h-4 w-4 text-green-500" />
@@ -176,7 +206,7 @@ export function TOTPCodeDisplay({ accounts, onEdit, onDelete }: TOTPCodeDisplayP
                 </Button>
               </div>
 
-              {isAdmin && (
+              {isAdmin && account.secret_key && (
                 <div className="mt-4 pt-4 border-t">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Chave secreta:</span>
