@@ -22,6 +22,7 @@ interface CRMStats {
   lostDeals: number;
   monthlyWonDeals: number;
   dealsByOwner: { name: string; count: number }[];
+  periodLabel: string;
 }
 
 type PeriodFilter = 'all' | '7d' | '30d' | '90d' | '365d';
@@ -43,7 +44,8 @@ export const CRMDashboard = () => {
     wonDeals: 0,
     lostDeals: 0,
     monthlyWonDeals: 0,
-    dealsByOwner: []
+    dealsByOwner: [],
+    periodLabel: ''
   });
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -135,16 +137,33 @@ export const CRMDashboard = () => {
       const wonDeals = allDeals.filter(d => d.won === true).length;
       const lostDeals = allDeals.filter(d => d.won === false && d.closed_at !== null).length;
 
-      // Calcular contratos fechados no mês atual
+      // Calcular período personalizado: dia 25 de um mês até dia 24 do mês seguinte
       const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const currentDay = now.getDate();
+      
+      let periodStart: Date;
+      let periodEnd: Date;
+      
+      if (currentDay >= 25) {
+        // Se estamos no dia 25 ou depois, o período é do dia 25 deste mês até 24 do próximo
+        periodStart = new Date(now.getFullYear(), now.getMonth(), 25);
+        periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 24, 23, 59, 59);
+      } else {
+        // Se estamos antes do dia 25, o período é do dia 25 do mês anterior até 24 deste mês
+        periodStart = new Date(now.getFullYear(), now.getMonth() - 1, 25);
+        periodEnd = new Date(now.getFullYear(), now.getMonth(), 24, 23, 59, 59);
+      }
+
       const monthlyWonByOwner = allDeals.filter(d => {
         if (d.won !== true || !d.closed_at) return false;
         const closedDate = new Date(d.closed_at);
-        return closedDate >= startOfMonth;
+        return closedDate >= periodStart && closedDate <= periodEnd;
       });
 
       const monthlyWonDeals = monthlyWonByOwner.length;
+      
+      // Guardar período para exibição
+      const periodLabel = `${periodStart.getDate()}/${String(periodStart.getMonth() + 1).padStart(2, '0')} a ${periodEnd.getDate()}/${String(periodEnd.getMonth() + 1).padStart(2, '0')}/${periodEnd.getFullYear()}`;
 
       // Calcular contratos fechados por responsável no mês usando owner_id direto
       const dealsByOwner = RESPONSAVEIS_IDS.map(({ id, name }) => {
@@ -160,7 +179,8 @@ export const CRMDashboard = () => {
         wonDeals,
         lostDeals,
         monthlyWonDeals,
-        dealsByOwner
+        dealsByOwner,
+        periodLabel
       });
     } catch (error) {
       console.error('Error fetching CRM stats:', error);
@@ -364,7 +384,7 @@ export const CRMDashboard = () => {
                 Contratos Fechados no Mês
               </CardTitle>
               <CardDescription>
-                {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                Período: {stats.periodLabel}
               </CardDescription>
             </CardHeader>
             <CardContent>
