@@ -513,18 +513,11 @@ async function syncContacts(rdToken: string, supabase: any) {
 
   // Transform contacts data - including ALL UTM and tracking fields + original created_at
   const contactsData = allContacts.map(contact => {
-    // Log contact data for debugging (first 3 contacts)
+    // Log FULL contact data for debugging (first 3 contacts only)
     if (allContacts.indexOf(contact) < 3) {
-      console.log('Sample contact data:', JSON.stringify({
-        _id: contact._id,
-        name: contact.name,
-        traffic_source: contact.traffic_source,
-        traffic_medium: contact.traffic_medium,
-        traffic_campaign: contact.traffic_campaign,
-        lead_source: contact.lead_source,
-        source: contact.source,
-        custom_fields: contact.custom_fields
-      }, null, 2));
+      console.log('=== FULL RAW CONTACT DATA ===');
+      console.log('Contact keys:', Object.keys(contact));
+      console.log('Full contact:', JSON.stringify(contact, null, 2));
     }
 
     // Extract UTM and tracking data from multiple possible locations
