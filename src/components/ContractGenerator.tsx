@@ -1239,7 +1239,7 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
     const clausulaTerceira = gerarClausulaTerceira();
     
     let texto = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS\n\n`;
-    texto += `que entre si fazem, de um lado, como contratados, o escritório EGG NUNES ADVOGADOS ASSOCIADOS, inscrito no CNPJ sob o número 10.378.694/0001-59, neste ato representado por seu sócio Marcos Luiz Egg Nunes, OAB/MG 115.283, com escritório à Rua São Paulo nº 1104 / 9º andar – Belo Horizonte/MG, e o advogado RAFAEL EGG NUNES, OAB/MG 118.395, também com endereço à Rua São Paulo nº 1104 / 9º andar – Belo Horizonte/MG; e de outro lado, como cliente, ora contratante, ${qualification}, ajustam, entre si, com fulcro no artigo 22 da Lei nº 8.906/94, mediante as seguintes cláusulas e condições, contrato de honorários advocatícios.\n\n`;
+    texto += `que entre si fazem, de um lado, como contratados, o escritório **EGG NUNES ADVOGADOS ASSOCIADOS**, inscrito no CNPJ sob o número 10.378.694/0001-59, neste ato representado por seu sócio **Marcos Luiz Egg Nunes**, OAB/MG 115.283, com escritório à Rua São Paulo nº 1104 / 9º andar – Belo Horizonte/MG, e o advogado **RAFAEL EGG NUNES**, OAB/MG 118.395, também com endereço à Rua São Paulo nº 1104 / 9º andar – Belo Horizonte/MG; e de outro lado, como cliente, ora contratante, **${client.nomeCompleto.toUpperCase()}**, ${qualification.replace(client.nomeCompleto, '').replace(/^,\s*/, '')}, ajustam, entre si, com fulcro no artigo 22 da Lei nº 8.906/94, mediante as seguintes cláusulas e condições, contrato de honorários advocatícios.\n\n`;
     
     texto += `Cláusula Primeira\n\n`;
     texto += `${clausulaPrimeiraGerada || 'Os Contratados comprometem-se, em cumprimento ao mandato recebido, a requerer para o(a) Contratante, em face do …………………, a ………………………………..'}\n\n`;
@@ -1525,7 +1525,50 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
           continue;
         }
         
-        // Texto normal - justificado
+        // Texto normal - verificar se contém partes em negrito **texto**
+        if (trimmedLine.includes('**')) {
+          // Processar linha com partes em negrito - renderizar palavra por palavra
+          doc.setFontSize(9);
+          
+          // Dividir em tokens (palavras e espaços) preservando marcadores de negrito
+          const tokens: { text: string; bold: boolean }[] = [];
+          const partes = trimmedLine.split(/(\*\*[^*]+\*\*)/g).filter(p => p);
+          
+          for (const parte of partes) {
+            if (parte.startsWith('**') && parte.endsWith('**')) {
+              const textoNegrito = parte.replace(/\*\*/g, '');
+              tokens.push({ text: textoNegrito, bold: true });
+            } else {
+              tokens.push({ text: parte, bold: false });
+            }
+          }
+          
+          // Renderizar tokens com quebra de linha automática
+          let xPos = marginLeft;
+          let currentLineHeight = 0;
+          
+          for (const token of tokens) {
+            doc.setFont('helvetica', token.bold ? 'bold' : 'normal');
+            const tokenWidth = doc.getTextWidth(token.text);
+            
+            // Verificar se cabe na linha atual
+            if (xPos + tokenWidth > pageWidth - marginRight) {
+              // Quebrar linha
+              yPos += lineHeight;
+              xPos = marginLeft;
+              currentLineHeight++;
+              checkPageBreak(lineHeight);
+            }
+            
+            doc.text(token.text, xPos, yPos);
+            xPos += tokenWidth;
+          }
+          
+          yPos += lineHeight + paragraphSpacing;
+          continue;
+        }
+        
+        // Texto normal simples - justificado
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
         const textLines = doc.splitTextToSize(trimmedLine, contentWidth);
