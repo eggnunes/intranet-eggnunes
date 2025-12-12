@@ -122,6 +122,7 @@ ${nomeCliente}`;
       });
 
       const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
       const marginLeft = 20;
       const marginRight = 20;
       const contentWidth = pageWidth - marginLeft - marginRight;
@@ -321,13 +322,11 @@ ${nomeCliente}`;
       doc.setFontSize(11);
       doc.text(nomeCliente, pageWidth / 2, yPosition, { align: 'center' });
 
-      // Rodapé com informações do escritório
-      const footerY = 285;
+      // Rodapé com informações do escritório (igual ao contrato e procuração)
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
-      doc.setTextColor(100, 100, 100);
-      doc.text('Rua São Paulo, nº 1.104, 9º andar - Centro - Belo Horizonte/MG - CEP: 30170-131', pageWidth / 2, footerY, { align: 'center' });
-      doc.text('(31) 3261-8083 | contato@eggnunes.com.br | www.eggnunes.com.br', pageWidth / 2, footerY + 4, { align: 'center' });
+      doc.text('31 3226-8742 | escritorio@eggnunes.com.br | www.eggnunes.com.br', pageWidth / 2, pageHeight - 15, { align: 'center' });
+      doc.text('Rua São Paulo, 1104 - 9º andar - Centro - Belo Horizonte - MG - 30170-131', pageWidth / 2, pageHeight - 10, { align: 'center' });
 
       // Resetar cor do texto
       doc.setTextColor(0, 0, 0);

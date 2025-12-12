@@ -621,7 +621,10 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
       // Data e local
       const dataAtual = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
       doc.text(`Belo Horizonte, ${dataAtual}.`, marginLeft, yPosition);
-      yPosition += 12;
+      yPosition += 20;
+
+      // Espaço maior para assinatura eletrônica
+      yPosition += 10;
 
       // Linha de assinatura centralizada
       doc.text('_____________________________________', pageWidth / 2, yPosition, { align: 'center' });
