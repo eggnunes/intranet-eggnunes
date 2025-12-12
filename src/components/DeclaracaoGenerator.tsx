@@ -75,15 +75,24 @@ export const DeclaracaoGenerator = ({
     // Remover ponto e vírgula do final da qualificação
     const qualificacaoLimpa = qualification.replace(/[;,.]$/, '').trim();
     
+    // Nome do cliente em maiúsculo para a qualificação
+    const nomeCliente = client.nomeCompleto.toUpperCase();
+    
+    // Substituir o nome na qualificação pelo nome em maiúsculo (início da qualificação)
+    let qualificacaoComNomeMaiusculo = qualificacaoLimpa;
+    if (qualificacaoLimpa.toLowerCase().startsWith(client.nomeCompleto.toLowerCase())) {
+      qualificacaoComNomeMaiusculo = nomeCliente + qualificacaoLimpa.substring(client.nomeCompleto.length);
+    }
+    
     let texto = `DECLARAÇÃO DE HIPOSSUFICIÊNCIA
 
-${qualificacaoLimpa} ${TEXTO_DECLARACAO}
+${qualificacaoComNomeMaiusculo} ${TEXTO_DECLARACAO}
 
 Belo Horizonte, ${dataAtual}.
 
 
 _____________________________________
-${client.nomeCompleto.toUpperCase()}`;
+${nomeCliente}`;
     
     return texto;
   };
@@ -142,35 +151,71 @@ ${client.nomeCompleto.toUpperCase()}`;
       doc.text('DECLARAÇÃO DE HIPOSSUFICIÊNCIA', pageWidth / 2, yPosition, { align: 'center' });
       yPosition += 12;
 
-      // Qualificação + texto da declaração (sem ponto e vírgula extra após qualificação)
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(11);
-      
-      // Remover ponto e vírgula do final da qualificação se existir, e adicionar espaço correto
+      // Remover ponto e vírgula do final da qualificação se existir
       const qualificacaoLimpa = qualification.replace(/[;,.]$/, '').trim();
-      const textoCompleto = `${qualificacaoLimpa} ${TEXTO_DECLARACAO}`;
-      const linhas = doc.splitTextToSize(textoCompleto, contentWidth);
+      
+      // Nome do cliente em maiúsculo
+      const nomeCliente = client.nomeCompleto.toUpperCase();
+      
+      // Substituir o nome na qualificação pelo nome em maiúsculo (início da qualificação)
+      let qualificacaoComNomeMaiusculo = qualificacaoLimpa;
+      if (qualificacaoLimpa.toLowerCase().startsWith(client.nomeCompleto.toLowerCase())) {
+        qualificacaoComNomeMaiusculo = nomeCliente + qualificacaoLimpa.substring(client.nomeCompleto.length);
+      }
       
       // Verificar se precisa ajustar tamanho da fonte para caber na página
-      const lineHeight = 5;
       const availableHeight = 200; // Espaço disponível antes da assinatura
       let fontSize = 11;
       
-      while (linhas.length * lineHeight > availableHeight && fontSize > 8) {
-        fontSize -= 0.5;
-        doc.setFontSize(fontSize);
-        const novasLinhas = doc.splitTextToSize(textoCompleto, contentWidth);
-        if (novasLinhas.length * (fontSize * 0.4) <= availableHeight) break;
+      // Primeiro, renderizar o nome do cliente em negrito e maiúsculo
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(fontSize);
+      
+      // Separar o nome do resto da qualificação
+      const restoQualificacao = qualificacaoComNomeMaiusculo.substring(nomeCliente.length);
+      
+      // Calcular largura do nome
+      const larguraNome = doc.getTextWidth(nomeCliente);
+      
+      // Renderizar nome em negrito
+      doc.text(nomeCliente, marginLeft, yPosition);
+      
+      // Renderizar resto da qualificação + texto da declaração em fonte normal
+      doc.setFont('helvetica', 'normal');
+      const textoRestante = restoQualificacao + ' ' + TEXTO_DECLARACAO;
+      
+      // Usar splitTextToSize para quebrar o texto considerando que a primeira linha começa após o nome
+      const primeiraLinhaEspaco = contentWidth - larguraNome - 1;
+      
+      // Pegar as primeiras palavras que cabem na primeira linha
+      const palavras = textoRestante.split(' ');
+      let primeiraLinhaTxt = '';
+      let indiceInicio = 0;
+      
+      for (let i = 0; i < palavras.length; i++) {
+        const teste = primeiraLinhaTxt + (primeiraLinhaTxt ? ' ' : '') + palavras[i];
+        if (doc.getTextWidth(teste) <= primeiraLinhaEspaco) {
+          primeiraLinhaTxt = teste;
+          indiceInicio = i + 1;
+        } else {
+          break;
+        }
       }
       
-      const linhasFinais = doc.splitTextToSize(textoCompleto, contentWidth);
+      // Renderizar resto da primeira linha
+      doc.text(primeiraLinhaTxt, marginLeft + larguraNome + 1, yPosition);
+      yPosition += fontSize * 0.45;
+      
+      // Resto do texto
+      const textoRestanteDepois = palavras.slice(indiceInicio).join(' ');
+      const linhasRestantes = doc.splitTextToSize(textoRestanteDepois, contentWidth);
       const lineHeightFinal = fontSize * 0.45;
       
       // Renderizar texto justificado
-      for (let i = 0; i < linhasFinais.length; i++) {
-        const linha = linhasFinais[i];
+      for (let i = 0; i < linhasRestantes.length; i++) {
+        const linha = linhasRestantes[i];
         // Última linha não deve ser justificada para evitar espaçamento estranho
-        if (i === linhasFinais.length - 1) {
+        if (i === linhasRestantes.length - 1) {
           doc.text(linha, marginLeft, yPosition);
         } else {
           doc.text(linha, marginLeft, yPosition, { align: 'justify', maxWidth: contentWidth });
@@ -198,7 +243,7 @@ ${client.nomeCompleto.toUpperCase()}`;
       // Nome do cliente em MAIÚSCULO e NEGRITO
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
-      doc.text(client.nomeCompleto.toUpperCase(), pageWidth / 2, yPosition, { align: 'center' });
+      doc.text(nomeCliente, pageWidth / 2, yPosition, { align: 'center' });
 
       // Rodapé com informações do escritório
       const footerY = 285;

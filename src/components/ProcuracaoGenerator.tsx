@@ -576,30 +576,43 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
                 </CardHeader>
                 {temPoderesEspeciais && (
                   <CardContent className="space-y-4">
-                    {/* Indicador de contrato detectado */}
-                    {(objetoContrato || objetoContratoDetectado) && (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/10 text-primary text-sm">
-                          <FileText className="h-4 w-4" />
-                          <span>
-                            {gerandoPoderes 
-                              ? "Gerando poderes especiais com base no contrato..." 
-                              : "Contrato detectado - clique abaixo para gerar os poderes"}
-                          </span>
-                        </div>
-                        {!poderesEspeciais.trim() && !gerandoPoderes && (
+                    {/* Opção para gerar poderes pelo objeto do contrato */}
+                    <div className="space-y-2">
+                      {(objetoContrato || objetoContratoDetectado) ? (
+                        <>
+                          <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/10 text-primary text-sm">
+                            <FileText className="h-4 w-4" />
+                            <span>
+                              {gerandoPoderes 
+                                ? "Gerando poderes especiais com base no contrato..." 
+                                : "Objeto do contrato detectado"}
+                            </span>
+                          </div>
+                          <div className="p-2 bg-muted rounded-md text-xs max-h-24 overflow-y-auto">
+                            {objetoContrato || objetoContratoDetectado}
+                          </div>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => gerarPoderesAutomaticamente(objetoContrato || objetoContratoDetectado || '')}
                             className="w-full"
+                            disabled={gerandoPoderes}
                           >
-                            <Sparkles className="h-4 w-4 mr-2" />
+                            {gerandoPoderes ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Sparkles className="h-4 w-4 mr-2" />
+                            )}
                             Gerar poderes pelo objeto do contrato
                           </Button>
-                        )}
-                      </div>
-                    )}
+                        </>
+                      ) : (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-muted text-muted-foreground text-sm">
+                          <FileText className="h-4 w-4" />
+                          <span>Nenhum objeto de contrato detectado. Salve um rascunho de contrato primeiro para gerar automaticamente.</span>
+                        </div>
+                      )}
+                    </div>
                     
                     {/* Templates disponíveis */}
                     {templates.length > 0 && (

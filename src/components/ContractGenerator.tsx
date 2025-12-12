@@ -1344,8 +1344,8 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
       const marginTop = 15;
       const marginBottom = 25;
       const contentWidth = pageWidth - marginLeft - marginRight;
-      const lineHeight = 4.2;
-      const paragraphSpacing = 3;
+      const lineHeight = 3.8;
+      const paragraphSpacing = 1.5;
       
       let yPos = marginTop;
       let currentPage = 1;
@@ -1406,24 +1406,24 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
         
         // Cláusulas - negrito
         if (trimmedLine.match(/^Cláusula\s+(Primeira|Segunda|Terceira|Quarta|Quinta|Sexta|Sétima|Oitava|Nona|Décima)/i)) {
-          checkPageBreak(10);
+          checkPageBreak(8);
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(10);
           doc.text(trimmedLine, marginLeft, yPos);
-          yPos += lineHeight + paragraphSpacing;
+          yPos += lineHeight + 1;
           continue;
         }
         
         // Parágrafos - negrito no título
         if (trimmedLine.match(/^Parágrafo\s+(Primeiro|Segundo|Terceiro|Quarto|Quinto|Sexto|Sétimo|Oitavo|Único)/i)) {
-          checkPageBreak(10);
+          checkPageBreak(8);
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(9);
           const textLines = doc.splitTextToSize(trimmedLine, contentWidth);
           
           // Primeira linha em negrito, resto em normal para justificação
           doc.text(textLines, marginLeft, yPos, { align: 'justify', maxWidth: contentWidth });
-          yPos += textLines.length * lineHeight + paragraphSpacing;
+          yPos += textLines.length * lineHeight + 1;
           continue;
         }
         
