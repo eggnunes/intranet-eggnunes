@@ -65,3 +65,6 @@ verify_jwt = true
 
 [functions.crm-webhook]
 verify_jwt = false
+
+[functions.totp-generate]
+verify_jwt = true
