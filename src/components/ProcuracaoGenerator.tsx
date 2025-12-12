@@ -444,34 +444,93 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
       
       doc.setFont('helvetica', 'normal');
       
-      // Calcular quanto cabe na primeira linha após o nome
+      // Função auxiliar para justificar texto manualmente
+      const renderJustifiedText = (text: string, startX: number, startY: number, maxWidth: number, lineH: number) => {
+        const allWords = text.split(/\s+/).filter(w => w);
+        const lines: string[][] = [];
+        let currentLine: string[] = [];
+        let currentWidth = 0;
+        const spaceW = doc.getTextWidth(' ');
+        
+        for (const word of allWords) {
+          const wordW = doc.getTextWidth(word);
+          const neededWidth = currentWidth > 0 ? spaceW + wordW : wordW;
+          
+          if (currentWidth + neededWidth > maxWidth && currentLine.length > 0) {
+            lines.push(currentLine);
+            currentLine = [word];
+            currentWidth = wordW;
+          } else {
+            currentLine.push(word);
+            currentWidth += neededWidth;
+          }
+        }
+        if (currentLine.length > 0) lines.push(currentLine);
+        
+        let y = startY;
+        for (let i = 0; i < lines.length; i++) {
+          const lineWords = lines[i];
+          const isLast = i === lines.length - 1;
+          
+          let totalWordsW = 0;
+          for (const w of lineWords) totalWordsW += doc.getTextWidth(w);
+          
+          const gaps = lineWords.length - 1;
+          const justSpaceW = (!isLast && gaps > 0) ? (maxWidth - totalWordsW) / gaps : spaceW;
+          
+          let x = startX;
+          for (let j = 0; j < lineWords.length; j++) {
+            doc.text(lineWords[j], x, y);
+            x += doc.getTextWidth(lineWords[j]);
+            if (j < lineWords.length - 1) x += justSpaceW;
+          }
+          y += lineH;
+        }
+        return y;
+      };
+      
+      // Calcular quanto cabe na primeira linha após o nome (justificado manualmente)
       const espacoPrimeiraLinha = contentWidth - larguraNome - 2;
-      const palavras = textoAposNome.split(' ');
-      let primeiraLinhaTxt = '';
+      const palavras = textoAposNome.split(/\s+/).filter(w => w);
+      let primeiraLinhaPalavras: string[] = [];
+      let primeiraLinhaWidth = 0;
       let indiceInicio = 0;
+      const spaceWidth = doc.getTextWidth(' ');
       
       for (let i = 0; i < palavras.length; i++) {
-        const teste = primeiraLinhaTxt + (primeiraLinhaTxt ? ' ' : '') + palavras[i];
-        if (doc.getTextWidth(teste) <= espacoPrimeiraLinha) {
-          primeiraLinhaTxt = teste;
+        const wordW = doc.getTextWidth(palavras[i]);
+        const neededW = primeiraLinhaWidth > 0 ? spaceWidth + wordW : wordW;
+        if (primeiraLinhaWidth + neededW <= espacoPrimeiraLinha) {
+          primeiraLinhaPalavras.push(palavras[i]);
+          primeiraLinhaWidth += neededW;
           indiceInicio = i + 1;
         } else {
           break;
         }
       }
       
-      // Renderizar resto da primeira linha
-      doc.text(primeiraLinhaTxt, marginLeft + larguraNome + 1, yPosition);
+      // Justificar primeira linha após o nome
+      if (primeiraLinhaPalavras.length > 1) {
+        let totalW = 0;
+        for (const w of primeiraLinhaPalavras) totalW += doc.getTextWidth(w);
+        const gaps = primeiraLinhaPalavras.length - 1;
+        const justSpace = (espacoPrimeiraLinha - totalW) / gaps;
+        
+        let xPos = marginLeft + larguraNome + 1;
+        for (let i = 0; i < primeiraLinhaPalavras.length; i++) {
+          doc.text(primeiraLinhaPalavras[i], xPos, yPosition);
+          xPos += doc.getTextWidth(primeiraLinhaPalavras[i]);
+          if (i < primeiraLinhaPalavras.length - 1) xPos += justSpace;
+        }
+      } else if (primeiraLinhaPalavras.length === 1) {
+        doc.text(primeiraLinhaPalavras[0], marginLeft + larguraNome + 1, yPosition);
+      }
       yPosition += 4;
       
-      // Resto do texto em linhas completas
+      // Resto do texto justificado
       const textoRestante = palavras.slice(indiceInicio).join(' ');
       if (textoRestante.trim()) {
-        const linhasRestantes = doc.splitTextToSize(textoRestante, contentWidth);
-        for (const linha of linhasRestantes) {
-          doc.text(linha, marginLeft, yPosition);
-          yPosition += 3.8;
-        }
+        yPosition = renderJustifiedText(textoRestante, marginLeft, yPosition, contentWidth, 3.8);
       }
       yPosition += 3;
 
@@ -497,34 +556,64 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
 
       yPosition += 2;
 
-      // Texto do escritório + poderes (sem poderes especiais aqui)
+      // Texto do escritório + poderes (sem poderes especiais aqui) - JUSTIFICADO
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       
       const textoPoderesCompleto = `todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
       
-      const poderesLines = doc.splitTextToSize(textoPoderesCompleto, contentWidth);
-      
-      // Renderizar texto justificado
-      for (let i = 0; i < poderesLines.length; i++) {
-        const linha = poderesLines[i];
-        if (i === poderesLines.length - 1) {
-          doc.text(linha, marginLeft, yPosition);
-        } else {
-          doc.text(linha, marginLeft, yPosition, { align: 'justify', maxWidth: contentWidth });
+      // Usar justificação manual para o texto dos poderes
+      const renderJustifiedPoderes = (text: string, startY: number) => {
+        const allWords = text.split(/\s+/).filter(w => w);
+        const lines: string[][] = [];
+        let currentLine: string[] = [];
+        let currentWidth = 0;
+        const spaceW = doc.getTextWidth(' ');
+        
+        for (const word of allWords) {
+          const wordW = doc.getTextWidth(word);
+          const neededWidth = currentWidth > 0 ? spaceW + wordW : wordW;
+          
+          if (currentWidth + neededWidth > contentWidth && currentLine.length > 0) {
+            lines.push(currentLine);
+            currentLine = [word];
+            currentWidth = wordW;
+          } else {
+            currentLine.push(word);
+            currentWidth += neededWidth;
+          }
         }
-        yPosition += 3.8;
-      }
+        if (currentLine.length > 0) lines.push(currentLine);
+        
+        let y = startY;
+        for (let i = 0; i < lines.length; i++) {
+          const lineWords = lines[i];
+          const isLast = i === lines.length - 1;
+          
+          let totalWordsW = 0;
+          for (const w of lineWords) totalWordsW += doc.getTextWidth(w);
+          
+          const gaps = lineWords.length - 1;
+          const justSpaceW = (!isLast && gaps > 0) ? (contentWidth - totalWordsW) / gaps : spaceW;
+          
+          let x = marginLeft;
+          for (let j = 0; j < lineWords.length; j++) {
+            doc.text(lineWords[j], x, y);
+            x += doc.getTextWidth(lineWords[j]);
+            if (j < lineWords.length - 1) x += justSpaceW;
+          }
+          y += 3.8;
+        }
+        return y;
+      };
       
-      // Poderes especiais ao FINAL, em NEGRITO, separado
+      yPosition = renderJustifiedPoderes(textoPoderesCompleto, yPosition);
+      
+      // Poderes especiais ao FINAL, em NEGRITO, separado - também justificado
       if (temPoderesEspeciais && poderesEspeciais.trim()) {
         yPosition += 4;
         doc.setFont('helvetica', 'bold');
-        const poderesEspeciaisLines = doc.splitTextToSize(poderesEspeciais.trim(), contentWidth);
-        for (const linha of poderesEspeciaisLines) {
-          doc.text(linha, marginLeft, yPosition);
-          yPosition += 3.8;
-        }
+        yPosition = renderJustifiedPoderes(poderesEspeciais.trim(), yPosition);
         doc.setFont('helvetica', 'normal');
       }
       yPosition += 6;
