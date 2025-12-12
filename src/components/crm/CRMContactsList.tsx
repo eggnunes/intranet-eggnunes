@@ -54,6 +54,8 @@ interface Activity {
   completed_at: string | null;
   created_at: string;
   owner_id: string | null;
+  owner_name?: string | null;
+  deal_name?: string | null;
 }
 
 interface Deal {
@@ -216,42 +218,84 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
       
       setContactDeals(allDeals);
 
-      // Fetch activities using multiple strategies
+      // Fetch activities from RD Station in real-time for complete history
       let allActivities: Activity[] = [];
-      const existingActivityIds = new Set<string>();
       
-      const addActivities = (activities: Activity[] | null) => {
-        if (activities) {
-          activities.forEach(a => {
-            if (!existingActivityIds.has(a.id)) {
-              existingActivityIds.add(a.id);
-              allActivities.push(a);
+      // Get RD Station IDs from deals for fetching activities
+      const dealRdStationIds = allDeals
+        .map(d => (d as any).rd_station_id)
+        .filter(Boolean);
+      
+      // Call edge function to fetch activities directly from RD Station
+      try {
+        const { data: rdActivities, error } = await supabase.functions.invoke('crm-sync', {
+          body: {
+            action: 'fetch_contact_activities',
+            data: {
+              contact_id: contactId,
+              rd_station_id: contactRdStationId,
+              deal_rd_station_ids: dealRdStationIds
             }
-          });
+          }
+        });
+        
+        if (!error && rdActivities?.activities) {
+          allActivities = rdActivities.activities.map((a: any) => ({
+            id: a.id || a.rd_station_id,
+            type: a.type,
+            title: a.title,
+            description: a.description,
+            due_date: a.due_date,
+            completed: a.completed,
+            completed_at: a.completed_at,
+            created_at: a.created_at,
+            owner_id: null,
+            owner_name: a.owner_name,
+            deal_name: a.deal_name
+          }));
+          console.log(`Fetched ${allActivities.length} activities from RD Station`);
         }
-      };
-      
-      // 1. By contact_id
-      const { data: activitiesByContact } = await supabase
-        .from('crm_activities')
-        .select('*')
-        .eq('contact_id', contactId)
-        .order('created_at', { ascending: false });
-      addActivities(activitiesByContact as Activity[]);
-      
-      // 2. By deal_ids from all deals associated with this contact
-      if (allDeals.length > 0) {
-        const dealIds = allDeals.map(d => d.id);
-        const { data: activitiesByDeal } = await supabase
-          .from('crm_activities')
-          .select('*')
-          .in('deal_id', dealIds)
-          .order('created_at', { ascending: false });
-        addActivities(activitiesByDeal as Activity[]);
+      } catch (fetchError) {
+        console.error('Error fetching activities from RD Station:', fetchError);
       }
       
-      // Sort by created_at descending
-      allActivities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      // If no activities from RD Station, fall back to local database
+      if (allActivities.length === 0) {
+        const existingActivityIds = new Set<string>();
+        
+        const addActivities = (activities: Activity[] | null) => {
+          if (activities) {
+            activities.forEach(a => {
+              if (!existingActivityIds.has(a.id)) {
+                existingActivityIds.add(a.id);
+                allActivities.push(a);
+              }
+            });
+          }
+        };
+        
+        // 1. By contact_id
+        const { data: activitiesByContact } = await supabase
+          .from('crm_activities')
+          .select('*')
+          .eq('contact_id', contactId)
+          .order('created_at', { ascending: false });
+        addActivities(activitiesByContact as Activity[]);
+        
+        // 2. By deal_ids from all deals associated with this contact
+        if (allDeals.length > 0) {
+          const dealIds = allDeals.map(d => d.id);
+          const { data: activitiesByDeal } = await supabase
+            .from('crm_activities')
+            .select('*')
+            .in('deal_id', dealIds)
+            .order('created_at', { ascending: false });
+          addActivities(activitiesByDeal as Activity[]);
+        }
+        
+        // Sort by created_at descending
+        allActivities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      }
       
       setContactActivities(allActivities);
     } catch (error) {
@@ -866,10 +910,17 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
                                 </div>
                                 
                                 <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-muted-foreground">
-                                  {activity.owner_id && profiles[activity.owner_id] && (
+                                  {/* Show owner from owner_name (RD Station) or owner_id (local) */}
+                                  {(activity.owner_name || (activity.owner_id && profiles[activity.owner_id])) && (
                                     <span className="flex items-center gap-1">
                                       <UserCircle className="h-3 w-3" />
-                                      {profiles[activity.owner_id].full_name}
+                                      {activity.owner_name || profiles[activity.owner_id]?.full_name}
+                                    </span>
+                                  )}
+                                  {activity.deal_name && (
+                                    <span className="flex items-center gap-1">
+                                      <Target className="h-3 w-3" />
+                                      {activity.deal_name}
                                     </span>
                                   )}
                                   {activity.due_date && (

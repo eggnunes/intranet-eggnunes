@@ -76,6 +76,9 @@ serve(async (req) => {
       case 'create_activity':
         result = await createActivityInRdStation(rdToken, supabase, data);
         break;
+      case 'fetch_contact_activities':
+        result = await fetchContactActivitiesFromRdStation(rdToken, supabase, data);
+        break;
         
       default:
         return new Response(
@@ -1039,4 +1042,151 @@ async function syncActivities(rdToken: string, supabase: any) {
   });
 
   return { activities: activitiesCreated, with_deal: withDeal, with_contact: withContact };
+}
+
+// Fetch activities from RD Station for a specific contact/deal in real-time
+async function fetchContactActivitiesFromRdStation(rdToken: string, supabase: any, data: any) {
+  console.log('Fetching activities for contact from RD Station...', data);
+  
+  const { contact_id, rd_station_id, deal_rd_station_ids } = data;
+  
+  if (!contact_id && !rd_station_id && (!deal_rd_station_ids || deal_rd_station_ids.length === 0)) {
+    return { activities: [] };
+  }
+  
+  // Get profiles for owner mapping
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, email, full_name');
+  const emailToProfileMap = new Map<string, { id: string; full_name: string }>(
+    profiles?.map((p: any) => [p.email?.toLowerCase(), { id: p.id, full_name: p.full_name }]) || []
+  );
+  const profileIdToName = new Map<string, string>(
+    profiles?.map((p: any) => [p.id, p.full_name]) || []
+  );
+  
+  let allActivities: any[] = [];
+  
+  // Fetch activities for each deal's RD Station ID
+  if (deal_rd_station_ids && deal_rd_station_ids.length > 0) {
+    for (const dealRdId of deal_rd_station_ids) {
+      if (!dealRdId) continue;
+      
+      try {
+        const response = await fetch(
+          `${RD_STATION_API_URL}/deals/${dealRdId}/activities?token=${rdToken}&limit=100`
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          const dealActivities = data.activities || [];
+          console.log(`Fetched ${dealActivities.length} activities from deal ${dealRdId}`);
+          allActivities = [...allActivities, ...dealActivities];
+        }
+      } catch (error) {
+        console.error(`Error fetching activities from deal ${dealRdId}:`, error);
+      }
+    }
+  }
+  
+  // Also try fetching from contact's RD Station ID if provided
+  if (rd_station_id) {
+    try {
+      const response = await fetch(
+        `${RD_STATION_API_URL}/contacts/${rd_station_id}/activities?token=${rdToken}&limit=100`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        const contactActivities = data.activities || [];
+        console.log(`Fetched ${contactActivities.length} activities from contact ${rd_station_id}`);
+        allActivities = [...allActivities, ...contactActivities];
+      }
+    } catch (error) {
+      console.error(`Error fetching activities from contact ${rd_station_id}:`, error);
+    }
+  }
+  
+  // Deduplicate by _id
+  const seenIds = new Set<string>();
+  const uniqueActivities = allActivities.filter(a => {
+    if (!a._id || seenIds.has(a._id)) return false;
+    seenIds.add(a._id);
+    return true;
+  });
+  
+  console.log(`Total unique activities found: ${uniqueActivities.length}`);
+  
+  // Transform activities for frontend consumption
+  const transformedActivities = uniqueActivities.map(activity => {
+    // Map activity type
+    let type = 'task';
+    const activityType = activity.type?.toString() || '';
+    const subject = (activity.subject || activity.name || activity.title || '').toLowerCase();
+    
+    if (activityType === '0' || activityType === 'note') type = 'note';
+    else if (activityType === '1' || activityType === 'call' || subject.includes('ligação') || subject.includes('call')) type = 'call';
+    else if (activityType === '2' || activityType === 'email' || subject.includes('email') || subject.includes('e-mail')) type = 'email';
+    else if (activityType === '3' || activityType === 'meeting' || subject.includes('reunião') || subject.includes('meeting')) type = 'meeting';
+    else if (subject.includes('whatsapp')) type = 'whatsapp';
+    
+    // Get owner name
+    let ownerName = null;
+    if (activity.user?.email) {
+      const profile = emailToProfileMap.get(activity.user.email.toLowerCase());
+      ownerName = profile?.full_name || activity.user.name || activity.user.email;
+    } else if (activity.user?.name) {
+      ownerName = activity.user.name;
+    }
+    
+    return {
+      id: activity._id,
+      rd_station_id: activity._id,
+      type: type,
+      title: activity.subject || activity.name || activity.title || 'Atividade',
+      description: activity.text || activity.notes || activity.description || null,
+      due_date: activity.date || activity.due_date || null,
+      completed: activity.done || activity.completed || false,
+      completed_at: activity.done_at || activity.completed_at || null,
+      created_at: activity.created_at || new Date().toISOString(),
+      owner_name: ownerName,
+      deal_name: activity.deal?.name || null
+    };
+  });
+  
+  // Sort by created_at descending
+  transformedActivities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  
+  // Also save/update these activities in the database for future use
+  if (transformedActivities.length > 0 && contact_id) {
+    for (const activity of transformedActivities) {
+      let ownerId = null;
+      if (activity.owner_name) {
+        for (const [email, profile] of emailToProfileMap.entries()) {
+          if (profile.full_name === activity.owner_name) {
+            ownerId = profile.id;
+            break;
+          }
+        }
+      }
+      
+      await supabase
+        .from('crm_activities')
+        .upsert({
+          rd_station_id: activity.rd_station_id,
+          contact_id: contact_id,
+          type: activity.type,
+          title: activity.title,
+          description: activity.description,
+          due_date: activity.due_date,
+          completed: activity.completed,
+          completed_at: activity.completed_at,
+          created_at: activity.created_at,
+          owner_id: ownerId
+        }, { onConflict: 'rd_station_id' });
+    }
+    console.log(`Saved ${transformedActivities.length} activities to database for contact ${contact_id}`);
+  }
+  
+  return { activities: transformedActivities };
 }
