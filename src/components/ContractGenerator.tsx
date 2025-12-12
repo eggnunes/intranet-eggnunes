@@ -1527,63 +1527,92 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
         
         // Texto normal - verificar se contém partes em negrito **texto**
         if (trimmedLine.includes('**')) {
-          // Processar linha com partes em negrito - renderizar palavra por palavra
+          // Processar linha com partes em negrito - renderizar com justificação manual
           doc.setFontSize(9);
           
-          // Criar lista de palavras com informação de negrito
+          // Criar lista de palavras com informação de negrito (sem espaços separados)
           const words: { text: string; bold: boolean }[] = [];
           const partes = trimmedLine.split(/(\*\*[^*]+\*\*)/g).filter(p => p);
           
           for (const parte of partes) {
             if (parte.startsWith('**') && parte.endsWith('**')) {
               const textoNegrito = parte.replace(/\*\*/g, '');
-              // Dividir em palavras individuais
-              const palavras = textoNegrito.split(/(\s+)/g).filter(p => p);
+              const palavras = textoNegrito.split(/\s+/).filter(p => p);
               for (const palavra of palavras) {
                 words.push({ text: palavra, bold: true });
               }
             } else {
-              // Dividir em palavras individuais
-              const palavras = parte.split(/(\s+)/g).filter(p => p);
+              const palavras = parte.split(/\s+/).filter(p => p);
               for (const palavra of palavras) {
                 words.push({ text: palavra, bold: false });
               }
             }
           }
           
-          // Renderizar palavras com quebra de linha automática
-          let xPos = marginLeft;
+          // Agrupar palavras em linhas
+          const lines: { text: string; bold: boolean }[][] = [];
+          let currentLine: { text: string; bold: boolean }[] = [];
+          let currentLineWidth = 0;
           const spaceWidth = doc.getTextWidth(' ');
           
-          for (let i = 0; i < words.length; i++) {
-            const word = words[i];
-            
-            // Pular espaços no início da linha
-            if (word.text.trim() === '' && xPos === marginLeft) {
-              continue;
-            }
-            
+          for (const word of words) {
             doc.setFont('helvetica', word.bold ? 'bold' : 'normal');
             const wordWidth = doc.getTextWidth(word.text);
+            const widthWithSpace = currentLineWidth > 0 ? spaceWidth + wordWidth : wordWidth;
             
-            // Verificar se cabe na linha atual
-            if (xPos + wordWidth > pageWidth - marginRight && xPos > marginLeft) {
-              // Quebrar linha
-              yPos += lineHeight;
-              xPos = marginLeft;
-              checkPageBreak(lineHeight);
+            if (currentLineWidth + widthWithSpace > contentWidth && currentLine.length > 0) {
+              lines.push(currentLine);
+              currentLine = [word];
+              doc.setFont('helvetica', word.bold ? 'bold' : 'normal');
+              currentLineWidth = doc.getTextWidth(word.text);
+            } else {
+              currentLine.push(word);
+              currentLineWidth += widthWithSpace;
+            }
+          }
+          if (currentLine.length > 0) {
+            lines.push(currentLine);
+          }
+          
+          // Renderizar cada linha justificada
+          for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+            const lineWords = lines[lineIdx];
+            const isLastLine = lineIdx === lines.length - 1;
+            
+            // Calcular largura total das palavras
+            let totalWordsWidth = 0;
+            for (const word of lineWords) {
+              doc.setFont('helvetica', word.bold ? 'bold' : 'normal');
+              totalWordsWidth += doc.getTextWidth(word.text);
+            }
+            
+            // Calcular espaço entre palavras para justificar
+            const totalSpaces = lineWords.length - 1;
+            let justifiedSpaceWidth = spaceWidth;
+            
+            if (!isLastLine && totalSpaces > 0) {
+              const remainingSpace = contentWidth - totalWordsWidth;
+              justifiedSpaceWidth = remainingSpace / totalSpaces;
+            }
+            
+            // Renderizar palavras
+            let xPos = marginLeft;
+            for (let i = 0; i < lineWords.length; i++) {
+              const word = lineWords[i];
+              doc.setFont('helvetica', word.bold ? 'bold' : 'normal');
+              doc.text(word.text, xPos, yPos);
+              xPos += doc.getTextWidth(word.text);
               
-              // Pular espaço no início da nova linha
-              if (word.text.trim() === '') {
-                continue;
+              if (i < lineWords.length - 1) {
+                xPos += justifiedSpaceWidth;
               }
             }
             
-            doc.text(word.text, xPos, yPos);
-            xPos += wordWidth;
+            yPos += lineHeight;
+            checkPageBreak(lineHeight);
           }
           
-          yPos += lineHeight + paragraphSpacing;
+          yPos += paragraphSpacing;
           continue;
         }
         
