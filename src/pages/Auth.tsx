@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Camera } from 'lucide-react';
+import { Camera, Check, X } from 'lucide-react';
 import logoEggNunes from '@/assets/logo-eggnunes.png';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -15,6 +15,14 @@ import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+
+// Password validation requirements
+const validatePassword = (password: string) => ({
+  minLength: password.length >= 8,
+  hasUppercase: /[A-Z]/.test(password),
+  hasLowercase: /[a-z]/.test(password),
+  hasNumber: /[0-9]/.test(password),
+});
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -30,6 +38,12 @@ export default function Auth() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  const passwordValidation = useMemo(() => validatePassword(password), [password]);
+  const isPasswordValid = useMemo(() => 
+    Object.values(passwordValidation).every(Boolean), 
+    [passwordValidation]
+  );
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -91,6 +105,17 @@ export default function Auth() {
         });
         navigate('/dashboard');
       } else {
+        // Validate password before signup
+        if (!isPasswordValid) {
+          toast({
+            title: 'Senha inválida',
+            description: 'A senha deve ter no mínimo 8 caracteres, incluindo maiúscula, minúscula e número.',
+            variant: 'destructive',
+          });
+          setLoading(false);
+          return;
+        }
+        
         let avatarUrl = '';
 
         const { error, data } = await supabase.auth.signUp({
@@ -314,8 +339,53 @@ export default function Auth() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={loading}
-                minLength={6}
+                minLength={8}
               />
+              {!isLogin && password.length > 0 && (
+                <div className="text-xs space-y-1 mt-2 p-2 rounded-md bg-muted/50">
+                  <p className="font-medium text-muted-foreground mb-1">Requisitos da senha:</p>
+                  <div className="flex items-center gap-1.5">
+                    {passwordValidation.minLength ? (
+                      <Check className="h-3 w-3 text-green-500" />
+                    ) : (
+                      <X className="h-3 w-3 text-destructive" />
+                    )}
+                    <span className={passwordValidation.minLength ? 'text-green-600' : 'text-muted-foreground'}>
+                      Mínimo 8 caracteres
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {passwordValidation.hasUppercase ? (
+                      <Check className="h-3 w-3 text-green-500" />
+                    ) : (
+                      <X className="h-3 w-3 text-destructive" />
+                    )}
+                    <span className={passwordValidation.hasUppercase ? 'text-green-600' : 'text-muted-foreground'}>
+                      Uma letra maiúscula
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {passwordValidation.hasLowercase ? (
+                      <Check className="h-3 w-3 text-green-500" />
+                    ) : (
+                      <X className="h-3 w-3 text-destructive" />
+                    )}
+                    <span className={passwordValidation.hasLowercase ? 'text-green-600' : 'text-muted-foreground'}>
+                      Uma letra minúscula
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {passwordValidation.hasNumber ? (
+                      <Check className="h-3 w-3 text-green-500" />
+                    ) : (
+                      <X className="h-3 w-3 text-destructive" />
+                    )}
+                    <span className={passwordValidation.hasNumber ? 'text-green-600' : 'text-muted-foreground'}>
+                      Um número
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Processando...' : isLogin ? 'Entrar' : 'Cadastrar'}
