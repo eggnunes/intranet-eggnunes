@@ -512,37 +512,121 @@ async function syncContacts(rdToken: string, supabase: any) {
   console.log(`Total contacts to sync: ${allContacts.length}`);
 
   // Transform contacts data - including ALL UTM and tracking fields + original created_at
-  const contactsData = allContacts.map(contact => ({
-    rd_station_id: contact._id,
-    name: contact.name || contact.emails?.[0]?.email || 'Sem nome',
-    email: contact.emails?.[0]?.email || null,
-    phone: contact.phones?.[0]?.phone || null,
-    company: contact.organization?.name || null,
-    job_title: contact.title || null,
-    address: contact.address?.street || null,
-    city: contact.address?.city || null,
-    state: contact.address?.state || null,
-    country: contact.address?.country || null,
-    website: contact.website || null,
-    linkedin: contact.linkedin || null,
-    facebook: contact.facebook || null,
-    twitter: contact.twitter || null,
-    birthday: contact.birthday || null,
-    notes: contact.notes || null,
-    custom_fields: contact.custom_fields || {},
-    lead_score: contact.score || 0,
-    // UTM tracking fields - try multiple possible field names
-    utm_source: contact.traffic_source || contact.lead_source || contact.utm_source || contact.custom_fields?.utm_source || contact.custom_fields?.cf_utm_source || null,
-    utm_medium: contact.traffic_medium || contact.utm_medium || contact.custom_fields?.utm_medium || contact.custom_fields?.cf_utm_medium || null,
-    utm_campaign: contact.traffic_campaign || contact.utm_campaign || contact.custom_fields?.utm_campaign || contact.custom_fields?.cf_utm_campaign || null,
-    utm_content: contact.utm_content || contact.custom_fields?.utm_content || contact.custom_fields?.cf_utm_content || null,
-    utm_term: contact.utm_term || contact.custom_fields?.utm_term || contact.custom_fields?.cf_utm_term || null,
-    // Conversion tracking
-    first_conversion: contact.first_conversion?.content || contact.first_conversion?.identifier || contact.first_conversion_date || null,
-    last_conversion: contact.last_conversion?.content || contact.last_conversion?.identifier || contact.last_conversion_date || null,
-    // Use original created_at from RD Station if available
-    created_at: contact.created_at || new Date().toISOString()
-  }));
+  const contactsData = allContacts.map(contact => {
+    // Log contact data for debugging (first 3 contacts)
+    if (allContacts.indexOf(contact) < 3) {
+      console.log('Sample contact data:', JSON.stringify({
+        _id: contact._id,
+        name: contact.name,
+        traffic_source: contact.traffic_source,
+        traffic_medium: contact.traffic_medium,
+        traffic_campaign: contact.traffic_campaign,
+        lead_source: contact.lead_source,
+        source: contact.source,
+        custom_fields: contact.custom_fields
+      }, null, 2));
+    }
+
+    // Extract UTM and tracking data from multiple possible locations
+    // RD Station can store this data in different places depending on how the lead was created
+    const customFields = contact.custom_fields || {};
+    
+    // Traffic source (Fonte) - e.g., "Busca Paga | Facebook"
+    const trafficSource = contact.traffic_source || 
+                         contact.lead_source || 
+                         contact.source ||
+                         customFields.traffic_source ||
+                         customFields.fonte ||
+                         null;
+    
+    // Traffic medium
+    const trafficMedium = contact.traffic_medium ||
+                         customFields.traffic_medium ||
+                         null;
+    
+    // Campaign name (Campanha) - e.g., "Leads Férias Prêmio"
+    const trafficCampaign = contact.traffic_campaign ||
+                           contact.campaign?.name ||
+                           customFields.traffic_campaign ||
+                           customFields.campanha ||
+                           null;
+
+    // UTM parameters - check multiple locations
+    const utmSource = contact.utm_source || 
+                     customFields.utm_source || 
+                     customFields.cf_utm_source ||
+                     customFields['UTM Source'] ||
+                     customFields['utm source'] ||
+                     (trafficSource?.toLowerCase()?.includes('facebook') ? 'facebook' : null) ||
+                     null;
+    
+    const utmMedium = contact.utm_medium || 
+                     customFields.utm_medium || 
+                     customFields.cf_utm_medium ||
+                     customFields['UTM Medium'] ||
+                     customFields['utm medium'] ||
+                     trafficMedium ||
+                     null;
+    
+    const utmCampaign = contact.utm_campaign || 
+                       customFields.utm_campaign || 
+                       customFields.cf_utm_campaign ||
+                       customFields['UTM Campaign'] ||
+                       customFields['utm campaign'] ||
+                       null;
+    
+    const utmContent = contact.utm_content || 
+                      customFields.utm_content || 
+                      customFields.cf_utm_content ||
+                      customFields['UTM Content'] ||
+                      customFields['utm content'] ||
+                      null;
+    
+    const utmTerm = contact.utm_term || 
+                   customFields.utm_term || 
+                   customFields.cf_utm_term ||
+                   customFields['UTM Term'] ||
+                   customFields['utm term'] ||
+                   null;
+
+    return {
+      rd_station_id: contact._id,
+      name: contact.name || contact.emails?.[0]?.email || 'Sem nome',
+      email: contact.emails?.[0]?.email || null,
+      phone: contact.phones?.[0]?.phone || null,
+      company: contact.organization?.name || null,
+      job_title: contact.title || null,
+      address: contact.address?.street || null,
+      city: contact.address?.city || null,
+      state: contact.address?.state || null,
+      country: contact.address?.country || null,
+      website: contact.website || null,
+      linkedin: contact.linkedin || null,
+      facebook: contact.facebook || null,
+      twitter: contact.twitter || null,
+      birthday: contact.birthday || null,
+      notes: contact.notes || null,
+      custom_fields: {
+        ...customFields,
+        // Also store the raw traffic fields for reference
+        _traffic_source: trafficSource,
+        _traffic_medium: trafficMedium,
+        _traffic_campaign: trafficCampaign
+      },
+      lead_score: contact.score || 0,
+      // UTM tracking fields
+      utm_source: utmSource,
+      utm_medium: utmMedium,
+      utm_campaign: utmCampaign,
+      utm_content: utmContent,
+      utm_term: utmTerm,
+      // Conversion tracking
+      first_conversion: contact.first_conversion?.content || contact.first_conversion?.identifier || contact.first_conversion_date || null,
+      last_conversion: contact.last_conversion?.content || contact.last_conversion?.identifier || contact.last_conversion_date || null,
+      // Use original created_at from RD Station if available
+      created_at: contact.created_at || new Date().toISOString()
+    };
+  });
 
   // Batch upsert in chunks of 500 for faster processing
   const BATCH_SIZE = 500;
