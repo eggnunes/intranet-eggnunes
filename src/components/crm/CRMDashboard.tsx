@@ -20,6 +20,8 @@ interface CRMStats {
   openDeals: number;
   wonDeals: number;
   lostDeals: number;
+  monthlyWonDeals: number;
+  dealsByOwner: { name: string; count: number }[];
 }
 
 type PeriodFilter = 'all' | '7d' | '30d' | '90d' | '365d';
@@ -32,7 +34,9 @@ export const CRMDashboard = () => {
     totalValue: 0,
     openDeals: 0,
     wonDeals: 0,
-    lostDeals: 0
+    lostDeals: 0,
+    monthlyWonDeals: 0,
+    dealsByOwner: []
   });
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -85,7 +89,7 @@ export const CRMDashboard = () => {
         totalContacts = count || 0;
       }
 
-      // Fetch ALL deals with pagination to avoid 1000 limit
+      // Fetch ALL deals with pagination to avoid 1000 limit (incluindo owner_id)
       let allDeals: any[] = [];
       let page = 0;
       const pageSize = 1000;
@@ -93,7 +97,7 @@ export const CRMDashboard = () => {
       while (true) {
         let query = supabase
           .from('crm_deals')
-          .select('value, won, closed_at, created_at')
+          .select('value, won, closed_at, created_at, owner_id')
           .range(page * pageSize, (page + 1) * pageSize - 1);
         
         if (dateFilter) {
@@ -118,11 +122,44 @@ export const CRMDashboard = () => {
         if (page > 50) break;
       }
 
+      // Buscar profiles para mapear owner_id -> nome
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name');
+      
+      const profileMap = new Map<string, string>();
+      profiles?.forEach(p => profileMap.set(p.id, p.full_name));
+
       const totalDeals = allDeals.length;
       const totalValue = allDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
       const openDeals = allDeals.filter(d => d.closed_at === null).length;
       const wonDeals = allDeals.filter(d => d.won === true).length;
       const lostDeals = allDeals.filter(d => d.won === false && d.closed_at !== null).length;
+
+      // Calcular contratos fechados no mês atual
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const monthlyWonDeals = allDeals.filter(d => {
+        if (d.won !== true || !d.closed_at) return false;
+        const closedDate = new Date(d.closed_at);
+        return closedDate >= startOfMonth;
+      }).length;
+
+      // Calcular contratos fechados por responsável no mês
+      const responsaveis = ['Daniel', 'Lucas', 'Johnny'];
+      const monthlyWonByOwner = allDeals.filter(d => {
+        if (d.won !== true || !d.closed_at) return false;
+        const closedDate = new Date(d.closed_at);
+        return closedDate >= startOfMonth;
+      });
+
+      const dealsByOwner = responsaveis.map(name => {
+        const count = monthlyWonByOwner.filter(d => {
+          const ownerName = d.owner_id ? profileMap.get(d.owner_id) : '';
+          return ownerName?.toLowerCase().includes(name.toLowerCase());
+        }).length;
+        return { name, count };
+      });
 
       setStats({
         totalContacts,
@@ -130,7 +167,9 @@ export const CRMDashboard = () => {
         totalValue,
         openDeals,
         wonDeals,
-        lostDeals
+        lostDeals,
+        monthlyWonDeals,
+        dealsByOwner
       });
     } catch (error) {
       console.error('Error fetching CRM stats:', error);
@@ -315,6 +354,35 @@ export const CRMDashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Contratos Fechados no Mês */}
+      <Card className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/20">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-green-600" />
+            Contratos Fechados no Mês
+          </CardTitle>
+          <CardDescription>
+            {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-8">
+            <div>
+              <p className="text-4xl font-bold text-green-600">{stats.monthlyWonDeals}</p>
+              <p className="text-sm text-muted-foreground">Total no mês</p>
+            </div>
+            <div className="flex-1 grid grid-cols-3 gap-4">
+              {stats.dealsByOwner.map((owner) => (
+                <div key={owner.name} className="text-center p-3 rounded-lg bg-background/50">
+                  <p className="text-2xl font-bold">{owner.count}</p>
+                  <p className="text-sm text-muted-foreground">{owner.name}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Tabs */}
       <Tabs defaultValue="kanban" className="w-full">
