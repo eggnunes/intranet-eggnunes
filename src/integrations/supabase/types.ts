@@ -776,6 +776,39 @@ export type Database = {
           },
         ]
       }
+      crm_alert_settings: {
+        Row: {
+          close_date_warning_days: number | null
+          enable_close_date_alerts: boolean | null
+          enable_follow_up_alerts: boolean | null
+          enable_stale_alerts: boolean | null
+          id: string
+          stale_deal_days: number | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          close_date_warning_days?: number | null
+          enable_close_date_alerts?: boolean | null
+          enable_follow_up_alerts?: boolean | null
+          enable_stale_alerts?: boolean | null
+          id?: string
+          stale_deal_days?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          close_date_warning_days?: number | null
+          enable_close_date_alerts?: boolean | null
+          enable_follow_up_alerts?: boolean | null
+          enable_stale_alerts?: boolean | null
+          id?: string
+          stale_deal_days?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       crm_contact_tags: {
         Row: {
           contact_id: string | null
@@ -1095,6 +1128,156 @@ export type Database = {
           },
         ]
       }
+      crm_follow_up_reminders: {
+        Row: {
+          completed: boolean | null
+          completed_at: string | null
+          contact_id: string | null
+          created_at: string
+          deal_id: string | null
+          id: string
+          notes: string | null
+          reminder_date: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          id?: string
+          notes?: string | null
+          reminder_date: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed?: boolean | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          id?: string
+          notes?: string | null
+          reminder_date?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_follow_up_reminders_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "crm_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_follow_up_reminders_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "crm_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_lead_scoring_rules: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          field_name: string
+          field_value: string
+          id: string
+          is_active: boolean | null
+          name: string
+          operator: string
+          points: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          field_name: string
+          field_value: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          operator?: string
+          points?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          field_name?: string
+          field_value?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          operator?: string
+          points?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      crm_notifications: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          deal_id: string | null
+          id: string
+          is_read: boolean | null
+          message: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          id?: string
+          is_read?: boolean | null
+          message: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_notifications_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "crm_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_notifications_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "crm_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_pipelines: {
         Row: {
           created_at: string
@@ -1199,6 +1382,63 @@ export type Database = {
           rd_station_id?: string | null
         }
         Relationships: []
+      }
+      crm_whatsapp_logs: {
+        Row: {
+          chatguru_message_id: string | null
+          contact_id: string | null
+          created_at: string
+          deal_id: string | null
+          direction: string
+          id: string
+          message_text: string | null
+          message_type: string | null
+          phone_number: string
+          sent_at: string
+          sent_by: string | null
+        }
+        Insert: {
+          chatguru_message_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          direction: string
+          id?: string
+          message_text?: string | null
+          message_type?: string | null
+          phone_number: string
+          sent_at?: string
+          sent_by?: string | null
+        }
+        Update: {
+          chatguru_message_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          direction?: string
+          id?: string
+          message_text?: string | null
+          message_type?: string | null
+          phone_number?: string
+          sent_at?: string
+          sent_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_whatsapp_logs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "crm_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_whatsapp_logs_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "crm_deals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       customer_birthday_exclusions: {
         Row: {
