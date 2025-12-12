@@ -1484,34 +1484,25 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
           continue;
         }
         
-        // Testemunhas - centralizado com as duas lado a lado
+        // Testemunhas - centralizado com as duas lado a lado (apenas assinatura)
         if (trimmedLine === 'TESTEMUNHAS:') {
-          checkPageBreak(30);
+          checkPageBreak(20);
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(9);
           doc.text(trimmedLine, pageWidth / 2, yPos, { align: 'center' });
           yPos += lineHeight + 6;
           
-          // Desenhar as duas testemunhas lado a lado
+          // Desenhar as duas testemunhas lado a lado (apenas linha de assinatura)
           const col1X = marginLeft + 10;
           const col2X = pageWidth / 2 + 10;
-          const colWidth = (contentWidth / 2) - 15;
           
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(9);
           
-          // Testemunha 1
+          // Apenas linhas de assinatura das testemunhas
           doc.text('1. ________________________', col1X, yPos);
           doc.text('2. ________________________', col2X, yPos);
-          yPos += lineHeight + 2;
-          
-          doc.text('Nome:', col1X, yPos);
-          doc.text('Nome:', col2X, yPos);
-          yPos += lineHeight + 1;
-          
-          doc.text('CPF:', col1X, yPos);
-          doc.text('CPF:', col2X, yPos);
-          yPos += lineHeight + 2;
+          yPos += lineHeight + 4;
           
           continue;
         }
@@ -2048,15 +2039,32 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
                 
                 {clausulaPrimeiraGerada && (
                   <div className="space-y-2">
-                    <Label>Cláusula gerada:</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Cláusula gerada:</Label>
+                      <Badge variant="secondary" className="text-xs">
+                        Editável
+                      </Badge>
+                    </div>
                     <Textarea
                       value={clausulaPrimeiraGerada}
                       onChange={(e) => setClausulaPrimeiraGerada(e.target.value)}
                       className="min-h-[100px] text-sm"
                     />
-                    <Badge variant="secondary" className="text-xs">
-                      Você pode editar o texto acima se necessário
-                    </Badge>
+                    {/* Opção de salvar cláusula gerada como template de objeto do contrato */}
+                    {!showSaveObjetoContratoTemplate && !showCreateDefaultObjetoContratoTemplate && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          // Usar o objeto do contrato original como template
+                          setShowCreateDefaultObjetoContratoTemplate(true);
+                        }}
+                        className="w-full text-xs"
+                      >
+                        <Save className="h-3 w-3 mr-1" />
+                        Salvar objeto do contrato como template geral
+                      </Button>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -2375,6 +2383,24 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
                             onChange={(e) => atualizarClausulaExito(opcao.id, e.target.value)}
                             className="min-h-[80px] text-sm"
                           />
+                          {/* Opção de salvar cláusula gerada como template */}
+                          {!showSaveTemplate && !showCreateDefaultExitoTemplate && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                // Usar a cláusula gerada como descrição do template
+                                setExitoOptions(prev => prev.map(o => 
+                                  o.id === opcao.id ? { ...o, descricao: opcao.clausulaGerada } : o
+                                ));
+                                setShowCreateDefaultExitoTemplate(true);
+                              }}
+                              className="w-full text-xs"
+                            >
+                              <Save className="h-3 w-3 mr-1" />
+                              Salvar cláusula gerada como template geral
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>
