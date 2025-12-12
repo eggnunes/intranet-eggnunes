@@ -159,14 +159,17 @@ Gere os poderes especiais para uma procuração com base no seguinte objeto do c
 
 ${objeto}
 
-Os poderes especiais devem ser específicos e relacionados ao objeto do contrato, permitindo que o advogado execute todas as ações necessárias para a defesa dos interesses do cliente neste caso específico.
+INSTRUÇÕES OBRIGATÓRIAS:
+- Seja EXTREMAMENTE breve e direto.
+- O texto deve começar com: "Esta procuração destina-se exclusivamente para"
+- Liste apenas a ação judicial específica relacionada ao objeto.
+- Use no máximo 1-2 linhas.
+- Não adicione explicações, não seja prolixo.
 
-Formato esperado:
-- Os poderes devem ser listados de forma clara e direta.
-- O texto deve ser em português jurídico formal.
-- Seja objetivo e conciso.
+Exemplo de formato correto:
+"Esta procuração destina-se exclusivamente para propor ação de revisão de aposentadoria por invalidez."
 
-Retorne APENAS o texto dos poderes especiais, sem explicações adicionais.`;
+Retorne APENAS o texto curto dos poderes especiais, sem explicações adicionais.`;
 
       const { data, error } = await supabase.functions.invoke('ai-assistant', {
         body: { 
@@ -494,16 +497,11 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
 
       yPosition += 2;
 
-      // Texto do escritório + poderes (tudo junto conforme modelo)
+      // Texto do escritório + poderes (sem poderes especiais aqui)
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       
-      let textoPoderesCompleto = `todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
-      
-      // Adicionar poderes especiais se houver
-      if (temPoderesEspeciais && poderesEspeciais.trim()) {
-        textoPoderesCompleto += ` ${poderesEspeciais.trim()}`;
-      }
+      const textoPoderesCompleto = `todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
       
       const poderesLines = doc.splitTextToSize(textoPoderesCompleto, contentWidth);
       
@@ -516,6 +514,18 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
           doc.text(linha, marginLeft, yPosition, { align: 'justify', maxWidth: contentWidth });
         }
         yPosition += 3.8;
+      }
+      
+      // Poderes especiais ao FINAL, em NEGRITO, separado
+      if (temPoderesEspeciais && poderesEspeciais.trim()) {
+        yPosition += 4;
+        doc.setFont('helvetica', 'bold');
+        const poderesEspeciaisLines = doc.splitTextToSize(poderesEspeciais.trim(), contentWidth);
+        for (const linha of poderesEspeciaisLines) {
+          doc.text(linha, marginLeft, yPosition);
+          yPosition += 3.8;
+        }
+        doc.setFont('helvetica', 'normal');
       }
       yPosition += 6;
 
