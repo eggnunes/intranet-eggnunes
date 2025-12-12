@@ -4,13 +4,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, Calendar, Settings, LayoutDashboard } from 'lucide-react';
+import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, Calendar, Settings, LayoutDashboard, BarChart3, Bell, Star, MessageSquare, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CRMContactsList } from './CRMContactsList';
 import { CRMDealsKanban } from './CRMDealsKanban';
 import { CRMActivities } from './CRMActivities';
 import { CRMSettings } from './CRMSettings';
+import { CRMAnalytics } from './CRMAnalytics';
+import { CRMNotifications } from './CRMNotifications';
+import { CRMLeadScoring } from './CRMLeadScoring';
+import { CRMFollowUp } from './CRMFollowUp';
+import { CRMWhatsAppLogs } from './CRMWhatsAppLogs';
 import { useUserRole } from '@/hooks/useUserRole';
 
 interface CRMStats {
@@ -277,7 +282,7 @@ export const CRMDashboard = () => {
 
       {/* Tabs - Dashboard separado do Pipeline */}
       <Tabs defaultValue="kanban" className="w-full">
-        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} lg:w-auto lg:inline-flex`}>
+        <TabsList className="flex flex-wrap gap-1 h-auto p-1 lg:inline-flex">
           <TabsTrigger value="dashboard" className="flex items-center gap-1">
             <LayoutDashboard className="h-3.5 w-3.5" />
             Dashboard
@@ -285,10 +290,30 @@ export const CRMDashboard = () => {
           <TabsTrigger value="kanban">Pipeline</TabsTrigger>
           <TabsTrigger value="contacts">Contatos</TabsTrigger>
           <TabsTrigger value="activities">Atividades</TabsTrigger>
+          <TabsTrigger value="analytics" className="flex items-center gap-1">
+            <BarChart3 className="h-3.5 w-3.5" />
+            Análises
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="flex items-center gap-1">
+            <Bell className="h-3.5 w-3.5" />
+            Alertas
+          </TabsTrigger>
+          <TabsTrigger value="followup" className="flex items-center gap-1">
+            <Clock className="h-3.5 w-3.5" />
+            Follow-up
+          </TabsTrigger>
+          <TabsTrigger value="scoring" className="flex items-center gap-1">
+            <Star className="h-3.5 w-3.5" />
+            Scoring
+          </TabsTrigger>
+          <TabsTrigger value="whatsapp" className="flex items-center gap-1">
+            <MessageSquare className="h-3.5 w-3.5" />
+            WhatsApp
+          </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="settings" className="flex items-center gap-1">
               <Settings className="h-3.5 w-3.5" />
-              Configurações
+              Config
             </TabsTrigger>
           )}
         </TabsList>
