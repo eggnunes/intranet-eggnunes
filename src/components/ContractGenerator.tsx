@@ -1530,38 +1530,57 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
           // Processar linha com partes em negrito - renderizar palavra por palavra
           doc.setFontSize(9);
           
-          // Dividir em tokens (palavras e espaços) preservando marcadores de negrito
-          const tokens: { text: string; bold: boolean }[] = [];
+          // Criar lista de palavras com informação de negrito
+          const words: { text: string; bold: boolean }[] = [];
           const partes = trimmedLine.split(/(\*\*[^*]+\*\*)/g).filter(p => p);
           
           for (const parte of partes) {
             if (parte.startsWith('**') && parte.endsWith('**')) {
               const textoNegrito = parte.replace(/\*\*/g, '');
-              tokens.push({ text: textoNegrito, bold: true });
+              // Dividir em palavras individuais
+              const palavras = textoNegrito.split(/(\s+)/g).filter(p => p);
+              for (const palavra of palavras) {
+                words.push({ text: palavra, bold: true });
+              }
             } else {
-              tokens.push({ text: parte, bold: false });
+              // Dividir em palavras individuais
+              const palavras = parte.split(/(\s+)/g).filter(p => p);
+              for (const palavra of palavras) {
+                words.push({ text: palavra, bold: false });
+              }
             }
           }
           
-          // Renderizar tokens com quebra de linha automática
+          // Renderizar palavras com quebra de linha automática
           let xPos = marginLeft;
-          let currentLineHeight = 0;
+          const spaceWidth = doc.getTextWidth(' ');
           
-          for (const token of tokens) {
-            doc.setFont('helvetica', token.bold ? 'bold' : 'normal');
-            const tokenWidth = doc.getTextWidth(token.text);
+          for (let i = 0; i < words.length; i++) {
+            const word = words[i];
+            
+            // Pular espaços no início da linha
+            if (word.text.trim() === '' && xPos === marginLeft) {
+              continue;
+            }
+            
+            doc.setFont('helvetica', word.bold ? 'bold' : 'normal');
+            const wordWidth = doc.getTextWidth(word.text);
             
             // Verificar se cabe na linha atual
-            if (xPos + tokenWidth > pageWidth - marginRight) {
+            if (xPos + wordWidth > pageWidth - marginRight && xPos > marginLeft) {
               // Quebrar linha
               yPos += lineHeight;
               xPos = marginLeft;
-              currentLineHeight++;
               checkPageBreak(lineHeight);
+              
+              // Pular espaço no início da nova linha
+              if (word.text.trim() === '') {
+                continue;
+              }
             }
             
-            doc.text(token.text, xPos, yPos);
-            xPos += tokenWidth;
+            doc.text(word.text, xPos, yPos);
+            xPos += wordWidth;
           }
           
           yPos += lineHeight + paragraphSpacing;
