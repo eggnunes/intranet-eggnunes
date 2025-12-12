@@ -99,8 +99,9 @@ Seja conciso mas completo em suas respostas.`;
     if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY não configurada');
 
     const openaiModelMap: Record<string, string> = {
-      'gpt-4o': 'gpt-4o',
-      'gpt-4o-mini': 'gpt-4o-mini',
+      'gpt-5.2': 'gpt-5.2-2025-12-12',
+      'gpt-4o': 'gpt-5.2-2025-12-12',
+      'gpt-4o-mini': 'gpt-5.2-2025-12-12',
       'openai-o3': 'o3-2025-04-16',
       'openai-o4-mini': 'o4-mini-2025-04-16',
     };
@@ -111,7 +112,7 @@ Seja conciso mas completo em suas respostas.`;
       'Content-Type': 'application/json',
     };
     body = {
-      model: openaiModelMap[model] || 'gpt-4o-mini',
+      model: openaiModelMap[model] || 'gpt-5.2-2025-12-12',
       messages: formattedMessages,
       stream: true,
     };
@@ -232,8 +233,9 @@ async function handleOpenAI(messages: any[], model: string, attachments: any[], 
   if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY não configurada');
 
   const modelMap: Record<string, string> = {
-    'gpt-4o': 'gpt-4o',
-    'gpt-4o-mini': 'gpt-4o-mini',
+    'gpt-5.2': 'gpt-5.2-2025-12-12',
+    'gpt-4o': 'gpt-5.2-2025-12-12',
+    'gpt-4o-mini': 'gpt-5.2-2025-12-12',
     'openai-o3': 'o3-2025-04-16',
     'openai-o4-mini': 'o4-mini-2025-04-16',
   };
@@ -259,7 +261,7 @@ Seja conciso mas completo em suas respostas.`;
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: modelMap[model] || 'gpt-4o-mini',
+      model: modelMap[model] || 'gpt-5.2-2025-12-12',
       messages: formattedMessages,
       max_tokens: 4096,
     }),

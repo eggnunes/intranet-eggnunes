@@ -158,6 +158,15 @@ const AI_MODELS: AIModel[] = [
   },
   // OpenAI Direct
   {
+    id: 'gpt-5.2',
+    name: 'GPT-5.2',
+    provider: 'OpenAI',
+    description: 'Modelo mais recente, melhor e mais barato',
+    capabilities: ['chat', 'analysis', 'code', 'reasoning', 'images'],
+    icon: '🚀',
+    badge: 'Novo'
+  },
+  {
     id: 'gpt-4o',
     name: 'GPT-4o',
     provider: 'OpenAI',
