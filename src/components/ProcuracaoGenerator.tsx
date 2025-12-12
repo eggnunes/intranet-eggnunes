@@ -414,25 +414,61 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
       doc.text('PROCURAÇÃO', pageWidth / 2, yPosition, { align: 'center' });
-      yPosition += 8;
+      yPosition += 10;
 
-      // Qualificação do cliente (texto justificado, conforme modelo)
-      doc.setFont('helvetica', 'normal');
+      // Nome do cliente em MAIÚSCULO e NEGRITO
+      const nomeCliente = client.nomeCompleto.toUpperCase();
+      doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
-      // Remover ponto e vírgula do final da qualificação se existir
-      const qualificacaoLimpa = qualification.replace(/[;,.]$/, '').trim();
-      const qualificationText = qualificacaoLimpa + "; nomeia(m) e constitui(em), seus bastantes procuradores os advogados:";
-      const qualificationLines = doc.splitTextToSize(qualificationText, contentWidth);
       
-      // Renderizar texto justificado
-      for (let i = 0; i < qualificationLines.length; i++) {
-        const linha = qualificationLines[i];
-        if (i === qualificationLines.length - 1) {
-          doc.text(linha, marginLeft, yPosition);
+      // Calcular largura do nome
+      const larguraNome = doc.getTextWidth(nomeCliente);
+      
+      // Renderizar nome em negrito e maiúsculo
+      doc.text(nomeCliente, marginLeft, yPosition);
+      
+      // Resto da qualificação em fonte normal (sem o nome)
+      const qualificacaoLimpa = qualification.replace(/[;,.]$/, '').trim();
+      let restoQualificacao = qualificacaoLimpa;
+      
+      // Remover o nome do início da qualificação
+      if (qualificacaoLimpa.toLowerCase().startsWith(client.nomeCompleto.toLowerCase())) {
+        restoQualificacao = qualificacaoLimpa.substring(client.nomeCompleto.length);
+      }
+      
+      // Adicionar o texto que vem depois + sufixo da procuração
+      const textoAposNome = restoQualificacao + "; nomeia(m) e constitui(em), seus bastantes procuradores os advogados:";
+      
+      doc.setFont('helvetica', 'normal');
+      
+      // Calcular quanto cabe na primeira linha após o nome
+      const espacoPrimeiraLinha = contentWidth - larguraNome - 2;
+      const palavras = textoAposNome.split(' ');
+      let primeiraLinhaTxt = '';
+      let indiceInicio = 0;
+      
+      for (let i = 0; i < palavras.length; i++) {
+        const teste = primeiraLinhaTxt + (primeiraLinhaTxt ? ' ' : '') + palavras[i];
+        if (doc.getTextWidth(teste) <= espacoPrimeiraLinha) {
+          primeiraLinhaTxt = teste;
+          indiceInicio = i + 1;
         } else {
-          doc.text(linha, marginLeft, yPosition, { align: 'justify', maxWidth: contentWidth });
+          break;
         }
-        yPosition += 3.8;
+      }
+      
+      // Renderizar resto da primeira linha
+      doc.text(primeiraLinhaTxt, marginLeft + larguraNome + 1, yPosition);
+      yPosition += 4;
+      
+      // Resto do texto em linhas completas
+      const textoRestante = palavras.slice(indiceInicio).join(' ');
+      if (textoRestante.trim()) {
+        const linhasRestantes = doc.splitTextToSize(textoRestante, contentWidth);
+        for (const linha of linhasRestantes) {
+          doc.text(linha, marginLeft, yPosition);
+          yPosition += 3.8;
+        }
       }
       yPosition += 3;
 
