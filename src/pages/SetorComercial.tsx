@@ -22,6 +22,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { cn } from "@/lib/utils";
 import { ContractGenerator } from "@/components/ContractGenerator";
 import { ProcuracaoGenerator } from "@/components/ProcuracaoGenerator";
+import { DeclaracaoGenerator } from "@/components/DeclaracaoGenerator";
 import { DocumentTemplatesManager } from "@/components/DocumentTemplatesManager";
 import { 
   RefreshCw, 
@@ -164,6 +165,10 @@ const SetorComercial = () => {
   
   // Document Templates Manager
   const [templatesManagerOpen, setTemplatesManagerOpen] = useState(false);
+  
+  // Declaração generator
+  const [declaracaoGeneratorOpen, setDeclaracaoGeneratorOpen] = useState(false);
+  const [clientForDeclaracao, setClientForDeclaracao] = useState<Client | null>(null);
 
   const fetchProducts = async () => {
     try {
@@ -317,8 +322,12 @@ const SetorComercial = () => {
   };
 
   const handleGenerateDeclaracao = (client: Client) => {
-    toast.info('Funcionalidade de geração de declaração em desenvolvimento');
-    // TODO: Implement declaracao generation
+    const qualification = qualificationSaved && selectedClient?.id === client.id 
+      ? editedQualification 
+      : generateClientQualification(client);
+    setClientForDeclaracao(client);
+    setEditedQualification(qualification);
+    setDeclaracaoGeneratorOpen(true);
   };
 
   if (permissionsLoading) {
@@ -983,6 +992,14 @@ const SetorComercial = () => {
       <DocumentTemplatesManager
         open={templatesManagerOpen}
         onOpenChange={setTemplatesManagerOpen}
+      />
+
+      {/* Declaração Generator Dialog */}
+      <DeclaracaoGenerator
+        open={declaracaoGeneratorOpen}
+        onOpenChange={setDeclaracaoGeneratorOpen}
+        client={clientForDeclaracao}
+        qualification={clientForDeclaracao ? (qualificationSaved && selectedClient?.id === clientForDeclaracao.id ? editedQualification : generateClientQualification(clientForDeclaracao)) : ''}
       />
     </Layout>
   );
