@@ -54,6 +54,11 @@ interface Contact {
   state: string | null;
   country: string | null;
   lead_score: number | null;
+  // Traffic source fields (Fonte, Campanha from RD Station)
+  traffic_source: string | null;
+  traffic_medium: string | null;
+  traffic_campaign: string | null;
+  // UTM parameters
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;
@@ -1320,21 +1325,19 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                     <div className="border-t pt-4">
                       <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Origem e Tracking do Lead</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {/* Fonte (UTM Medium | UTM Source combined) */}
-                        {(selectedDeal.contact.utm_medium || selectedDeal.contact.utm_source) && (
+                        {/* Fonte (traffic_source from RD Station - e.g., "Busca Paga | Facebook") */}
+                        {selectedDeal.contact.traffic_source && (
                           <div className="bg-muted/50 p-3 rounded-md">
                             <p className="text-xs text-muted-foreground font-medium">Fonte</p>
-                            <p className="text-sm font-semibold">
-                              {[selectedDeal.contact.utm_medium, selectedDeal.contact.utm_source].filter(Boolean).join(' | ')}
-                            </p>
+                            <p className="text-sm font-semibold">{selectedDeal.contact.traffic_source}</p>
                           </div>
                         )}
 
-                        {/* Campanha */}
-                        {selectedDeal.contact.utm_campaign && (
+                        {/* Campanha (traffic_campaign from RD Station) */}
+                        {selectedDeal.contact.traffic_campaign && (
                           <div className="bg-muted/50 p-3 rounded-md">
                             <p className="text-xs text-muted-foreground font-medium">Campanha</p>
-                            <p className="text-sm font-semibold">{selectedDeal.contact.utm_campaign}</p>
+                            <p className="text-sm font-semibold">{selectedDeal.contact.traffic_campaign}</p>
                           </div>
                         )}
 

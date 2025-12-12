@@ -834,6 +834,9 @@ export type Database = {
           phone: string | null
           rd_station_id: string | null
           state: string | null
+          traffic_campaign: string | null
+          traffic_medium: string | null
+          traffic_source: string | null
           twitter: string | null
           updated_at: string
           utm_campaign: string | null
@@ -864,6 +867,9 @@ export type Database = {
           phone?: string | null
           rd_station_id?: string | null
           state?: string | null
+          traffic_campaign?: string | null
+          traffic_medium?: string | null
+          traffic_source?: string | null
           twitter?: string | null
           updated_at?: string
           utm_campaign?: string | null
@@ -894,6 +900,9 @@ export type Database = {
           phone?: string | null
           rd_station_id?: string | null
           state?: string | null
+          traffic_campaign?: string | null
+          traffic_medium?: string | null
+          traffic_source?: string | null
           twitter?: string | null
           updated_at?: string
           utm_campaign?: string | null

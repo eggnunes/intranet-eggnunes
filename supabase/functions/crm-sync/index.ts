@@ -614,6 +614,10 @@ async function syncContacts(rdToken: string, supabase: any) {
         _traffic_campaign: trafficCampaign
       },
       lead_score: contact.score || 0,
+      // Traffic source fields (Fonte, Campanha from RD Station)
+      traffic_source: trafficSource,
+      traffic_medium: trafficMedium,
+      traffic_campaign: trafficCampaign,
       // UTM tracking fields
       utm_source: utmSource,
       utm_medium: utmMedium,
