@@ -1358,34 +1358,46 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
         doc.text('Rua São Paulo, 1104 - 9º andar - Centro - Belo Horizonte - MG - 30170-131', pageWidth / 2, pageHeight - 10, { align: 'center' });
       };
       
-      // Função para verificar quebra de página
+      // Carregar logo uma vez
+      let logoImg: HTMLImageElement | null = null;
+      let logoWidth = 35;
+      let logoHeight = 0;
+      try {
+        logoImg = new Image();
+        logoImg.src = logoEggnunes;
+        await new Promise((resolve, reject) => {
+          logoImg!.onload = resolve;
+          logoImg!.onerror = reject;
+        });
+        logoHeight = (logoImg.height / logoImg.width) * logoWidth;
+      } catch (e) {
+        console.warn('Não foi possível carregar a logo:', e);
+        logoImg = null;
+      }
+      
+      // Função para adicionar logo no topo da página
+      const addHeader = () => {
+        if (logoImg) {
+          const logoX = (pageWidth - logoWidth) / 2;
+          doc.addImage(logoImg, 'PNG', logoX, marginTop, logoWidth, logoHeight);
+        }
+      };
+      
+      // Função para verificar quebra de página (agora adiciona logo também)
       const checkPageBreak = (additionalHeight: number) => {
         if (yPos + additionalHeight > pageHeight - marginBottom) {
           addFooter();
           doc.addPage();
           currentPage++;
           yPos = marginTop;
+          addHeader();
+          yPos += logoHeight + 8;
         }
       };
       
-      // Adicionar logo centralizada na primeira página
-      try {
-        const img = new Image();
-        img.src = logoEggnunes;
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-        });
-        
-        const logoWidth = 35;
-        const logoHeight = (img.height / img.width) * logoWidth;
-        const logoX = (pageWidth - logoWidth) / 2;
-        doc.addImage(img, 'PNG', logoX, yPos, logoWidth, logoHeight);
-        yPos += logoHeight + 8;
-      } catch (e) {
-        console.warn('Não foi possível carregar a logo:', e);
-        yPos += 10;
-      }
+      // Adicionar logo na primeira página
+      addHeader();
+      yPos += logoHeight + 8;
       
       // Processar texto do contrato
       const lines = contractPreviewText.split('\n');

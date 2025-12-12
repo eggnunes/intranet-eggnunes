@@ -182,54 +182,121 @@ ${nomeCliente}`;
       
       doc.setFont('helvetica', 'normal');
       
-      // Calcular quanto cabe na primeira linha após o nome
-      const espacoPrimeiraLinha = contentWidth - larguraNome - 2;
-      const palavras = textoCompleto.split(' ').filter(p => p.trim());
-      let primeiraLinhaTxt = '';
-      let indiceInicio = 0;
-      
-      for (let i = 0; i < palavras.length; i++) {
-        const teste = primeiraLinhaTxt + (primeiraLinhaTxt ? ' ' : '') + palavras[i];
-        if (doc.getTextWidth(teste) <= espacoPrimeiraLinha) {
-          primeiraLinhaTxt = teste;
-          indiceInicio = i + 1;
-        } else {
-          break;
-        }
-      }
-      
-      // Renderizar resto da primeira linha
-      doc.text(primeiraLinhaTxt, marginLeft + larguraNome + 1, yPosition);
-      yPosition += lineHeight;
-      
-      // Resto do texto - JUSTIFICADO MANUALMENTE
-      const textoRestante = palavras.slice(indiceInicio).join(' ');
-      const linhasRestantes = doc.splitTextToSize(textoRestante, contentWidth);
-      
-      for (let i = 0; i < linhasRestantes.length; i++) {
-        const linha = linhasRestantes[i].trim();
+      // Função para justificar um parágrafo
+      const renderJustifiedParagraph = (text: string, startY: number, firstLineIndent: number = 0, firstLineStartX: number = marginLeft) => {
+        const palavras = text.split(/\s+/).filter(p => p.trim());
+        const lines: string[][] = [];
+        let currentLine: string[] = [];
+        let currentWidth = 0;
+        const spaceW = doc.getTextWidth(' ');
         
-        // Última linha alinhada à esquerda
-        if (i === linhasRestantes.length - 1) {
-          doc.text(linha, marginLeft, yPosition);
-        } else {
-          // Justificar linha manualmente
-          const palavrasLinha = linha.split(' ').filter((p: string) => p.trim());
-          if (palavrasLinha.length > 1) {
-            const larguraTexto = palavrasLinha.reduce((acc: number, p: string) => acc + doc.getTextWidth(p), 0);
-            const espacoTotal = contentWidth - larguraTexto;
-            const espacoEntrePalavras = espacoTotal / (palavrasLinha.length - 1);
-            
-            let xPos = marginLeft;
-            for (let j = 0; j < palavrasLinha.length; j++) {
-              doc.text(palavrasLinha[j], xPos, yPosition);
-              xPos += doc.getTextWidth(palavrasLinha[j]) + espacoEntrePalavras;
+        // Para a primeira linha, considerar o indent
+        let availableWidth = firstLineIndent > 0 ? (contentWidth - firstLineIndent) : contentWidth;
+        let isFirstLine = true;
+        
+        for (const word of palavras) {
+          const wordW = doc.getTextWidth(word);
+          const neededWidth = currentWidth > 0 ? spaceW + wordW : wordW;
+          
+          if (currentWidth + neededWidth > availableWidth && currentLine.length > 0) {
+            lines.push(currentLine);
+            currentLine = [word];
+            currentWidth = wordW;
+            if (isFirstLine) {
+              isFirstLine = false;
+              availableWidth = contentWidth;
             }
           } else {
-            doc.text(linha, marginLeft, yPosition);
+            currentLine.push(word);
+            currentWidth += neededWidth;
           }
         }
-        yPosition += lineHeight;
+        if (currentLine.length > 0) lines.push(currentLine);
+        
+        let y = startY;
+        for (let i = 0; i < lines.length; i++) {
+          const lineWords = lines[i];
+          const isLast = i === lines.length - 1;
+          const isFirst = i === 0 && firstLineIndent > 0;
+          const lineStartX = isFirst ? firstLineStartX : marginLeft;
+          const lineWidth = isFirst ? (contentWidth - firstLineIndent) : contentWidth;
+          
+          let totalWordsW = 0;
+          for (const w of lineWords) totalWordsW += doc.getTextWidth(w);
+          
+          const gaps = lineWords.length - 1;
+          // Última linha não justifica
+          const justSpaceW = (!isLast && gaps > 0) ? (lineWidth - totalWordsW) / gaps : spaceW;
+          
+          let x = lineStartX;
+          for (let j = 0; j < lineWords.length; j++) {
+            doc.text(lineWords[j], x, y);
+            x += doc.getTextWidth(lineWords[j]);
+            if (j < lineWords.length - 1) x += justSpaceW;
+          }
+          y += lineHeight;
+        }
+        return y;
+      };
+      
+      // Dividir em parágrafos (separados por \n\n)
+      const paragrafos = textoCompleto.split(/\n\n+/);
+      
+      for (let pIdx = 0; pIdx < paragrafos.length; pIdx++) {
+        const paragrafo = paragrafos[pIdx].replace(/\n/g, ' ').trim();
+        if (!paragrafo) continue;
+        
+        if (pIdx === 0) {
+          // Primeiro parágrafo começa após o nome em negrito
+          const espacoPrimeiraLinha = contentWidth - larguraNome - 2;
+          const palavras = paragrafo.split(/\s+/).filter(p => p.trim());
+          let primeiraLinhaPalavras: string[] = [];
+          let primeiraLinhaWidth = 0;
+          let indiceInicio = 0;
+          const spaceW = doc.getTextWidth(' ');
+          
+          for (let i = 0; i < palavras.length; i++) {
+            const wordW = doc.getTextWidth(palavras[i]);
+            const neededW = primeiraLinhaWidth > 0 ? spaceW + wordW : wordW;
+            if (primeiraLinhaWidth + neededW <= espacoPrimeiraLinha) {
+              primeiraLinhaPalavras.push(palavras[i]);
+              primeiraLinhaWidth += neededW;
+              indiceInicio = i + 1;
+            } else {
+              break;
+            }
+          }
+          
+          // Justificar primeira linha após o nome
+          if (primeiraLinhaPalavras.length > 1) {
+            let totalW = 0;
+            for (const w of primeiraLinhaPalavras) totalW += doc.getTextWidth(w);
+            const gaps = primeiraLinhaPalavras.length - 1;
+            const justSpace = (espacoPrimeiraLinha - totalW) / gaps;
+            
+            let xPos = marginLeft + larguraNome + 1;
+            for (let i = 0; i < primeiraLinhaPalavras.length; i++) {
+              doc.text(primeiraLinhaPalavras[i], xPos, yPosition);
+              xPos += doc.getTextWidth(primeiraLinhaPalavras[i]);
+              if (i < primeiraLinhaPalavras.length - 1) xPos += justSpace;
+            }
+          } else if (primeiraLinhaPalavras.length === 1) {
+            doc.text(primeiraLinhaPalavras[0], marginLeft + larguraNome + 1, yPosition);
+          }
+          yPosition += lineHeight;
+          
+          // Resto do primeiro parágrafo
+          const textoRestante = palavras.slice(indiceInicio).join(' ');
+          if (textoRestante.trim()) {
+            yPosition = renderJustifiedParagraph(textoRestante, yPosition);
+          }
+        } else {
+          // Demais parágrafos
+          yPosition = renderJustifiedParagraph(paragrafo, yPosition);
+        }
+        
+        // Espaço entre parágrafos
+        yPosition += lineHeight * 0.5;
       }
 
       yPosition += 10;
