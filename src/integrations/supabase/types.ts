@@ -36,6 +36,7 @@ export type Database = {
           perm_recruitment: string
           perm_suggestions: string
           perm_task_rules: string
+          perm_totp: string
           perm_users: string
           perm_vacation: string
           updated_at: string
@@ -61,6 +62,7 @@ export type Database = {
           perm_recruitment?: string
           perm_suggestions?: string
           perm_task_rules?: string
+          perm_totp?: string
           perm_users?: string
           perm_vacation?: string
           updated_at?: string
@@ -86,6 +88,7 @@ export type Database = {
           perm_recruitment?: string
           perm_suggestions?: string
           perm_task_rules?: string
+          perm_totp?: string
           perm_users?: string
           perm_vacation?: string
           updated_at?: string
@@ -2324,6 +2327,7 @@ export type Database = {
           perm_recruitment: string
           perm_suggestions: string
           perm_task_rules: string
+          perm_totp: string
           perm_users: string
           perm_vacation: string
           position: string
@@ -2349,6 +2353,7 @@ export type Database = {
           perm_recruitment?: string
           perm_suggestions?: string
           perm_task_rules?: string
+          perm_totp?: string
           perm_users?: string
           perm_vacation?: string
           position: string
@@ -2374,6 +2379,7 @@ export type Database = {
           perm_recruitment?: string
           perm_suggestions?: string
           perm_task_rules?: string
+          perm_totp?: string
           perm_users?: string
           perm_vacation?: string
           position?: string
@@ -3702,6 +3708,7 @@ export type Database = {
         Args: { _feature: string; _user_id: string }
         Returns: string
       }
+      get_totp_permission: { Args: { user_id: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
