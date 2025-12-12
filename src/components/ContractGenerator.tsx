@@ -34,6 +34,7 @@ import {
 import { jsPDF } from "jspdf";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import logoEggnunes from "@/assets/logo-eggnunes.png";
 
 interface Client {
   id: number;
@@ -1318,67 +1319,165 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
     setShowPreview(true);
   };
 
-  // Gerar contrato PDF
+  // Gerar contrato PDF conforme modelo oficial
   const gerarContratoPDF = async () => {
     if (!client) return;
     
     setGerandoContrato(true);
     try {
-      const doc = new jsPDF();
-      const margin = 20;
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const maxWidth = pageWidth - (margin * 2);
-      let yPos = margin;
+      const marginLeft = 15;
+      const marginRight = 15;
+      const marginTop = 15;
+      const marginBottom = 25;
+      const contentWidth = pageWidth - marginLeft - marginRight;
+      const lineHeight = 4.2;
+      const paragraphSpacing = 3;
       
+      let yPos = marginTop;
+      let currentPage = 1;
+      
+      // Função para adicionar rodapé em cada página
+      const addFooter = () => {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text('31 3226-8742 | escritorio@eggnunes.com.br | www.eggnunes.com.br', pageWidth / 2, pageHeight - 15, { align: 'center' });
+        doc.text('Rua São Paulo, 1104 - 9º andar - Centro - Belo Horizonte - MG - 30170-131', pageWidth / 2, pageHeight - 10, { align: 'center' });
+      };
+      
+      // Função para verificar quebra de página
       const checkPageBreak = (additionalHeight: number) => {
-        if (yPos + additionalHeight > pageHeight - margin) {
+        if (yPos + additionalHeight > pageHeight - marginBottom) {
+          addFooter();
           doc.addPage();
-          yPos = margin;
+          currentPage++;
+          yPos = marginTop;
         }
       };
       
-      doc.setFontSize(10);
+      // Adicionar logo centralizada na primeira página
+      try {
+        const img = new Image();
+        img.src = logoEggnunes;
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+        });
+        
+        const logoWidth = 35;
+        const logoHeight = (img.height / img.width) * logoWidth;
+        const logoX = (pageWidth - logoWidth) / 2;
+        doc.addImage(img, 'PNG', logoX, yPos, logoWidth, logoHeight);
+        yPos += logoHeight + 8;
+      } catch (e) {
+        console.warn('Não foi possível carregar a logo:', e);
+        yPos += 10;
+      }
       
+      // Processar texto do contrato
       const lines = contractPreviewText.split('\n');
       
-      for (const line of lines) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
         const trimmedLine = line.trim();
         
-        // Título principal
+        // Título principal - centralizado e em negrito
         if (trimmedLine === 'CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS') {
-          checkPageBreak(15);
+          checkPageBreak(12);
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(14);
+          doc.setFontSize(12);
           doc.text(trimmedLine, pageWidth / 2, yPos, { align: 'center' });
-          doc.setFontSize(10);
-          yPos += 15;
+          yPos += 10;
           continue;
         }
         
-        // Cláusulas
-        if (trimmedLine.startsWith('CLÁUSULA') || trimmedLine.startsWith('Parágrafo')) {
-          checkPageBreak(12);
+        // Cláusulas - negrito
+        if (trimmedLine.match(/^Cláusula\s+(Primeira|Segunda|Terceira|Quarta|Quinta|Sexta|Sétima|Oitava|Nona|Décima)/i)) {
+          checkPageBreak(10);
           doc.setFont('helvetica', 'bold');
-          const textLines = doc.splitTextToSize(trimmedLine, maxWidth);
-          doc.text(textLines, margin, yPos);
-          yPos += textLines.length * 5 + 3;
+          doc.setFontSize(10);
+          doc.text(trimmedLine, marginLeft, yPos);
+          yPos += lineHeight + paragraphSpacing;
+          continue;
+        }
+        
+        // Parágrafos - negrito no título
+        if (trimmedLine.match(/^Parágrafo\s+(Primeiro|Segundo|Terceiro|Quarto|Quinto|Sexto|Sétimo|Oitavo|Único)/i)) {
+          checkPageBreak(10);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9);
+          const textLines = doc.splitTextToSize(trimmedLine, contentWidth);
+          
+          // Primeira linha em negrito, resto em normal para justificação
+          doc.text(textLines, marginLeft, yPos, { align: 'justify', maxWidth: contentWidth });
+          yPos += textLines.length * lineHeight + paragraphSpacing;
+          continue;
+        }
+        
+        // Linhas de assinatura
+        if (trimmedLine.startsWith('_____')) {
+          checkPageBreak(8);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(9);
+          doc.text(trimmedLine, marginLeft, yPos);
+          yPos += lineHeight + 1;
+          continue;
+        }
+        
+        // Nomes em negrito (Contratado:, Contratante:)
+        if (trimmedLine.startsWith('Contratado:') || trimmedLine.startsWith('Contratante:')) {
+          checkPageBreak(6);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9);
+          doc.text(trimmedLine, marginLeft, yPos);
+          yPos += lineHeight + 1;
+          continue;
+        }
+        
+        // Testemunhas
+        if (trimmedLine === 'TESTEMUNHAS:' || trimmedLine === 'Testemunhas:') {
+          checkPageBreak(8);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9);
+          doc.text(trimmedLine, marginLeft, yPos);
+          yPos += lineHeight + 2;
+          continue;
+        }
+        
+        // CONTRATADOS (título centralizado)
+        if (trimmedLine === 'CONTRATADOS') {
+          checkPageBreak(8);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9);
+          doc.text(trimmedLine, pageWidth / 2, yPos, { align: 'center' });
+          yPos += lineHeight + 2;
           continue;
         }
         
         // Linha vazia
         if (!trimmedLine) {
-          yPos += 4;
+          yPos += paragraphSpacing;
           continue;
         }
         
-        // Texto normal
+        // Texto normal - justificado
         doc.setFont('helvetica', 'normal');
-        const textLines = doc.splitTextToSize(trimmedLine, maxWidth);
-        checkPageBreak(textLines.length * 6);
-        doc.text(textLines, margin, yPos);
-        yPos += textLines.length * 6 + 2;
+        doc.setFontSize(9);
+        const textLines = doc.splitTextToSize(trimmedLine, contentWidth);
+        checkPageBreak(textLines.length * lineHeight + paragraphSpacing);
+        doc.text(textLines, marginLeft, yPos, { align: 'justify', maxWidth: contentWidth });
+        yPos += textLines.length * lineHeight + paragraphSpacing;
       }
+      
+      // Adicionar rodapé na última página
+      addFooter();
       
       const nomeArquivo = `Contrato_${client.nomeCompleto.replace(/\s+/g, '_')}_${format(new Date(), 'ddMMyyyy')}.pdf`;
       doc.save(nomeArquivo);
