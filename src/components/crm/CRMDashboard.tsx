@@ -373,7 +373,7 @@ export const CRMDashboard = () => {
               <p className="text-sm text-muted-foreground">Total no mês</p>
             </div>
             <div className="flex-1 grid grid-cols-3 gap-4">
-              {stats.dealsByOwner.map((owner) => (
+              {(stats.dealsByOwner || []).map((owner) => (
                 <div key={owner.name} className="text-center p-3 rounded-lg bg-background/50">
                   <p className="text-2xl font-bold">{owner.count}</p>
                   <p className="text-sm text-muted-foreground">{owner.name}</p>
