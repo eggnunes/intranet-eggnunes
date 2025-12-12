@@ -19,7 +19,7 @@ interface TOTPAccount {
   id: string;
   name: string;
   description: string | null;
-  secret_key: string;
+  secret_key?: string; // Only available to admins
 }
 
 interface TOTPAccountFormProps {
@@ -41,7 +41,7 @@ export function TOTPAccountForm({ open, onOpenChange, onSubmit, editingAccount }
     if (editingAccount) {
       setName(editingAccount.name);
       setDescription(editingAccount.description || '');
-      setSecretKey(editingAccount.secret_key);
+      setSecretKey(editingAccount.secret_key || '');
     } else {
       setName('');
       setDescription('');
