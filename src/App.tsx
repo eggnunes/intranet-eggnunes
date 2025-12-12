@@ -50,7 +50,18 @@ import CRM from "./pages/CRM";
 import CodigosAutenticacao from "./pages/CodigosAutenticacao";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Desabilitar refetch automático ao focar na janela
+      refetchOnWindowFocus: false,
+      // Desabilitar refetch ao reconectar
+      refetchOnReconnect: false,
+      // Manter dados em cache por mais tempo
+      staleTime: 5 * 60 * 1000, // 5 minutos
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
