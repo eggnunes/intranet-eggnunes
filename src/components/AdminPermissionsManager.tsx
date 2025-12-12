@@ -40,6 +40,7 @@ interface AdminPermissionRecord {
   perm_task_rules: string;
   perm_recruitment: string;
   perm_lead_tracking: string;
+  perm_totp: string;
 }
 
 interface GroupPermission {
@@ -64,6 +65,7 @@ interface GroupPermission {
   perm_task_rules: string;
   perm_recruitment: string;
   perm_lead_tracking: string;
+  perm_totp: string;
 }
 
 const PERMISSION_FEATURES = [
@@ -85,6 +87,7 @@ const PERMISSION_FEATURES = [
   { key: 'task_rules', label: 'Regras de Tarefas' },
   { key: 'recruitment', label: 'Contratação' },
   { key: 'lead_tracking', label: 'Tracking de Leads' },
+  { key: 'totp', label: 'Códigos TOTP' },
 ];
 
 const PERMISSION_LEVELS = [
