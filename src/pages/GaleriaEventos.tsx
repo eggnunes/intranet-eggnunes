@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
-import { Camera, Plus, Trash2, Upload, Calendar, Lock } from 'lucide-react';
+import { Camera, Plus, Trash2, Upload, Calendar, Lock, Download, X, ZoomIn } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { format, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -42,9 +42,35 @@ const GaleriaEventos = () => {
   const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [lightboxPhoto, setLightboxPhoto] = useState<EventPhoto | null>(null);
   const { isAdmin } = useUserRole();
   const { canView, loading: permLoading } = useAdminPermissions();
   const { toast } = useToast();
+
+  const handleDownloadPhoto = async (photoUrl: string, photoName?: string) => {
+    try {
+      const response = await fetch(photoUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = photoName || `foto-evento-${Date.now()}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast({
+        title: 'Download iniciado',
+        description: 'A foto está sendo baixada.'
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível baixar a foto.',
+        variant: 'destructive'
+      });
+    }
+  };
 
   const hasEventsAccess = canView('events');
 
@@ -497,14 +523,45 @@ const GaleriaEventos = () => {
                           <img
                             src={photo.photo_url}
                             alt={photo.caption || 'Foto do evento'}
-                            className="w-full h-48 object-cover rounded-lg"
+                            className="w-full h-48 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => setLightboxPhoto(photo)}
                           />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors rounded-lg pointer-events-none" />
+                          <div className="absolute bottom-2 left-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="h-8 w-8 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLightboxPhoto(photo);
+                              }}
+                              title="Ver em tamanho maior"
+                            >
+                              <ZoomIn className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="h-8 w-8 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadPhoto(photo.photo_url);
+                              }}
+                              title="Baixar foto"
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
                           {canDelete && (
                             <Button
                               size="sm"
                               variant="destructive"
                               className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => handleDeletePhoto(photo.id, photo.photo_url)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeletePhoto(photo.id, photo.photo_url);
+                              }}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -528,6 +585,42 @@ const GaleriaEventos = () => {
           </div>
         </div>
       </div>
+
+      {/* Lightbox Modal */}
+      {lightboxPhoto && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxPhoto(null)}
+        >
+          <div className="absolute top-4 right-4 flex gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDownloadPhoto(lightboxPhoto.photo_url);
+              }}
+              title="Baixar foto"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Baixar
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setLightboxPhoto(null)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <img
+            src={lightboxPhoto.photo_url}
+            alt={lightboxPhoto.caption || 'Foto do evento'}
+            className="max-w-full max-h-[90vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </Layout>
   );
 };
