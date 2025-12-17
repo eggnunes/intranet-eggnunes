@@ -224,7 +224,15 @@ const Mensagens = () => {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      
+      // Use a supported MIME type
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+        ? 'audio/webm;codecs=opus' 
+        : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : 'audio/mp4';
+      
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -235,12 +243,18 @@ const Mensagens = () => {
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        if (audioChunksRef.current.length === 0) {
+          toast.error('Nenhum áudio foi gravado');
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         await sendAudioMessage(audioBlob);
         stream.getTracks().forEach(track => track.stop());
       };
 
-      mediaRecorder.start();
+      // Start recording with timeslice to collect data periodically
+      mediaRecorder.start(100);
       setIsRecording(true);
       setRecordingTime(0);
       
@@ -490,6 +504,22 @@ const Mensagens = () => {
     if (isToday(date)) return format(date, 'HH:mm');
     if (isYesterday(date)) return 'Ontem';
     return format(date, 'dd/MM', { locale: ptBR });
+  };
+
+  // Check if message was read by other participants
+  const isMessageRead = (msg: Message) => {
+    if (!activeConversation?.participants) return false;
+    
+    // Get other participants (not the sender)
+    const otherParticipants = activeConversation.participants.filter(
+      p => p.user_id !== msg.sender_id
+    );
+    
+    // Check if at least one other participant has read the message
+    return otherParticipants.some(p => {
+      if (!p.last_read_at) return false;
+      return new Date(p.last_read_at) >= new Date(msg.created_at);
+    });
   };
 
   const filteredUsers = availableUsers.filter(u =>
@@ -901,6 +931,9 @@ const Mensagens = () => {
                                       </span>
                                       {msg.is_edited && (
                                         <span className="text-[10px]">(editado)</span>
+                                      )}
+                                      {isMe && isMessageRead(msg) && (
+                                        <span className="text-[10px] ml-1">✓✓</span>
                                       )}
                                     </div>
                                   </>
