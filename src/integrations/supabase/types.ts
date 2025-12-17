@@ -1744,6 +1744,79 @@ export type Database = {
         }
         Relationships: []
       }
+      feedback_forwards: {
+        Row: {
+          feedback_id: string
+          forwarded_at: string
+          forwarded_by: string
+          forwarded_to: string
+          id: string
+          is_read: boolean
+          note: string | null
+          read_at: string | null
+        }
+        Insert: {
+          feedback_id: string
+          forwarded_at?: string
+          forwarded_by: string
+          forwarded_to: string
+          id?: string
+          is_read?: boolean
+          note?: string | null
+          read_at?: string | null
+        }
+        Update: {
+          feedback_id?: string
+          forwarded_at?: string
+          forwarded_by?: string
+          forwarded_to?: string
+          id?: string
+          is_read?: boolean
+          note?: string | null
+          read_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_forwards_feedback_id_fkey"
+            columns: ["feedback_id"]
+            isOneToOne: false
+            referencedRelation: "feedback_box"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feedback_replies: {
+        Row: {
+          created_at: string
+          feedback_id: string
+          id: string
+          message: string
+          sender_id: string
+        }
+        Insert: {
+          created_at?: string
+          feedback_id: string
+          id?: string
+          message: string
+          sender_id: string
+        }
+        Update: {
+          created_at?: string
+          feedback_id?: string
+          id?: string
+          message?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_replies_feedback_id_fkey"
+            columns: ["feedback_id"]
+            isOneToOne: false
+            referencedRelation: "feedback_box"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_alerts: {
         Row: {
           alert_type: string
