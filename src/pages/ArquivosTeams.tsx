@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,13 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -39,10 +46,13 @@ import {
   HardDrive,
   Building2,
   Lock,
+  ArrowUpDown,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useUserRole } from '@/hooks/useUserRole';
+
+type SortOption = 'name-asc' | 'name-desc' | 'date-asc' | 'date-desc' | 'size-asc' | 'size-desc' | 'type';
 
 interface Site {
   id: string;
@@ -93,6 +103,7 @@ export default function ArquivosTeams() {
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [teamsPermission, setTeamsPermission] = useState<string>('view');
+  const [sortBy, setSortBy] = useState<SortOption>('name-asc');
 
   useEffect(() => {
     loadTeamsPermission();
@@ -415,9 +426,51 @@ export default function ArquivosTeams() {
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   };
 
-  const filteredItems = items.filter(item =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const sortedAndFilteredItems = useMemo(() => {
+    let result = items.filter(item =>
+      item.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Ordenar
+    result.sort((a, b) => {
+      // Pastas sempre primeiro
+      if (a.folder && !b.folder) return -1;
+      if (!a.folder && b.folder) return 1;
+
+      switch (sortBy) {
+        case 'name-asc':
+          return a.name.localeCompare(b.name, 'pt-BR');
+        case 'name-desc':
+          return b.name.localeCompare(a.name, 'pt-BR');
+        case 'date-asc':
+          return new Date(a.lastModifiedDateTime).getTime() - new Date(b.lastModifiedDateTime).getTime();
+        case 'date-desc':
+          return new Date(b.lastModifiedDateTime).getTime() - new Date(a.lastModifiedDateTime).getTime();
+        case 'size-asc':
+          return (a.size || 0) - (b.size || 0);
+        case 'size-desc':
+          return (b.size || 0) - (a.size || 0);
+        case 'type':
+          const extA = a.name.split('.').pop()?.toLowerCase() || '';
+          const extB = b.name.split('.').pop()?.toLowerCase() || '';
+          return extA.localeCompare(extB);
+        default:
+          return 0;
+      }
+    });
+
+    return result;
+  }, [items, searchQuery, sortBy]);
+
+  // Verificar se usuário pode excluir (admin ou pasta=false)
+  const canDeleteItem = (item: DriveItem): boolean => {
+    if (item.folder) {
+      // Pastas só podem ser excluídas por admins
+      return teamsPermission === 'edit';
+    }
+    // Arquivos podem ser excluídos por qualquer usuário
+    return true;
+  };
 
   return (
     <Layout>
@@ -600,6 +653,23 @@ export default function ArquivosTeams() {
                       className="pl-10"
                     />
                   </div>
+
+                  {/* Ordenação */}
+                  <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
+                    <SelectTrigger className="w-[180px]">
+                      <ArrowUpDown className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Ordenar por" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="name-asc">Nome (A-Z)</SelectItem>
+                      <SelectItem value="name-desc">Nome (Z-A)</SelectItem>
+                      <SelectItem value="date-desc">Mais recente</SelectItem>
+                      <SelectItem value="date-asc">Mais antigo</SelectItem>
+                      <SelectItem value="size-desc">Maior tamanho</SelectItem>
+                      <SelectItem value="size-asc">Menor tamanho</SelectItem>
+                      <SelectItem value="type">Tipo de arquivo</SelectItem>
+                    </SelectContent>
+                  </Select>
                   
                   <Dialog open={showNewFolderDialog} onOpenChange={setShowNewFolderDialog}>
                     <DialogTrigger asChild>
@@ -659,14 +729,14 @@ export default function ArquivosTeams() {
                     <Skeleton key={i} className="h-14" />
                   ))}
                 </div>
-              ) : filteredItems.length === 0 ? (
+              ) : sortedAndFilteredItems.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <Folder className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>Pasta vazia</p>
                 </div>
               ) : (
                 <div className="divide-y">
-                  {filteredItems.map(item => (
+                  {sortedAndFilteredItems.map(item => (
                     <div
                       key={item.id}
                       className="flex items-center gap-4 py-3 px-2 hover:bg-muted/50 rounded-lg transition-colors"
@@ -701,14 +771,17 @@ export default function ArquivosTeams() {
                             <Download className="h-4 w-4" />
                           </Button>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(item)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {canDeleteItem(item) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(item)}
+                            className="text-destructive hover:text-destructive"
+                            title={item.folder ? 'Excluir pasta (Admin)' : 'Excluir arquivo'}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
