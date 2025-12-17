@@ -1844,6 +1844,7 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
   );
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh]">
         <DialogHeader>
@@ -2692,5 +2693,20 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
         )}
       </DialogContent>
     </Dialog>
+
+    {/* Dialog para salvar no Teams */}
+    <SaveToTeamsDialog
+      open={showSaveToTeams}
+      onOpenChange={setShowSaveToTeams}
+      fileName={pdfForTeams?.fileName || ''}
+      fileContent={pdfForTeams?.content || ''}
+      clientName={client?.nomeCompleto}
+      onSuccess={() => {
+        toast.success('Contrato salvo no Teams com sucesso!');
+        setShowSaveToTeams(false);
+        setPdfForTeams(null);
+      }}
+    />
+    </>
   );
 };
