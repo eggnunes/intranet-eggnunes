@@ -469,29 +469,28 @@ export default function ArquivosTeams() {
     return result;
   }, [items, searchQuery, sortBy]);
 
-  // Abrir no SharePoint (usando URL de preview que não é bloqueada)
+  // Abrir no SharePoint (usando URL de edição)
   const handleOpenInSharePoint = async (item: DriveItem) => {
     if (!selectedDrive) {
-      // Fallback para webUrl se não tiver drive selecionado
       if (item.webUrl) {
         window.open(item.webUrl, '_blank');
       }
       return;
     }
     
-    // Tentar obter URL de preview (usa domínio diferente, não bloqueado)
+    // Tentar obter URL de edição
     try {
-      const data = await callTeamsApi('get-preview-url', {
+      const data = await callTeamsApi('get-edit-url', {
         driveId: selectedDrive.id,
         itemId: item.id,
       });
       
-      if (data.previewUrl) {
-        window.open(data.previewUrl, '_blank');
+      if (data.editUrl) {
+        window.open(data.editUrl, '_blank');
         return;
       }
     } catch (error) {
-      console.error('Error getting preview URL:', error);
+      console.error('Error getting edit URL:', error);
     }
     
     // Fallback para webUrl
