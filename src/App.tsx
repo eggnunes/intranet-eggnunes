@@ -48,6 +48,7 @@ import Notificacoes from "./pages/Notificacoes";
 import LeadTracking from "./pages/LeadTracking";
 import CRM from "./pages/CRM";
 import CodigosAutenticacao from "./pages/CodigosAutenticacao";
+import ArquivosTeams from "./pages/ArquivosTeams";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient({
@@ -391,6 +392,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <CodigosAutenticacao />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/arquivos-teams"
+              element={
+                <ProtectedRoute>
+                  <ArquivosTeams />
                 </ProtectedRoute>
               }
             />

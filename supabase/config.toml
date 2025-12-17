@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.totp-generate]
 verify_jwt = true
+
+[functions.microsoft-teams]
+verify_jwt = true

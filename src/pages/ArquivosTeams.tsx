@@ -1,0 +1,605 @@
+import { useState, useEffect } from 'react';
+import { Layout } from '@/components/Layout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import {
+  Folder,
+  File,
+  Download,
+  Upload,
+  Trash2,
+  FolderPlus,
+  Search,
+  RefreshCw,
+  ChevronRight,
+  FileText,
+  FileImage,
+  FileSpreadsheet,
+  FileVideo,
+  FileAudio,
+  HardDrive,
+  Building2,
+} from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+interface Site {
+  id: string;
+  name: string;
+  displayName: string;
+  webUrl: string;
+}
+
+interface Drive {
+  id: string;
+  name: string;
+  driveType: string;
+  quota?: {
+    total: number;
+    used: number;
+  };
+}
+
+interface DriveItem {
+  id: string;
+  name: string;
+  folder?: { childCount: number };
+  file?: { mimeType: string };
+  size?: number;
+  createdDateTime: string;
+  lastModifiedDateTime: string;
+  webUrl: string;
+  '@microsoft.graph.downloadUrl'?: string;
+}
+
+interface BreadcrumbItem {
+  id: string | null;
+  name: string;
+}
+
+export default function ArquivosTeams() {
+  const [sites, setSites] = useState<Site[]>([]);
+  const [drives, setDrives] = useState<Drive[]>([]);
+  const [items, setItems] = useState<DriveItem[]>([]);
+  const [selectedSite, setSelectedSite] = useState<Site | null>(null);
+  const [selectedDrive, setSelectedDrive] = useState<Drive | null>(null);
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [breadcrumb, setBreadcrumb] = useState<BreadcrumbItem[]>([{ id: null, name: 'Raiz' }]);
+  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [newFolderName, setNewFolderName] = useState('');
+  const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    loadSites();
+  }, []);
+
+  const callTeamsApi = async (action: string, params: Record<string, any> = {}) => {
+    const { data, error } = await supabase.functions.invoke('microsoft-teams', {
+      body: { action, ...params },
+    });
+
+    if (error) throw error;
+    return data;
+  };
+
+  const loadSites = async () => {
+    setLoading(true);
+    try {
+      const data = await callTeamsApi('list-sites');
+      setSites(data.value || []);
+    } catch (error) {
+      console.error('Error loading sites:', error);
+      toast.error('Erro ao carregar sites do Teams');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadDrives = async (site: Site) => {
+    setLoading(true);
+    setSelectedSite(site);
+    setSelectedDrive(null);
+    setItems([]);
+    setBreadcrumb([{ id: null, name: 'Raiz' }]);
+    
+    try {
+      const data = await callTeamsApi('list-drives', { siteId: site.id });
+      setDrives(data.value || []);
+    } catch (error) {
+      console.error('Error loading drives:', error);
+      toast.error('Erro ao carregar drives');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadItems = async (drive: Drive, folderId: string | null = null, folderName?: string) => {
+    setLoading(true);
+    setSelectedDrive(drive);
+    setCurrentFolderId(folderId);
+    
+    if (folderId && folderName) {
+      setBreadcrumb(prev => [...prev, { id: folderId, name: folderName }]);
+    } else if (!folderId) {
+      setBreadcrumb([{ id: null, name: 'Raiz' }]);
+    }
+    
+    try {
+      const data = await callTeamsApi('list-items', { 
+        driveId: drive.id, 
+        folderId 
+      });
+      setItems(data.value || []);
+    } catch (error) {
+      console.error('Error loading items:', error);
+      toast.error('Erro ao carregar arquivos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const navigateToBreadcrumb = (index: number) => {
+    const item = breadcrumb[index];
+    setBreadcrumb(prev => prev.slice(0, index + 1));
+    setCurrentFolderId(item.id);
+    
+    if (selectedDrive) {
+      loadItemsWithoutBreadcrumb(selectedDrive, item.id);
+    }
+  };
+
+  const loadItemsWithoutBreadcrumb = async (drive: Drive, folderId: string | null) => {
+    setLoading(true);
+    try {
+      const data = await callTeamsApi('list-items', { 
+        driveId: drive.id, 
+        folderId 
+      });
+      setItems(data.value || []);
+    } catch (error) {
+      console.error('Error loading items:', error);
+      toast.error('Erro ao carregar arquivos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleItemClick = (item: DriveItem) => {
+    if (item.folder && selectedDrive) {
+      loadItems(selectedDrive, item.id, item.name);
+    }
+  };
+
+  const handleDownload = async (item: DriveItem) => {
+    if (!selectedDrive) return;
+    
+    try {
+      const data = await callTeamsApi('download', {
+        driveId: selectedDrive.id,
+        itemId: item.id,
+      });
+      
+      if (data.downloadUrl) {
+        window.open(data.downloadUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('Error downloading:', error);
+      toast.error('Erro ao baixar arquivo');
+    }
+  };
+
+  const handleDelete = async (item: DriveItem) => {
+    if (!selectedDrive) return;
+    
+    if (!confirm(`Tem certeza que deseja excluir "${item.name}"?`)) return;
+    
+    try {
+      await callTeamsApi('delete', {
+        driveId: selectedDrive.id,
+        itemId: item.id,
+      });
+      
+      toast.success('Item excluído com sucesso');
+      loadItemsWithoutBreadcrumb(selectedDrive, currentFolderId);
+    } catch (error) {
+      console.error('Error deleting:', error);
+      toast.error('Erro ao excluir item');
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    if (!selectedDrive || !newFolderName.trim()) return;
+    
+    try {
+      await callTeamsApi('create-folder', {
+        driveId: selectedDrive.id,
+        folderId: currentFolderId,
+        folderName: newFolderName.trim(),
+      });
+      
+      toast.success('Pasta criada com sucesso');
+      setNewFolderName('');
+      setShowNewFolderDialog(false);
+      loadItemsWithoutBreadcrumb(selectedDrive, currentFolderId);
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      toast.error('Erro ao criar pasta');
+    }
+  };
+
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedDrive || !event.target.files?.length) return;
+    
+    const file = event.target.files[0];
+    
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error('Arquivo muito grande. Máximo: 4MB');
+      return;
+    }
+    
+    setUploading(true);
+    
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = (e.target?.result as string).split(',')[1];
+        
+        await callTeamsApi('upload', {
+          driveId: selectedDrive.id,
+          folderId: currentFolderId,
+          fileName: file.name,
+          fileContent: base64,
+        });
+        
+        toast.success('Arquivo enviado com sucesso');
+        loadItemsWithoutBreadcrumb(selectedDrive, currentFolderId);
+        setUploading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error uploading:', error);
+      toast.error('Erro ao enviar arquivo');
+      setUploading(false);
+    }
+  };
+
+  const getFileIcon = (item: DriveItem) => {
+    if (item.folder) return <Folder className="h-5 w-5 text-yellow-500" />;
+    
+    const mimeType = item.file?.mimeType || '';
+    
+    if (mimeType.includes('image')) return <FileImage className="h-5 w-5 text-green-500" />;
+    if (mimeType.includes('video')) return <FileVideo className="h-5 w-5 text-purple-500" />;
+    if (mimeType.includes('audio')) return <FileAudio className="h-5 w-5 text-pink-500" />;
+    if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) 
+      return <FileSpreadsheet className="h-5 w-5 text-green-600" />;
+    if (mimeType.includes('document') || mimeType.includes('word') || mimeType.includes('pdf')) 
+      return <FileText className="h-5 w-5 text-blue-500" />;
+    
+    return <File className="h-5 w-5 text-muted-foreground" />;
+  };
+
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return '-';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  };
+
+  const filteredItems = items.filter(item =>
+    item.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <Layout>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-3">
+            <HardDrive className="h-8 w-8 text-primary" />
+            Arquivos do Teams
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            Acesse e gerencie arquivos do Microsoft Teams
+          </p>
+        </div>
+
+        {/* Site Selection */}
+        {!selectedSite && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                Selecione um Site
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[1, 2, 3].map(i => (
+                    <Skeleton key={i} className="h-24" />
+                  ))}
+                </div>
+              ) : sites.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Nenhum site encontrado</p>
+                  <Button onClick={loadSites} variant="outline" className="mt-4">
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Tentar novamente
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {sites.map(site => (
+                    <Card
+                      key={site.id}
+                      className="cursor-pointer hover:border-primary transition-colors"
+                      onClick={() => loadDrives(site)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                          <Building2 className="h-10 w-10 text-primary" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{site.displayName}</p>
+                            <p className="text-sm text-muted-foreground truncate">{site.name}</p>
+                          </div>
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Drive Selection */}
+        {selectedSite && !selectedDrive && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <HardDrive className="h-5 w-5" />
+                  Selecione um Drive - {selectedSite.displayName}
+                </CardTitle>
+                <Button variant="outline" onClick={() => setSelectedSite(null)}>
+                  Voltar
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[1, 2, 3].map(i => (
+                    <Skeleton key={i} className="h-24" />
+                  ))}
+                </div>
+              ) : drives.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <HardDrive className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Nenhum drive encontrado</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {drives.map(drive => (
+                    <Card
+                      key={drive.id}
+                      className="cursor-pointer hover:border-primary transition-colors"
+                      onClick={() => loadItems(drive)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                          <HardDrive className="h-10 w-10 text-blue-500" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{drive.name}</p>
+                            <Badge variant="outline" className="mt-1">
+                              {drive.driveType}
+                            </Badge>
+                          </div>
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* File Browser */}
+        {selectedDrive && (
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <HardDrive className="h-5 w-5" />
+                    {selectedDrive.name}
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setSelectedDrive(null);
+                        setItems([]);
+                        setBreadcrumb([{ id: null, name: 'Raiz' }]);
+                      }}
+                    >
+                      Voltar
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Breadcrumb */}
+                <Breadcrumb>
+                  <BreadcrumbList>
+                    {breadcrumb.map((item, index) => (
+                      <BreadcrumbItem key={index}>
+                        {index > 0 && <BreadcrumbSeparator />}
+                        <BreadcrumbLink
+                          className="cursor-pointer hover:text-primary"
+                          onClick={() => navigateToBreadcrumb(index)}
+                        >
+                          {item.name}
+                        </BreadcrumbLink>
+                      </BreadcrumbItem>
+                    ))}
+                  </BreadcrumbList>
+                </Breadcrumb>
+
+                {/* Actions */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar arquivos..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  
+                  <Dialog open={showNewFolderDialog} onOpenChange={setShowNewFolderDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline">
+                        <FolderPlus className="h-4 w-4 mr-2" />
+                        Nova Pasta
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Criar Nova Pasta</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <Input
+                          placeholder="Nome da pasta"
+                          value={newFolderName}
+                          onChange={(e) => setNewFolderName(e.target.value)}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setShowNewFolderDialog(false)}>
+                            Cancelar
+                          </Button>
+                          <Button onClick={handleCreateFolder}>
+                            Criar
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Button variant="outline" disabled={uploading} asChild>
+                    <label className="cursor-pointer">
+                      <Upload className="h-4 w-4 mr-2" />
+                      {uploading ? 'Enviando...' : 'Upload'}
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={handleUpload}
+                        disabled={uploading}
+                      />
+                    </label>
+                  </Button>
+
+                  <Button 
+                    variant="outline" 
+                    onClick={() => loadItemsWithoutBreadcrumb(selectedDrive, currentFolderId)}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <Skeleton key={i} className="h-14" />
+                  ))}
+                </div>
+              ) : filteredItems.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Folder className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Pasta vazia</p>
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {filteredItems.map(item => (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-4 py-3 px-2 hover:bg-muted/50 rounded-lg transition-colors"
+                    >
+                      <div
+                        className={`flex items-center gap-3 flex-1 min-w-0 ${
+                          item.folder ? 'cursor-pointer' : ''
+                        }`}
+                        onClick={() => handleItemClick(item)}
+                      >
+                        {getFileIcon(item)}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{item.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {item.folder 
+                              ? `${item.folder.childCount} itens` 
+                              : formatFileSize(item.size)
+                            }
+                            {' • '}
+                            {format(new Date(item.lastModifiedDateTime), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-1">
+                        {!item.folder && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDownload(item)}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(item)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </Layout>
+  );
+}
