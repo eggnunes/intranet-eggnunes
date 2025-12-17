@@ -2050,6 +2050,36 @@ export type Database = {
         }
         Relationships: []
       }
+      integration_settings: {
+        Row: {
+          created_at: string
+          id: string
+          integration_id: string
+          is_active: boolean
+          last_tested_at: string | null
+          test_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          integration_id: string
+          is_active?: boolean
+          last_tested_at?: string | null
+          test_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          integration_id?: string
+          is_active?: boolean
+          last_tested_at?: string | null
+          test_status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       intranet_update_reads: {
         Row: {
           id: string

@@ -142,13 +142,13 @@ export default function Integracoes() {
     try {
       // Fetch integration settings from database
       const { data: settings } = await supabase
-        .from('integration_settings')
+        .from('integration_settings' as any)
         .select('*');
 
-      const settingsMap = new Map(settings?.map(s => [s.integration_id, s]) || []);
+      const settingsMap = new Map((settings as any[])?.map((s: any) => [s.integration_id, s]) || []);
 
       const integrationsWithStatus = INTEGRATIONS_CONFIG.map(config => {
-        const setting = settingsMap.get(config.id);
+        const setting = settingsMap.get(config.id) as any;
         return {
           ...config,
           isActive: setting?.is_active ?? true, // Default to active
@@ -173,7 +173,7 @@ export default function Integracoes() {
   const toggleIntegration = async (integrationId: string, isActive: boolean) => {
     try {
       const { error } = await supabase
-        .from('integration_settings')
+        .from('integration_settings' as any)
         .upsert({
           integration_id: integrationId,
           is_active: isActive,
@@ -225,7 +225,7 @@ export default function Integracoes() {
 
       // Update test status in database
       await supabase
-        .from('integration_settings')
+        .from('integration_settings' as any)
         .upsert({
           integration_id: integration.id,
           is_active: integration.isActive,
@@ -236,7 +236,7 @@ export default function Integracoes() {
           onConflict: 'integration_id',
         });
 
-      setIntegrations(prev => prev.map(i => 
+      setIntegrations(prev => prev.map(i =>
         i.id === integration.id 
           ? { ...i, testStatus: testSuccess ? 'success' : 'error', lastTested: new Date() }
           : i
