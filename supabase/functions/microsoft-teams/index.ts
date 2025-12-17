@@ -212,7 +212,7 @@ serve(async (req) => {
       }
 
       case 'upload': {
-        // Upload a file (small files < 4MB)
+        // Upload a file - supports files of any size via resumable upload
         if (!driveId || !fileName || !fileContent) {
           return new Response(JSON.stringify({ error: 'driveId, fileName, and fileContent are required' }), {
             status: 400,
@@ -220,31 +220,98 @@ serve(async (req) => {
           });
         }
         
-        let endpoint = `/drives/${driveId}/root:/${fileName}:/content`;
-        if (folderId) {
-          endpoint = `/drives/${driveId}/items/${folderId}:/${fileName}:/content`;
-        }
-        
         // Decode base64 content
         const binaryContent = Uint8Array.from(atob(fileContent), c => c.charCodeAt(0));
+        const fileSize = binaryContent.length;
         
-        const uploadResponse = await fetch(`https://graph.microsoft.com/v1.0${endpoint}`, {
-          method: 'PUT',
+        // For small files (< 4MB), use simple upload
+        if (fileSize < 4 * 1024 * 1024) {
+          let endpoint = `/drives/${driveId}/root:/${fileName}:/content`;
+          if (folderId) {
+            endpoint = `/drives/${driveId}/items/${folderId}:/${fileName}:/content`;
+          }
+          
+          const uploadResponse = await fetch(`https://graph.microsoft.com/v1.0${endpoint}`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/octet-stream',
+            },
+            body: binaryContent,
+          });
+
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text();
+            console.error('Upload error:', errorText);
+            throw new Error(`Upload failed: ${uploadResponse.status}`);
+          }
+
+          const uploadedFile = await uploadResponse.json();
+          return new Response(JSON.stringify(uploadedFile), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        // For larger files, use resumable upload session
+        let createSessionEndpoint = `/drives/${driveId}/root:/${fileName}:/createUploadSession`;
+        if (folderId) {
+          createSessionEndpoint = `/drives/${driveId}/items/${folderId}:/${fileName}:/createUploadSession`;
+        }
+        
+        // Create upload session
+        const sessionResponse = await fetch(`https://graph.microsoft.com/v1.0${createSessionEndpoint}`, {
+          method: 'POST',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/octet-stream',
+            'Content-Type': 'application/json',
           },
-          body: binaryContent,
+          body: JSON.stringify({
+            item: {
+              '@microsoft.graph.conflictBehavior': 'rename',
+              name: fileName,
+            },
+          }),
         });
 
-        if (!uploadResponse.ok) {
-          const errorText = await uploadResponse.text();
-          console.error('Upload error:', errorText);
-          throw new Error(`Upload failed: ${uploadResponse.status}`);
+        if (!sessionResponse.ok) {
+          const errorText = await sessionResponse.text();
+          console.error('Create session error:', errorText);
+          throw new Error(`Failed to create upload session: ${sessionResponse.status}`);
         }
 
-        const uploadedFile = await uploadResponse.json();
-        return new Response(JSON.stringify(uploadedFile), {
+        const session = await sessionResponse.json();
+        const uploadUrl = session.uploadUrl;
+        
+        // Upload in chunks (10MB chunks for better performance)
+        const chunkSize = 10 * 1024 * 1024; // 10MB
+        let uploadedFile = null;
+        
+        for (let offset = 0; offset < fileSize; offset += chunkSize) {
+          const end = Math.min(offset + chunkSize, fileSize);
+          const chunk = binaryContent.slice(offset, end);
+          
+          const chunkResponse = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+              'Content-Length': chunk.length.toString(),
+              'Content-Range': `bytes ${offset}-${end - 1}/${fileSize}`,
+            },
+            body: chunk,
+          });
+
+          if (!chunkResponse.ok && chunkResponse.status !== 202) {
+            const errorText = await chunkResponse.text();
+            console.error('Chunk upload error:', errorText);
+            throw new Error(`Chunk upload failed: ${chunkResponse.status}`);
+          }
+
+          // Last chunk returns the file metadata
+          if (chunkResponse.status === 200 || chunkResponse.status === 201) {
+            uploadedFile = await chunkResponse.json();
+          }
+        }
+
+        return new Response(JSON.stringify(uploadedFile || { success: true }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
