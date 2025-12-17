@@ -253,12 +253,16 @@ export default function ArquivosTeams() {
     
     const file = event.target.files[0];
     
-    if (file.size > 4 * 1024 * 1024) {
-      toast.error('Arquivo muito grande. Máximo: 4MB');
+    // Limite de 250MB para upload
+    if (file.size > 250 * 1024 * 1024) {
+      toast.error('Arquivo muito grande. Máximo: 250MB');
       return;
     }
     
     setUploading(true);
+    
+    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+    toast.info(`Enviando arquivo (${fileSizeMB}MB)... Aguarde.`);
     
     try {
       const reader = new FileReader();
