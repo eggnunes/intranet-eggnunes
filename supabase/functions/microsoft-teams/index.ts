@@ -196,6 +196,47 @@ serve(async (req) => {
         });
       }
 
+      case 'get-preview-url': {
+        // Get embeddable preview URL for a file
+        if (!driveId || !itemId) {
+          return new Response(JSON.stringify({ error: 'driveId and itemId are required' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        try {
+          const previewResponse = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/preview`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({}),
+          });
+
+          if (!previewResponse.ok) {
+            const errorText = await previewResponse.text();
+            console.error('Preview error:', errorText);
+            return new Response(JSON.stringify({ error: 'Preview not available', details: errorText }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          const previewData = await previewResponse.json();
+          return new Response(JSON.stringify({ previewUrl: previewData.getUrl }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          console.error('Preview error:', error);
+          return new Response(JSON.stringify({ error: 'Failed to get preview URL' }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
       case 'create-folder': {
         // Create a new folder
         if (!driveId || !folderName) {

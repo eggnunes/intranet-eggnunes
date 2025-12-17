@@ -485,7 +485,6 @@ export default function ArquivosTeams() {
     setLoadingPreview(true);
     
     const mimeType = item.file?.mimeType || '';
-    const name = item.name.toLowerCase();
     
     // Para imagens, vídeos e áudios, precisamos da URL de download
     if (mimeType.includes('image') || mimeType.includes('video') || mimeType.includes('audio')) {
@@ -502,8 +501,22 @@ export default function ArquivosTeams() {
         console.error('Error getting preview:', error);
         toast.error('Erro ao carregar pré-visualização');
       }
+    } else {
+      // Para PDFs e Office files, obter URL embeddable do Microsoft Graph
+      try {
+        const data = await callTeamsApi('get-preview-url', {
+          driveId: selectedDrive.id,
+          itemId: item.id,
+        });
+        
+        if (data.previewUrl) {
+          setPreviewUrl(data.previewUrl);
+        }
+      } catch (error) {
+        console.error('Error getting preview URL:', error);
+        // Não mostrar erro, apenas deixar sem preview URL
+      }
     }
-    // Para outros arquivos (PDF, Office), usamos a webUrl do SharePoint
     
     setLoadingPreview(false);
   };
@@ -552,6 +565,14 @@ export default function ArquivosTeams() {
   const renderPreview = () => {
     if (!previewItem) return null;
     
+    if (loadingPreview) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      );
+    }
+    
     const mimeType = previewItem.file?.mimeType || '';
     
     // Para imagens com URL de preview
@@ -579,39 +600,28 @@ export default function ArquivosTeams() {
       );
     }
     
-    // Para PDFs e arquivos Office - mostrar mensagem e botão para abrir no SharePoint
-    if (isOfficeOrPdf(previewItem)) {
+    // Para PDFs e arquivos Office - usar iframe com URL embeddable
+    if (isOfficeOrPdf(previewItem) && previewUrl) {
       return (
-        <div className="flex flex-col items-center justify-center py-8 space-y-4">
-          <FileText className="h-16 w-16 text-muted-foreground" />
-          <p className="text-center text-muted-foreground">
-            Este tipo de arquivo é melhor visualizado no SharePoint/Office Online
-          </p>
-          <Button onClick={() => handleOpenInSharePoint(previewItem)}>
-            <ExternalLink className="h-4 w-4 mr-2" />
-            Abrir no SharePoint
-          </Button>
-        </div>
+        <iframe 
+          src={previewUrl} 
+          className="w-full h-[70vh] border-0 rounded-lg"
+          title={previewItem.name}
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        />
       );
     }
     
-    // Para outros arquivos
+    // Fallback - preview não disponível
     return (
       <div className="flex flex-col items-center justify-center py-8 space-y-4">
-        <File className="h-16 w-16 text-muted-foreground" />
+        <FileText className="h-16 w-16 text-muted-foreground" />
         <p className="text-center text-muted-foreground">
-          Pré-visualização não disponível para este tipo de arquivo
+          Pré-visualização não disponível para este arquivo.
         </p>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => handleOpenInSharePoint(previewItem)}>
-            <ExternalLink className="h-4 w-4 mr-2" />
-            Abrir no SharePoint
-          </Button>
-          <Button variant="outline" onClick={() => handleDownload(previewItem)}>
-            <Download className="h-4 w-4 mr-2" />
-            Baixar
-          </Button>
-        </div>
+        <p className="text-center text-sm text-muted-foreground">
+          Se o SharePoint estiver bloqueado pelo navegador, desative o bloqueador de anúncios.
+        </p>
       </div>
     );
   };
