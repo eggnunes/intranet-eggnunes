@@ -103,11 +103,35 @@ export default function ArquivosTeams() {
     return data;
   };
 
+  // Sites permitidos para exibição
+  const ALLOWED_SITES = [
+    'comercial',
+    'administrativo',
+    'estrategico',
+    'estratégico',
+    'juridico',
+    'jurídico',
+    'eggnunesadvogadosassociados',
+    'egg nunes advogados associados',
+  ];
+
   const loadSites = async () => {
     setLoading(true);
     try {
       const data = await callTeamsApi('list-sites');
-      setSites(data.value || []);
+      const allSites = data.value || [];
+      
+      // Filtrar apenas os sites permitidos
+      const filteredSites = allSites.filter((site: Site) => {
+        const siteName = site.name?.toLowerCase() || '';
+        const displayName = site.displayName?.toLowerCase() || '';
+        
+        return ALLOWED_SITES.some(allowed => 
+          siteName.includes(allowed) || displayName.includes(allowed)
+        );
+      });
+      
+      setSites(filteredSites);
     } catch (error) {
       console.error('Error loading sites:', error);
       toast.error('Erro ao carregar sites do Teams');
