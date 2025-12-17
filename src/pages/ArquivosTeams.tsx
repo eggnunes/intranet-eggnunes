@@ -469,8 +469,32 @@ export default function ArquivosTeams() {
     return result;
   }, [items, searchQuery, sortBy]);
 
-  // Abrir no SharePoint
-  const handleOpenInSharePoint = (item: DriveItem) => {
+  // Abrir no SharePoint (usando URL de preview que não é bloqueada)
+  const handleOpenInSharePoint = async (item: DriveItem) => {
+    if (!selectedDrive) {
+      // Fallback para webUrl se não tiver drive selecionado
+      if (item.webUrl) {
+        window.open(item.webUrl, '_blank');
+      }
+      return;
+    }
+    
+    // Tentar obter URL de preview (usa domínio diferente, não bloqueado)
+    try {
+      const data = await callTeamsApi('get-preview-url', {
+        driveId: selectedDrive.id,
+        itemId: item.id,
+      });
+      
+      if (data.previewUrl) {
+        window.open(data.previewUrl, '_blank');
+        return;
+      }
+    } catch (error) {
+      console.error('Error getting preview URL:', error);
+    }
+    
+    // Fallback para webUrl
     if (item.webUrl) {
       window.open(item.webUrl, '_blank');
     }
