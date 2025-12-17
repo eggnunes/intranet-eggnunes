@@ -17,11 +17,21 @@ interface TokenResponse {
 }
 
 async function getAccessToken(): Promise<string> {
+  console.log('Getting access token...');
+  console.log('Client ID exists:', !!MICROSOFT_CLIENT_ID);
+  console.log('Tenant ID exists:', !!MICROSOFT_TENANT_ID);
+  console.log('Client Secret exists:', !!MICROSOFT_CLIENT_SECRET);
+  
+  if (!MICROSOFT_CLIENT_ID || !MICROSOFT_TENANT_ID || !MICROSOFT_CLIENT_SECRET) {
+    throw new Error('Microsoft credentials not configured. Please check MICROSOFT_CLIENT_ID, MICROSOFT_TENANT_ID, and MICROSOFT_CLIENT_SECRET secrets.');
+  }
+  
   const tokenUrl = `https://login.microsoftonline.com/${MICROSOFT_TENANT_ID}/oauth2/v2.0/token`;
+  console.log('Token URL:', tokenUrl);
   
   const params = new URLSearchParams();
-  params.append('client_id', MICROSOFT_CLIENT_ID!);
-  params.append('client_secret', MICROSOFT_CLIENT_SECRET!);
+  params.append('client_id', MICROSOFT_CLIENT_ID);
+  params.append('client_secret', MICROSOFT_CLIENT_SECRET);
   params.append('scope', 'https://graph.microsoft.com/.default');
   params.append('grant_type', 'client_credentials');
 
@@ -33,13 +43,16 @@ async function getAccessToken(): Promise<string> {
     body: params.toString(),
   });
 
+  const responseText = await response.text();
+  console.log('Token response status:', response.status);
+  
   if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Token error:', errorText);
-    throw new Error(`Failed to get access token: ${response.status}`);
+    console.error('Token error response:', responseText);
+    throw new Error(`Failed to get access token: ${response.status} - ${responseText}`);
   }
 
-  const data: TokenResponse = await response.json();
+  const data = JSON.parse(responseText);
+  console.log('Access token obtained successfully');
   return data.access_token;
 }
 
