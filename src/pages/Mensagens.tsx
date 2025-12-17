@@ -51,7 +51,8 @@ import {
   Pencil,
   Trash2,
   X,
-  Check
+  Check,
+  Reply
 } from 'lucide-react';
 import { format, isToday, isYesterday, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -95,6 +96,7 @@ const Mensagens = () => {
   const [editingContent, setEditingContent] = useState('');
   const [deleteConversationId, setDeleteConversationId] = useState<string | null>(null);
   const [isSocio, setIsSocio] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -141,8 +143,9 @@ const Mensagens = () => {
 
     setSending(true);
     try {
-      await sendMessage(activeConversation.id, newMessage);
+      await sendMessage(activeConversation.id, newMessage, replyingTo?.id);
       setNewMessage('');
+      setReplyingTo(null);
     } finally {
       setSending(false);
     }
@@ -604,7 +607,7 @@ const Mensagens = () => {
                       <p>Nenhuma mensagem ainda. Diga olá!</p>
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {messages.map((msg, i) => {
                         const isMe = msg.sender_id === user?.id;
                         const showAvatar = i === 0 || messages[i - 1].sender_id !== msg.sender_id;
@@ -615,39 +618,71 @@ const Mensagens = () => {
                             key={msg.id}
                             className={cn(
                               "flex gap-2 group",
-                              isMe ? "justify-end" : "justify-start"
+                              isMe ? "flex-row-reverse" : "flex-row"
                             )}
                           >
                             {!isMe && showAvatar && (
-                              <Avatar className="h-8 w-8">
+                              <Avatar className="h-8 w-8 flex-shrink-0">
                                 <AvatarImage src={msg.sender?.avatar_url || ''} />
                                 <AvatarFallback>
                                   {msg.sender?.full_name?.[0] || '?'}
                                 </AvatarFallback>
                               </Avatar>
                             )}
-                            {!isMe && !showAvatar && <div className="w-8" />}
+                            {!isMe && !showAvatar && <div className="w-8 flex-shrink-0" />}
                             
-                            <div className="flex items-start gap-1">
-                              {isMe && canEditMessage(msg) && !isEditing && (
+                            <div className={cn(
+                              "flex items-start gap-1",
+                              isMe ? "flex-row-reverse" : "flex-row"
+                            )}>
+                              {/* Action buttons */}
+                              <div className={cn(
+                                "flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity",
+                                isMe ? "flex-row-reverse" : "flex-row"
+                              )}>
+                                {isMe && canEditMessage(msg) && !isEditing && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    onClick={() => handleStartEdit(msg)}
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                )}
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                                  onClick={() => handleStartEdit(msg)}
+                                  className="h-6 w-6"
+                                  onClick={() => setReplyingTo(msg)}
                                 >
-                                  <Pencil className="h-3 w-3" />
+                                  <Reply className="h-3 w-3" />
                                 </Button>
-                              )}
+                              </div>
                               
                               <div
                                 className={cn(
-                                  "max-w-[70%] rounded-lg px-3 py-2",
+                                  "max-w-[85%] min-w-[100px] rounded-2xl px-4 py-2",
                                   isMe
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-muted"
+                                    ? "bg-primary text-primary-foreground rounded-tr-sm"
+                                    : "bg-muted rounded-tl-sm"
                                 )}
                               >
+                                {/* Reply reference */}
+                                {msg.reply_to && (
+                                  <div className={cn(
+                                    "text-xs mb-2 pb-2 border-b",
+                                    isMe ? "border-primary-foreground/20" : "border-border"
+                                  )}>
+                                    <p className="font-medium opacity-70">
+                                      {msg.reply_to.sender?.full_name || 'Usuário'}
+                                    </p>
+                                    <p className="opacity-60 truncate max-w-[200px]">
+                                      {msg.reply_to.content}
+                                    </p>
+                                  </div>
+                                )}
+
                                 {!isMe && showAvatar && activeConversation.is_group && (
                                   <p className="text-xs font-medium mb-1 opacity-70">
                                     {msg.sender?.full_name}
@@ -683,7 +718,7 @@ const Mensagens = () => {
                                   </div>
                                 ) : (
                                   <>
-                                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                                    <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
                                     <div className={cn(
                                       "flex items-center gap-1 mt-1",
                                       isMe ? "text-primary-foreground/70" : "text-muted-foreground"
@@ -709,6 +744,27 @@ const Mensagens = () => {
 
                 {/* Input */}
                 <div className="p-4 border-t">
+                  {/* Reply indicator */}
+                  {replyingTo && (
+                    <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded-lg">
+                      <Reply className="h-4 w-4 text-muted-foreground" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Respondendo a {replyingTo.sender?.full_name || 'Usuário'}
+                        </p>
+                        <p className="text-sm truncate">{replyingTo.content}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => setReplyingTo(null)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+
                   {isRecording ? (
                     <div className="flex items-center gap-3 bg-destructive/10 rounded-lg p-3">
                       <div className="flex items-center gap-2 flex-1">
