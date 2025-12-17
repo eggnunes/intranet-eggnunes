@@ -47,9 +47,7 @@ import {
   Building2,
   Lock,
   ArrowUpDown,
-  Eye,
   ExternalLink,
-  X,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -308,6 +306,9 @@ export default function ArquivosTeams() {
   const handleItemClick = (item: DriveItem) => {
     if (item.folder && selectedDrive) {
       loadItems(selectedDrive, item.id, item.name);
+    } else if (!item.folder) {
+      // Clicar em arquivo abre pré-visualização
+      handlePreview(item);
     }
   };
 
@@ -480,35 +481,40 @@ export default function ArquivosTeams() {
     if (!selectedDrive) return;
     
     setPreviewItem(item);
+    setPreviewUrl(null);
     setLoadingPreview(true);
     
-    try {
-      const data = await callTeamsApi('download', {
-        driveId: selectedDrive.id,
-        itemId: item.id,
-      });
-      
-      if (data.downloadUrl) {
-        setPreviewUrl(data.downloadUrl);
-      }
-    } catch (error) {
-      console.error('Error getting preview:', error);
-      toast.error('Erro ao carregar pré-visualização');
-    } finally {
-      setLoadingPreview(false);
-    }
-  };
-
-  // Verificar se arquivo pode ser pré-visualizado
-  const canPreview = (item: DriveItem): boolean => {
-    if (item.folder) return false;
     const mimeType = item.file?.mimeType || '';
     const name = item.name.toLowerCase();
     
+    // Para imagens, vídeos e áudios, precisamos da URL de download
+    if (mimeType.includes('image') || mimeType.includes('video') || mimeType.includes('audio')) {
+      try {
+        const data = await callTeamsApi('download', {
+          driveId: selectedDrive.id,
+          itemId: item.id,
+        });
+        
+        if (data.downloadUrl) {
+          setPreviewUrl(data.downloadUrl);
+        }
+      } catch (error) {
+        console.error('Error getting preview:', error);
+        toast.error('Erro ao carregar pré-visualização');
+      }
+    }
+    // Para outros arquivos (PDF, Office), usamos a webUrl do SharePoint
+    
+    setLoadingPreview(false);
+  };
+
+  // Verificar se arquivo pode ser pré-visualizado inline
+  const canPreviewInline = (item: DriveItem): boolean => {
+    if (item.folder) return false;
+    const mimeType = item.file?.mimeType || '';
+    
     // Imagens
     if (mimeType.includes('image')) return true;
-    // PDFs
-    if (mimeType.includes('pdf') || name.endsWith('.pdf')) return true;
     // Vídeos
     if (mimeType.includes('video')) return true;
     // Áudios
@@ -517,28 +523,44 @@ export default function ArquivosTeams() {
     return false;
   };
 
+  // Verificar se é arquivo Office ou PDF (abrir no SharePoint)
+  const isOfficeOrPdf = (item: DriveItem): boolean => {
+    const name = item.name.toLowerCase();
+    const mimeType = item.file?.mimeType || '';
+    
+    return (
+      name.endsWith('.pdf') ||
+      name.endsWith('.doc') ||
+      name.endsWith('.docx') ||
+      name.endsWith('.xls') ||
+      name.endsWith('.xlsx') ||
+      name.endsWith('.ppt') ||
+      name.endsWith('.pptx') ||
+      name.endsWith('.odt') ||
+      name.endsWith('.ods') ||
+      mimeType.includes('pdf') ||
+      mimeType.includes('document') ||
+      mimeType.includes('spreadsheet') ||
+      mimeType.includes('presentation') ||
+      mimeType.includes('word') ||
+      mimeType.includes('excel') ||
+      mimeType.includes('powerpoint')
+    );
+  };
+
   // Renderizar preview baseado no tipo
   const renderPreview = () => {
-    if (!previewItem || !previewUrl) return null;
+    if (!previewItem) return null;
     
     const mimeType = previewItem.file?.mimeType || '';
-    const name = previewItem.name.toLowerCase();
     
-    if (mimeType.includes('image')) {
+    // Para imagens com URL de preview
+    if (mimeType.includes('image') && previewUrl) {
       return <img src={previewUrl} alt={previewItem.name} className="max-w-full max-h-[70vh] object-contain" />;
     }
     
-    if (mimeType.includes('pdf') || name.endsWith('.pdf')) {
-      return (
-        <iframe 
-          src={previewUrl} 
-          className="w-full h-[70vh]" 
-          title={previewItem.name}
-        />
-      );
-    }
-    
-    if (mimeType.includes('video')) {
+    // Para vídeos
+    if (mimeType.includes('video') && previewUrl) {
       return (
         <video controls className="max-w-full max-h-[70vh]">
           <source src={previewUrl} type={mimeType} />
@@ -547,7 +569,8 @@ export default function ArquivosTeams() {
       );
     }
     
-    if (mimeType.includes('audio')) {
+    // Para áudios
+    if (mimeType.includes('audio') && previewUrl) {
       return (
         <audio controls className="w-full">
           <source src={previewUrl} type={mimeType} />
@@ -556,7 +579,41 @@ export default function ArquivosTeams() {
       );
     }
     
-    return null;
+    // Para PDFs e arquivos Office - mostrar mensagem e botão para abrir no SharePoint
+    if (isOfficeOrPdf(previewItem)) {
+      return (
+        <div className="flex flex-col items-center justify-center py-8 space-y-4">
+          <FileText className="h-16 w-16 text-muted-foreground" />
+          <p className="text-center text-muted-foreground">
+            Este tipo de arquivo é melhor visualizado no SharePoint/Office Online
+          </p>
+          <Button onClick={() => handleOpenInSharePoint(previewItem)}>
+            <ExternalLink className="h-4 w-4 mr-2" />
+            Abrir no SharePoint
+          </Button>
+        </div>
+      );
+    }
+    
+    // Para outros arquivos
+    return (
+      <div className="flex flex-col items-center justify-center py-8 space-y-4">
+        <File className="h-16 w-16 text-muted-foreground" />
+        <p className="text-center text-muted-foreground">
+          Pré-visualização não disponível para este tipo de arquivo
+        </p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => handleOpenInSharePoint(previewItem)}>
+            <ExternalLink className="h-4 w-4 mr-2" />
+            Abrir no SharePoint
+          </Button>
+          <Button variant="outline" onClick={() => handleDownload(previewItem)}>
+            <Download className="h-4 w-4 mr-2" />
+            Baixar
+          </Button>
+        </div>
+      </div>
+    );
   };
 
   // Verificar se usuário pode excluir (admin ou pasta=false)
@@ -839,9 +896,7 @@ export default function ArquivosTeams() {
                       className="flex items-center gap-4 py-3 px-2 hover:bg-muted/50 rounded-lg transition-colors"
                     >
                       <div
-                        className={`flex items-center gap-3 flex-1 min-w-0 ${
-                          item.folder ? 'cursor-pointer' : ''
-                        }`}
+                        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
                         onClick={() => handleItemClick(item)}
                       >
                         {getFileIcon(item)}
@@ -859,21 +914,11 @@ export default function ArquivosTeams() {
                       </div>
                       
                       <div className="flex items-center gap-1">
-                        {!item.folder && canPreview(item) && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handlePreview(item)}
-                            title="Pré-visualizar"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        )}
                         {!item.folder && (
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleOpenInSharePoint(item)}
+                            onClick={(e) => { e.stopPropagation(); handleOpenInSharePoint(item); }}
                             title="Abrir no SharePoint"
                           >
                             <ExternalLink className="h-4 w-4" />
@@ -883,7 +928,7 @@ export default function ArquivosTeams() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDownload(item)}
+                            onClick={(e) => { e.stopPropagation(); handleDownload(item); }}
                             title="Baixar"
                           >
                             <Download className="h-4 w-4" />
@@ -893,7 +938,7 @@ export default function ArquivosTeams() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDelete(item)}
+                            onClick={(e) => { e.stopPropagation(); handleDelete(item); }}
                             className="text-destructive hover:text-destructive"
                             title={item.folder ? 'Excluir pasta (Admin)' : 'Excluir arquivo'}
                           >
