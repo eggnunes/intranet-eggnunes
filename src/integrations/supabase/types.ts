@@ -36,6 +36,7 @@ export type Database = {
           perm_recruitment: string
           perm_suggestions: string
           perm_task_rules: string
+          perm_teams: string
           perm_totp: string
           perm_users: string
           perm_vacation: string
@@ -62,6 +63,7 @@ export type Database = {
           perm_recruitment?: string
           perm_suggestions?: string
           perm_task_rules?: string
+          perm_teams?: string
           perm_totp?: string
           perm_users?: string
           perm_vacation?: string
@@ -88,6 +90,7 @@ export type Database = {
           perm_recruitment?: string
           perm_suggestions?: string
           perm_task_rules?: string
+          perm_teams?: string
           perm_totp?: string
           perm_users?: string
           perm_vacation?: string
@@ -2357,6 +2360,7 @@ export type Database = {
           perm_recruitment: string
           perm_suggestions: string
           perm_task_rules: string
+          perm_teams: string
           perm_totp: string
           perm_users: string
           perm_vacation: string
@@ -2383,6 +2387,7 @@ export type Database = {
           perm_recruitment?: string
           perm_suggestions?: string
           perm_task_rules?: string
+          perm_teams?: string
           perm_totp?: string
           perm_users?: string
           perm_vacation?: string
@@ -2409,6 +2414,7 @@ export type Database = {
           perm_recruitment?: string
           perm_suggestions?: string
           perm_task_rules?: string
+          perm_teams?: string
           perm_totp?: string
           perm_users?: string
           perm_vacation?: string

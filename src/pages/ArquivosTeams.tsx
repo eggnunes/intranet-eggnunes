@@ -38,9 +38,11 @@ import {
   FileAudio,
   HardDrive,
   Building2,
+  Lock,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useUserRole } from '@/hooks/useUserRole';
 
 interface Site {
   id: string;
@@ -77,6 +79,7 @@ interface BreadcrumbItem {
 }
 
 export default function ArquivosTeams() {
+  const { isAdmin } = useUserRole();
   const [sites, setSites] = useState<Site[]>([]);
   const [drives, setDrives] = useState<Drive[]>([]);
   const [items, setItems] = useState<DriveItem[]>([]);
@@ -89,10 +92,61 @@ export default function ArquivosTeams() {
   const [newFolderName, setNewFolderName] = useState('');
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [teamsPermission, setTeamsPermission] = useState<string>('view');
 
   useEffect(() => {
-    loadSites();
+    loadTeamsPermission();
   }, []);
+
+  useEffect(() => {
+    if (teamsPermission) {
+      loadSites();
+    }
+  }, [teamsPermission]);
+
+  const loadTeamsPermission = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Verificar se é admin/sócio (têm permissão total)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('email, position')
+        .eq('id', user.id)
+        .single();
+
+      if (profile?.email === 'rafael@eggnunes.com.br' || profile?.position === 'socio') {
+        setTeamsPermission('edit');
+        return;
+      }
+
+      // Verificar permissão individual
+      const { data: adminPerm } = await supabase
+        .from('admin_permissions')
+        .select('perm_teams')
+        .eq('admin_user_id', user.id)
+        .single();
+
+      if (adminPerm?.perm_teams) {
+        setTeamsPermission(adminPerm.perm_teams);
+        return;
+      }
+
+      // Verificar permissão do grupo (cargo)
+      const { data: groupPerm } = await supabase
+        .from('position_permission_defaults')
+        .select('perm_teams')
+        .eq('position', profile?.position || '')
+        .single();
+
+      if (groupPerm?.perm_teams) {
+        setTeamsPermission(groupPerm.perm_teams);
+      }
+    } catch (error) {
+      console.error('Error loading teams permission:', error);
+    }
+  };
 
   const callTeamsApi = async (action: string, params: Record<string, any> = {}) => {
     const { data, error } = await supabase.functions.invoke('microsoft-teams', {
@@ -103,17 +157,30 @@ export default function ArquivosTeams() {
     return data;
   };
 
-  // Sites permitidos para exibição
-  const ALLOWED_SITES = [
+  // Sites públicos (todos podem acessar com view ou edit)
+  const PUBLIC_SITES = [
     'comercial',
-    'administrativo',
-    'estrategico',
-    'estratégico',
     'juridico',
     'jurídico',
     'eggnunesadvogadosassociados',
     'egg nunes advogados associados',
   ];
+
+  // Sites restritos (somente admins/edit podem acessar)
+  const RESTRICTED_SITES = [
+    'administrativo',
+    'estrategico',
+    'estratégico',
+  ];
+
+  const isSiteRestricted = (site: Site): boolean => {
+    const siteName = site.name?.toLowerCase() || '';
+    const displayName = site.displayName?.toLowerCase() || '';
+    
+    return RESTRICTED_SITES.some(restricted => 
+      siteName.includes(restricted) || displayName.includes(restricted)
+    );
+  };
 
   const loadSites = async () => {
     setLoading(true);
@@ -121,14 +188,26 @@ export default function ArquivosTeams() {
       const data = await callTeamsApi('list-sites');
       const allSites = data.value || [];
       
+      // Todos os sites permitidos
+      const ALL_ALLOWED_SITES = [...PUBLIC_SITES, ...RESTRICTED_SITES];
+      
       // Filtrar apenas os sites permitidos
       const filteredSites = allSites.filter((site: Site) => {
         const siteName = site.name?.toLowerCase() || '';
         const displayName = site.displayName?.toLowerCase() || '';
         
-        return ALLOWED_SITES.some(allowed => 
+        const isAllowed = ALL_ALLOWED_SITES.some(allowed => 
           siteName.includes(allowed) || displayName.includes(allowed)
         );
+        
+        if (!isAllowed) return false;
+        
+        // Se o site é restrito, verificar se usuário tem permissão 'edit'
+        if (isSiteRestricted(site)) {
+          return teamsPermission === 'edit';
+        }
+        
+        return true;
       });
       
       setSites(filteredSites);
@@ -380,24 +459,35 @@ export default function ArquivosTeams() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {sites.map(site => (
-                    <Card
-                      key={site.id}
-                      className="cursor-pointer hover:border-primary transition-colors"
-                      onClick={() => loadDrives(site)}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                          <Building2 className="h-10 w-10 text-primary" />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{site.displayName}</p>
-                            <p className="text-sm text-muted-foreground truncate">{site.name}</p>
+                  {sites.map(site => {
+                    const restricted = isSiteRestricted(site);
+                    return (
+                      <Card
+                        key={site.id}
+                        className="cursor-pointer hover:border-primary transition-colors"
+                        onClick={() => loadDrives(site)}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-3">
+                            <Building2 className={`h-10 w-10 ${restricted ? 'text-orange-500' : 'text-primary'}`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium truncate">{site.displayName}</p>
+                                {restricted && (
+                                  <Badge variant="outline" className="text-xs border-orange-500 text-orange-500">
+                                    <Lock className="h-3 w-3 mr-1" />
+                                    Admin
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground truncate">{site.name}</p>
+                            </div>
+                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
                           </div>
-                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
