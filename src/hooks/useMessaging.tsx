@@ -37,6 +37,8 @@ export interface Message {
   created_at: string;
   updated_at: string;
   is_edited?: boolean;
+  reply_to_id?: string | null;
+  reply_to?: Message | null;
   sender?: {
     id: string;
     full_name: string;
@@ -169,10 +171,20 @@ export const useMessaging = () => {
 
       if (profilesError) throw profilesError;
 
-      const enrichedMessages = data?.map(msg => ({
-        ...msg,
-        sender: profiles?.find(p => p.id === msg.sender_id)
-      })) || [];
+      // Enrich messages with sender and reply info
+      const enrichedMessages = data?.map(msg => {
+        const replyMessage = msg.reply_to_id 
+          ? data.find(m => m.id === msg.reply_to_id)
+          : null;
+        return {
+          ...msg,
+          sender: profiles?.find(p => p.id === msg.sender_id),
+          reply_to: replyMessage ? {
+            ...replyMessage,
+            sender: profiles?.find(p => p.id === replyMessage.sender_id)
+          } : null
+        };
+      }) || [];
 
       setMessages(enrichedMessages);
 
@@ -192,7 +204,7 @@ export const useMessaging = () => {
   }, [user]);
 
   // Send a message
-  const sendMessage = async (conversationId: string, content: string) => {
+  const sendMessage = async (conversationId: string, content: string, replyToId?: string) => {
     if (!user || !content.trim()) return;
 
     try {
@@ -201,7 +213,8 @@ export const useMessaging = () => {
         .insert({
           conversation_id: conversationId,
           sender_id: user.id,
-          content: content.trim()
+          content: content.trim(),
+          reply_to_id: replyToId || null
         })
         .select()
         .single();
