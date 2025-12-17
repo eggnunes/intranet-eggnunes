@@ -1711,6 +1711,72 @@ export type Database = {
           },
         ]
       }
+      favorable_decisions: {
+        Row: {
+          client_id: string | null
+          client_name: string
+          court: string | null
+          court_division: string | null
+          created_at: string
+          created_by: string
+          decision_date: string
+          decision_link: string | null
+          decision_type: string
+          evaluation_requested: boolean | null
+          id: string
+          lawsuit_id: string | null
+          observation: string | null
+          process_number: string | null
+          product_name: string
+          teams_row_index: number | null
+          updated_at: string
+          was_evaluated: boolean | null
+          was_posted: boolean | null
+        }
+        Insert: {
+          client_id?: string | null
+          client_name: string
+          court?: string | null
+          court_division?: string | null
+          created_at?: string
+          created_by: string
+          decision_date: string
+          decision_link?: string | null
+          decision_type: string
+          evaluation_requested?: boolean | null
+          id?: string
+          lawsuit_id?: string | null
+          observation?: string | null
+          process_number?: string | null
+          product_name: string
+          teams_row_index?: number | null
+          updated_at?: string
+          was_evaluated?: boolean | null
+          was_posted?: boolean | null
+        }
+        Update: {
+          client_id?: string | null
+          client_name?: string
+          court?: string | null
+          court_division?: string | null
+          created_at?: string
+          created_by?: string
+          decision_date?: string
+          decision_link?: string | null
+          decision_type?: string
+          evaluation_requested?: boolean | null
+          id?: string
+          lawsuit_id?: string | null
+          observation?: string | null
+          process_number?: string | null
+          product_name?: string
+          teams_row_index?: number | null
+          updated_at?: string
+          was_evaluated?: boolean | null
+          was_posted?: boolean | null
+        }
+        Relationships: []
+      }
       feedback_box: {
         Row: {
           created_at: string | null
