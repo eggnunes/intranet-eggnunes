@@ -146,6 +146,48 @@ export function useTeamsUpload() {
     }
   };
 
+  const findFolderByPath = async (driveId: string, path: string): Promise<{ found: boolean; item?: any }> => {
+    try {
+      const data = await callTeamsApi('find-folder-by-path', { driveId, path });
+      return data;
+    } catch (error) {
+      console.error('Error finding folder:', error);
+      return { found: false };
+    }
+  };
+
+  const createFolderByPath = async (driveId: string, path: string): Promise<{ success: boolean; folder?: any; error?: string }> => {
+    try {
+      const data = await callTeamsApi('create-folder-by-path', { driveId, path });
+      return data;
+    } catch (error: any) {
+      console.error('Error creating folder by path:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const findOrCreateClientFolder = async (
+    driveId: string, 
+    clientName: string,
+    basePath: string = 'Operacional - Clientes'
+  ): Promise<{ success: boolean; folderId?: string; error?: string }> => {
+    const clientPath = `${basePath}/${clientName}`;
+    
+    // Check if client folder exists
+    const existing = await findFolderByPath(driveId, clientPath);
+    if (existing.found && existing.item?.id) {
+      return { success: true, folderId: existing.item.id };
+    }
+    
+    // Create the folder
+    const result = await createFolderByPath(driveId, clientPath);
+    if (result.success && result.folder?.id) {
+      return { success: true, folderId: result.folder.id };
+    }
+    
+    return { success: false, error: result.error || 'Erro ao criar pasta do cliente' };
+  };
+
   // Helper para converter jsPDF para base64
   const pdfToBase64 = (pdf: any): string => {
     const pdfOutput = pdf.output('arraybuffer');
@@ -168,6 +210,9 @@ export function useTeamsUpload() {
     uploadFile,
     createFolder,
     listItems,
+    findFolderByPath,
+    createFolderByPath,
+    findOrCreateClientFolder,
     pdfToBase64,
   };
 }

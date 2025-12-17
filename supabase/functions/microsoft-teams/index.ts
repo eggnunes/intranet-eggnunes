@@ -309,6 +309,116 @@ serve(async (req) => {
         });
       }
 
+      case 'find-folder-by-path': {
+        // Find a folder by path (e.g., "Operacional - Clientes/João Silva")
+        const { path } = await req.json();
+        if (!driveId || !path) {
+          return new Response(JSON.stringify({ error: 'driveId and path are required' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        try {
+          const encodedPath = path.split('/').map((segment: string) => encodeURIComponent(segment)).join('/');
+          const item = await graphRequest(`/drives/${driveId}/root:/${encodedPath}`, accessToken);
+          return new Response(JSON.stringify({ found: true, item }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error: any) {
+          // Folder not found
+          if (error.message?.includes('404')) {
+            return new Response(JSON.stringify({ found: false }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          throw error;
+        }
+      }
+
+      case 'create-folder-by-path': {
+        // Create a folder by path, creating intermediate folders if needed
+        const { path: folderPath } = await req.json();
+        if (!driveId || !folderPath) {
+          return new Response(JSON.stringify({ error: 'driveId and path are required' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        const pathSegments = folderPath.split('/').filter((s: string) => s.trim());
+        let currentParentId: string | null = null;
+        let lastCreatedFolder: any = null;
+        
+        for (const segment of pathSegments) {
+          // Check if folder exists at current level
+          let existingFolder: any = null;
+          try {
+            const currentPath = pathSegments.slice(0, pathSegments.indexOf(segment) + 1).join('/');
+            const encodedPath = currentPath.split('/').map((s: string) => encodeURIComponent(s)).join('/');
+            existingFolder = await graphRequest(`/drives/${driveId}/root:/${encodedPath}`, accessToken);
+          } catch (e) {
+            // Folder doesn't exist
+          }
+          
+          if (existingFolder?.id) {
+            currentParentId = existingFolder.id;
+            lastCreatedFolder = existingFolder;
+          } else {
+            // Create folder
+            let endpoint = `/drives/${driveId}/root/children`;
+            if (currentParentId) {
+              endpoint = `/drives/${driveId}/items/${currentParentId}/children`;
+            }
+            
+            const newFolder = await graphRequest(endpoint, accessToken, {
+              method: 'POST',
+              body: JSON.stringify({
+                name: segment,
+                folder: {},
+                '@microsoft.graph.conflictBehavior': 'fail'
+              }),
+            });
+            
+            currentParentId = newFolder.id;
+            lastCreatedFolder = newFolder;
+          }
+        }
+        
+        return new Response(JSON.stringify({ success: true, folder: lastCreatedFolder }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      case 'move-item': {
+        // Move a file or folder to a new location
+        const { targetFolderId, targetDriveId } = await req.json();
+        if (!driveId || !itemId) {
+          return new Response(JSON.stringify({ error: 'driveId and itemId are required' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        const movePayload: any = {};
+        
+        if (targetFolderId) {
+          movePayload.parentReference = { id: targetFolderId };
+        } else {
+          // Move to root
+          movePayload.parentReference = { path: `/drives/${targetDriveId || driveId}/root` };
+        }
+        
+        const movedItem = await graphRequest(`/drives/${driveId}/items/${itemId}`, accessToken, {
+          method: 'PATCH',
+          body: JSON.stringify(movePayload),
+        });
+        
+        return new Response(JSON.stringify(movedItem), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       case 'upload': {
         // Upload a file - supports files of any size via resumable upload
         if (!driveId || !fileName || !fileContent) {

@@ -11,6 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Breadcrumb,
@@ -48,6 +50,8 @@ import {
   Lock,
   ArrowUpDown,
   ExternalLink,
+  GripVertical,
+  Move,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -89,6 +93,11 @@ interface BreadcrumbItem {
   name: string;
 }
 
+interface MoveConfirmation {
+  item: DriveItem;
+  targetFolder: DriveItem | null; // null means root
+}
+
 export default function ArquivosTeams() {
   const { isAdmin } = useUserRole();
   const [sites, setSites] = useState<Site[]>([]);
@@ -108,6 +117,12 @@ export default function ArquivosTeams() {
   const [previewItem, setPreviewItem] = useState<DriveItem | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  
+  // Drag and drop state
+  const [draggedItem, setDraggedItem] = useState<DriveItem | null>(null);
+  const [dragOverItem, setDragOverItem] = useState<DriveItem | null>(null);
+  const [moveConfirmation, setMoveConfirmation] = useState<MoveConfirmation | null>(null);
+  const [isMoving, setIsMoving] = useState(false);
 
   useEffect(() => {
     loadTeamsPermission();
@@ -367,6 +382,70 @@ export default function ArquivosTeams() {
       console.error('Error creating folder:', error);
       toast.error('Erro ao criar pasta');
     }
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, item: DriveItem) => {
+    setDraggedItem(item);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', item.id);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItem(null);
+    setDragOverItem(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent, item: DriveItem) => {
+    e.preventDefault();
+    if (item.folder && draggedItem && item.id !== draggedItem.id) {
+      setDragOverItem(item);
+      e.dataTransfer.dropEffect = 'move';
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverItem(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetFolder: DriveItem | null) => {
+    e.preventDefault();
+    if (!draggedItem) return;
+    
+    // Don't allow dropping into the same folder or into non-folders
+    if (targetFolder && !targetFolder.folder) return;
+    if (targetFolder && targetFolder.id === draggedItem.id) return;
+    
+    // Show confirmation dialog
+    setMoveConfirmation({ item: draggedItem, targetFolder });
+    setDraggedItem(null);
+    setDragOverItem(null);
+  };
+
+  const handleConfirmMove = async () => {
+    if (!moveConfirmation || !selectedDrive) return;
+    
+    setIsMoving(true);
+    try {
+      await callTeamsApi('move-item', {
+        driveId: selectedDrive.id,
+        itemId: moveConfirmation.item.id,
+        targetFolderId: moveConfirmation.targetFolder?.id || null,
+      });
+      
+      toast.success(`"${moveConfirmation.item.name}" movido com sucesso!`);
+      setMoveConfirmation(null);
+      loadItemsWithoutBreadcrumb(selectedDrive, currentFolderId);
+    } catch (error) {
+      console.error('Error moving item:', error);
+      toast.error('Erro ao mover item');
+    } finally {
+      setIsMoving(false);
+    }
+  };
+
+  const handleCancelMove = () => {
+    setMoveConfirmation(null);
   };
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -926,8 +1005,25 @@ export default function ArquivosTeams() {
                   {sortedAndFilteredItems.map(item => (
                     <div
                       key={item.id}
-                      className="flex items-center gap-4 py-3 px-2 hover:bg-muted/50 rounded-lg transition-colors"
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, item)}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={(e) => item.folder ? handleDragOver(e, item) : undefined}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => item.folder ? handleDrop(e, item) : undefined}
+                      className={`flex items-center gap-4 py-3 px-2 rounded-lg transition-all ${
+                        draggedItem?.id === item.id 
+                          ? 'opacity-50 bg-muted' 
+                          : dragOverItem?.id === item.id 
+                            ? 'bg-primary/20 border-2 border-dashed border-primary' 
+                            : 'hover:bg-muted/50'
+                      }`}
                     >
+                      {/* Drag handle */}
+                      <div className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground">
+                        <GripVertical className="h-4 w-4" />
+                      </div>
+                      
                       <div
                         className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
                         onClick={() => handleItemClick(item)}
@@ -1019,6 +1115,72 @@ export default function ArquivosTeams() {
             </DialogContent>
           </Dialog>
         )}
+
+        {/* Move Confirmation Dialog */}
+        <Dialog open={!!moveConfirmation} onOpenChange={() => setMoveConfirmation(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Move className="h-5 w-5" />
+                Confirmar Movimentação
+              </DialogTitle>
+              <DialogDescription>
+                Você está prestes a mover um item para outra pasta.
+              </DialogDescription>
+            </DialogHeader>
+            
+            {moveConfirmation && (
+              <div className="space-y-4 py-4">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
+                  {moveConfirmation.item.folder ? (
+                    <Folder className="h-6 w-6 text-yellow-500" />
+                  ) : (
+                    <File className="h-6 w-6 text-blue-500" />
+                  )}
+                  <div>
+                    <p className="font-medium">{moveConfirmation.item.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {moveConfirmation.item.folder ? 'Pasta' : 'Arquivo'}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-center">
+                  <ChevronRight className="h-6 w-6 text-muted-foreground" />
+                </div>
+                
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
+                  <Folder className="h-6 w-6 text-primary" />
+                  <div>
+                    <p className="font-medium">
+                      {moveConfirmation.targetFolder?.name || 'Raiz'}
+                    </p>
+                    <p className="text-sm text-muted-foreground">Pasta de destino</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={handleCancelMove} disabled={isMoving}>
+                Cancelar
+              </Button>
+              <Button onClick={handleConfirmMove} disabled={isMoving}>
+                {isMoving ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Movendo...
+                  </>
+                ) : (
+                  <>
+                    <Move className="h-4 w-4 mr-2" />
+                    Confirmar Movimentação
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
