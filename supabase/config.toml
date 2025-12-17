@@ -74,3 +74,6 @@ verify_jwt = true
 
 [functions.suggest-petition]
 verify_jwt = true
+
+[functions.generate-chat-message]
+verify_jwt = true

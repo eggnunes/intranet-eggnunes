@@ -52,7 +52,9 @@ import {
   Trash2,
   X,
   Check,
-  Reply
+  Reply,
+  Sparkles,
+  Eye
 } from 'lucide-react';
 import { format, isToday, isYesterday, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -97,10 +99,19 @@ const Mensagens = () => {
   const [deleteConversationId, setDeleteConversationId] = useState<string | null>(null);
   const [isSocio, setIsSocio] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [showAIGenerator, setShowAIGenerator] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [generatedMessage, setGeneratedMessage] = useState('');
+  const [generatingAI, setGeneratingAI] = useState(false);
+  const [isRecordingForAI, setIsRecordingForAI] = useState(false);
+  const [recordingTimeAI, setRecordingTimeAI] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const aiMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const aiAudioChunksRef = useRef<Blob[]>([]);
+  const aiRecordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check if user is socio
   useEffect(() => {
@@ -297,6 +308,138 @@ const Mensagens = () => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // AI Message Generation Functions
+  const generateMessageWithAI = async (prompt: string) => {
+    if (!prompt.trim()) return;
+
+    setGeneratingAI(true);
+    try {
+      const context = messages.slice(-5).map(m => 
+        `${m.sender?.full_name || 'Usuário'}: ${m.content}`
+      ).join('\n');
+
+      const { data, error } = await supabase.functions.invoke('generate-chat-message', {
+        body: { prompt, context }
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setGeneratedMessage(data.message || '');
+    } catch (error) {
+      console.error('Error generating AI message:', error);
+      toast.error('Erro ao gerar mensagem com IA');
+    } finally {
+      setGeneratingAI(false);
+    }
+  };
+
+  const startRecordingForAI = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      aiMediaRecorderRef.current = mediaRecorder;
+      aiAudioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          aiAudioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(aiAudioChunksRef.current, { type: 'audio/webm' });
+        await transcribeAndGenerate(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecordingForAI(true);
+      setRecordingTimeAI(0);
+      
+      aiRecordingIntervalRef.current = setInterval(() => {
+        setRecordingTimeAI(prev => prev + 1);
+      }, 1000);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      toast.error('Não foi possível acessar o microfone');
+    }
+  };
+
+  const stopRecordingForAI = () => {
+    if (aiMediaRecorderRef.current && isRecordingForAI) {
+      aiMediaRecorderRef.current.stop();
+      setIsRecordingForAI(false);
+      if (aiRecordingIntervalRef.current) {
+        clearInterval(aiRecordingIntervalRef.current);
+      }
+    }
+  };
+
+  const cancelRecordingForAI = () => {
+    if (aiMediaRecorderRef.current && isRecordingForAI) {
+      aiMediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      setIsRecordingForAI(false);
+      aiAudioChunksRef.current = [];
+      if (aiRecordingIntervalRef.current) {
+        clearInterval(aiRecordingIntervalRef.current);
+      }
+    }
+  };
+
+  const transcribeAndGenerate = async (audioBlob: Blob) => {
+    setGeneratingAI(true);
+    try {
+      // Convert audio to base64
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+      });
+      reader.readAsDataURL(audioBlob);
+      const base64Audio = await base64Promise;
+
+      // Transcribe audio
+      const { data: transcriptData, error: transcriptError } = await supabase.functions.invoke('voice-to-text', {
+        body: { audio: base64Audio }
+      });
+
+      if (transcriptError) throw transcriptError;
+      if (transcriptData?.error) throw new Error(transcriptData.error);
+
+      const transcribedText = transcriptData.text || '';
+      setAiPrompt(transcribedText);
+
+      // Generate message based on transcription
+      await generateMessageWithAI(transcribedText);
+    } catch (error) {
+      console.error('Error transcribing and generating:', error);
+      toast.error('Erro ao processar áudio');
+    } finally {
+      setGeneratingAI(false);
+    }
+  };
+
+  const useGeneratedMessage = () => {
+    setNewMessage(generatedMessage);
+    setShowAIGenerator(false);
+    setAiPrompt('');
+    setGeneratedMessage('');
+  };
+
+  const resetAIGenerator = () => {
+    setShowAIGenerator(false);
+    setAiPrompt('');
+    setGeneratedMessage('');
+    setIsRecordingForAI(false);
+    if (aiRecordingIntervalRef.current) {
+      clearInterval(aiRecordingIntervalRef.current);
+    }
   };
 
   const getConversationName = (conv: Conversation) => {
@@ -744,6 +887,126 @@ const Mensagens = () => {
 
                 {/* Input */}
                 <div className="p-4 border-t">
+                  {/* AI Generator */}
+                  {showAIGenerator && (
+                    <div className="mb-3 p-3 bg-muted/50 rounded-lg border">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                          <span className="text-sm font-medium">Gerar mensagem com IA</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={resetAIGenerator}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+
+                      {isRecordingForAI ? (
+                        <div className="flex items-center gap-3 bg-destructive/10 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2 flex-1">
+                            <div className="h-3 w-3 bg-destructive rounded-full animate-pulse" />
+                            <span className="text-sm font-medium">
+                              Gravando... {formatRecordingTime(recordingTimeAI)}
+                            </span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={cancelRecordingForAI}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="icon"
+                            onClick={stopRecordingForAI}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : !generatedMessage ? (
+                        <div className="space-y-2">
+                          <div className="flex gap-2">
+                            <Textarea
+                              placeholder="Descreva o que você quer dizer... Ex: 'agradecer pela ajuda de ontem'"
+                              value={aiPrompt}
+                              onChange={(e) => setAiPrompt(e.target.value)}
+                              className="min-h-[60px] text-sm"
+                              disabled={generatingAI}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={startRecordingForAI}
+                              disabled={generatingAI}
+                              className="flex-1"
+                            >
+                              <Mic className="h-4 w-4 mr-2" />
+                              Falar
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => generateMessageWithAI(aiPrompt)}
+                              disabled={!aiPrompt.trim() || generatingAI}
+                              className="flex-1"
+                            >
+                              {generatingAI ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <Sparkles className="h-4 w-4 mr-2" />
+                              )}
+                              Gerar
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">Pré-visualização</span>
+                          </div>
+                          <Textarea
+                            value={generatedMessage}
+                            onChange={(e) => setGeneratedMessage(e.target.value)}
+                            className="min-h-[80px] text-sm"
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setGeneratedMessage('');
+                                setAiPrompt('');
+                              }}
+                              className="flex-1"
+                            >
+                              <X className="h-4 w-4 mr-2" />
+                              Refazer
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={useGeneratedMessage}
+                              className="flex-1"
+                            >
+                              <Check className="h-4 w-4 mr-2" />
+                              Usar
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Reply indicator */}
                   {replyingTo && (
                     <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded-lg">
@@ -801,7 +1064,19 @@ const Mensagens = () => {
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         disabled={sending}
+                        className="flex-1"
                       />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setShowAIGenerator(!showAIGenerator)}
+                        disabled={sending}
+                        className={cn(showAIGenerator && "bg-primary/10 border-primary")}
+                        title="Gerar mensagem com IA"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                      </Button>
                       <Button
                         type="button"
                         variant="outline"
