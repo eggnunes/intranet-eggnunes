@@ -10,64 +10,32 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   MessageSquareHeart,
-  Eye,
-  EyeOff,
-  Trash2,
   CheckCircle,
   Circle,
-  User,
   UserX,
   Calendar,
   AlertTriangle,
-  Forward,
-  Reply,
   Send,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Forward
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-interface FeedbackMessage {
+interface ForwardedMessage {
   id: string;
-  sender_id: string;
-  is_anonymous: boolean;
-  subject: string;
-  message: string;
+  feedback_id: string;
+  forwarded_at: string;
   is_read: boolean;
   read_at: string | null;
-  created_at: string;
-  sender?: {
-    full_name: string;
-    avatar_url: string | null;
-    position: string | null;
-    email: string;
+  note: string | null;
+  forwarded_by_name?: string;
+  feedback?: {
+    subject: string;
+    message: string;
+    created_at: string;
   };
 }
 
@@ -82,28 +50,12 @@ interface FeedbackReply {
   };
 }
 
-interface Profile {
-  id: string;
-  full_name: string;
-  position: string | null;
-  email: string;
-}
-
-const CaixinhaDesabafo = () => {
+const MensagensEncaminhadas = () => {
   const { user } = useAuth();
-  const [messages, setMessages] = useState<FeedbackMessage[]>([]);
+  const [messages, setMessages] = useState<ForwardedMessage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedMessage, setSelectedMessage] = useState<FeedbackMessage | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [isRafael, setIsRafael] = useState(false);
-  const [showSender, setShowSender] = useState(false);
-  
-  // Forward state
-  const [forwardDialogOpen, setForwardDialogOpen] = useState(false);
-  const [forwardTo, setForwardTo] = useState<string>('');
-  const [forwardNote, setForwardNote] = useState('');
-  const [socios, setSocios] = useState<Profile[]>([]);
-  const [forwarding, setForwarding] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<ForwardedMessage | null>(null);
+  const [hasAccess, setHasAccess] = useState(false);
   
   // Reply state
   const [replyText, setReplyText] = useState('');
@@ -112,68 +64,68 @@ const CaixinhaDesabafo = () => {
   const [showReplies, setShowReplies] = useState(false);
 
   useEffect(() => {
-    const checkRafael = async () => {
+    const checkAccess = async () => {
       if (!user) return;
 
       const { data } = await supabase
         .from('profiles')
-        .select('email')
+        .select('position')
         .eq('id', user.id)
         .single();
 
-      setIsRafael(data?.email === 'rafael@eggnunes.com.br');
+      // Only sócios can access this page
+      setHasAccess(data?.position === 'socio');
     };
 
-    checkRafael();
+    checkAccess();
   }, [user]);
 
   useEffect(() => {
-    const fetchSocios = async () => {
-      if (!isRafael) return;
-      
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, full_name, position, email')
-        .eq('position', 'socio')
-        .eq('approval_status', 'approved')
-        .neq('email', 'rafael@eggnunes.com.br');
-      
-      setSocios(data || []);
-    };
-
-    fetchSocios();
-  }, [isRafael]);
-
-  useEffect(() => {
     const fetchMessages = async () => {
-      if (!isRafael) {
+      if (!hasAccess || !user) {
         setLoading(false);
         return;
       }
 
       try {
-        const { data, error } = await supabase
-          .from('feedback_box')
+        // Fetch forwarded messages for this user
+        const { data: forwards, error } = await supabase
+          .from('feedback_forwards')
           .select('*')
-          .order('created_at', { ascending: false });
+          .eq('forwarded_to', user.id)
+          .order('forwarded_at', { ascending: false });
 
         if (error) throw error;
 
-        // Fetch sender profiles
-        const senderIds = data?.map(m => m.sender_id) || [];
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('id, full_name, avatar_url, position, email')
-          .in('id', senderIds);
+        if (!forwards || forwards.length === 0) {
+          setMessages([]);
+          setLoading(false);
+          return;
+        }
 
-        const enrichedMessages = data?.map(msg => ({
-          ...msg,
-          sender: profiles?.find(p => p.id === msg.sender_id)
-        })) || [];
+        // Fetch the actual feedback messages
+        const feedbackIds = forwards.map(f => f.feedback_id);
+        const { data: feedbacks } = await supabase
+          .from('feedback_box')
+          .select('id, subject, message, created_at')
+          .in('id', feedbackIds);
+
+        // Fetch forwarder names
+        const forwarderIds = forwards.map(f => f.forwarded_by);
+        const { data: forwarders } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', forwarderIds);
+
+        const enrichedMessages = forwards.map(fwd => ({
+          ...fwd,
+          feedback: feedbacks?.find(f => f.id === fwd.feedback_id),
+          forwarded_by_name: forwarders?.find(f => f.id === fwd.forwarded_by)?.full_name
+        }));
 
         setMessages(enrichedMessages);
       } catch (error) {
-        console.error('Error fetching messages:', error);
+        console.error('Error fetching forwarded messages:', error);
         toast.error('Erro ao carregar mensagens');
       } finally {
         setLoading(false);
@@ -181,11 +133,11 @@ const CaixinhaDesabafo = () => {
     };
 
     fetchMessages();
-  }, [isRafael]);
+  }, [hasAccess, user]);
 
   useEffect(() => {
     const fetchReplies = async () => {
-      if (!selectedMessage) {
+      if (!selectedMessage?.feedback_id) {
         setReplies([]);
         return;
       }
@@ -193,7 +145,7 @@ const CaixinhaDesabafo = () => {
       const { data, error } = await supabase
         .from('feedback_replies')
         .select('*')
-        .eq('feedback_id', selectedMessage.id)
+        .eq('feedback_id', selectedMessage.feedback_id)
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -219,81 +171,30 @@ const CaixinhaDesabafo = () => {
     fetchReplies();
   }, [selectedMessage]);
 
-  // Reset showSender when selecting a different message
+  // Reset when selecting a different message
   useEffect(() => {
-    setShowSender(false);
     setShowReplies(false);
     setReplyText('');
   }, [selectedMessage?.id]);
 
-  const handleMarkAsRead = async (id: string) => {
+  const handleMarkAsRead = async (forward: ForwardedMessage) => {
+    if (forward.is_read) return;
+
     try {
       const { error } = await supabase
-        .from('feedback_box')
+        .from('feedback_forwards')
         .update({ is_read: true, read_at: new Date().toISOString() })
-        .eq('id', id);
+        .eq('id', forward.id);
 
       if (error) throw error;
 
       setMessages(prev =>
         prev.map(m =>
-          m.id === id ? { ...m, is_read: true, read_at: new Date().toISOString() } : m
+          m.id === forward.id ? { ...m, is_read: true, read_at: new Date().toISOString() } : m
         )
       );
     } catch (error) {
       console.error('Error marking as read:', error);
-      toast.error('Erro ao marcar como lida');
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteId) return;
-
-    try {
-      const { error } = await supabase
-        .from('feedback_box')
-        .delete()
-        .eq('id', deleteId);
-
-      if (error) throw error;
-
-      setMessages(prev => prev.filter(m => m.id !== deleteId));
-      toast.success('Mensagem excluída');
-      setDeleteId(null);
-      if (selectedMessage?.id === deleteId) {
-        setSelectedMessage(null);
-      }
-    } catch (error) {
-      console.error('Error deleting message:', error);
-      toast.error('Erro ao excluir mensagem');
-    }
-  };
-
-  const handleForward = async () => {
-    if (!selectedMessage || !forwardTo) return;
-
-    setForwarding(true);
-    try {
-      const { error } = await supabase
-        .from('feedback_forwards')
-        .insert({
-          feedback_id: selectedMessage.id,
-          forwarded_to: forwardTo,
-          forwarded_by: user?.id,
-          note: forwardNote || null
-        });
-
-      if (error) throw error;
-
-      toast.success('Mensagem encaminhada com sucesso');
-      setForwardDialogOpen(false);
-      setForwardTo('');
-      setForwardNote('');
-    } catch (error) {
-      console.error('Error forwarding message:', error);
-      toast.error('Erro ao encaminhar mensagem');
-    } finally {
-      setForwarding(false);
     }
   };
 
@@ -305,7 +206,7 @@ const CaixinhaDesabafo = () => {
       const { data, error } = await supabase
         .from('feedback_replies')
         .insert({
-          feedback_id: selectedMessage.id,
+          feedback_id: selectedMessage.feedback_id,
           sender_id: user?.id,
           message: replyText.trim()
         })
@@ -332,7 +233,7 @@ const CaixinhaDesabafo = () => {
     }
   };
 
-  if (!isRafael) {
+  if (!hasAccess) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -341,7 +242,7 @@ const CaixinhaDesabafo = () => {
               <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-destructive" />
               <h2 className="text-xl font-bold mb-2">Acesso Restrito</h2>
               <p className="text-muted-foreground">
-                Esta página é acessível apenas para administração.
+                Esta página é acessível apenas para sócios.
               </p>
             </CardContent>
           </Card>
@@ -358,12 +259,12 @@ const CaixinhaDesabafo = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-primary/10">
-              <MessageSquareHeart className="h-6 w-6 text-primary" />
+              <Forward className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Caixinha de Desabafo</h1>
+              <h1 className="text-2xl font-bold">Mensagens Encaminhadas</h1>
               <p className="text-muted-foreground">
-                Mensagens dos colaboradores
+                Mensagens da caixinha de desabafo encaminhadas para você
               </p>
             </div>
           </div>
@@ -381,7 +282,7 @@ const CaixinhaDesabafo = () => {
             <CardHeader>
               <CardTitle className="text-lg">Mensagens Recebidas</CardTitle>
               <CardDescription>
-                {messages.length} mensagen{messages.length !== 1 ? 's' : ''} no total
+                {messages.length} mensagen{messages.length !== 1 ? 's' : ''} encaminhada{messages.length !== 1 ? 's' : ''}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -395,7 +296,7 @@ const CaixinhaDesabafo = () => {
                 ) : messages.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <MessageSquareHeart className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>Nenhuma mensagem recebida</p>
+                    <p>Nenhuma mensagem encaminhada</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -404,7 +305,7 @@ const CaixinhaDesabafo = () => {
                         key={msg.id}
                         onClick={() => {
                           setSelectedMessage(msg);
-                          if (!msg.is_read) handleMarkAsRead(msg.id);
+                          handleMarkAsRead(msg);
                         }}
                         className={`w-full text-left p-4 rounded-lg border transition-colors ${
                           selectedMessage?.id === msg.id
@@ -419,28 +320,21 @@ const CaixinhaDesabafo = () => {
                             ) : (
                               <Circle className="h-4 w-4 text-primary fill-primary" />
                             )}
-                            <span className="font-medium truncate">{msg.subject}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {msg.is_anonymous ? (
-                              <EyeOff className="h-4 w-4 text-orange-500" />
-                            ) : (
-                              <Eye className="h-4 w-4 text-green-500" />
-                            )}
+                            <span className="font-medium truncate">{msg.feedback?.subject}</span>
                           </div>
                         </div>
                         <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                          {msg.message}
+                          {msg.feedback?.message}
                         </p>
                         <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
-                            <UserX className="h-3 w-3" />
-                            <span>Remetente Anônimo</span>
+                            <Forward className="h-3 w-3" />
+                            <span>Por {msg.forwarded_by_name}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
                             <span>
-                              {format(new Date(msg.created_at), "dd/MM/yyyy 'às' HH:mm", {
+                              {format(new Date(msg.forwarded_at), "dd/MM/yyyy 'às' HH:mm", {
                                 locale: ptBR
                               })}
                             </span>
@@ -462,58 +356,40 @@ const CaixinhaDesabafo = () => {
             <CardContent>
               {selectedMessage ? (
                 <div className="space-y-6">
-                  {/* Sender Info - Hidden by default */}
+                  {/* Sender Info - Always anonymous */}
                   <div className="p-4 rounded-lg bg-muted/50 border">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                          <UserX className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                        <div>
-                          {showSender ? (
-                            <>
-                              <p className="font-medium">{selectedMessage.sender?.full_name}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {selectedMessage.sender?.position} • {selectedMessage.sender?.email}
-                              </p>
-                            </>
-                          ) : (
-                            <p className="font-medium text-muted-foreground">Remetente Anônimo</p>
-                          )}
-                        </div>
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                        <UserX className="h-5 w-5 text-muted-foreground" />
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowSender(!showSender)}
-                        className="text-xs h-7 px-2"
-                      >
-                        {showSender ? (
-                          <>
-                            <EyeOff className="h-3 w-3 mr-1" />
-                            Ocultar
-                          </>
-                        ) : (
-                          <>
-                            <Eye className="h-3 w-3 mr-1" />
-                            Ver
-                          </>
-                        )}
-                      </Button>
+                      <div>
+                        <p className="font-medium text-muted-foreground">Remetente Anônimo</p>
+                        <p className="text-sm text-muted-foreground">
+                          Encaminhado por {selectedMessage.forwarded_by_name}
+                        </p>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Forward Note */}
+                  {selectedMessage.note && (
+                    <div className="p-3 rounded-lg bg-primary/5 border-l-2 border-primary">
+                      <p className="text-sm font-medium mb-1">Nota do encaminhamento:</p>
+                      <p className="text-sm">{selectedMessage.note}</p>
+                    </div>
+                  )}
 
                   {/* Subject */}
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Assunto</label>
-                    <p className="text-lg font-semibold mt-1">{selectedMessage.subject}</p>
+                    <p className="text-lg font-semibold mt-1">{selectedMessage.feedback?.subject}</p>
                   </div>
 
                   {/* Message */}
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Mensagem</label>
                     <div className="mt-2 p-4 rounded-lg bg-muted/50 whitespace-pre-wrap">
-                      {selectedMessage.message}
+                      {selectedMessage.feedback?.message}
                     </div>
                   </div>
 
@@ -522,19 +398,11 @@ const CaixinhaDesabafo = () => {
                     <div className="flex items-center gap-1">
                       <Calendar className="h-4 w-4" />
                       <span>
-                        {format(new Date(selectedMessage.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", {
+                        Enviado em {format(new Date(selectedMessage.feedback?.created_at || ''), "dd 'de' MMMM 'de' yyyy", {
                           locale: ptBR
                         })}
                       </span>
                     </div>
-                    {selectedMessage.is_read && selectedMessage.read_at && (
-                      <div className="flex items-center gap-1">
-                        <CheckCircle className="h-4 w-4" />
-                        <span>
-                          Lida em {format(new Date(selectedMessage.read_at), 'dd/MM HH:mm')}
-                        </span>
-                      </div>
-                    )}
                   </div>
 
                   {/* Replies Section */}
@@ -569,11 +437,11 @@ const CaixinhaDesabafo = () => {
                   {/* Reply Input */}
                   <div className="border-t pt-4">
                     <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                      Responder mensagem
+                      Adicionar comentário
                     </label>
                     <div className="flex gap-2">
                       <Textarea
-                        placeholder="Digite sua resposta..."
+                        placeholder="Digite seu comentário..."
                         value={replyText}
                         onChange={(e) => setReplyText(e.target.value)}
                         className="min-h-[80px]"
@@ -586,33 +454,13 @@ const CaixinhaDesabafo = () => {
                       className="mt-2"
                     >
                       <Send className="h-4 w-4 mr-2" />
-                      Enviar Resposta
-                    </Button>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-2 pt-4 border-t">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setForwardDialogOpen(true)}
-                    >
-                      <Forward className="h-4 w-4 mr-2" />
-                      Encaminhar
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setDeleteId(selectedMessage.id)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Excluir
+                      Enviar
                     </Button>
                   </div>
                 </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
-                  <Eye className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <MessageSquareHeart className="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p>Selecione uma mensagem para ver os detalhes</p>
                 </div>
               )}
@@ -620,75 +468,8 @@ const CaixinhaDesabafo = () => {
           </Card>
         </div>
       </div>
-
-      {/* Forward Dialog */}
-      <Dialog open={forwardDialogOpen} onOpenChange={setForwardDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Encaminhar Mensagem</DialogTitle>
-            <DialogDescription>
-              Encaminhe esta mensagem para outro sócio. {selectedMessage?.is_anonymous && 'A identidade do remetente não será revelada.'}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Encaminhar para</label>
-              <Select value={forwardTo} onValueChange={setForwardTo}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um sócio" />
-                </SelectTrigger>
-                <SelectContent>
-                  {socios.map(socio => (
-                    <SelectItem key={socio.id} value={socio.id}>
-                      {socio.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <label className="text-sm font-medium mb-2 block">Nota (opcional)</label>
-              <Textarea
-                placeholder="Adicione uma nota ao encaminhamento..."
-                value={forwardNote}
-                onChange={(e) => setForwardNote(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setForwardDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleForward} disabled={forwarding || !forwardTo}>
-              <Forward className="h-4 w-4 mr-2" />
-              Encaminhar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Mensagem</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir esta mensagem? Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-              Excluir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Layout>
   );
 };
 
-export default CaixinhaDesabafo;
+export default MensagensEncaminhadas;
