@@ -272,6 +272,7 @@ export const Layout = ({ children }: LayoutProps) => {
   ];
 
   const escritorioMenuItems = [
+    { icon: Award, path: '/decisoes-favoraveis', label: 'Decisões Favoráveis', description: 'Decisões favoráveis do escritório' },
     { icon: Coffee, path: '/copa-cozinha', label: 'Copa/Cozinha', description: 'Sugestões de alimentos' },
     { icon: DoorOpen, path: '/sala-reuniao', label: 'Sala de Reunião', description: 'Reservar sala' },
     { icon: KeyRound, path: '/codigos-autenticacao', label: 'Códigos TOTP', description: 'Autenticação de tribunais' },
@@ -298,7 +299,6 @@ export const Layout = ({ children }: LayoutProps) => {
     { icon: HomeIcon, path: '/dashboard', label: 'Dashboard', description: 'Página inicial', category: 'Geral' },
     { icon: FileSignature, path: '/setor-comercial', label: 'Setor Comercial', description: 'Geração de contratos', category: 'Geral' },
     { icon: Users, path: '/crm', label: 'CRM', description: 'Gestão de leads e oportunidades', category: 'Geral' },
-    { icon: Award, path: '/decisoes-favoraveis', label: 'Decisões Favoráveis', description: 'Decisões favoráveis do escritório', category: 'Comercial' },
     ...advboxMenuItems.map(item => ({ ...item, category: 'Advbox' })),
     ...rhMenuItems.map(item => ({ ...item, category: 'RH' })),
     ...iaMenuItems.map(item => ({ ...item, category: 'Inteligência Artificial' })),
@@ -340,14 +340,6 @@ export const Layout = ({ children }: LayoutProps) => {
         >
           <Users className="w-4 h-4" />
           CRM
-        </Button>
-        <Button 
-          variant="ghost" 
-          onClick={() => { navigate('/decisoes-favoraveis'); setMobileMenuOpen(false); }}
-          className="gap-2 justify-start w-full mb-1"
-        >
-          <Award className="w-4 h-4" />
-          Decisões Favoráveis
         </Button>
       </div>
       <div className="px-2 py-2">
