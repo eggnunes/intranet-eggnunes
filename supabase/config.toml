@@ -71,3 +71,6 @@ verify_jwt = true
 
 [functions.microsoft-teams]
 verify_jwt = true
+
+[functions.suggest-petition]
+verify_jwt = true
