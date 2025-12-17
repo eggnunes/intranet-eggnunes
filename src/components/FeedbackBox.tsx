@@ -130,9 +130,7 @@ export const FeedbackBox = () => {
                   Enviar anonimamente
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  {isAnonymous 
-                    ? 'Sua identidade não será revelada' 
-                    : 'Seu nome será visível para os sócios'}
+                  Sua identidade não será revelada
                 </p>
               </div>
             </div>
