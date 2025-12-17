@@ -41,6 +41,7 @@ interface AdminPermissionRecord {
   perm_recruitment: string;
   perm_lead_tracking: string;
   perm_totp: string;
+  perm_teams: string;
 }
 
 interface GroupPermission {
@@ -66,6 +67,7 @@ interface GroupPermission {
   perm_recruitment: string;
   perm_lead_tracking: string;
   perm_totp: string;
+  perm_teams: string;
 }
 
 const PERMISSION_FEATURES = [
@@ -88,6 +90,7 @@ const PERMISSION_FEATURES = [
   { key: 'recruitment', label: 'Contratação' },
   { key: 'lead_tracking', label: 'Tracking de Leads' },
   { key: 'totp', label: 'Códigos TOTP' },
+  { key: 'teams', label: 'Microsoft Teams' },
 ];
 
 const PERMISSION_LEVELS = [
