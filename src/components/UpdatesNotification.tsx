@@ -38,6 +38,37 @@ export const UpdatesNotification = () => {
     if (user) {
       fetchUpdates();
       fetchReadUpdates();
+
+      // Subscribe to realtime updates
+      const channel = supabase
+        .channel('intranet-updates-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'intranet_updates',
+          },
+          () => {
+            fetchUpdates();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'intranet_update_reads',
+          },
+          () => {
+            fetchReadUpdates();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 

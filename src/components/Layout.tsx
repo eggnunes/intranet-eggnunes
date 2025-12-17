@@ -602,7 +602,7 @@ export const Layout = ({ children }: LayoutProps) => {
                       )}
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-64 bg-card border-border z-50">
+                  <DropdownMenuContent align="start" className="w-64 bg-card border-border z-50 max-h-[calc(100vh-100px)] overflow-y-auto">
                     {/* IA */}
                     <DropdownMenuLabel className="flex items-center gap-2">
                       <Brain className="w-4 h-4" />
