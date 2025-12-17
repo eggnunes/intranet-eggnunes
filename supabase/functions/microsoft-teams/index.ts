@@ -237,6 +237,50 @@ serve(async (req) => {
         }
       }
 
+      case 'get-edit-url': {
+        // Get shareable edit URL for a file
+        if (!driveId || !itemId) {
+          return new Response(JSON.stringify({ error: 'driveId and itemId are required' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        try {
+          const linkResponse = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/createLink`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              type: 'edit',
+              scope: 'organization'
+            }),
+          });
+
+          if (!linkResponse.ok) {
+            const errorText = await linkResponse.text();
+            console.error('Edit link error:', errorText);
+            return new Response(JSON.stringify({ error: 'Edit link not available', details: errorText }), {
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          const linkData = await linkResponse.json();
+          return new Response(JSON.stringify({ editUrl: linkData.link?.webUrl }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          console.error('Edit link error:', error);
+          return new Response(JSON.stringify({ error: 'Failed to get edit URL' }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
       case 'create-folder': {
         // Create a new folder
         if (!driveId || !folderName) {
