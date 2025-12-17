@@ -269,6 +269,10 @@ const Mensagens = () => {
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
+      // Request final data before stopping
+      if (mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.requestData();
+      }
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       if (recordingIntervalRef.current) {
@@ -291,16 +295,29 @@ const Mensagens = () => {
   const sendAudioMessage = async (audioBlob: Blob) => {
     if (!activeConversation) return;
 
+    // Validate audio blob has actual content
+    if (!audioBlob || audioBlob.size < 1000) {
+      console.error('Audio blob is empty or too small:', audioBlob?.size);
+      toast.error('Áudio não foi gravado corretamente. Tente novamente.');
+      return;
+    }
+
+    console.log('Sending audio blob:', { size: audioBlob.size, type: audioBlob.type });
+
     try {
       setSending(true);
       
-      // Upload audio to storage
-      const fileName = `audio_${Date.now()}.webm`;
+      // Upload audio to storage with proper content type
+      const extension = audioBlob.type.includes('mp4') ? 'mp4' : 'webm';
+      const fileName = `audio_${Date.now()}.${extension}`;
       const filePath = `${user?.id}/${fileName}`;
       
       const { error: uploadError } = await supabase.storage
         .from('task-attachments')
-        .upload(filePath, audioBlob);
+        .upload(filePath, audioBlob, {
+          contentType: audioBlob.type,
+          upsert: false
+        });
 
       if (uploadError) throw uploadError;
 
@@ -354,7 +371,15 @@ const Mensagens = () => {
   const startRecordingForAI = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      
+      // Use a supported MIME type
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+        ? 'audio/webm;codecs=opus' 
+        : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : 'audio/mp4';
+      
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
       aiMediaRecorderRef.current = mediaRecorder;
       aiAudioChunksRef.current = [];
 
@@ -365,12 +390,18 @@ const Mensagens = () => {
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(aiAudioChunksRef.current, { type: 'audio/webm' });
+        if (aiAudioChunksRef.current.length === 0) {
+          toast.error('Nenhum áudio foi gravado');
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        const audioBlob = new Blob(aiAudioChunksRef.current, { type: mimeType });
         await transcribeAndGenerate(audioBlob);
         stream.getTracks().forEach(track => track.stop());
       };
 
-      mediaRecorder.start();
+      // Start with timeslice to collect data periodically
+      mediaRecorder.start(100);
       setIsRecordingForAI(true);
       setRecordingTimeAI(0);
       
@@ -385,6 +416,10 @@ const Mensagens = () => {
 
   const stopRecordingForAI = () => {
     if (aiMediaRecorderRef.current && isRecordingForAI) {
+      // Request final data before stopping
+      if (aiMediaRecorderRef.current.state === 'recording') {
+        aiMediaRecorderRef.current.requestData();
+      }
       aiMediaRecorderRef.current.stop();
       setIsRecordingForAI(false);
       if (aiRecordingIntervalRef.current) {
@@ -460,21 +495,32 @@ const Mensagens = () => {
   // Helper function to render message content with audio player support
   const renderMessageContent = (content: string, isMe: boolean) => {
     // Check if message contains an audio URL (voice message)
-    const audioUrlMatch = content.match(/🎤\s*Mensagem de voz:\s*(https:\/\/[^\s]+\.(webm|mp3|wav|ogg|m4a))/i);
+    const audioUrlMatch = content.match(/🎤\s*Mensagem de voz:\s*(https:\/\/[^\s]+)/i);
     
     if (audioUrlMatch) {
       const audioUrl = audioUrlMatch[1];
+      // Determine the MIME type from URL
+      const isMP4 = audioUrl.includes('.mp4') || audioUrl.includes('.m4a');
+      const mimeType = isMP4 ? 'audio/mp4' : 'audio/webm';
+      
       return (
-        <div className="flex items-center gap-2">
-          <Volume2 className={cn("h-4 w-4 flex-shrink-0", isMe ? "text-primary-foreground" : "text-muted-foreground")} />
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <Volume2 className={cn("h-4 w-4 flex-shrink-0", isMe ? "text-primary-foreground" : "text-muted-foreground")} />
+            <span className="text-xs opacity-70">Mensagem de voz</span>
+          </div>
           <audio
             controls
-            className="max-w-[250px] h-10"
+            preload="metadata"
+            className="w-full max-w-[280px] h-10"
             style={{
               filter: isMe ? 'invert(1) brightness(2)' : 'none'
             }}
+            onError={(e) => console.error('Audio playback error:', e)}
           >
+            <source src={audioUrl} type={mimeType} />
             <source src={audioUrl} type="audio/webm" />
+            <source src={audioUrl} type="audio/mp4" />
             <source src={audioUrl} type="audio/mpeg" />
             Seu navegador não suporta o elemento de áudio.
           </audio>
