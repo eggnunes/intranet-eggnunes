@@ -54,7 +54,8 @@ import {
   Check,
   Reply,
   Sparkles,
-  Eye
+  Eye,
+  Volume2
 } from 'lucide-react';
 import { format, isToday, isYesterday, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -440,6 +441,35 @@ const Mensagens = () => {
     if (aiRecordingIntervalRef.current) {
       clearInterval(aiRecordingIntervalRef.current);
     }
+  };
+
+  // Helper function to render message content with audio player support
+  const renderMessageContent = (content: string, isMe: boolean) => {
+    // Check if message contains an audio URL (voice message)
+    const audioUrlMatch = content.match(/🎤\s*Mensagem de voz:\s*(https:\/\/[^\s]+\.(webm|mp3|wav|ogg|m4a))/i);
+    
+    if (audioUrlMatch) {
+      const audioUrl = audioUrlMatch[1];
+      return (
+        <div className="flex items-center gap-2">
+          <Volume2 className={cn("h-4 w-4 flex-shrink-0", isMe ? "text-primary-foreground" : "text-muted-foreground")} />
+          <audio
+            controls
+            className="max-w-[250px] h-10"
+            style={{
+              filter: isMe ? 'invert(1) brightness(2)' : 'none'
+            }}
+          >
+            <source src={audioUrl} type="audio/webm" />
+            <source src={audioUrl} type="audio/mpeg" />
+            Seu navegador não suporta o elemento de áudio.
+          </audio>
+        </div>
+      );
+    }
+
+    // Regular text message
+    return <p className="text-sm whitespace-pre-wrap break-words">{content}</p>;
   };
 
   const getConversationName = (conv: Conversation) => {
@@ -861,7 +891,7 @@ const Mensagens = () => {
                                   </div>
                                 ) : (
                                   <>
-                                    <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                                    {renderMessageContent(msg.content, isMe)}
                                     <div className={cn(
                                       "flex items-center gap-1 mt-1",
                                       isMe ? "text-primary-foreground/70" : "text-muted-foreground"
