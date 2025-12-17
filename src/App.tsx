@@ -52,6 +52,7 @@ import ArquivosTeams from "./pages/ArquivosTeams";
 import Mensagens from "./pages/Mensagens";
 import CaixinhaDesabafo from "./pages/CaixinhaDesabafo";
 import MensagensEncaminhadas from "./pages/MensagensEncaminhadas";
+import DecisoesFavoraveis from "./pages/DecisoesFavoraveis";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient({
@@ -427,6 +428,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <MensagensEncaminhadas />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/decisoes-favoraveis"
+              element={
+                <ProtectedRoute>
+                  <DecisoesFavoraveis />
                 </ProtectedRoute>
               }
             />
