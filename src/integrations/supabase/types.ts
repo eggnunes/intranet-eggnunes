@@ -716,6 +716,65 @@ export type Database = {
         }
         Relationships: []
       }
+      conversation_participants: {
+        Row: {
+          conversation_id: string
+          id: string
+          joined_at: string | null
+          last_read_at: string | null
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          id?: string
+          joined_at?: string | null
+          last_read_at?: string | null
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          id?: string
+          joined_at?: string | null
+          last_read_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_participants_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          id: string
+          is_group: boolean | null
+          name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          id?: string
+          is_group?: boolean | null
+          name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          is_group?: boolean | null
+          name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       crm_activities: {
         Row: {
           completed: boolean | null
@@ -1652,6 +1711,39 @@ export type Database = {
           },
         ]
       }
+      feedback_box: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_anonymous: boolean | null
+          is_read: boolean | null
+          message: string
+          read_at: string | null
+          sender_id: string
+          subject: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_anonymous?: boolean | null
+          is_read?: boolean | null
+          message: string
+          read_at?: string | null
+          sender_id: string
+          subject: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_anonymous?: boolean | null
+          is_read?: boolean | null
+          message?: string
+          read_at?: string | null
+          sender_id?: string
+          subject?: string
+        }
+        Relationships: []
+      }
       financial_alerts: {
         Row: {
           alert_type: string
@@ -2272,6 +2364,41 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string | null
+          id: string
+          sender_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          sender_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          sender_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       objeto_contrato_templates: {
         Row: {
@@ -3753,6 +3880,7 @@ export type Database = {
         Returns: boolean
       }
       is_approved: { Args: { _user_id: string }; Returns: boolean }
+      is_rafael: { Args: { _user_id: string }; Returns: boolean }
       is_socio_or_rafael: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {

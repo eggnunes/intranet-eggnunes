@@ -264,6 +264,7 @@ export const Layout = ({ children }: LayoutProps) => {
   ];
 
   const comunicacaoMenuItems = [
+    { icon: MessageCircle, path: '/mensagens', label: 'Mensagens', description: 'Chat com a equipe' },
     { icon: Megaphone, path: '/mural-avisos', label: 'Mural de Avisos', description: 'Comunicados e eventos' },
     { icon: Bell, path: '/notificacoes', label: 'Notificações', description: 'Suas notificações' },
     { icon: MessageSquare, path: '/forum', label: 'Fórum', description: 'Discussões da equipe' },
