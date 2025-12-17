@@ -730,21 +730,44 @@ const Mensagens = () => {
       if (audioMatch) {
         flushTextLines();
         const audioUrl = audioMatch[1];
+        const audioId = `audio-${elements.length}`;
         elements.push(
-          <div key={`audio-${elements.length}`} className="flex flex-col gap-2 my-2">
-            <div className="flex items-center gap-2">
-              <Volume2 className={cn("h-4 w-4 flex-shrink-0", isMe ? "text-primary-foreground" : "text-muted-foreground")} />
-              <span className="text-xs opacity-70">Mensagem de voz</span>
+          <div key={audioId} className="flex flex-col gap-2 my-2 min-w-[320px] max-w-[400px]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Volume2 className={cn("h-4 w-4 flex-shrink-0", isMe ? "text-primary-foreground" : "text-muted-foreground")} />
+                <span className="text-xs opacity-70">Mensagem de voz</span>
+              </div>
+              <div className="flex items-center gap-1">
+                {[1, 1.5, 2].map(speed => (
+                  <button
+                    key={speed}
+                    type="button"
+                    onClick={() => {
+                      const audio = document.getElementById(audioId + '-player') as HTMLAudioElement;
+                      if (audio) audio.playbackRate = speed;
+                    }}
+                    className={cn(
+                      "text-[10px] px-1.5 py-0.5 rounded transition-colors",
+                      isMe 
+                        ? "hover:bg-primary-foreground/20 text-primary-foreground/80" 
+                        : "hover:bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {speed}x
+                  </button>
+                ))}
+              </div>
             </div>
             <audio
+              id={audioId + '-player'}
               controls
               preload="auto"
               crossOrigin="anonymous"
-              className="w-full max-w-[280px] h-10"
+              className="w-full h-10"
               style={{ filter: isMe ? 'invert(1) brightness(2)' : 'none' }}
               onError={(e) => {
                 console.error('Audio playback error:', e);
-                // Try fetching the audio as fallback
                 const audio = e.currentTarget;
                 fetch(audioUrl)
                   .then(res => res.blob())
