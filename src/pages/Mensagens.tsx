@@ -55,7 +55,14 @@ import {
   Reply,
   Sparkles,
   Eye,
-  Volume2
+  Volume2,
+  Paperclip,
+  FileText,
+  Download,
+  BookmarkPlus,
+  BookMarked,
+  File,
+  Image as ImageIcon
 } from 'lucide-react';
 import { format, isToday, isYesterday, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -67,6 +74,18 @@ interface UserProfile {
   full_name: string;
   avatar_url: string | null;
   position: string | null;
+}
+
+interface MessageTemplate {
+  id: string;
+  title: string;
+  content: string;
+  created_at: string;
+}
+
+interface AttachedFile {
+  file: File;
+  preview?: string;
 }
 
 const Mensagens = () => {
@@ -106,6 +125,17 @@ const Mensagens = () => {
   const [generatingAI, setGeneratingAI] = useState(false);
   const [isRecordingForAI, setIsRecordingForAI] = useState(false);
   const [recordingTimeAI, setRecordingTimeAI] = useState(0);
+  
+  // Document attachments
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Templates
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateTitle, setTemplateTitle] = useState('');
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -129,6 +159,21 @@ const Mensagens = () => {
     checkSocio();
   }, [user]);
 
+  // Load templates
+  useEffect(() => {
+    const loadTemplates = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('message_templates')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      
+      if (data) setTemplates(data);
+    };
+    loadTemplates();
+  }, [user]);
+
   useEffect(() => {
     const fetchUsers = async () => {
       const { data } = await supabase
@@ -150,14 +195,132 @@ const Mensagens = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // File handling functions
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const newAttachments: AttachedFile[] = files.map(file => {
+      const attachment: AttachedFile = { file };
+      if (file.type.startsWith('image/')) {
+        attachment.preview = URL.createObjectURL(file);
+      }
+      return attachment;
+    });
+    setAttachedFiles(prev => [...prev, ...newAttachments]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachedFiles(prev => {
+      const newFiles = [...prev];
+      if (newFiles[index].preview) {
+        URL.revokeObjectURL(newFiles[index].preview!);
+      }
+      newFiles.splice(index, 1);
+      return newFiles;
+    });
+  };
+
+  const uploadFile = async (file: File): Promise<string | null> => {
+    try {
+      const fileName = `${Date.now()}_${file.name}`;
+      const filePath = `${user?.id}/${fileName}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('task-attachments')
+        .upload(filePath, file, { contentType: file.type });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('task-attachments')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      return null;
+    }
+  };
+
+  // Template functions
+  const saveTemplate = async () => {
+    if (!templateTitle.trim() || !newMessage.trim() || !user) return;
+    
+    const { data, error } = await supabase
+      .from('message_templates')
+      .insert({
+        user_id: user.id,
+        title: templateTitle,
+        content: newMessage
+      })
+      .select()
+      .single();
+
+    if (error) {
+      toast.error('Erro ao salvar template');
+      return;
+    }
+
+    if (data) {
+      setTemplates(prev => [data, ...prev]);
+      toast.success('Template salvo!');
+      setShowSaveTemplate(false);
+      setTemplateTitle('');
+    }
+  };
+
+  const deleteTemplate = async (id: string) => {
+    const { error } = await supabase
+      .from('message_templates')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      toast.error('Erro ao excluir template');
+      return;
+    }
+
+    setTemplates(prev => prev.filter(t => t.id !== id));
+    toast.success('Template excluído');
+  };
+
+  const useTemplate = (content: string) => {
+    setNewMessage(content);
+    setShowTemplates(false);
+  };
+
   const handleSend = async () => {
-    if (!activeConversation || !newMessage.trim() || sending) return;
+    if (!activeConversation || sending) return;
+    if (!newMessage.trim() && attachedFiles.length === 0) return;
 
     setSending(true);
     try {
-      await sendMessage(activeConversation.id, newMessage, replyingTo?.id);
+      let messageContent = newMessage.trim();
+
+      // Upload attached files
+      if (attachedFiles.length > 0) {
+        const fileUrls: string[] = [];
+        for (const attachment of attachedFiles) {
+          const url = await uploadFile(attachment.file);
+          if (url) {
+            const isImage = attachment.file.type.startsWith('image/');
+            fileUrls.push(`${isImage ? '🖼️' : '📎'} ${attachment.file.name}: ${url}`);
+          }
+        }
+        if (fileUrls.length > 0) {
+          messageContent = messageContent 
+            ? `${messageContent}\n\n${fileUrls.join('\n')}`
+            : fileUrls.join('\n');
+        }
+      }
+
+      if (messageContent) {
+        await sendMessage(activeConversation.id, messageContent, replyingTo?.id);
+      }
+      
       setNewMessage('');
       setReplyingTo(null);
+      setAttachedFiles([]);
     } finally {
       setSending(false);
     }
@@ -492,44 +655,140 @@ const Mensagens = () => {
     }
   };
 
-  // Helper function to render message content with audio player support
+  // Helper function to render message content with audio player and file support
   const renderMessageContent = (content: string, isMe: boolean) => {
-    // Check if message contains an audio URL (voice message)
-    const audioUrlMatch = content.match(/🎤\s*Mensagem de voz:\s*(https:\/\/[^\s]+)/i);
-    
-    if (audioUrlMatch) {
-      const audioUrl = audioUrlMatch[1];
-      // Determine the MIME type from URL
-      const isMP4 = audioUrl.includes('.mp4') || audioUrl.includes('.m4a');
-      const mimeType = isMP4 ? 'audio/mp4' : 'audio/webm';
-      
-      return (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <Volume2 className={cn("h-4 w-4 flex-shrink-0", isMe ? "text-primary-foreground" : "text-muted-foreground")} />
-            <span className="text-xs opacity-70">Mensagem de voz</span>
+    const elements: JSX.Element[] = [];
+    const lines = content.split('\n');
+    let textLines: string[] = [];
+
+    const flushTextLines = () => {
+      if (textLines.length > 0) {
+        elements.push(
+          <p key={`text-${elements.length}`} className="text-sm whitespace-pre-wrap break-words">
+            {textLines.join('\n')}
+          </p>
+        );
+        textLines = [];
+      }
+    };
+
+    for (const line of lines) {
+      // Check for voice message
+      const audioMatch = line.match(/🎤\s*Mensagem de voz:\s*(https:\/\/[^\s]+)/i);
+      if (audioMatch) {
+        flushTextLines();
+        const audioUrl = audioMatch[1];
+        elements.push(
+          <div key={`audio-${elements.length}`} className="flex flex-col gap-2 my-2">
+            <div className="flex items-center gap-2">
+              <Volume2 className={cn("h-4 w-4 flex-shrink-0", isMe ? "text-primary-foreground" : "text-muted-foreground")} />
+              <span className="text-xs opacity-70">Mensagem de voz</span>
+            </div>
+            <audio
+              controls
+              preload="auto"
+              crossOrigin="anonymous"
+              className="w-full max-w-[280px] h-10"
+              style={{ filter: isMe ? 'invert(1) brightness(2)' : 'none' }}
+              onError={(e) => {
+                console.error('Audio playback error:', e);
+                // Try fetching the audio as fallback
+                const audio = e.currentTarget;
+                fetch(audioUrl)
+                  .then(res => res.blob())
+                  .then(blob => {
+                    audio.src = URL.createObjectURL(blob);
+                  })
+                  .catch(err => console.error('Fallback audio fetch failed:', err));
+              }}
+            >
+              <source src={audioUrl} type="audio/webm" />
+              <source src={audioUrl} type="audio/mp4" />
+              <source src={audioUrl} type="audio/mpeg" />
+              Seu navegador não suporta o elemento de áudio.
+            </audio>
           </div>
-          <audio
-            controls
-            preload="metadata"
-            className="w-full max-w-[280px] h-10"
-            style={{
-              filter: isMe ? 'invert(1) brightness(2)' : 'none'
-            }}
-            onError={(e) => console.error('Audio playback error:', e)}
+        );
+        continue;
+      }
+
+      // Check for image attachment
+      const imageMatch = line.match(/🖼️\s*([^:]+):\s*(https:\/\/[^\s]+)/);
+      if (imageMatch) {
+        flushTextLines();
+        const fileName = imageMatch[1];
+        const fileUrl = imageMatch[2];
+        elements.push(
+          <div key={`img-${elements.length}`} className="my-2">
+            <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="block">
+              <img 
+                src={fileUrl} 
+                alt={fileName} 
+                className="max-w-[250px] max-h-[200px] rounded-lg object-cover cursor-pointer hover:opacity-80 transition-opacity"
+              />
+            </a>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs opacity-70 truncate max-w-[200px]">{fileName}</span>
+              <a 
+                href={fileUrl} 
+                download={fileName}
+                className={cn(
+                  "text-xs underline hover:no-underline",
+                  isMe ? "text-primary-foreground/80" : "text-primary"
+                )}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Download className="h-3 w-3 inline" />
+              </a>
+            </div>
+          </div>
+        );
+        continue;
+      }
+
+      // Check for document attachment
+      const docMatch = line.match(/📎\s*([^:]+):\s*(https:\/\/[^\s]+)/);
+      if (docMatch) {
+        flushTextLines();
+        const fileName = docMatch[1];
+        const fileUrl = docMatch[2];
+        elements.push(
+          <div 
+            key={`doc-${elements.length}`} 
+            className={cn(
+              "flex items-center gap-2 my-2 p-2 rounded-lg",
+              isMe ? "bg-primary-foreground/10" : "bg-background/50"
+            )}
           >
-            <source src={audioUrl} type={mimeType} />
-            <source src={audioUrl} type="audio/webm" />
-            <source src={audioUrl} type="audio/mp4" />
-            <source src={audioUrl} type="audio/mpeg" />
-            Seu navegador não suporta o elemento de áudio.
-          </audio>
-        </div>
-      );
+            <FileText className={cn("h-8 w-8 flex-shrink-0", isMe ? "text-primary-foreground" : "text-primary")} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{fileName}</p>
+              <a 
+                href={fileUrl} 
+                download={fileName}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(
+                  "text-xs underline hover:no-underline flex items-center gap-1",
+                  isMe ? "text-primary-foreground/80" : "text-primary"
+                )}
+              >
+                <Download className="h-3 w-3" />
+                Baixar
+              </a>
+            </div>
+          </div>
+        );
+        continue;
+      }
+
+      // Regular text line
+      textLines.push(line);
     }
 
-    // Regular text message
-    return <p className="text-sm whitespace-pre-wrap break-words">{content}</p>;
+    flushTextLines();
+
+    return <div className="space-y-1">{elements}</div>;
   };
 
   const getConversationName = (conv: Conversation) => {
@@ -1137,6 +1396,98 @@ const Mensagens = () => {
                     </div>
                   )}
 
+                  {/* Attached files preview */}
+                  {attachedFiles.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {attachedFiles.map((attachment, index) => (
+                        <div key={index} className="relative group">
+                          {attachment.preview ? (
+                            <img 
+                              src={attachment.preview} 
+                              alt={attachment.file.name}
+                              className="h-16 w-16 object-cover rounded-lg border"
+                            />
+                          ) : (
+                            <div className="h-16 w-16 flex flex-col items-center justify-center bg-muted rounded-lg border">
+                              <File className="h-6 w-6 text-muted-foreground" />
+                              <span className="text-[8px] text-muted-foreground truncate max-w-[60px] px-1">
+                                {attachment.file.name}
+                              </span>
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeAttachment(index)}
+                            className="absolute -top-1 -right-1 h-5 w-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Templates panel */}
+                  {showTemplates && templates.length > 0 && (
+                    <div className="mb-2 p-2 bg-muted/50 rounded-lg border max-h-40 overflow-y-auto">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-muted-foreground">Seus templates</span>
+                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setShowTemplates(false)}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <div className="space-y-1">
+                        {templates.map(template => (
+                          <div key={template.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer group">
+                            <button
+                              type="button"
+                              onClick={() => useTemplate(template.content)}
+                              className="flex-1 text-left"
+                            >
+                              <p className="text-sm font-medium">{template.title}</p>
+                              <p className="text-xs text-muted-foreground truncate">{template.content}</p>
+                            </button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                              onClick={() => deleteTemplate(template.id)}
+                            >
+                              <Trash2 className="h-3 w-3 text-destructive" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Save template dialog */}
+                  {showSaveTemplate && (
+                    <div className="mb-2 p-3 bg-muted/50 rounded-lg border">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">Salvar como template</span>
+                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setShowSaveTemplate(false)}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <Input
+                        placeholder="Nome do template..."
+                        value={templateTitle}
+                        onChange={(e) => setTemplateTitle(e.target.value)}
+                        className="mb-2"
+                      />
+                      <Button 
+                        size="sm" 
+                        className="w-full"
+                        onClick={saveTemplate}
+                        disabled={!templateTitle.trim() || !newMessage.trim()}
+                      >
+                        <BookmarkPlus className="h-4 w-4 mr-2" />
+                        Salvar
+                      </Button>
+                    </div>
+                  )}
+
                   {isRecording ? (
                     <div className="flex items-center gap-3 bg-destructive/10 rounded-lg p-3">
                       <div className="flex items-center gap-2 flex-1">
@@ -1166,42 +1517,93 @@ const Mensagens = () => {
                         e.preventDefault();
                         handleSend();
                       }}
-                      className="flex gap-2"
+                      className="space-y-2"
                     >
-                      <Input
-                        placeholder="Digite sua mensagem..."
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        disabled={sending}
-                        className="flex-1"
+                      {/* Hidden file input */}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                        onChange={handleFileSelect}
+                        className="hidden"
                       />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setShowAIGenerator(!showAIGenerator)}
-                        disabled={sending}
-                        className={cn(showAIGenerator && "bg-primary/10 border-primary")}
-                        title="Gerar mensagem com IA"
-                      >
-                        <Sparkles className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={startRecording}
-                        disabled={sending}
-                      >
-                        <Mic className="h-4 w-4" />
-                      </Button>
-                      <Button type="submit" size="icon" disabled={!newMessage.trim() || sending}>
-                        {sending ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Send className="h-4 w-4" />
+                      
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Digite sua mensagem..."
+                          value={newMessage}
+                          onChange={(e) => setNewMessage(e.target.value)}
+                          disabled={sending}
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={sending}
+                          title="Anexar arquivo"
+                        >
+                          <Paperclip className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setShowTemplates(!showTemplates)}
+                          disabled={sending}
+                          className={cn(showTemplates && "bg-primary/10 border-primary")}
+                          title="Templates salvos"
+                        >
+                          <BookMarked className="h-4 w-4" />
+                        </Button>
+                        {newMessage.trim() && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setShowSaveTemplate(!showSaveTemplate)}
+                            disabled={sending}
+                            className={cn(showSaveTemplate && "bg-primary/10 border-primary")}
+                            title="Salvar como template"
+                          >
+                            <BookmarkPlus className="h-4 w-4" />
+                          </Button>
                         )}
-                      </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setShowAIGenerator(!showAIGenerator)}
+                          disabled={sending}
+                          className={cn(showAIGenerator && "bg-primary/10 border-primary")}
+                          title="Gerar mensagem com IA"
+                        >
+                          <Sparkles className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={startRecording}
+                          disabled={sending}
+                          title="Gravar áudio"
+                        >
+                          <Mic className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          type="submit" 
+                          size="icon" 
+                          disabled={(!newMessage.trim() && attachedFiles.length === 0) || sending}
+                        >
+                          {sending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Send className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </form>
                   )}
                 </div>
