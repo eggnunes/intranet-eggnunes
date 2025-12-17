@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, CheckCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -96,6 +96,16 @@ export const UpdatesNotification = () => {
     }
   };
 
+  const markAsRead = async (updateId: string) => {
+    if (!user || readUpdates.includes(updateId)) return;
+    
+    await supabase
+      .from('intranet_update_reads')
+      .insert({ update_id: updateId, user_id: user.id });
+    
+    setReadUpdates(prev => [...prev, updateId]);
+  };
+
   const markAllAsRead = async () => {
     if (!user) return;
     
@@ -108,13 +118,6 @@ export const UpdatesNotification = () => {
     }
     
     setReadUpdates(updates.map(u => u.id));
-  };
-
-  const handleOpenChange = (open: boolean) => {
-    setIsOpen(open);
-    if (open) {
-      markAllAsRead();
-    }
   };
 
   const unreadCount = updates.filter(u => !readUpdates.includes(u.id)).length;
@@ -131,14 +134,14 @@ export const UpdatesNotification = () => {
   };
 
   return (
-    <Sheet open={isOpen} onOpenChange={handleOpenChange}>
+    <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>
         <Button variant="ghost" size="icon" className="relative">
           <Sparkles className="h-5 w-5" />
           {unreadCount > 0 && (
             <Badge 
               variant="destructive" 
-              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs animate-pulse"
             >
               {unreadCount > 9 ? '9+' : unreadCount}
             </Badge>
@@ -147,10 +150,23 @@ export const UpdatesNotification = () => {
       </SheetTrigger>
       <SheetContent side="right" className="w-[400px] max-w-[90vw] sm:w-[540px] sm:max-w-[540px] z-[100]">
         <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5" />
-            Atualizações da Intranet
-          </SheetTitle>
+          <div className="flex items-center justify-between">
+            <SheetTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" />
+              Atualizações da Intranet
+            </SheetTitle>
+            {unreadCount > 0 && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={markAllAsRead}
+                className="text-xs gap-1"
+              >
+                <CheckCheck className="h-4 w-4" />
+                Marcar todas como lidas
+              </Button>
+            )}
+          </div>
           <SheetDescription>
             Acompanhe as novidades e melhorias do sistema
           </SheetDescription>
@@ -169,14 +185,17 @@ export const UpdatesNotification = () => {
                 return (
                   <div
                     key={update.id}
-                    className={`p-4 rounded-lg border ${
-                      isUnread ? 'bg-primary/5 border-primary/20' : 'bg-card'
+                    className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                      isUnread 
+                        ? 'bg-primary/5 border-primary/20 hover:bg-primary/10' 
+                        : 'bg-card hover:bg-muted/50'
                     }`}
+                    onClick={() => markAsRead(update.id)}
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <h4 className="font-medium text-sm flex items-center gap-2">
                         {isUnread && (
-                          <span className="h-2 w-2 rounded-full bg-primary" />
+                          <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
                         )}
                         {update.title}
                       </h4>
