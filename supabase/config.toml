@@ -77,3 +77,6 @@ verify_jwt = true
 
 [functions.generate-chat-message]
 verify_jwt = true
+
+[functions.favorable-decisions-sync]
+verify_jwt = true

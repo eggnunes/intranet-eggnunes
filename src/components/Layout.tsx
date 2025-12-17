@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
-import { LogOut, Home as HomeIcon, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, Coffee, Home, UserPlus, DoorOpen, FileSignature, Link2, Target, Bot, Brain, Search as SearchIcon, Sparkles, Settings, FileText, KeyRound, HardDrive } from 'lucide-react';
+import { LogOut, Home as HomeIcon, Shield, History, Lightbulb, BarChart3, MessageSquare, FileStack, Menu, X, Cake, Users, UserCircle, BookOpen, Megaphone, Camera, Briefcase, DollarSign, Bell, CheckSquare, ArrowLeft, ChevronDown, TrendingUp, ClipboardList, CalendarDays, ClipboardList as ClipboardIcon, MessageCircle, Coffee, Home, UserPlus, DoorOpen, FileSignature, Link2, Target, Bot, Brain, Search as SearchIcon, Sparkles, Settings, FileText, KeyRound, HardDrive, Award } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { UpdatesNotification } from '@/components/UpdatesNotification';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
@@ -298,6 +298,7 @@ export const Layout = ({ children }: LayoutProps) => {
     { icon: HomeIcon, path: '/dashboard', label: 'Dashboard', description: 'Página inicial', category: 'Geral' },
     { icon: FileSignature, path: '/setor-comercial', label: 'Setor Comercial', description: 'Geração de contratos', category: 'Geral' },
     { icon: Users, path: '/crm', label: 'CRM', description: 'Gestão de leads e oportunidades', category: 'Geral' },
+    { icon: Award, path: '/decisoes-favoraveis', label: 'Decisões Favoráveis', description: 'Decisões favoráveis do escritório', category: 'Comercial' },
     ...advboxMenuItems.map(item => ({ ...item, category: 'Advbox' })),
     ...rhMenuItems.map(item => ({ ...item, category: 'RH' })),
     ...iaMenuItems.map(item => ({ ...item, category: 'Inteligência Artificial' })),
@@ -339,6 +340,14 @@ export const Layout = ({ children }: LayoutProps) => {
         >
           <Users className="w-4 h-4" />
           CRM
+        </Button>
+        <Button 
+          variant="ghost" 
+          onClick={() => { navigate('/decisoes-favoraveis'); setMobileMenuOpen(false); }}
+          className="gap-2 justify-start w-full mb-1"
+        >
+          <Award className="w-4 h-4" />
+          Decisões Favoráveis
         </Button>
       </div>
       <div className="px-2 py-2">
