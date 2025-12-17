@@ -29,8 +29,10 @@ import {
   Trash2,
   Plus,
   Users,
-  FileEdit
+  FileEdit,
+  CloudUpload
 } from "lucide-react";
+import { SaveToTeamsDialog } from "@/components/SaveToTeamsDialog";
 import { jsPDF } from "jspdf";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -234,6 +236,10 @@ export const ContractGenerator = ({
   const [carregandoRascunho, setCarregandoRascunho] = useState(false);
   const [rascunhoExistente, setRascunhoExistente] = useState<string | null>(null);
   const [deletandoRascunho, setDeletandoRascunho] = useState(false);
+
+  // Salvar no Teams
+  const [showSaveToTeams, setShowSaveToTeams] = useState(false);
+  const [pdfForTeams, setPdfForTeams] = useState<{ fileName: string; content: string } | null>(null);
 
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
@@ -1641,9 +1647,27 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
       addFooter();
       
       const nomeArquivo = `Contrato_${client.nomeCompleto.replace(/\s+/g, '_')}_${format(new Date(), 'ddMMyyyy')}.pdf`;
+      
+      // Salvar PDF para possível upload no Teams
+      const pdfOutput = doc.output('arraybuffer');
+      const uint8Array = new Uint8Array(pdfOutput);
+      let binary = '';
+      for (let i = 0; i < uint8Array.length; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
+      }
+      const base64Content = btoa(binary);
+      setPdfForTeams({ fileName: nomeArquivo, content: base64Content });
+      
       doc.save(nomeArquivo);
       
-      toast.success("Contrato gerado com sucesso!");
+      toast.success("Contrato gerado com sucesso!", {
+        description: "Deseja salvar também no SharePoint/Teams?",
+        action: {
+          label: "Salvar no Teams",
+          onClick: () => setShowSaveToTeams(true),
+        },
+        duration: 10000,
+      });
       setShowPreview(false);
       onOpenChange(false);
       

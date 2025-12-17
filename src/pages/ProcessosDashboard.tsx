@@ -18,10 +18,11 @@ import { TaskSuggestionsPanel } from '@/components/TaskSuggestionsPanel';
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
 import { format, subDays, subMonths, isAfter, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Briefcase, TrendingUp, BarChart, Search, Filter, AlertCircle, Calendar, ListTodo, RefreshCw, MessageSquare, Send, X } from 'lucide-react';
+import { Briefcase, TrendingUp, BarChart, Search, Filter, AlertCircle, Calendar, ListTodo, RefreshCw, MessageSquare, Send, X, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { PetitionSuggestionDialog } from '@/components/PetitionSuggestionDialog';
 
 interface Lawsuit {
   id: number;
@@ -122,6 +123,7 @@ export default function ProcessosDashboard() {
   const [sendingDocRequest, setSendingDocRequest] = useState<number | null>(null);
   const [messageDialogLawsuit, setMessageDialogLawsuit] = useState<Lawsuit | null>(null);
   const [selectedMessageType, setSelectedMessageType] = useState<string>('');
+  const [petitionDialogLawsuit, setPetitionDialogLawsuit] = useState<Lawsuit | null>(null);
   
   // Filtros para gráficos de evolução
   const [selectedEvolutionTypes, setSelectedEvolutionTypes] = useState<string[]>([]);
@@ -1589,6 +1591,14 @@ export default function ProcessosDashboard() {
                                   <ListTodo className="h-4 w-4 mr-1" />
                                   Criar Tarefa
                                 </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setPetitionDialogLawsuit(lawsuit)}
+                                  title="Sugestão de petição por IA"
+                                >
+                                  <Sparkles className="h-4 w-4" />
+                                </Button>
                               </div>
                             </div>
                             
@@ -1974,6 +1984,16 @@ export default function ProcessosDashboard() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Dialog de sugestão de petição */}
+        <PetitionSuggestionDialog
+          open={!!petitionDialogLawsuit}
+          onOpenChange={(open) => !open && setPetitionDialogLawsuit(null)}
+          processType={petitionDialogLawsuit?.type || ''}
+          processGroup={petitionDialogLawsuit?.group || ''}
+          processNumber={petitionDialogLawsuit?.process_number}
+          clientName={petitionDialogLawsuit?.customers ? (typeof petitionDialogLawsuit.customers === 'string' ? petitionDialogLawsuit.customers : Array.isArray(petitionDialogLawsuit.customers) ? petitionDialogLawsuit.customers[0]?.name : (petitionDialogLawsuit.customers as any)?.name) : undefined}
+        />
       </div>
     </Layout>
   );
