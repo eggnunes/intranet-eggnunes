@@ -6,14 +6,16 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useTeamsUpload } from '@/hooks/useTeamsUpload';
-import { Loader2, Upload, FolderPlus, Check, CloudUpload, Folder } from 'lucide-react';
+import { Loader2, Upload, FolderPlus, Check, CloudUpload, Folder, UserCheck } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 
 interface SaveToTeamsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   fileName: string;
   fileContent: string; // Base64 encoded PDF content
+  clientName?: string; // Nome completo do cliente para auto-criar pasta
   onSuccess?: (webUrl: string) => void;
 }
 
@@ -28,6 +30,7 @@ export function SaveToTeamsDialog({
   onOpenChange,
   fileName,
   fileContent,
+  clientName,
   onSuccess,
 }: SaveToTeamsDialogProps) {
   const {
@@ -41,6 +44,7 @@ export function SaveToTeamsDialog({
     uploadFile,
     createFolder,
     listItems,
+    findOrCreateClientFolder,
   } = useTeamsUpload();
 
   const [selectedSite, setSelectedSite] = useState<string>('');
@@ -54,6 +58,8 @@ export function SaveToTeamsDialog({
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
+  const [autoMode, setAutoMode] = useState(false);
+  const [autoModeStatus, setAutoModeStatus] = useState<string>('');
 
   // Load sites on mount
   useEffect(() => {
@@ -62,9 +68,82 @@ export function SaveToTeamsDialog({
     }
   }, [open]);
 
-  // Load drives when site is selected
+  // Auto-select Jurídico site and navigate to client folder when clientName is provided
   useEffect(() => {
-    if (selectedSite) {
+    if (open && clientName && sites.length > 0 && !autoMode) {
+      autoNavigateToClientFolder();
+    }
+  }, [open, clientName, sites]);
+
+  const autoNavigateToClientFolder = async () => {
+    if (!clientName) return;
+    
+    setAutoMode(true);
+    setAutoModeStatus('Buscando site Jurídico...');
+    
+    try {
+      // Find Jurídico site
+      const juridicoSite = sites.find(s => 
+        s.displayName.toLowerCase().includes('jurídico') || 
+        s.displayName.toLowerCase().includes('juridico')
+      );
+      
+      if (!juridicoSite) {
+        setAutoModeStatus('Site Jurídico não encontrado. Selecione manualmente.');
+        setAutoMode(false);
+        return;
+      }
+      
+      setSelectedSite(juridicoSite.id);
+      setAutoModeStatus('Carregando bibliotecas...');
+      
+      // Load drives
+      const drivesList = await loadDrives(juridicoSite.id);
+      
+      // Find "Documentos" or first drive
+      const documentsDrive = drivesList.find((d: any) => 
+        d.name.toLowerCase().includes('documentos') || d.name.toLowerCase().includes('documents')
+      ) || drivesList[0];
+      
+      if (!documentsDrive) {
+        setAutoModeStatus('Biblioteca não encontrada. Selecione manualmente.');
+        setAutoMode(false);
+        return;
+      }
+      
+      setSelectedDrive(documentsDrive.id);
+      setAutoModeStatus(`Verificando pasta do cliente: ${clientName}...`);
+      
+      // Find or create client folder in "Operacional - Clientes"
+      const result = await findOrCreateClientFolder(documentsDrive.id, clientName);
+      
+      if (result.success && result.folderId) {
+        setCurrentFolderId(result.folderId);
+        setFolderPath([
+          { name: 'Raiz' },
+          { name: 'Operacional - Clientes' },
+          { id: result.folderId, name: clientName }
+        ]);
+        setAutoModeStatus(`Pasta "${clientName}" pronta!`);
+        
+        // Load folder contents
+        const items = await listItems(documentsDrive.id, result.folderId);
+        const folderItems = items.filter((item: FolderItem) => item.folder);
+        setFolders(folderItems);
+      } else {
+        setAutoModeStatus('Erro ao criar pasta. Selecione manualmente.');
+      }
+    } catch (error) {
+      console.error('Auto navigation error:', error);
+      setAutoModeStatus('Erro na navegação automática. Selecione manualmente.');
+    }
+    
+    setAutoMode(false);
+  };
+
+  // Load drives when site is selected manually
+  useEffect(() => {
+    if (selectedSite && !autoMode) {
       loadDrives(selectedSite).catch(console.error);
       setSelectedDrive('');
       setCurrentFolderId(undefined);
@@ -75,7 +154,7 @@ export function SaveToTeamsDialog({
 
   // Load folders when drive is selected or folder changes
   useEffect(() => {
-    if (selectedDrive) {
+    if (selectedDrive && !autoMode) {
       loadFolders();
     }
   }, [selectedDrive, currentFolderId]);
@@ -151,6 +230,7 @@ export function SaveToTeamsDialog({
     setCurrentFolderId(undefined);
     setFolders([]);
     setFolderPath([{ name: 'Raiz' }]);
+    setAutoModeStatus('');
     onOpenChange(false);
   };
 
@@ -189,10 +269,32 @@ export function SaveToTeamsDialog({
           </div>
         ) : (
           <div className="space-y-4">
+            {/* Auto-mode status */}
+            {clientName && autoModeStatus && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20">
+                {autoMode ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                ) : (
+                  <UserCheck className="h-4 w-4 text-primary" />
+                )}
+                <span className="text-sm">{autoModeStatus}</span>
+              </div>
+            )}
+
+            {/* Client folder badge */}
+            {clientName && currentFolderId && (
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="gap-1">
+                  <Folder className="h-3 w-3" />
+                  Pasta do cliente: {clientName}
+                </Badge>
+              </div>
+            )}
+
             {/* Site Selection */}
             <div className="space-y-2">
               <Label>Site do Teams</Label>
-              <Select value={selectedSite} onValueChange={setSelectedSite} disabled={loadingSites}>
+              <Select value={selectedSite} onValueChange={setSelectedSite} disabled={loadingSites || autoMode}>
                 <SelectTrigger>
                   <SelectValue placeholder={loadingSites ? 'Carregando...' : 'Selecione um site'} />
                 </SelectTrigger>
@@ -210,7 +312,7 @@ export function SaveToTeamsDialog({
             {selectedSite && (
               <div className="space-y-2">
                 <Label>Biblioteca de Documentos</Label>
-                <Select value={selectedDrive} onValueChange={setSelectedDrive} disabled={loadingDrives}>
+                <Select value={selectedDrive} onValueChange={setSelectedDrive} disabled={loadingDrives || autoMode}>
                   <SelectTrigger>
                     <SelectValue placeholder={loadingDrives ? 'Carregando...' : 'Selecione uma biblioteca'} />
                   </SelectTrigger>
@@ -318,7 +420,7 @@ export function SaveToTeamsDialog({
               </Button>
               <Button
                 onClick={handleUpload}
-                disabled={uploading || !selectedDrive}
+                disabled={uploading || !selectedDrive || autoMode}
               >
                 {uploading ? (
                   <>
