@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Layout } from '@/components/Layout';
 import { useUserRole } from '@/hooks/useUserRole';
 import { usePresence } from '@/hooks/usePresence';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck, Lock, Pencil, Key, UserX, UserCheck, Circle } from 'lucide-react';
+import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, MessageSquareHeart, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck, Lock, Pencil, Key, UserX, UserCheck, Circle } from 'lucide-react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -35,6 +36,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { SuggestionComments } from '@/components/SuggestionComments';
 import { SuggestionTagManager } from '@/components/SuggestionTagManager';
 import { AdminPermissionsManager } from '@/components/AdminPermissionsManager';
+import { FeedbackBoxAdmin } from '@/components/FeedbackBoxAdmin';
 import { useNavigate } from 'react-router-dom';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { Calendar } from '@/components/ui/calendar';
@@ -102,6 +104,7 @@ interface Suggestion {
 export default function Admin() {
   const { isAdmin, loading } = useUserRole();
   const { isUserOnline, onlineCount } = usePresence();
+  const { user } = useAuth();
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
   const [approvedUsers, setApprovedUsers] = useState<ApprovedUser[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
@@ -135,9 +138,24 @@ export default function Admin() {
   const [resetPasswordUser, setResetPasswordUser] = useState<{ id: string; email: string; full_name: string } | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [isRafael, setIsRafael] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { isSocioOrRafael } = useAdminPermissions();
+
+  // Check if current user is Rafael
+  useEffect(() => {
+    const checkRafael = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('id', user.id)
+        .single();
+      setIsRafael(data?.email === 'rafael@eggnunes.com.br');
+    };
+    checkRafael();
+  }, [user]);
 
   const BRAZILIAN_STATES = [
     'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS',
@@ -802,6 +820,13 @@ export default function Admin() {
                 <span className="hidden sm:inline">Histórico Geral</span>
                 <span className="sm:hidden">Hist.</span>
               </TabsTrigger>
+              {isRafael && (
+                <TabsTrigger value="desabafo" className="gap-1.5 flex-shrink-0 px-2 sm:px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+                  <MessageSquareHeart className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">Desabafo</span>
+                  <span className="sm:hidden">Desab.</span>
+                </TabsTrigger>
+              )}
             </TabsList>
           </div>
 
@@ -1329,6 +1354,13 @@ export default function Admin() {
           {isSocioOrRafael && (
             <TabsContent value="permissions">
               <AdminPermissionsManager />
+            </TabsContent>
+          )}
+
+          {/* Desabafo Tab - Only for Rafael */}
+          {isRafael && (
+            <TabsContent value="desabafo">
+              <FeedbackBoxAdmin />
             </TabsContent>
           )}
         </Tabs>
