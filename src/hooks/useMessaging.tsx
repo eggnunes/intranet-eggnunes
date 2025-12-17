@@ -36,6 +36,7 @@ export interface Message {
   content: string;
   created_at: string;
   updated_at: string;
+  is_edited?: boolean;
   sender?: {
     id: string;
     full_name: string;
@@ -290,6 +291,73 @@ export const useMessaging = () => {
     }
   };
 
+  // Delete a conversation (for sócios)
+  const deleteConversation = async (conversationId: string) => {
+    if (!user) return;
+
+    try {
+      // First delete all messages
+      await supabase
+        .from('messages')
+        .delete()
+        .eq('conversation_id', conversationId);
+
+      // Then delete participants
+      await supabase
+        .from('conversation_participants')
+        .delete()
+        .eq('conversation_id', conversationId);
+
+      // Finally delete the conversation
+      const { error } = await supabase
+        .from('conversations')
+        .delete()
+        .eq('id', conversationId);
+
+      if (error) throw error;
+
+      toast.success('Conversa excluída');
+      setActiveConversation(null);
+      await fetchConversations();
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      toast.error('Erro ao excluir conversa');
+    }
+  };
+
+  // Edit a message (only within 5 minutes)
+  const editMessage = async (messageId: string, newContent: string) => {
+    if (!user || !newContent.trim()) return false;
+
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .update({ 
+          content: newContent.trim(),
+          is_edited: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', messageId)
+        .eq('sender_id', user.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, content: newContent.trim(), is_edited: true }
+          : msg
+      ));
+
+      toast.success('Mensagem editada');
+      return true;
+    } catch (error) {
+      console.error('Error editing message:', error);
+      toast.error('Erro ao editar mensagem');
+      return false;
+    }
+  };
+
   // Subscribe to realtime updates
   useEffect(() => {
     if (!user) return;
@@ -357,6 +425,8 @@ export const useMessaging = () => {
     sendMessage,
     createConversation,
     fetchConversations,
-    fetchMessages
+    fetchMessages,
+    deleteConversation,
+    editMessage
   };
 };
