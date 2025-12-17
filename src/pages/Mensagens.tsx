@@ -135,6 +135,9 @@ const Mensagens = () => {
   const [showTemplates, setShowTemplates] = useState(false);
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [templateTitle, setTemplateTitle] = useState('');
+  const [editingTemplate, setEditingTemplate] = useState<MessageTemplate | null>(null);
+  const [editTemplateTitle, setEditTemplateTitle] = useState('');
+  const [editTemplateContent, setEditTemplateContent] = useState('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -231,11 +234,16 @@ const Mensagens = () => {
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
+      // Use signed URL for private bucket (valid for 1 year)
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
         .from('task-attachments')
-        .getPublicUrl(filePath);
+        .createSignedUrl(filePath, 31536000);
 
-      return publicUrl;
+      if (signedUrlError || !signedUrlData?.signedUrl) {
+        throw signedUrlError || new Error('Failed to create signed URL');
+      }
+
+      return signedUrlData.signedUrl;
     } catch (error) {
       console.error('Error uploading file:', error);
       return null;
@@ -287,6 +295,45 @@ const Mensagens = () => {
   const useTemplate = (content: string) => {
     setNewMessage(content);
     setShowTemplates(false);
+  };
+
+  const startEditTemplate = (template: MessageTemplate) => {
+    setEditingTemplate(template);
+    setEditTemplateTitle(template.title);
+    setEditTemplateContent(template.content);
+  };
+
+  const saveEditTemplate = async () => {
+    if (!editingTemplate || !editTemplateTitle.trim() || !editTemplateContent.trim()) return;
+    
+    const { error } = await supabase
+      .from('message_templates')
+      .update({
+        title: editTemplateTitle,
+        content: editTemplateContent
+      })
+      .eq('id', editingTemplate.id);
+
+    if (error) {
+      toast.error('Erro ao atualizar template');
+      return;
+    }
+
+    setTemplates(prev => prev.map(t => 
+      t.id === editingTemplate.id 
+        ? { ...t, title: editTemplateTitle, content: editTemplateContent }
+        : t
+    ));
+    toast.success('Template atualizado!');
+    setEditingTemplate(null);
+    setEditTemplateTitle('');
+    setEditTemplateContent('');
+  };
+
+  const cancelEditTemplate = () => {
+    setEditingTemplate(null);
+    setEditTemplateTitle('');
+    setEditTemplateContent('');
   };
 
   const handleSend = async () => {
@@ -484,12 +531,17 @@ const Mensagens = () => {
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
+      // Use signed URL for private bucket (valid for 1 year)
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
         .from('task-attachments')
-        .getPublicUrl(filePath);
+        .createSignedUrl(filePath, 31536000);
+
+      if (signedUrlError || !signedUrlData?.signedUrl) {
+        throw signedUrlError || new Error('Failed to create signed URL');
+      }
 
       // Send message with audio link
-      await sendMessage(activeConversation.id, `🎤 Mensagem de voz: ${publicUrl}`);
+      await sendMessage(activeConversation.id, `🎤 Mensagem de voz: ${signedUrlData.signedUrl}`);
       toast.success('Áudio enviado');
     } catch (error) {
       console.error('Error sending audio:', error);
@@ -1428,35 +1480,98 @@ const Mensagens = () => {
                   )}
 
                   {/* Templates panel */}
-                  {showTemplates && templates.length > 0 && (
-                    <div className="mb-2 p-2 bg-muted/50 rounded-lg border max-h-40 overflow-y-auto">
+                  {showTemplates && (
+                    <div className="mb-2 p-2 bg-muted/50 rounded-lg border max-h-48 overflow-y-auto">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-medium text-muted-foreground">Seus templates</span>
                         <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setShowTemplates(false)}>
                           <X className="h-3 w-3" />
                         </Button>
                       </div>
-                      <div className="space-y-1">
-                        {templates.map(template => (
-                          <div key={template.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer group">
-                            <button
-                              type="button"
-                              onClick={() => useTemplate(template.content)}
-                              className="flex-1 text-left"
-                            >
-                              <p className="text-sm font-medium">{template.title}</p>
-                              <p className="text-xs text-muted-foreground truncate">{template.content}</p>
-                            </button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                              onClick={() => deleteTemplate(template.id)}
-                            >
-                              <Trash2 className="h-3 w-3 text-destructive" />
-                            </Button>
-                          </div>
-                        ))}
+                      {templates.length > 0 ? (
+                        <div className="space-y-1">
+                          {templates.map(template => (
+                            <div key={template.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer group">
+                              <button
+                                type="button"
+                                onClick={() => useTemplate(template.content)}
+                                className="flex-1 text-left"
+                              >
+                                <p className="text-sm font-medium">{template.title}</p>
+                                <p className="text-xs text-muted-foreground truncate">{template.content}</p>
+                              </button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startEditTemplate(template);
+                                }}
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteTemplate(template.id);
+                                }}
+                              >
+                                <Trash2 className="h-3 w-3 text-destructive" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground text-center py-2">
+                          Nenhum template salvo. Digite uma mensagem e clique no botão de salvar template.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Edit template dialog */}
+                  {editingTemplate && (
+                    <div className="mb-2 p-3 bg-muted/50 rounded-lg border">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">Editar template</span>
+                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={cancelEditTemplate}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <Input
+                        placeholder="Nome do template..."
+                        value={editTemplateTitle}
+                        onChange={(e) => setEditTemplateTitle(e.target.value)}
+                        className="mb-2"
+                      />
+                      <Textarea
+                        placeholder="Conteúdo do template..."
+                        value={editTemplateContent}
+                        onChange={(e) => setEditTemplateContent(e.target.value)}
+                        className="mb-2 min-h-[80px]"
+                      />
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="flex-1"
+                          onClick={cancelEditTemplate}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          className="flex-1"
+                          onClick={saveEditTemplate}
+                          disabled={!editTemplateTitle.trim() || !editTemplateContent.trim()}
+                        >
+                          <Check className="h-4 w-4 mr-2" />
+                          Salvar
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -1534,6 +1649,11 @@ const Mensagens = () => {
                           placeholder="Digite sua mensagem..."
                           value={newMessage}
                           onChange={(e) => setNewMessage(e.target.value)}
+                          onFocus={() => {
+                            if (templates.length > 0 && !newMessage.trim()) {
+                              setShowTemplates(true);
+                            }
+                          }}
                           disabled={sending}
                           className="flex-1"
                         />
