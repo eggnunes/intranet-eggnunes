@@ -526,11 +526,11 @@ Deno.serve(async (req) => {
           created_by: user.id,
         };
 
-        // Check if exists by matching key fields
+        // Check if exists by matching client_name + decision_date only
+        // This avoids duplicates caused by product name variations (e.g., "Férias Prêmio" vs "Férias-prêmio")
         const existing = existingDecisions?.find(d => 
           d.client_name === decisionData.client_name &&
-          d.decision_date === decisionData.decision_date &&
-          d.product_name === decisionData.product_name
+          d.decision_date === decisionData.decision_date
         );
 
         if (existing) {
