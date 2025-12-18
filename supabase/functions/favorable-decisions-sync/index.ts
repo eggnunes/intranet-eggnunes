@@ -169,32 +169,83 @@ async function getSiteAndDriveInfo(accessToken: string): Promise<{ siteId: strin
   };
 }
 
-async function getWorkbookData(accessToken: string, driveId: string, itemId: string): Promise<any[][]> {
-  // Get used range from first worksheet
+async function getWorkbookData(accessToken: string, driveId: string, itemId: string): Promise<{ values: any[][], formulas: any[][] }> {
+  const sheetName = await getActiveSheetName(accessToken, driveId, itemId);
+  
+  // Get used range with both values and formulas (formulas contain hyperlinks)
   const response = await fetch(
-    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/Sheet1/usedRange`,
+    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/${sheetName}/usedRange?$select=values,formulas`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
 
   if (!response.ok) {
-    // Try with different sheet name
-    const response2 = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/Planilha1/usedRange`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-    
-    if (!response2.ok) {
-      const error = await response2.text();
-      console.error('Error getting workbook data:', error);
-      throw new Error('Failed to get workbook data');
-    }
-    
-    const data = await response2.json();
-    return data.values || [];
+    const error = await response.text();
+    console.error('Error getting workbook data:', error);
+    throw new Error('Failed to get workbook data');
   }
 
   const data = await response.json();
-  return data.values || [];
+  console.log('Workbook data retrieved, rows:', data.values?.length);
+  
+  return {
+    values: data.values || [],
+    formulas: data.formulas || []
+  };
+}
+
+// Extract URL from HYPERLINK formula: =HYPERLINK("url","text") -> returns "url"
+function extractHyperlinkUrl(formula: any, textValue: any): string | null {
+  if (!formula) return textValue || null;
+  
+  const formulaStr = String(formula);
+  
+  // Check if it's a HYPERLINK formula
+  const hyperlinkMatch = formulaStr.match(/=HYPERLINK\s*\(\s*"([^"]+)"/i);
+  if (hyperlinkMatch && hyperlinkMatch[1]) {
+    console.log(`Extracted hyperlink URL: ${hyperlinkMatch[1]} from formula: ${formulaStr.substring(0, 100)}`);
+    return hyperlinkMatch[1];
+  }
+  
+  // If formula starts with http, it's a direct URL
+  if (formulaStr.startsWith('http://') || formulaStr.startsWith('https://')) {
+    return formulaStr;
+  }
+  
+  // Return the text value as fallback
+  return textValue || null;
+}
+
+// Normalize name for comparison (remove accents, extra spaces, lowercase)
+function normalizeName(name: string): string {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Remove accents
+    .replace(/\s+/g, ' ') // Normalize spaces
+    .trim();
+}
+
+// Check if two names match (one could be a substring of the other)
+function namesMatch(name1: string, name2: string): boolean {
+  const n1 = normalizeName(name1);
+  const n2 = normalizeName(name2);
+  
+  if (n1 === n2) return true;
+  if (n1.includes(n2) || n2.includes(n1)) return true;
+  
+  // Check if first and last name match
+  const parts1 = n1.split(' ');
+  const parts2 = n2.split(' ');
+  
+  if (parts1.length >= 2 && parts2.length >= 2) {
+    // First name and last name match
+    if (parts1[0] === parts2[0] && parts1[parts1.length - 1] === parts2[parts2.length - 1]) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 // Headers for the Excel file
@@ -460,11 +511,11 @@ Deno.serve(async (req) => {
     const { driveId, itemId } = await getSiteAndDriveInfo(accessToken);
 
     if (action === 'sync-from-teams') {
-      // Read data from Excel
-      const excelData = await getWorkbookData(accessToken, driveId, itemId);
-      console.log(`Read ${excelData.length} rows from Excel`);
+      // Read data from Excel (values and formulas for hyperlinks)
+      const { values: excelValues, formulas: excelFormulas } = await getWorkbookData(accessToken, driveId, itemId);
+      console.log(`Read ${excelValues.length} rows from Excel`);
 
-      if (excelData.length <= 1) {
+      if (excelValues.length <= 1) {
         return new Response(
           JSON.stringify({ success: true, message: 'No data to sync' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -473,51 +524,63 @@ Deno.serve(async (req) => {
 
       // Log header rows to verify column structure
       // Row 1 = Title row, Row 2 = Column headers
-      console.log(`ROW 1 (title): ${JSON.stringify(excelData[0])}`);
-      console.log(`ROW 2 (headers): ${JSON.stringify(excelData[1])}`);
+      console.log(`ROW 1 (title): ${JSON.stringify(excelValues[0])}`);
+      console.log(`ROW 2 (headers): ${JSON.stringify(excelValues[1])}`);
       
       // Log first 3 data rows completely to verify structure
-      for (let debugIdx = 2; debugIdx <= Math.min(4, excelData.length - 1); debugIdx++) {
-        console.log(`DATA ROW ${debugIdx + 1} (full): ${JSON.stringify(excelData[debugIdx])}`);
+      for (let debugIdx = 2; debugIdx <= Math.min(4, excelValues.length - 1); debugIdx++) {
+        console.log(`DATA ROW ${debugIdx + 1} (values): ${JSON.stringify(excelValues[debugIdx])}`);
+        console.log(`DATA ROW ${debugIdx + 1} (formulas): ${JSON.stringify(excelFormulas[debugIdx])}`);
       }
 
       // Skip 2 header rows (title row and column headers row)
-      const dataRows = excelData.slice(2);
+      const dataRowsValues = excelValues.slice(2);
+      const dataRowsFormulas = excelFormulas.slice(2);
 
       // Get existing decisions
       const { data: existingDecisions } = await supabase
         .from('favorable_decisions')
         .select('*');
 
+      let processedCount = 0;
+      let updatedCount = 0;
+      let insertedCount = 0;
+
       // Process each row from Excel
-      for (let i = 0; i < dataRows.length; i++) {
-        const row = dataRows[i];
+      for (let i = 0; i < dataRowsValues.length; i++) {
+        const row = dataRowsValues[i];
+        const formulaRow = dataRowsFormulas[i] || [];
+        
         if (!row[0] && !row[2]) continue; // Skip empty rows
 
         const decisionDate = parseExcelDate(row[6]);
         if (!decisionDate) continue;
 
+        // Extract hyperlink URL from formula (column H = index 7)
+        const decisionLink = extractHyperlinkUrl(formulaRow[7], row[7]);
+        
         // Log status columns for debugging (row index is i + 3 because we skip 2 header rows)
-        // Column J (index 9) = Postado, Column K (index 10) = Avaliado
-        console.log(`Row ${i + 3}: Client="${row[2]}", Postado (col J, idx 9)="${row[9]}", Avaliado (col K, idx 10)="${row[10]}"`);
+        console.log(`Row ${i + 3}: Client="${row[2]}", Link formula="${formulaRow[7]}", Extracted link="${decisionLink}"`);
+        console.log(`  Postado (col J, idx 9)="${row[9]}", Avaliado (col K, idx 10)="${row[10]}"`);
 
         // Parse the evaluation status from column K (index 10) - "Avaliado" column
-        // "sim" = was evaluated (implies was requested), "não" = was requested but not evaluated
         const evaluationStatus = parseEvaluationStatus(row[10]);
         
         // Parse was_posted from column J (index 9)
         const wasPosted = parseBoolean(row[9]);
         console.log(`  -> was_posted: ${wasPosted}, evaluation_requested: ${evaluationStatus.evaluationRequested}, was_evaluated: ${evaluationStatus.wasEvaluated}`);
         
+        const clientName = (row[2] || '').trim();
+        
         const decisionData = {
           decision_type: reverseMapDecisionType(row[0] || ''),
           product_name: row[1] || '',
-          client_name: row[2] || '',
+          client_name: clientName,
           process_number: row[3] || null,
           court: row[4] || null,
           court_division: row[5] || null,
           decision_date: decisionDate,
-          decision_link: row[7] || null,
+          decision_link: decisionLink,
           observation: row[8] || null,
           was_posted: wasPosted,
           evaluation_requested: evaluationStatus.evaluationRequested,
@@ -526,15 +589,15 @@ Deno.serve(async (req) => {
           created_by: user.id,
         };
 
-        // Check if exists by matching client_name + decision_date only
-        // This avoids duplicates caused by product name variations (e.g., "Férias Prêmio" vs "Férias-prêmio")
+        // Check if exists by matching client_name (fuzzy) + decision_date
+        // This handles name variations like "Eder Geraldo Rocha" vs "Eder Geraldo Rocha Venâncio"
         const existing = existingDecisions?.find(d => 
-          d.client_name === decisionData.client_name &&
+          namesMatch(d.client_name, clientName) &&
           d.decision_date === decisionData.decision_date
         );
 
         if (existing) {
-          // Update existing
+          // Update existing - also update client_name to the Teams version
           await supabase
             .from('favorable_decisions')
             .update({
@@ -542,16 +605,22 @@ Deno.serve(async (req) => {
               created_by: existing.created_by, // Keep original creator
             })
             .eq('id', existing.id);
+          updatedCount++;
         } else {
           // Insert new
           await supabase
             .from('favorable_decisions')
             .insert(decisionData);
+          insertedCount++;
         }
+        processedCount++;
       }
 
       return new Response(
-        JSON.stringify({ success: true, message: `Synced ${dataRows.length} rows from Teams` }),
+        JSON.stringify({ 
+          success: true, 
+          message: `Synced ${processedCount} rows from Teams (${updatedCount} updated, ${insertedCount} inserted)` 
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
 
