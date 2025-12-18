@@ -177,7 +177,7 @@ export default function DecisoesFavoraveis() {
     },
   });
 
-  // Fetch Advbox clients
+  // Fetch Advbox clients - load in background on page load
   const { data: advboxClients = [], isLoading: loadingClients, refetch: refetchClients } = useQuery({
     queryKey: ['advbox-customers'],
     queryFn: async () => {
@@ -196,8 +196,8 @@ export default function DecisoesFavoraveis() {
       const customers = response.data?.data?.items || response.data?.data || [];
       return customers.map((c: any) => ({ id: c.id, name: c.name }));
     },
-    staleTime: 5 * 60 * 1000,
-    enabled: isDialogOpen, // Only fetch when dialog is open
+    staleTime: 10 * 60 * 1000, // Cache for 10 minutes
+    enabled: true, // Always load in background
   });
 
   // Manual search function for Advbox clients
@@ -471,10 +471,12 @@ export default function DecisoesFavoraveis() {
     return matchesSearch && matchesType;
   });
 
-  // Filter clients for autocomplete
-  const filteredClients = advboxClients.filter((c: AdvboxClient) =>
-    c.name.toLowerCase().includes(clientSearch.toLowerCase())
-  ).slice(0, 10);
+  // Filter clients for autocomplete - show results even if search is empty
+  const filteredClients = clientSearch.length >= 2 
+    ? advboxClients.filter((c: AdvboxClient) =>
+        c.name.toLowerCase().includes(clientSearch.toLowerCase())
+      ).slice(0, 15)
+    : [];
 
   const getDecisionTypeLabel = (type: string) => {
     return DECISION_TYPES.find(t => t.value === type)?.label || type;
@@ -602,10 +604,10 @@ export default function DecisoesFavoraveis() {
                           )}
                         </Button>
                       </div>
-                      {loadingClients && (
+                      {loadingClients && advboxClients.length === 0 && (
                         <p className="text-sm text-muted-foreground">Carregando clientes do Advbox...</p>
                       )}
-                      {clientSearch && filteredClients.length > 0 && !selectedClient && (
+                      {clientSearch.length >= 2 && filteredClients.length > 0 && !selectedClient && (
                         <div className="border rounded-md max-h-40 overflow-y-auto">
                           {filteredClients.map((client: AdvboxClient) => (
                             <div
@@ -618,13 +620,11 @@ export default function DecisoesFavoraveis() {
                           ))}
                         </div>
                       )}
-                      {clientSearch && filteredClients.length === 0 && advboxClients.length > 0 && !selectedClient && (
+                      {clientSearch.length >= 2 && filteredClients.length === 0 && advboxClients.length > 0 && !selectedClient && (
                         <p className="text-sm text-muted-foreground">Nenhum cliente encontrado com "{clientSearch}"</p>
                       )}
-                      {clientSearch && advboxClients.length === 0 && !loadingClients && !selectedClient && (
-                        <p className="text-sm text-muted-foreground">
-                          Clique na lupa para buscar clientes no Advbox
-                        </p>
+                      {clientSearch.length > 0 && clientSearch.length < 2 && !selectedClient && (
+                        <p className="text-sm text-muted-foreground">Digite ao menos 2 caracteres para buscar</p>
                       )}
                       {selectedClient && (
                         <div className="flex items-center gap-2">
