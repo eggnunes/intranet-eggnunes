@@ -896,29 +896,29 @@ export default function DecisoesFavoraveis() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[100px]">Tipo</TableHead>
-                      <TableHead className="w-[140px]">Produto</TableHead>
-                      <TableHead className="min-w-[180px]">Cliente</TableHead>
-                      <TableHead className="w-[140px]">Processo</TableHead>
-                      <TableHead className="w-[120px]">Tribunal</TableHead>
-                      <TableHead className="w-[90px]">Decisão</TableHead>
-                      <TableHead className="w-[90px]">Cadastro</TableHead>
-                      <TableHead className="w-[70px] text-center">Status</TableHead>
-                      <TableHead className="w-[100px] text-right">Ações</TableHead>
+                      <TableHead className="w-[80px]">Tipo</TableHead>
+                      <TableHead className="w-[100px]">Produto</TableHead>
+                      <TableHead className="min-w-[200px]">Cliente</TableHead>
+                      <TableHead className="w-[130px]">Processo</TableHead>
+                      <TableHead className="w-[100px]">Tribunal</TableHead>
+                      <TableHead className="w-[80px]">Decisão</TableHead>
+                      <TableHead className="w-[80px]">Cadastro</TableHead>
+                      <TableHead className="w-[90px] text-center">Status</TableHead>
+                      <TableHead className="w-[90px] text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredDecisions.map((decision) => (
                       <TableRow key={decision.id}>
-                        <TableCell className="py-2">
-                          <Badge className={`text-xs whitespace-nowrap ${getDecisionTypeBadgeColor(decision.decision_type)}`}>
+                        <TableCell className="py-2 px-2">
+                          <Badge className={`text-[10px] whitespace-nowrap ${getDecisionTypeBadgeColor(decision.decision_type)}`}>
                             {getDecisionTypeLabel(decision.decision_type)}
                           </Badge>
                         </TableCell>
-                        <TableCell className="py-2">
+                        <TableCell className="py-2 px-2">
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span className="block max-w-[140px] truncate text-sm">
+                              <span className="block max-w-[100px] truncate text-xs">
                                 {decision.product_name}
                               </span>
                             </TooltipTrigger>
