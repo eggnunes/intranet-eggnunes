@@ -450,6 +450,15 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Log header row to verify column structure
+      const headerRow = excelData[0];
+      console.log(`HEADER ROW: ${JSON.stringify(headerRow)}`);
+      
+      // Log first 3 data rows completely to verify structure
+      for (let debugIdx = 1; debugIdx <= Math.min(3, excelData.length - 1); debugIdx++) {
+        console.log(`DATA ROW ${debugIdx + 1} (full): ${JSON.stringify(excelData[debugIdx])}`);
+      }
+
       // Skip header row
       const dataRows = excelData.slice(1);
 
