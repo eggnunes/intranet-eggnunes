@@ -323,10 +323,34 @@ function parseExcelDate(excelValue: any): string | null {
 function parseBoolean(value: any): boolean {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'string') {
-    const lower = value.toLowerCase();
-    return lower === 'sim' || lower === 'yes' || lower === 'true' || lower === 'x' || lower === '1';
+    const lower = value.toLowerCase().trim();
+    // "postado", "sim", "yes", "true", "x", "1" are all truthy
+    return lower === 'sim' || lower === 'yes' || lower === 'true' || lower === 'x' || lower === '1' || lower === 'postado';
   }
   return false;
+}
+
+// Parse evaluation columns with specific logic:
+// - If "avaliado" column says "sim" -> was_evaluated = true, evaluation_requested = true
+// - If "avaliado" column says "não" -> was_evaluated = false, evaluation_requested = true
+// - If "avaliado" column is empty -> was_evaluated = false, evaluation_requested = false
+function parseEvaluationStatus(value: any): { wasEvaluated: boolean; evaluationRequested: boolean } {
+  if (!value) {
+    return { wasEvaluated: false, evaluationRequested: false };
+  }
+  
+  if (typeof value === 'string') {
+    const lower = value.toLowerCase().trim();
+    if (lower === 'sim' || lower === 'yes' || lower === 'true') {
+      // "Sim" means it was evaluated (which implies it was requested)
+      return { wasEvaluated: true, evaluationRequested: true };
+    } else if (lower === 'não' || lower === 'nao' || lower === 'no' || lower === 'false') {
+      // "Não" means it was requested but not evaluated
+      return { wasEvaluated: false, evaluationRequested: true };
+    }
+  }
+  
+  return { wasEvaluated: false, evaluationRequested: false };
 }
 
 function formatDateForExcel(dateStr: string): string {
@@ -428,6 +452,10 @@ Deno.serve(async (req) => {
         const decisionDate = parseExcelDate(row[6]);
         if (!decisionDate) continue;
 
+        // Parse the evaluation status from column L (index 11) - "Avaliado" column
+        // "sim" = was evaluated (implies was requested), "não" = was requested but not evaluated
+        const evaluationStatus = parseEvaluationStatus(row[11]);
+        
         const decisionData = {
           decision_type: reverseMapDecisionType(row[0] || ''),
           product_name: row[1] || '',
@@ -438,9 +466,9 @@ Deno.serve(async (req) => {
           decision_date: decisionDate,
           decision_link: row[7] || null,
           observation: row[8] || null,
-          was_posted: parseBoolean(row[9]),
-          evaluation_requested: parseBoolean(row[10]),
-          was_evaluated: parseBoolean(row[11]),
+          was_posted: parseBoolean(row[9]), // "postado" is now recognized as true
+          evaluation_requested: evaluationStatus.evaluationRequested,
+          was_evaluated: evaluationStatus.wasEvaluated,
           teams_row_index: i + 2, // Row index in Excel (1-indexed, skip header)
           created_by: user.id,
         };
