@@ -295,8 +295,6 @@ export default function DecisoesFavoraveis() {
       toast.success(editingDecision ? 'Decisão atualizada!' : 'Decisão cadastrada!');
       resetForm();
       setIsDialogOpen(false);
-      // Trigger Teams sync
-      syncToTeams();
     },
     onError: (error) => {
       console.error('Error saving decision:', error);
@@ -316,7 +314,6 @@ export default function DecisoesFavoraveis() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['favorable-decisions'] });
       toast.success('Decisão removida!');
-      syncToTeams();
     },
     onError: (error) => {
       console.error('Error deleting decision:', error);
@@ -324,31 +321,7 @@ export default function DecisoesFavoraveis() {
     },
   });
 
-  // Sync to Teams
-  const syncToTeams = async () => {
-    setIsSyncing(true);
-    try {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session.session) throw new Error('Not authenticated');
-
-      const response = await supabase.functions.invoke('favorable-decisions-sync', {
-        body: { action: 'sync-to-teams' },
-        headers: {
-          Authorization: `Bearer ${session.session.access_token}`,
-        },
-      });
-
-      if (response.error) throw response.error;
-      toast.success('Sincronizado com Teams!');
-    } catch (error) {
-      console.error('Error syncing to Teams:', error);
-      toast.error('Erro ao sincronizar com Teams');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // Sync from Teams
+  // Sync from Teams (import only - never write to Teams to avoid corruption)
   const syncFromTeams = async () => {
     setIsSyncing(true);
     try {
