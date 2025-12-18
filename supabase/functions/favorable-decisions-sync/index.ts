@@ -324,15 +324,17 @@ function parseBoolean(value: any): boolean {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'string') {
     const lower = value.toLowerCase().trim();
-    // "postado", "sim", "yes", "true", "x", "1" are all truthy
-    return lower === 'sim' || lower === 'yes' || lower === 'true' || lower === 'x' || lower === '1' || lower === 'postado';
+    // Check for any variation containing "postado", "sim", etc.
+    if (lower.includes('postado') || lower === 'sim' || lower === 'yes' || lower === 'true' || lower === 'x' || lower === '1') {
+      return true;
+    }
   }
   return false;
 }
 
 // Parse evaluation columns with specific logic:
-// - If "avaliado" column says "sim" -> was_evaluated = true, evaluation_requested = true
-// - If "avaliado" column says "não" -> was_evaluated = false, evaluation_requested = true
+// - If "avaliado" column contains "sim" -> was_evaluated = true, evaluation_requested = true
+// - If "avaliado" column contains "não" or "nao" -> was_evaluated = false, evaluation_requested = true
 // - If "avaliado" column is empty -> was_evaluated = false, evaluation_requested = false
 function parseEvaluationStatus(value: any): { wasEvaluated: boolean; evaluationRequested: boolean } {
   if (!value) {
@@ -341,11 +343,23 @@ function parseEvaluationStatus(value: any): { wasEvaluated: boolean; evaluationR
   
   if (typeof value === 'string') {
     const lower = value.toLowerCase().trim();
-    if (lower === 'sim' || lower === 'yes' || lower === 'true') {
-      // "Sim" means it was evaluated (which implies it was requested)
+    console.log(`Parsing evaluation status: "${value}" -> lower: "${lower}"`);
+    
+    // Check if contains "sim" (evaluated = true, implies requested)
+    if (lower.includes('sim') || lower === 'yes' || lower === 'true') {
+      console.log(`  -> wasEvaluated: true, evaluationRequested: true`);
       return { wasEvaluated: true, evaluationRequested: true };
-    } else if (lower === 'não' || lower === 'nao' || lower === 'no' || lower === 'false') {
-      // "Não" means it was requested but not evaluated
+    }
+    
+    // Check if contains "não" or "nao" (requested but not evaluated)
+    if (lower.includes('não') || lower.includes('nao') || lower === 'no' || lower === 'false') {
+      console.log(`  -> wasEvaluated: false, evaluationRequested: true`);
+      return { wasEvaluated: false, evaluationRequested: true };
+    }
+    
+    // If there's any text but doesn't match above, assume it was requested
+    if (lower.length > 0) {
+      console.log(`  -> Unknown value, treating as requested but not evaluated`);
       return { wasEvaluated: false, evaluationRequested: true };
     }
   }
@@ -452,9 +466,16 @@ Deno.serve(async (req) => {
         const decisionDate = parseExcelDate(row[6]);
         if (!decisionDate) continue;
 
+        // Log status columns for debugging
+        console.log(`Row ${i + 2}: Client="${row[2]}", Postado (col J)="${row[9]}", Avaliado (col L)="${row[11]}"`);
+
         // Parse the evaluation status from column L (index 11) - "Avaliado" column
         // "sim" = was evaluated (implies was requested), "não" = was requested but not evaluated
         const evaluationStatus = parseEvaluationStatus(row[11]);
+        
+        // Parse was_posted from column J (index 9)
+        const wasPosted = parseBoolean(row[9]);
+        console.log(`  -> was_posted: ${wasPosted}, evaluation_requested: ${evaluationStatus.evaluationRequested}, was_evaluated: ${evaluationStatus.wasEvaluated}`);
         
         const decisionData = {
           decision_type: reverseMapDecisionType(row[0] || ''),
@@ -466,7 +487,7 @@ Deno.serve(async (req) => {
           decision_date: decisionDate,
           decision_link: row[7] || null,
           observation: row[8] || null,
-          was_posted: parseBoolean(row[9]), // "postado" is now recognized as true
+          was_posted: wasPosted,
           evaluation_requested: evaluationStatus.evaluationRequested,
           was_evaluated: evaluationStatus.wasEvaluated,
           teams_row_index: i + 2, // Row index in Excel (1-indexed, skip header)
