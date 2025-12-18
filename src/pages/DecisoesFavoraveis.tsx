@@ -295,6 +295,8 @@ export default function DecisoesFavoraveis() {
       toast.success(editingDecision ? 'Decisão atualizada!' : 'Decisão cadastrada!');
       resetForm();
       setIsDialogOpen(false);
+      // Sync to Teams after saving
+      syncToTeams();
     },
     onError: (error) => {
       console.error('Error saving decision:', error);
@@ -314,6 +316,8 @@ export default function DecisoesFavoraveis() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['favorable-decisions'] });
       toast.success('Decisão removida!');
+      // Sync to Teams after deleting
+      syncToTeams();
     },
     onError: (error) => {
       console.error('Error deleting decision:', error);
@@ -321,7 +325,7 @@ export default function DecisoesFavoraveis() {
     },
   });
 
-  // Sync from Teams (import only - never write to Teams to avoid corruption)
+  // Sync from Teams (import data from Teams)
   const syncFromTeams = async () => {
     setIsSyncing(true);
     try {
@@ -344,6 +348,30 @@ export default function DecisoesFavoraveis() {
       toast.error('Erro ao importar do Teams');
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  // Sync to Teams (export data to Teams - preserves header)
+  const syncToTeams = async () => {
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) throw new Error('Not authenticated');
+
+      const response = await supabase.functions.invoke('favorable-decisions-sync', {
+        body: { action: 'sync-to-teams' },
+        headers: {
+          Authorization: `Bearer ${session.session.access_token}`,
+        },
+      });
+
+      if (response.error) {
+        console.error('Error syncing to Teams:', response.error);
+        // Don't show error toast to avoid confusion - sync happens in background
+      } else {
+        console.log('Synced to Teams successfully');
+      }
+    } catch (error) {
+      console.error('Error syncing to Teams:', error);
     }
   };
 

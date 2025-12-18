@@ -199,75 +199,96 @@ async function getWorkbookData(accessToken: string, driveId: string, itemId: str
 
 // Headers for the Excel file
 const EXCEL_HEADERS = [
-  'Tipo de Decisão',
-  'Assunto',
-  'Nome do Cliente',
-  'Número do Processo',
-  'Tribunal',
+  'TIPO DE DECISÃO',
+  'ASSUNTO',
+  'NOME DO CLIENTE',
+  'Nº DO PROCESSO',
+  'TRIBUNAL',
   'Vara/Câmara',
-  'Data',
-  'Link',
-  'Observação',
+  'DATA DA DECISÃO',
+  'LINK DA DECISÃO NO TEAMS',
+  'OBSERVAÇÃO',
   'Postado',
   'Avaliação Pedida',
   'Avaliado',
 ];
 
-async function clearWorksheet(accessToken: string, driveId: string, itemId: string): Promise<string> {
-  // Try to get the used range and clear it first
+// Get the active sheet name
+async function getActiveSheetName(accessToken: string, driveId: string, itemId: string): Promise<string> {
   const sheetNames = ['Sheet1', 'Planilha1'];
   
   for (const sheetName of sheetNames) {
     try {
-      const usedRangeResponse = await fetch(
-        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/${sheetName}/usedRange`,
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/${sheetName}`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       
-      if (usedRangeResponse.ok) {
-        const usedRangeData = await usedRangeResponse.json();
-        if (usedRangeData.address) {
-          // Clear the used range
-          console.log(`Clearing range: ${usedRangeData.address}`);
-          await fetch(
-            `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/${sheetName}/range(address='${usedRangeData.address}')/clear`,
-            {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ applyTo: 'Contents' }),
-            }
-          );
-        }
+      if (response.ok) {
         return sheetName;
       }
     } catch (e) {
-      console.log(`Sheet ${sheetName} not found or error, trying next...`);
+      console.log(`Sheet ${sheetName} not found, trying next...`);
     }
   }
   
   return 'Sheet1'; // Default
 }
 
-async function updateWorkbookData(
+// Update workbook data WITHOUT touching the header row (row 1)
+// This preserves the original header and only updates data rows starting from row 2
+async function updateWorkbookDataPreservingHeader(
   accessToken: string, 
   driveId: string, 
   itemId: string, 
-  rows: any[][],
-  includeHeaders: boolean = true
+  dataRows: any[][]
 ): Promise<void> {
-  // Clear the worksheet first
-  const sheetName = await clearWorksheet(accessToken, driveId, itemId);
+  const sheetName = await getActiveSheetName(accessToken, driveId, itemId);
   console.log(`Using sheet: ${sheetName}`);
   
-  // If including headers, add them as first row
-  const allRows = includeHeaders ? [EXCEL_HEADERS, ...rows] : rows;
-  const range = `A1:L${allRows.length}`;
+  if (dataRows.length === 0) {
+    console.log('No data rows to write');
+    return;
+  }
   
-  console.log(`Writing ${allRows.length} rows to range ${range}`);
-  console.log('First row (headers):', allRows[0]);
+  // Clear existing data rows (starting from row 3 to preserve header and title rows)
+  // First, get the current used range to know how far to clear
+  try {
+    const usedRangeResponse = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/${sheetName}/usedRange`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    
+    if (usedRangeResponse.ok) {
+      const usedRangeData = await usedRangeResponse.json();
+      const rowCount = usedRangeData.rowCount || 0;
+      
+      // Clear data rows only (from row 3 onwards, keeping rows 1-2 for header)
+      if (rowCount > 2) {
+        const clearRange = `A3:L${rowCount}`;
+        console.log(`Clearing data range: ${clearRange}`);
+        await fetch(
+          `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/${sheetName}/range(address='${clearRange}')/clear`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ applyTo: 'Contents' }),
+          }
+        );
+      }
+    }
+  } catch (e) {
+    console.log('Could not clear existing data, proceeding with write...');
+  }
+  
+  // Write data starting from row 3 (after title row 1 and header row 2)
+  const range = `A3:L${dataRows.length + 2}`;
+  
+  console.log(`Writing ${dataRows.length} data rows to range ${range}`);
+  console.log('First data row:', dataRows[0]);
   
   const response = await fetch(
     `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/${sheetName}/range(address='${range}')`,
@@ -277,7 +298,7 @@ async function updateWorkbookData(
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ values: allRows }),
+      body: JSON.stringify({ values: dataRows }),
     }
   );
 
@@ -287,7 +308,7 @@ async function updateWorkbookData(
     throw new Error('Failed to update workbook');
   }
   
-  console.log('Workbook updated successfully');
+  console.log('Workbook updated successfully (header preserved)');
 }
 
 function parseExcelDate(excelValue: any): string | null {
@@ -537,11 +558,11 @@ Deno.serve(async (req) => {
       const { data: decisions, error } = await supabase
         .from('favorable_decisions')
         .select('*')
-        .order('decision_date', { ascending: false });
+        .order('decision_date', { ascending: true }); // Order by date ascending to match Excel
 
       if (error) throw error;
 
-      // Convert to Excel format
+      // Convert to Excel format - data only, NO headers
       const excelRows = decisions.map((d: any) => [
         mapDecisionType(d.decision_type),
         d.product_name || '',
@@ -552,14 +573,14 @@ Deno.serve(async (req) => {
         formatDateForExcel(d.decision_date),
         d.decision_link || '',
         d.observation || '',
-        formatBooleanForExcel(d.was_posted),
-        formatBooleanForExcel(d.evaluation_requested),
-        formatBooleanForExcel(d.was_evaluated),
+        d.was_posted ? 'Postado' : '',
+        '', // Avaliação Pedida column is not used directly
+        d.was_evaluated ? 'Sim' : (d.evaluation_requested ? 'Não' : ''),
       ]);
 
-      // Update Excel with all data (including headers)
+      // Update Excel with data only (preserving header rows)
       if (excelRows.length > 0) {
-        await updateWorkbookData(accessToken, driveId, itemId, excelRows, true);
+        await updateWorkbookDataPreservingHeader(accessToken, driveId, itemId, excelRows);
       }
 
       return new Response(
