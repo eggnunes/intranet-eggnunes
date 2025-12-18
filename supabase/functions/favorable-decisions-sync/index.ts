@@ -169,12 +169,12 @@ async function getSiteAndDriveInfo(accessToken: string): Promise<{ siteId: strin
   };
 }
 
-async function getWorkbookData(accessToken: string, driveId: string, itemId: string): Promise<{ values: any[][], formulas: any[][] }> {
+async function getWorkbookData(accessToken: string, driveId: string, itemId: string): Promise<{ values: any[][], hyperlinks: Map<string, string> }> {
   const sheetName = await getActiveSheetName(accessToken, driveId, itemId);
   
-  // Get used range with both values and formulas (formulas contain hyperlinks)
+  // Get used range values
   const response = await fetch(
-    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/${sheetName}/usedRange?$select=values,formulas`,
+    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/${sheetName}/usedRange?$select=values,address`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
 
@@ -185,34 +185,56 @@ async function getWorkbookData(accessToken: string, driveId: string, itemId: str
   }
 
   const data = await response.json();
-  console.log('Workbook data retrieved, rows:', data.values?.length);
+  console.log('Workbook data retrieved, rows:', data.values?.length, 'address:', data.address);
+  
+  // Now fetch hyperlinks from the used range
+  // We need to get hyperlinks cell by cell for column H (index 7)
+  const hyperlinks = new Map<string, string>();
+  
+  // Parse the address to get row count (e.g., "Sheet1!A1:L210" -> 210 rows)
+  const rowCount = data.values?.length || 0;
+  
+  // Fetch hyperlinks for column H (decision_link column) - rows 3 onwards (data rows)
+  // We fetch in batches to avoid too many API calls
+  console.log(`Fetching hyperlinks for column H, rows 3 to ${rowCount}...`);
+  
+  for (let row = 3; row <= rowCount; row++) {
+    try {
+      const cellAddress = `H${row}`;
+      const hyperlinkResponse = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/${sheetName}/range(address='${cellAddress}')/hyperlink`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      
+      if (hyperlinkResponse.ok) {
+        const hyperlinkData = await hyperlinkResponse.json();
+        if (hyperlinkData.address) {
+          hyperlinks.set(cellAddress, hyperlinkData.address);
+          console.log(`Found hyperlink at ${cellAddress}: ${hyperlinkData.address.substring(0, 80)}...`);
+        }
+      }
+    } catch (e) {
+      // Ignore errors for cells without hyperlinks
+    }
+    
+    // Small delay to avoid rate limiting (every 10 rows)
+    if (row % 10 === 0) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+  }
+  
+  console.log(`Total hyperlinks found: ${hyperlinks.size}`);
   
   return {
     values: data.values || [],
-    formulas: data.formulas || []
+    hyperlinks
   };
 }
 
-// Extract URL from HYPERLINK formula: =HYPERLINK("url","text") -> returns "url"
-function extractHyperlinkUrl(formula: any, textValue: any): string | null {
-  if (!formula) return textValue || null;
-  
-  const formulaStr = String(formula);
-  
-  // Check if it's a HYPERLINK formula
-  const hyperlinkMatch = formulaStr.match(/=HYPERLINK\s*\(\s*"([^"]+)"/i);
-  if (hyperlinkMatch && hyperlinkMatch[1]) {
-    console.log(`Extracted hyperlink URL: ${hyperlinkMatch[1]} from formula: ${formulaStr.substring(0, 100)}`);
-    return hyperlinkMatch[1];
-  }
-  
-  // If formula starts with http, it's a direct URL
-  if (formulaStr.startsWith('http://') || formulaStr.startsWith('https://')) {
-    return formulaStr;
-  }
-  
-  // Return the text value as fallback
-  return textValue || null;
+// Get hyperlink URL for a specific row (1-indexed)
+function getHyperlinkForRow(hyperlinks: Map<string, string>, row: number): string | null {
+  const cellAddress = `H${row}`;
+  return hyperlinks.get(cellAddress) || null;
 }
 
 // Normalize name for comparison (remove accents, extra spaces, lowercase)
@@ -511,9 +533,9 @@ Deno.serve(async (req) => {
     const { driveId, itemId } = await getSiteAndDriveInfo(accessToken);
 
     if (action === 'sync-from-teams') {
-      // Read data from Excel (values and formulas for hyperlinks)
-      const { values: excelValues, formulas: excelFormulas } = await getWorkbookData(accessToken, driveId, itemId);
-      console.log(`Read ${excelValues.length} rows from Excel`);
+      // Read data from Excel (values and hyperlinks)
+      const { values: excelValues, hyperlinks } = await getWorkbookData(accessToken, driveId, itemId);
+      console.log(`Read ${excelValues.length} rows from Excel, ${hyperlinks.size} hyperlinks found`);
 
       if (excelValues.length <= 1) {
         return new Response(
@@ -530,12 +552,12 @@ Deno.serve(async (req) => {
       // Log first 3 data rows completely to verify structure
       for (let debugIdx = 2; debugIdx <= Math.min(4, excelValues.length - 1); debugIdx++) {
         console.log(`DATA ROW ${debugIdx + 1} (values): ${JSON.stringify(excelValues[debugIdx])}`);
-        console.log(`DATA ROW ${debugIdx + 1} (formulas): ${JSON.stringify(excelFormulas[debugIdx])}`);
+        const rowHyperlink = getHyperlinkForRow(hyperlinks, debugIdx + 1);
+        console.log(`DATA ROW ${debugIdx + 1} (hyperlink): ${rowHyperlink}`);
       }
 
       // Skip 2 header rows (title row and column headers row)
       const dataRowsValues = excelValues.slice(2);
-      const dataRowsFormulas = excelFormulas.slice(2);
 
       // Get existing decisions
       const { data: existingDecisions } = await supabase
@@ -549,18 +571,24 @@ Deno.serve(async (req) => {
       // Process each row from Excel
       for (let i = 0; i < dataRowsValues.length; i++) {
         const row = dataRowsValues[i];
-        const formulaRow = dataRowsFormulas[i] || [];
+        const excelRowNumber = i + 3; // Row in Excel (1-indexed, after 2 header rows)
         
         if (!row[0] && !row[2]) continue; // Skip empty rows
 
         const decisionDate = parseExcelDate(row[6]);
         if (!decisionDate) continue;
 
-        // Extract hyperlink URL from formula (column H = index 7)
-        const decisionLink = extractHyperlinkUrl(formulaRow[7], row[7]);
+        // Get hyperlink URL from the hyperlinks map (or use cell value if it's already a URL)
+        let decisionLink = getHyperlinkForRow(hyperlinks, excelRowNumber);
         
-        // Log status columns for debugging (row index is i + 3 because we skip 2 header rows)
-        console.log(`Row ${i + 3}: Client="${row[2]}", Link formula="${formulaRow[7]}", Extracted link="${decisionLink}"`);
+        // If no hyperlink found, check if the cell value is a URL
+        const cellValue = row[7] ? String(row[7]).trim() : '';
+        if (!decisionLink && (cellValue.startsWith('http://') || cellValue.startsWith('https://'))) {
+          decisionLink = cellValue;
+        }
+        
+        // Log status columns for debugging
+        console.log(`Row ${excelRowNumber}: Client="${row[2]}", Hyperlink="${decisionLink}", CellValue="${cellValue?.substring(0, 50)}"`);
         console.log(`  Postado (col J, idx 9)="${row[9]}", Avaliado (col K, idx 10)="${row[10]}"`);
 
         // Parse the evaluation status from column K (index 10) - "Avaliado" column
@@ -571,12 +599,13 @@ Deno.serve(async (req) => {
         console.log(`  -> was_posted: ${wasPosted}, evaluation_requested: ${evaluationStatus.evaluationRequested}, was_evaluated: ${evaluationStatus.wasEvaluated}`);
         
         const clientName = (row[2] || '').trim();
+        const processNumber = (row[3] || '').trim();
         
         const decisionData = {
           decision_type: reverseMapDecisionType(row[0] || ''),
           product_name: row[1] || '',
           client_name: clientName,
-          process_number: row[3] || null,
+          process_number: processNumber || null,
           court: row[4] || null,
           court_division: row[5] || null,
           decision_date: decisionDate,
@@ -585,16 +614,26 @@ Deno.serve(async (req) => {
           was_posted: wasPosted,
           evaluation_requested: evaluationStatus.evaluationRequested,
           was_evaluated: evaluationStatus.wasEvaluated,
-          teams_row_index: i + 3, // Row index in Excel (1-indexed, skip 2 header rows)
+          teams_row_index: excelRowNumber,
           created_by: user.id,
         };
 
-        // Check if exists by matching client_name (fuzzy) + decision_date
-        // This handles name variations like "Eder Geraldo Rocha" vs "Eder Geraldo Rocha Venâncio"
-        const existing = existingDecisions?.find(d => 
-          namesMatch(d.client_name, clientName) &&
-          d.decision_date === decisionData.decision_date
-        );
+        // Check if exists by process_number (unique identifier) OR by client_name + decision_date
+        // Priority: process_number match first, then name+date match
+        let existing = null;
+        
+        if (processNumber) {
+          // Primary match: by process number (unique)
+          existing = existingDecisions?.find(d => d.process_number === processNumber);
+        }
+        
+        if (!existing) {
+          // Secondary match: by client name + date (handles cases without process number)
+          existing = existingDecisions?.find(d => 
+            namesMatch(d.client_name, clientName) &&
+            d.decision_date === decisionData.decision_date
+          );
+        }
 
         if (existing) {
           // Update existing - also update client_name to the Teams version
