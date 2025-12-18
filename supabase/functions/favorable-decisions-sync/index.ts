@@ -213,6 +213,44 @@ const EXCEL_HEADERS = [
   'Avaliado',
 ];
 
+async function clearWorksheet(accessToken: string, driveId: string, itemId: string): Promise<string> {
+  // Try to get the used range and clear it first
+  const sheetNames = ['Sheet1', 'Planilha1'];
+  
+  for (const sheetName of sheetNames) {
+    try {
+      const usedRangeResponse = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/${sheetName}/usedRange`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      
+      if (usedRangeResponse.ok) {
+        const usedRangeData = await usedRangeResponse.json();
+        if (usedRangeData.address) {
+          // Clear the used range
+          console.log(`Clearing range: ${usedRangeData.address}`);
+          await fetch(
+            `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/${sheetName}/range(address='${usedRangeData.address}')/clear`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ applyTo: 'Contents' }),
+            }
+          );
+        }
+        return sheetName;
+      }
+    } catch (e) {
+      console.log(`Sheet ${sheetName} not found or error, trying next...`);
+    }
+  }
+  
+  return 'Sheet1'; // Default
+}
+
 async function updateWorkbookData(
   accessToken: string, 
   driveId: string, 
@@ -220,13 +258,19 @@ async function updateWorkbookData(
   rows: any[][],
   includeHeaders: boolean = true
 ): Promise<void> {
+  // Clear the worksheet first
+  const sheetName = await clearWorksheet(accessToken, driveId, itemId);
+  console.log(`Using sheet: ${sheetName}`);
+  
   // If including headers, add them as first row
   const allRows = includeHeaders ? [EXCEL_HEADERS, ...rows] : rows;
-  const startRow = includeHeaders ? 1 : 2;
-  const range = `A${startRow}:L${allRows.length + startRow - 1}`;
+  const range = `A1:L${allRows.length}`;
+  
+  console.log(`Writing ${allRows.length} rows to range ${range}`);
+  console.log('First row (headers):', allRows[0]);
   
   const response = await fetch(
-    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/Sheet1/range(address='${range}')`,
+    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/${sheetName}/range(address='${range}')`,
     {
       method: 'PATCH',
       headers: {
@@ -238,25 +282,12 @@ async function updateWorkbookData(
   );
 
   if (!response.ok) {
-    // Try with different sheet name
-    const response2 = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/Planilha1/range(address='${range}')`,
-      {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ values: allRows }),
-      }
-    );
-    
-    if (!response2.ok) {
-      const error = await response2.text();
-      console.error('Error updating workbook:', error);
-      throw new Error('Failed to update workbook');
-    }
+    const error = await response.text();
+    console.error('Error updating workbook:', error);
+    throw new Error('Failed to update workbook');
   }
+  
+  console.log('Workbook updated successfully');
 }
 
 function parseExcelDate(excelValue: any): string | null {
