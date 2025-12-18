@@ -65,6 +65,64 @@ const DECISION_TYPES = [
   { value: 'decisao_interlocutoria', label: 'Decisão Interlocutória' },
 ];
 
+// Mapeamento de produtos legados para produtos RD Station
+const PRODUCT_NAME_MAPPING: Record<string, string> = {
+  'aliquota': 'Cobrança - IPSM - Alíquota',
+  'alíquota': 'Cobrança - IPSM - Alíquota',
+  'ipsm': 'Cobrança - IPSM - Alíquota',
+  'ipsm aliquota': 'Cobrança - IPSM - Alíquota',
+  'ipsm alíquota': 'Cobrança - IPSM - Alíquota',
+  'multipropriedade': 'Imobiliário - Multipropriedade',
+  'timeshare': 'Imobiliário - Multipropriedade',
+  'atraso em obra': 'Imobiliário - Atraso em obra',
+  'atraso obra': 'Imobiliário - Atraso em obra',
+  'rescisão': 'Imobiliário - Rescisão de contrato abusivo',
+  'rescisao': 'Imobiliário - Rescisão de contrato abusivo',
+  'terço de férias': 'Servidor Público - Terço de Férias',
+  'terco de ferias': 'Servidor Público - Terço de Férias',
+  'férias prêmio': 'Servidor Público - Férias Prêmio',
+  'ferias premio': 'Servidor Público - Férias Prêmio',
+  'vale refeição': 'Servidor Público - Vale Refeição',
+  'vale refeicao': 'Servidor Público - Vale Refeição',
+  'isenção ir': 'Servidor Público - Isenção de IR',
+  'isencao ir': 'Servidor Público - Isenção de IR',
+  'concurso': 'Servidor Público - Concurso Público',
+  'concurso público': 'Servidor Público - Concurso Público',
+  'concurso publico': 'Servidor Público - Concurso Público',
+};
+
+// Função para mapear nome de produto legado para produto RD Station
+const mapProductName = (productName: string, rdProducts: RDProduct[]): string => {
+  if (!productName) return '';
+  
+  const normalizedName = productName.toLowerCase().trim();
+  
+  // Primeiro tenta encontrar match exato nos produtos RD Station
+  const exactMatch = rdProducts.find(p => 
+    p.name.toLowerCase() === normalizedName
+  );
+  if (exactMatch) return exactMatch.name;
+  
+  // Depois tenta usar o mapeamento
+  const mappedName = PRODUCT_NAME_MAPPING[normalizedName];
+  if (mappedName) {
+    const mappedProduct = rdProducts.find(p => 
+      p.name.toLowerCase() === mappedName.toLowerCase()
+    );
+    if (mappedProduct) return mappedProduct.name;
+  }
+  
+  // Tenta encontrar produto que contenha o termo
+  const partialMatch = rdProducts.find(p => 
+    p.name.toLowerCase().includes(normalizedName) ||
+    normalizedName.includes(p.name.toLowerCase())
+  );
+  if (partialMatch) return partialMatch.name;
+  
+  // Retorna o nome original se nada foi encontrado
+  return productName;
+};
+
 export default function DecisoesFavoraveis() {
   const { user } = useAuth();
   const { isSocioOrRafael } = useAdminPermissions();
@@ -99,6 +157,7 @@ export default function DecisoesFavoraveis() {
   const [clientSearch, setClientSearch] = useState('');
   const [clientLawsuits, setClientLawsuits] = useState<AdvboxLawsuit[]>([]);
   const [loadingLawsuits, setLoadingLawsuits] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
 
   // Fetch decisions
   const { data: decisions = [], isLoading: loadingDecisions } = useQuery({
@@ -336,9 +395,11 @@ export default function DecisoesFavoraveis() {
 
   const openEditDialog = (decision: FavorableDecision) => {
     setEditingDecision(decision);
+    // Mapeia o produto para o nome correto do RD Station
+    const mappedProductName = mapProductName(decision.product_name, rdProducts);
     setFormData({
       decision_type: decision.decision_type,
-      product_name: decision.product_name,
+      product_name: mappedProductName,
       client_name: decision.client_name,
       client_id: decision.client_id || '',
       lawsuit_id: decision.lawsuit_id || '',
@@ -352,6 +413,7 @@ export default function DecisoesFavoraveis() {
       evaluation_requested: decision.evaluation_requested,
       was_evaluated: decision.was_evaluated,
     });
+    setProductSearch('');
     if (decision.client_id) {
       fetchClientLawsuits(decision.client_id);
     }
@@ -480,24 +542,36 @@ export default function DecisoesFavoraveis() {
                     </Select>
                   </div>
 
-                  {/* Product/Subject */}
+                  {/* Product/Subject with Search */}
                   <div>
                     <Label>Assunto (Produto) *</Label>
-                    <Select 
-                      value={formData.product_name} 
-                      onValueChange={(v) => setFormData(prev => ({ ...prev, product_name: v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o produto" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {rdProducts.map((product: RDProduct) => (
-                          <SelectItem key={product._id} value={product.name}>
-                            {product.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-2">
+                      <Input
+                        placeholder="Pesquisar produto..."
+                        value={productSearch}
+                        onChange={(e) => setProductSearch(e.target.value)}
+                        className="mb-2"
+                      />
+                      <Select 
+                        value={formData.product_name} 
+                        onValueChange={(v) => setFormData(prev => ({ ...prev, product_name: v }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o produto" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          {rdProducts
+                            .filter((product: RDProduct) => 
+                              product.name.toLowerCase().includes(productSearch.toLowerCase())
+                            )
+                            .map((product: RDProduct) => (
+                              <SelectItem key={product._id} value={product.name}>
+                                {product.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   {/* Client Search */}
@@ -818,47 +892,62 @@ export default function DecisoesFavoraveis() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Produto</TableHead>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead>Processo</TableHead>
-                      <TableHead>Tribunal</TableHead>
-                      <TableHead>Data</TableHead>
-                      <TableHead className="text-center">Status</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
+                      <TableHead className="w-[100px]">Tipo</TableHead>
+                      <TableHead className="w-[140px]">Produto</TableHead>
+                      <TableHead className="min-w-[180px]">Cliente</TableHead>
+                      <TableHead className="w-[140px]">Processo</TableHead>
+                      <TableHead className="w-[120px]">Tribunal</TableHead>
+                      <TableHead className="w-[90px]">Decisão</TableHead>
+                      <TableHead className="w-[90px]">Cadastro</TableHead>
+                      <TableHead className="w-[70px] text-center">Status</TableHead>
+                      <TableHead className="w-[100px] text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredDecisions.map((decision) => (
                       <TableRow key={decision.id}>
-                        <TableCell>
-                          <Badge className={getDecisionTypeBadgeColor(decision.decision_type)}>
+                        <TableCell className="py-2">
+                          <Badge className={`text-xs whitespace-nowrap ${getDecisionTypeBadgeColor(decision.decision_type)}`}>
                             {getDecisionTypeLabel(decision.decision_type)}
                           </Badge>
                         </TableCell>
-                        <TableCell className="max-w-[150px] truncate">
-                          {decision.product_name}
+                        <TableCell className="py-2">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="block max-w-[140px] truncate text-sm">
+                                {decision.product_name}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {decision.product_name}
+                            </TooltipContent>
+                          </Tooltip>
                         </TableCell>
-                        <TableCell className="max-w-[150px] truncate">
-                          {decision.client_name}
+                        <TableCell className="py-2">
+                          <span className="block text-sm" title={decision.client_name}>
+                            {decision.client_name}
+                          </span>
                         </TableCell>
-                        <TableCell className="font-mono text-sm">
+                        <TableCell className="font-mono text-xs py-2">
                           {decision.process_number || '-'}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-2">
                           <div className="text-sm">
                             {decision.court || '-'}
                             {decision.court_division && (
-                              <span className="text-muted-foreground block text-xs">
+                              <span className="text-muted-foreground block text-xs truncate max-w-[120px]" title={decision.court_division}>
                                 {decision.court_division}
                               </span>
                             )}
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-sm py-2">
                           {format(new Date(decision.decision_date), 'dd/MM/yyyy', { locale: ptBR })}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-sm text-muted-foreground py-2">
+                          {format(new Date(decision.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                        </TableCell>
+                        <TableCell className="py-2">
                           <div className="flex justify-center gap-1">
                             <Tooltip>
                               <TooltipTrigger>
@@ -869,7 +958,7 @@ export default function DecisoesFavoraveis() {
                                 )}
                               </TooltipTrigger>
                               <TooltipContent>
-                                {decision.was_posted ? 'Postado' : 'Não postado'}
+                                {decision.was_posted ? 'Postado nas redes sociais' : 'Não postado'}
                               </TooltipContent>
                             </Tooltip>
                             <Tooltip>
@@ -884,46 +973,64 @@ export default function DecisoesFavoraveis() {
                               </TooltipTrigger>
                               <TooltipContent>
                                 {decision.was_evaluated 
-                                  ? 'Avaliado' 
+                                  ? 'Cliente avaliou no Google' 
                                   : decision.evaluation_requested 
-                                    ? 'Avaliação pedida' 
-                                    : 'Não avaliado'
+                                    ? 'Avaliação solicitada' 
+                                    : 'Avaliação não solicitada'
                                 }
                               </TooltipContent>
                             </Tooltip>
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
+                        <TableCell className="text-right py-2">
+                          <div className="flex justify-end gap-0.5">
                             {decision.decision_link && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => window.open(decision.decision_link!, '_blank')}
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => window.open(decision.decision_link!, '_blank')}
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Abrir arquivo da decisão no Teams</TooltipContent>
+                              </Tooltip>
                             )}
                             {isSocioOrRafael && (
                               <>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => openEditDialog(decision)}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => {
-                                    if (confirm('Remover esta decisão?')) {
-                                      deleteMutation.mutate(decision.id);
-                                    }
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      onClick={() => openEditDialog(decision)}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Editar decisão</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      onClick={() => {
+                                        if (confirm('Remover esta decisão?')) {
+                                          deleteMutation.mutate(decision.id);
+                                        }
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Excluir decisão</TooltipContent>
+                                </Tooltip>
                               </>
                             )}
                           </div>
