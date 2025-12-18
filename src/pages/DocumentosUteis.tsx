@@ -72,8 +72,20 @@ export default function DocumentosUteis() {
     setDocuments(documentsWithNames);
   };
 
+  // Helper function to extract file path from URL or use as-is
+  const extractFilePath = (fileUrl: string): string => {
+    // If it's a full URL, extract just the filename
+    if (fileUrl.includes('supabase.co/storage/')) {
+      const parts = fileUrl.split('/');
+      return parts[parts.length - 1];
+    }
+    // Otherwise, return as-is (already just the file path)
+    return fileUrl;
+  };
+
   // Helper function to get signed URL for a document
-  const getSignedUrl = async (filePath: string): Promise<string | null> => {
+  const getSignedUrl = async (fileUrl: string): Promise<string | null> => {
+    const filePath = extractFilePath(fileUrl);
     const { data, error } = await supabase.storage
       .from('documents')
       .createSignedUrl(filePath, 3600); // 1 hour expiration
@@ -139,8 +151,8 @@ export default function DocumentosUteis() {
 
   const handleDelete = async (id: string, fileUrl: string) => {
     try {
-      // Extrair nome do arquivo da URL
-      const fileName = fileUrl.split('/').pop();
+      // Extract file name from URL or use as-is
+      const fileName = extractFilePath(fileUrl);
       
       // Deletar arquivo do storage
       if (fileName) {
