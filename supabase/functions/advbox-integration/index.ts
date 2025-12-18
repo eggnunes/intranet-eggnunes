@@ -1304,6 +1304,149 @@ Deno.serve(async (req) => {
         });
       }
 
+      // ========== BUSCA DE RESPONSÁVEIS POR CLIENTE ==========
+      case 'find-responsibles': {
+        console.log('Finding responsibles for client names...');
+        
+        let clientNames: string[] = [];
+        
+        // Ler nomes do body
+        if (req.method === 'POST') {
+          try {
+            const body = await req.json();
+            clientNames = body.client_names || [];
+          } catch (e) {
+            console.error('Error parsing body:', e);
+          }
+        }
+        
+        if (clientNames.length === 0) {
+          return new Response(JSON.stringify({ error: 'client_names array is required in body' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        console.log(`Searching responsibles for ${clientNames.length} clients`);
+        
+        // Buscar todos os processos do cache ou da API
+        const fullCacheKey = 'lawsuits-full';
+        const cached = cache.get(fullCacheKey);
+        const now = Date.now();
+        
+        let allLawsuits: any[] = [];
+        
+        if (cached && (now - cached.timestamp) < CACHE_TTL * 10) { // Cache mais longo para essa busca
+          allLawsuits = extractItems(cached.data);
+          console.log(`Using cached lawsuits: ${allLawsuits.length} items`);
+        } else {
+          try {
+            const result = await fetchAllPaginatedComplete('/lawsuits', fullCacheKey, 1000, 50);
+            allLawsuits = result.items;
+            cache.set(fullCacheKey, { 
+              data: { items: allLawsuits, totalCount: result.totalCount },
+              timestamp: now,
+            });
+          } catch (error) {
+            console.error('Error fetching lawsuits:', error);
+            if (cached) {
+              allLawsuits = extractItems(cached.data);
+            }
+          }
+        }
+        
+        console.log(`Total lawsuits available: ${allLawsuits.length}`);
+        
+        // Normalizar função para comparação de nomes
+        const normalizeString = (str: string) => {
+          return str
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        };
+        
+        // Buscar responsáveis para cada cliente
+        const results: Array<{
+          client_name: string;
+          found: boolean;
+          lawsuit_id?: string;
+          lawsuit_number?: string;
+          responsible_name?: string;
+          responsible_id?: string;
+        }> = [];
+        
+        for (const clientName of clientNames) {
+          const normalizedClientName = normalizeString(clientName);
+          
+          // Buscar processo que contenha o nome do cliente
+          const matchingLawsuit = allLawsuits.find((lawsuit: any) => {
+            // Tentar várias propriedades que podem conter o nome do cliente
+            const lawsuitClientName = lawsuit.customer_name || lawsuit.client_name || lawsuit.name || '';
+            const normalizedLawsuitClient = normalizeString(lawsuitClientName);
+            
+            // Match exato ou parcial
+            return normalizedLawsuitClient.includes(normalizedClientName) || 
+                   normalizedClientName.includes(normalizedLawsuitClient);
+          });
+          
+          if (matchingLawsuit) {
+            // Extrair nome do responsável
+            const responsibleName = matchingLawsuit.responsible_name || 
+                                   matchingLawsuit.responsible || 
+                                   matchingLawsuit.user_name ||
+                                   matchingLawsuit.lawyer_name ||
+                                   matchingLawsuit.attorney_name ||
+                                   (matchingLawsuit.responsible_user && matchingLawsuit.responsible_user.name) ||
+                                   'Não identificado';
+            
+            results.push({
+              client_name: clientName,
+              found: true,
+              lawsuit_id: matchingLawsuit.id,
+              lawsuit_number: matchingLawsuit.number || matchingLawsuit.process_number,
+              responsible_name: responsibleName,
+              responsible_id: matchingLawsuit.responsible_id || matchingLawsuit.user_id,
+            });
+          } else {
+            results.push({
+              client_name: clientName,
+              found: false,
+            });
+          }
+        }
+        
+        // Log sample lawsuit fields for debugging
+        if (allLawsuits.length > 0) {
+          console.log('[DEBUG] Sample lawsuit keys:', Object.keys(allLawsuits[0]));
+          const sample = allLawsuits[0];
+          console.log('[DEBUG] Sample lawsuit responsible fields:', JSON.stringify({
+            responsible_name: sample.responsible_name,
+            responsible: sample.responsible,
+            user_name: sample.user_name,
+            lawyer_name: sample.lawyer_name,
+            responsible_id: sample.responsible_id,
+            responsible_user: sample.responsible_user,
+            customer_name: sample.customer_name,
+          }));
+        }
+        
+        const foundCount = results.filter(r => r.found).length;
+        console.log(`Found responsibles for ${foundCount}/${clientNames.length} clients`);
+        
+        return new Response(JSON.stringify({
+          data: results,
+          summary: {
+            total: clientNames.length,
+            found: foundCount,
+            notFound: clientNames.length - foundCount,
+          },
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       default:
         return new Response(JSON.stringify({ error: 'Endpoint not found' }), {
           status: 404,
