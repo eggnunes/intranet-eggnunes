@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { Layout } from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
-import { Plus, Search, Edit, Trash2, ExternalLink, RefreshCw, CheckCircle, XCircle, Filter } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, ExternalLink, RefreshCw, CheckCircle, XCircle, Filter, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -66,6 +67,7 @@ const DECISION_TYPES = [
 
 export default function DecisoesFavoraveis() {
   const { user } = useAuth();
+  const { isSocioOrRafael } = useAdminPermissions();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingDecision, setEditingDecision] = useState<FavorableDecision | null>(null);
@@ -73,6 +75,7 @@ export default function DecisoesFavoraveis() {
   const [filterType, setFilterType] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isSearchingClients, setIsSearchingClients] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -112,7 +115,7 @@ export default function DecisoesFavoraveis() {
   });
 
   // Fetch Advbox clients
-  const { data: advboxClients = [], isLoading: loadingClients } = useQuery({
+  const { data: advboxClients = [], isLoading: loadingClients, refetch: refetchClients } = useQuery({
     queryKey: ['advbox-customers'],
     queryFn: async () => {
       const { data: session } = await supabase.auth.getSession();
@@ -131,7 +134,22 @@ export default function DecisoesFavoraveis() {
       return customers.map((c: any) => ({ id: c.id, name: c.name }));
     },
     staleTime: 5 * 60 * 1000,
+    enabled: isDialogOpen, // Only fetch when dialog is open
   });
+
+  // Manual search function for Advbox clients
+  const handleSearchClients = async () => {
+    setIsSearchingClients(true);
+    try {
+      await refetchClients();
+      toast.success('Clientes carregados do Advbox');
+    } catch (error) {
+      console.error('Error fetching clients:', error);
+      toast.error('Erro ao buscar clientes no Advbox');
+    } finally {
+      setIsSearchingClients(false);
+    }
+  };
 
   // Fetch RD Station products
   const { data: rdProducts = [] } = useQuery({
@@ -486,11 +504,29 @@ export default function DecisoesFavoraveis() {
                   <div>
                     <Label>Cliente (Advbox) *</Label>
                     <div className="space-y-2">
-                      <Input
-                        placeholder="Buscar cliente..."
-                        value={clientSearch}
-                        onChange={(e) => setClientSearch(e.target.value)}
-                      />
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Digite para buscar cliente..."
+                          value={clientSearch}
+                          onChange={(e) => setClientSearch(e.target.value)}
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleSearchClients}
+                          disabled={isSearchingClients || loadingClients}
+                        >
+                          {isSearchingClients || loadingClients ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Search className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      {loadingClients && (
+                        <p className="text-sm text-muted-foreground">Carregando clientes do Advbox...</p>
+                      )}
                       {clientSearch && filteredClients.length > 0 && !selectedClient && (
                         <div className="border rounded-md max-h-40 overflow-y-auto">
                           {filteredClients.map((client: AdvboxClient) => (
@@ -503,6 +539,14 @@ export default function DecisoesFavoraveis() {
                             </div>
                           ))}
                         </div>
+                      )}
+                      {clientSearch && filteredClients.length === 0 && advboxClients.length > 0 && !selectedClient && (
+                        <p className="text-sm text-muted-foreground">Nenhum cliente encontrado com "{clientSearch}"</p>
+                      )}
+                      {clientSearch && advboxClients.length === 0 && !loadingClients && !selectedClient && (
+                        <p className="text-sm text-muted-foreground">
+                          Clique na lupa para buscar clientes no Advbox
+                        </p>
                       )}
                       {selectedClient && (
                         <div className="flex items-center gap-2">
@@ -860,24 +904,28 @@ export default function DecisoesFavoraveis() {
                                 <ExternalLink className="h-4 w-4" />
                               </Button>
                             )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => openEditDialog(decision)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                if (confirm('Remover esta decisão?')) {
-                                  deleteMutation.mutate(decision.id);
-                                }
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            {isSocioOrRafael && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => openEditDialog(decision)}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    if (confirm('Remover esta decisão?')) {
+                                      deleteMutation.mutate(decision.id);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
