@@ -138,6 +138,16 @@ export default function DecisoesFavoraveis() {
   const [showFilters, setShowFilters] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSearchingClients, setIsSearchingClients] = useState(false);
+  const [showMissingLinksDialog, setShowMissingLinksDialog] = useState(false);
+  const [missingLinksData, setMissingLinksData] = useState<Array<{
+    client_name: string;
+    decision_date: string;
+    product_name: string;
+    found: boolean;
+    responsible_name?: string;
+    lawsuit_number?: string;
+  }>>([]);
+  const [isLoadingMissingLinks, setIsLoadingMissingLinks] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -492,6 +502,66 @@ export default function DecisoesFavoraveis() {
     }
   };
 
+  // Function to fetch decisions without valid links and their responsible lawyers
+  const fetchMissingLinksWithResponsibles = async () => {
+    setIsLoadingMissingLinks(true);
+    try {
+      // Get decisions without valid links
+      const decisionsWithoutLinks = decisions.filter(d => 
+        !d.decision_link || !d.decision_link.startsWith('http')
+      );
+
+      if (decisionsWithoutLinks.length === 0) {
+        toast.info('Todas as decisões possuem links válidos');
+        setMissingLinksData([]);
+        setShowMissingLinksDialog(true);
+        return;
+      }
+
+      const clientNames = decisionsWithoutLinks.map(d => d.client_name);
+      
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) throw new Error('Not authenticated');
+
+      // Call the new endpoint to find responsibles
+      const response = await supabase.functions.invoke('advbox-integration/find-responsibles', {
+        method: 'POST',
+        body: { client_names: clientNames },
+        headers: {
+          Authorization: `Bearer ${session.session.access_token}`,
+        },
+      });
+
+      if (response.error) throw response.error;
+
+      const results = response.data?.data || [];
+      
+      // Merge with decision data
+      const mergedData = decisionsWithoutLinks.map((decision, index) => {
+        const result = results[index] || { found: false };
+        return {
+          client_name: decision.client_name,
+          decision_date: decision.decision_date,
+          product_name: decision.product_name,
+          found: result.found,
+          responsible_name: result.responsible_name,
+          lawsuit_number: result.lawsuit_number,
+        };
+      });
+
+      setMissingLinksData(mergedData);
+      setShowMissingLinksDialog(true);
+      
+      const foundCount = results.filter((r: any) => r.found).length;
+      toast.success(`Encontrados ${foundCount}/${clientNames.length} responsáveis`);
+    } catch (error) {
+      console.error('Error fetching missing links:', error);
+      toast.error('Erro ao buscar responsáveis no Advbox');
+    } finally {
+      setIsLoadingMissingLinks(false);
+    }
+  };
+
   return (
     <Layout>
       <div className="container mx-auto py-6 space-y-6">
@@ -503,7 +573,19 @@ export default function DecisoesFavoraveis() {
               Gerencie as decisões favoráveis do escritório
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button 
+              variant="outline" 
+              onClick={fetchMissingLinksWithResponsibles}
+              disabled={isLoadingMissingLinks}
+            >
+              {isLoadingMissingLinks ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4 mr-2" />
+              )}
+              Links Faltantes
+            </Button>
             <Button 
               variant="outline" 
               onClick={syncFromTeams}
@@ -1054,6 +1136,88 @@ export default function DecisoesFavoraveis() {
             )}
           </CardContent>
         </Card>
+
+        {/* Missing Links Dialog */}
+        <Dialog open={showMissingLinksDialog} onOpenChange={setShowMissingLinksDialog}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Decisões sem Link Válido - Responsáveis</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Lista de decisões que não possuem link válido para o arquivo no Teams, 
+                com o advogado responsável identificado no Advbox.
+              </p>
+              
+              {missingLinksData.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Todas as decisões possuem links válidos.
+                </div>
+              ) : (
+                <>
+                  <div className="flex gap-4 text-sm">
+                    <Badge variant="outline">
+                      Total: {missingLinksData.length}
+                    </Badge>
+                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                      Responsáveis encontrados: {missingLinksData.filter(d => d.found).length}
+                    </Badge>
+                    <Badge variant="secondary" className="bg-red-100 text-red-800">
+                      Não encontrados: {missingLinksData.filter(d => !d.found).length}
+                    </Badge>
+                  </div>
+                  
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Cliente</TableHead>
+                          <TableHead>Produto</TableHead>
+                          <TableHead>Data Decisão</TableHead>
+                          <TableHead>Responsável</TableHead>
+                          <TableHead>Nº Processo</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {missingLinksData.map((item, index) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-medium">{item.client_name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">
+                                {item.product_name}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {format(new Date(item.decision_date), 'dd/MM/yyyy', { locale: ptBR })}
+                            </TableCell>
+                            <TableCell>
+                              {item.found ? (
+                                <span className="text-green-600 font-medium">
+                                  {item.responsible_name || 'N/A'}
+                                </span>
+                              ) : (
+                                <span className="text-red-500 text-sm">Não encontrado</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {item.lawsuit_number || '-'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  
+                  <div className="flex justify-end">
+                    <Button variant="outline" onClick={() => setShowMissingLinksDialog(false)}>
+                      Fechar
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
