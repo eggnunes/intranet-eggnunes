@@ -170,7 +170,7 @@ export default function DecisoesFavoraveis() {
       const { data, error } = await supabase
         .from('favorable_decisions')
         .select('*')
-        .order('decision_date', { ascending: false });
+        .order('created_at', { ascending: false });
       
       if (error) throw error;
       return data as FavorableDecision[];
