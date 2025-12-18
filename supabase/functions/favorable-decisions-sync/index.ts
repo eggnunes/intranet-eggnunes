@@ -10,20 +10,20 @@ const SITE_NAME = 'Jurídico';
 const FOLDER_PATH = 'Operacional';
 const FILE_NAME = 'Planilha de Decisões Favoráveis.xlsx';
 
-// Column mapping for Excel spreadsheet
+// Column mapping for Excel spreadsheet (11 columns: A-K)
+// Note: Column K "Avaliado" contains: "Sim" (pedida + avaliada), "Não" (pedida mas não avaliada), empty (não pedida)
 const EXCEL_COLUMNS = {
-  A: 'decision_type',     // Tipo de Decisão
-  B: 'product_name',      // Assunto
-  C: 'client_name',       // Nome do Cliente
-  D: 'process_number',    // Número do Processo
-  E: 'court',             // Tribunal
-  F: 'court_division',    // Vara/Câmara
-  G: 'decision_date',     // Data
-  H: 'decision_link',     // Link
-  I: 'observation',       // Observação
-  J: 'was_posted',        // Postado
-  K: 'evaluation_requested', // Avaliação Pedida
-  L: 'was_evaluated',     // Avaliado
+  A: 'decision_type',     // Tipo de Decisão (index 0)
+  B: 'product_name',      // Assunto (index 1)
+  C: 'client_name',       // Nome do Cliente (index 2)
+  D: 'process_number',    // Número do Processo (index 3)
+  E: 'court',             // Tribunal (index 4)
+  F: 'court_division',    // Vara/Câmara (index 5)
+  G: 'decision_date',     // Data (index 6)
+  H: 'decision_link',     // Link (index 7)
+  I: 'observation',       // Observação (index 8)
+  J: 'was_posted',        // Postado (index 9)
+  K: 'avaliado',          // Avaliado (index 10) - "Sim"=avaliada, "Não"=pedida mas não avaliada
 };
 
 async function getAccessToken(): Promise<string> {
@@ -498,11 +498,12 @@ Deno.serve(async (req) => {
         if (!decisionDate) continue;
 
         // Log status columns for debugging (row index is i + 3 because we skip 2 header rows)
-        console.log(`Row ${i + 3}: Client="${row[2]}", Postado (col J)="${row[9]}", Avaliado (col L)="${row[11]}"`);
+        // Column J (index 9) = Postado, Column K (index 10) = Avaliado
+        console.log(`Row ${i + 3}: Client="${row[2]}", Postado (col J, idx 9)="${row[9]}", Avaliado (col K, idx 10)="${row[10]}"`);
 
-        // Parse the evaluation status from column L (index 11) - "Avaliado" column
+        // Parse the evaluation status from column K (index 10) - "Avaliado" column
         // "sim" = was evaluated (implies was requested), "não" = was requested but not evaluated
-        const evaluationStatus = parseEvaluationStatus(row[11]);
+        const evaluationStatus = parseEvaluationStatus(row[10]);
         
         // Parse was_posted from column J (index 9)
         const wasPosted = parseBoolean(row[9]);
@@ -575,7 +576,7 @@ Deno.serve(async (req) => {
         d.decision_link || '',
         d.observation || '',
         d.was_posted ? 'Postado' : '',
-        '', // Avaliação Pedida column is not used directly
+        // Column K: "Sim" = was evaluated (pedida + avaliada), "Não" = pedida but not evaluated, empty = not requested
         d.was_evaluated ? 'Sim' : (d.evaluation_requested ? 'Não' : ''),
       ]);
 
