@@ -118,8 +118,7 @@ export default function DecisoesFavoraveis() {
       const { data: session } = await supabase.auth.getSession();
       if (!session.session) throw new Error('Not authenticated');
 
-      const response = await supabase.functions.invoke('advbox-integration', {
-        body: {},
+      const response = await supabase.functions.invoke('advbox-integration/customers', {
         headers: {
           Authorization: `Bearer ${session.session.access_token}`,
         },
@@ -157,8 +156,7 @@ export default function DecisoesFavoraveis() {
       const { data: session } = await supabase.auth.getSession();
       if (!session.session) throw new Error('Not authenticated');
 
-      const response = await supabase.functions.invoke('advbox-integration', {
-        body: { path: 'lawsuits-full' },
+      const response = await supabase.functions.invoke('advbox-integration/lawsuits-full', {
         headers: {
           Authorization: `Bearer ${session.session.access_token}`,
         },
