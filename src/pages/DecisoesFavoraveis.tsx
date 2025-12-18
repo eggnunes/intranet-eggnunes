@@ -967,22 +967,23 @@ export default function DecisoesFavoraveis() {
                             </Tooltip>
                             <Tooltip>
                               <TooltipTrigger>
-                                {decision.evaluation_requested ? (
+                                {/* Avaliação Pedida: se was_evaluated é true ou false (mas existe valor), implica que foi pedido */}
+                                {decision.was_evaluated || decision.evaluation_requested ? (
                                   <CheckCircle className="h-4 w-4 text-blue-600" />
                                 ) : (
                                   <XCircle className="h-4 w-4 text-muted-foreground" />
                                 )}
                               </TooltipTrigger>
                               <TooltipContent>
-                                {decision.evaluation_requested ? 'Avaliação pedida' : 'Avaliação não pedida'}
+                                {(decision.was_evaluated || decision.evaluation_requested) ? 'Avaliação pedida' : 'Avaliação não pedida'}
                               </TooltipContent>
                             </Tooltip>
                             <Tooltip>
                               <TooltipTrigger>
                                 {decision.was_evaluated ? (
-                                  <CheckCircle className="h-4 w-4 text-purple-600" />
+                                  <CheckCircle className="h-4 w-4 text-green-600" />
                                 ) : (
-                                  <XCircle className="h-4 w-4 text-muted-foreground" />
+                                  <XCircle className="h-4 w-4 text-red-500" />
                                 )}
                               </TooltipTrigger>
                               <TooltipContent>
