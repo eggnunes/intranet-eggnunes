@@ -471,17 +471,18 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Log header row to verify column structure
-      const headerRow = excelData[0];
-      console.log(`HEADER ROW: ${JSON.stringify(headerRow)}`);
+      // Log header rows to verify column structure
+      // Row 1 = Title row, Row 2 = Column headers
+      console.log(`ROW 1 (title): ${JSON.stringify(excelData[0])}`);
+      console.log(`ROW 2 (headers): ${JSON.stringify(excelData[1])}`);
       
       // Log first 3 data rows completely to verify structure
-      for (let debugIdx = 1; debugIdx <= Math.min(3, excelData.length - 1); debugIdx++) {
+      for (let debugIdx = 2; debugIdx <= Math.min(4, excelData.length - 1); debugIdx++) {
         console.log(`DATA ROW ${debugIdx + 1} (full): ${JSON.stringify(excelData[debugIdx])}`);
       }
 
-      // Skip header row
-      const dataRows = excelData.slice(1);
+      // Skip 2 header rows (title row and column headers row)
+      const dataRows = excelData.slice(2);
 
       // Get existing decisions
       const { data: existingDecisions } = await supabase
@@ -496,8 +497,8 @@ Deno.serve(async (req) => {
         const decisionDate = parseExcelDate(row[6]);
         if (!decisionDate) continue;
 
-        // Log status columns for debugging
-        console.log(`Row ${i + 2}: Client="${row[2]}", Postado (col J)="${row[9]}", Avaliado (col L)="${row[11]}"`);
+        // Log status columns for debugging (row index is i + 3 because we skip 2 header rows)
+        console.log(`Row ${i + 3}: Client="${row[2]}", Postado (col J)="${row[9]}", Avaliado (col L)="${row[11]}"`);
 
         // Parse the evaluation status from column L (index 11) - "Avaliado" column
         // "sim" = was evaluated (implies was requested), "não" = was requested but not evaluated
@@ -520,7 +521,7 @@ Deno.serve(async (req) => {
           was_posted: wasPosted,
           evaluation_requested: evaluationStatus.evaluationRequested,
           was_evaluated: evaluationStatus.wasEvaluated,
-          teams_row_index: i + 2, // Row index in Excel (1-indexed, skip header)
+          teams_row_index: i + 3, // Row index in Excel (1-indexed, skip 2 header rows)
           created_by: user.id,
         };
 
