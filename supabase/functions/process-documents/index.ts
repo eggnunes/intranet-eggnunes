@@ -59,6 +59,28 @@ const DOCUMENT_TYPE_NAMES: Record<string, string> = {
   'documento': 'Documento',
 };
 
+// Fast base64 decode using Uint8Array
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+// Fast base64 encode from Uint8Array using chunks
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  const chunkSize = 32768;
+  let result = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    result += String.fromCharCode.apply(null, chunk as unknown as number[]);
+  }
+  return btoa(result);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -78,7 +100,7 @@ serve(async (req) => {
 
     console.log(`Processando ${files.length} arquivos com Lovable AI`);
 
-    // Analyze each file
+    // Analyze each file - use faster model for analysis
     const analyses: ImageAnalysis[] = [];
     const legibilityWarnings: string[] = [];
     
@@ -119,7 +141,7 @@ serve(async (req) => {
         if (file.type === 'application/pdf') {
           console.log(`Processando PDF: ${file.name}`);
           try {
-            const pdfBytes = Uint8Array.from(atob(file.data), c => c.charCodeAt(0));
+            const pdfBytes = base64ToUint8Array(file.data);
             const sourcePdf = await PDFDocument.load(pdfBytes);
             
             const pageCount = sourcePdf.getPageCount();
@@ -142,8 +164,8 @@ serve(async (req) => {
           continue;
         }
         
-        // Decode base64 for images
-        const imageBytes = Uint8Array.from(atob(file.data), c => c.charCodeAt(0));
+        // Decode base64 for images using fast method
+        const imageBytes = base64ToUint8Array(file.data);
         
         let pdfImage;
         try {
@@ -214,15 +236,9 @@ serve(async (req) => {
         continue;
       }
       
+      // Save PDF and use efficient base64 encoding
       const pdfBytes = await pdfDoc.save();
-      
-      let pdfBase64 = '';
-      const chunkSize = 8192;
-      for (let k = 0; k < pdfBytes.length; k += chunkSize) {
-        const chunk = pdfBytes.slice(k, k + chunkSize);
-        pdfBase64 += String.fromCharCode(...chunk);
-      }
-      pdfBase64 = btoa(pdfBase64);
+      const pdfBase64 = uint8ArrayToBase64(pdfBytes);
       
       // Generate auto-named filename
       const suggestedName = group.analyses[0]?.suggestedName || group.type;
@@ -297,6 +313,7 @@ async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnal
     }
   }
 
+  // Use the fastest model for document analysis
   const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -304,44 +321,27 @@ async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnal
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
+      model: 'google/gemini-2.5-flash-lite',
       messages: [
         {
           role: 'system',
-          content: `Você é um especialista em análise de documentos jurídicos e médicos. Analise a imagem e determine:
-
-1. ROTAÇÃO: Se o documento está rotacionado e em quantos graus (0, 90, 180, 270). Considere a orientação do texto.
-
-2. TIPO DE DOCUMENTO: Identifique precisamente o tipo (exemplos: relatório médico, laudo médico, atestado, procuração, contrato, RG, CPF, CNH, comprovante de residência, nota fiscal, certidão, declaração, exame, petição, sentença, termo).
-
-3. LEGIBILIDADE: Avalie se o documento é legível considerando:
-   - Qualidade da imagem (foco, nitidez)
-   - Contraste entre texto e fundo
-   - Se há partes cortadas ou obscurecidas
-   - Se o texto é lido corretamente
-   Dê uma pontuação de 0 a 1 (1 = perfeitamente legível, 0 = ilegível)
-
-4. TEXTO: Extraia o texto principal visível.
-
-5. ALERTAS: Liste problemas específicos (ex: "imagem borrada", "texto cortado", "baixo contraste", "documento de cabeça para baixo").
-
-Responda APENAS em formato JSON válido:
+          content: `Analise o documento e responda em JSON:
 {
-  "rotation": número (0, 90, 180 ou 270),
-  "documentType": string (tipo identificado),
+  "rotation": número (0, 90, 180 ou 270 - baseado na orientação do texto),
+  "documentType": string (tipo: relatório médico, laudo, atestado, procuração, contrato, RG, CPF, CNH, comprovante, certidão, declaração, exame, petição, sentença, termo, documento),
   "confidence": número 0-1,
-  "text": string (texto extraído),
   "isLegible": boolean,
   "legibilityScore": número 0-1,
-  "warnings": array de strings (problemas encontrados)
-}`
+  "warnings": array de strings (problemas: imagem borrada, texto cortado, baixo contraste)
+}
+Responda APENAS o JSON válido.`
         },
         {
           role: 'user',
           content: [
             {
               type: 'text',
-              text: 'Analise este documento e retorne o JSON com rotação, tipo, legibilidade e alertas.'
+              text: 'Analise este documento.'
             },
             {
               type: 'image_url',
