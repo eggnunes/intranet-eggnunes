@@ -5,9 +5,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Teams/SharePoint configuration
-const SITE_NAME = 'Operacional';
-const FILE_PATH = 'Planilha de Decisões Favoráveis.xlsx';
+// Teams/SharePoint configuration - arquivo está no site Jurídico, pasta Operacional
+const SITE_NAME = 'Jurídico';
+const FOLDER_PATH = 'Operacional';
+const FILE_NAME = 'Planilha de Decisões Favoráveis.xlsx';
 
 // Column mapping for Excel spreadsheet
 const EXCEL_COLUMNS = {
@@ -59,25 +60,35 @@ async function getAccessToken(): Promise<string> {
 }
 
 async function getSiteAndDriveInfo(accessToken: string): Promise<{ siteId: string; driveId: string; itemId: string }> {
-  // Get site
+  // Get site - searching for Jurídico
+  console.log('Searching for Jurídico site...');
   const sitesResponse = await fetch(
-    'https://graph.microsoft.com/v1.0/sites?search=Operacional',
+    'https://graph.microsoft.com/v1.0/sites?search=Jurídico',
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
   
   if (!sitesResponse.ok) {
+    const error = await sitesResponse.text();
+    console.error('Sites search error:', error);
     throw new Error('Failed to get sites');
   }
   
   const sitesData = await sitesResponse.json();
+  console.log('Sites found:', sitesData.value?.map((s: any) => s.displayName));
+  
   const site = sitesData.value.find((s: any) => 
-    s.displayName?.toLowerCase().includes('operacional') || 
-    s.name?.toLowerCase().includes('operacional')
+    s.displayName?.toLowerCase().includes('jurídico') || 
+    s.displayName?.toLowerCase().includes('juridico') ||
+    s.name?.toLowerCase().includes('jurídico') ||
+    s.name?.toLowerCase().includes('juridico')
   );
   
   if (!site) {
-    throw new Error('Operacional site not found');
+    console.error('Available sites:', sitesData.value?.map((s: any) => ({ name: s.name, displayName: s.displayName })));
+    throw new Error('Jurídico site not found');
   }
+
+  console.log('Found site:', site.displayName, 'ID:', site.id);
 
   // Get drives
   const drivesResponse = await fetch(
@@ -90,30 +101,66 @@ async function getSiteAndDriveInfo(accessToken: string): Promise<{ siteId: strin
   }
   
   const drivesData = await drivesResponse.json();
+  console.log('Drives found:', drivesData.value?.map((d: any) => d.name));
+  
   const drive = drivesData.value.find((d: any) => d.name === 'Documentos' || d.name === 'Documents');
   
   if (!drive) {
     throw new Error('Documents drive not found');
   }
 
-  // Search for the file
-  const searchResponse = await fetch(
-    `https://graph.microsoft.com/v1.0/drives/${drive.id}/root/search(q='Planilha de Decisões Favoráveis')`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
+  console.log('Using drive:', drive.name, 'ID:', drive.id);
+
+  // First try to find the file in the Operacional folder
+  console.log('Searching for file in Operacional folder...');
+  let file = null;
   
-  if (!searchResponse.ok) {
-    throw new Error('Failed to search for file');
+  try {
+    // Try to access Operacional folder directly
+    const folderResponse = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${drive.id}/root:/Operacional:/children`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    
+    if (folderResponse.ok) {
+      const folderData = await folderResponse.json();
+      console.log('Files in Operacional folder:', folderData.value?.map((f: any) => f.name));
+      
+      file = folderData.value.find((f: any) => 
+        f.name?.includes('Planilha de Decisões Favoráveis') && f.name?.endsWith('.xlsx')
+      );
+    }
+  } catch (e) {
+    console.log('Operacional folder not found directly, searching...');
   }
-  
-  const searchData = await searchResponse.json();
-  const file = searchData.value.find((f: any) => 
-    f.name?.includes('Planilha de Decisões Favoráveis') && f.name?.endsWith('.xlsx')
-  );
+
+  // If not found in Operacional, search globally
+  if (!file) {
+    console.log('Searching for file globally...');
+    const searchResponse = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${drive.id}/root/search(q='Planilha de Decisões Favoráveis')`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    
+    if (!searchResponse.ok) {
+      const error = await searchResponse.text();
+      console.error('Search error:', error);
+      throw new Error('Failed to search for file');
+    }
+    
+    const searchData = await searchResponse.json();
+    console.log('Search results:', searchData.value?.map((f: any) => f.name));
+    
+    file = searchData.value.find((f: any) => 
+      f.name?.includes('Planilha de Decisões Favoráveis') && f.name?.endsWith('.xlsx')
+    );
+  }
   
   if (!file) {
-    throw new Error('Excel file not found');
+    throw new Error('Excel file "Planilha de Decisões Favoráveis.xlsx" not found');
   }
+
+  console.log('Found file:', file.name, 'ID:', file.id);
 
   return {
     siteId: site.id,
