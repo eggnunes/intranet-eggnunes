@@ -67,11 +67,17 @@ const DECISION_TYPES = [
 
 // Mapeamento de produtos legados para produtos RD Station
 const PRODUCT_NAME_MAPPING: Record<string, string> = {
-  'aliquota': 'Cobrança - IPSM - Alíquota',
-  'alíquota': 'Cobrança - IPSM - Alíquota',
-  'ipsm': 'Cobrança - IPSM - Alíquota',
-  'ipsm aliquota': 'Cobrança - IPSM - Alíquota',
-  'ipsm alíquota': 'Cobrança - IPSM - Alíquota',
+  'aliquota': 'Retroativo - Alíquota e PSM',
+  'alíquota': 'Retroativo - Alíquota e PSM',
+  'ipsm': 'Retroativo - Alíquota e PSM',
+  'ipsm aliquota': 'Retroativo - Alíquota e PSM',
+  'ipsm alíquota': 'Retroativo - Alíquota e PSM',
+  'retroativo aliquota': 'Retroativo - Alíquota e PSM',
+  'retroativo - alíquota e psm': 'Retroativo - Alíquota e PSM',
+  'férias-prêmio': 'Férias Prêmio',
+  'ferias-premio': 'Férias Prêmio',
+  'férias prêmio': 'Férias Prêmio',
+  'ferias premio': 'Férias Prêmio',
   'multipropriedade': 'Imobiliário - Multipropriedade',
   'timeshare': 'Imobiliário - Multipropriedade',
   'atraso em obra': 'Imobiliário - Atraso em obra',
@@ -80,8 +86,6 @@ const PRODUCT_NAME_MAPPING: Record<string, string> = {
   'rescisao': 'Imobiliário - Rescisão de contrato abusivo',
   'terço de férias': 'Servidor Público - Terço de Férias',
   'terco de ferias': 'Servidor Público - Terço de Férias',
-  'férias prêmio': 'Servidor Público - Férias Prêmio',
-  'ferias premio': 'Servidor Público - Férias Prêmio',
   'vale refeição': 'Servidor Público - Vale Refeição',
   'vale refeicao': 'Servidor Público - Vale Refeição',
   'isenção ir': 'Servidor Público - Isenção de IR',
@@ -963,21 +967,26 @@ export default function DecisoesFavoraveis() {
                             </Tooltip>
                             <Tooltip>
                               <TooltipTrigger>
-                                {decision.was_evaluated ? (
-                                  <CheckCircle className="h-4 w-4 text-purple-600" />
-                                ) : decision.evaluation_requested ? (
-                                  <div className="h-4 w-4 rounded-full border-2 border-blue-600" />
+                                {decision.evaluation_requested ? (
+                                  <CheckCircle className="h-4 w-4 text-blue-600" />
                                 ) : (
                                   <XCircle className="h-4 w-4 text-muted-foreground" />
                                 )}
                               </TooltipTrigger>
                               <TooltipContent>
-                                {decision.was_evaluated 
-                                  ? 'Cliente avaliou no Google' 
-                                  : decision.evaluation_requested 
-                                    ? 'Avaliação solicitada' 
-                                    : 'Avaliação não solicitada'
-                                }
+                                {decision.evaluation_requested ? 'Avaliação pedida' : 'Avaliação não pedida'}
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                {decision.was_evaluated ? (
+                                  <CheckCircle className="h-4 w-4 text-purple-600" />
+                                ) : (
+                                  <XCircle className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {decision.was_evaluated ? 'Cliente avaliou no Google' : 'Cliente não avaliou'}
                               </TooltipContent>
                             </Tooltip>
                           </div>
@@ -991,12 +1000,26 @@ export default function DecisoesFavoraveis() {
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8"
-                                    onClick={() => window.open(decision.decision_link!, '_blank')}
+                                    onClick={() => {
+                                      const link = decision.decision_link!;
+                                      // Check if it's a valid URL
+                                      if (link.startsWith('http://') || link.startsWith('https://')) {
+                                        window.open(link, '_blank');
+                                      } else {
+                                        toast.info(`Arquivo: ${link}`, {
+                                          description: 'Este link é apenas o nome do arquivo. Atualize com o link completo do Teams.'
+                                        });
+                                      }
+                                    }}
                                   >
                                     <ExternalLink className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Abrir arquivo da decisão no Teams</TooltipContent>
+                                <TooltipContent>
+                                  {decision.decision_link?.startsWith('http') 
+                                    ? 'Abrir arquivo da decisão no Teams' 
+                                    : `Arquivo: ${decision.decision_link}`}
+                                </TooltipContent>
                               </Tooltip>
                             )}
                             {isSocioOrRafael && (

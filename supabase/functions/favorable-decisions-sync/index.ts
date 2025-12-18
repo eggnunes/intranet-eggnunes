@@ -197,13 +197,33 @@ async function getWorkbookData(accessToken: string, driveId: string, itemId: str
   return data.values || [];
 }
 
+// Headers for the Excel file
+const EXCEL_HEADERS = [
+  'Tipo de Decisão',
+  'Assunto',
+  'Nome do Cliente',
+  'Número do Processo',
+  'Tribunal',
+  'Vara/Câmara',
+  'Data',
+  'Link',
+  'Observação',
+  'Postado',
+  'Avaliação Pedida',
+  'Avaliado',
+];
+
 async function updateWorkbookData(
   accessToken: string, 
   driveId: string, 
   itemId: string, 
-  rows: any[][]
+  rows: any[][],
+  includeHeaders: boolean = true
 ): Promise<void> {
-  const range = `A2:L${rows.length + 1}`;
+  // If including headers, add them as first row
+  const allRows = includeHeaders ? [EXCEL_HEADERS, ...rows] : rows;
+  const startRow = includeHeaders ? 1 : 2;
+  const range = `A${startRow}:L${allRows.length + startRow - 1}`;
   
   const response = await fetch(
     `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/workbook/worksheets/Sheet1/range(address='${range}')`,
@@ -213,7 +233,7 @@ async function updateWorkbookData(
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ values: rows }),
+      body: JSON.stringify({ values: allRows }),
     }
   );
 
@@ -227,7 +247,7 @@ async function updateWorkbookData(
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ values: rows }),
+        body: JSON.stringify({ values: allRows }),
       }
     );
     
@@ -448,9 +468,9 @@ Deno.serve(async (req) => {
         formatBooleanForExcel(d.was_evaluated),
       ]);
 
-      // Update Excel with all data
+      // Update Excel with all data (including headers)
       if (excelRows.length > 0) {
-        await updateWorkbookData(accessToken, driveId, itemId, excelRows);
+        await updateWorkbookData(accessToken, driveId, itemId, excelRows, true);
       }
 
       return new Response(
