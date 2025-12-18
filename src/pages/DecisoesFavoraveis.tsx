@@ -995,33 +995,19 @@ export default function DecisoesFavoraveis() {
                         </TableCell>
                         <TableCell className="text-right py-2">
                           <div className="flex justify-end gap-0.5">
-                            {decision.decision_link && (
+                            {decision.decision_link && decision.decision_link.startsWith('http') && (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8"
-                                    onClick={() => {
-                                      const link = decision.decision_link!;
-                                      // Check if it's a valid URL
-                                      if (link.startsWith('http://') || link.startsWith('https://')) {
-                                        window.open(link, '_blank');
-                                      } else {
-                                        toast.info(`Arquivo: ${link}`, {
-                                          description: 'Este link é apenas o nome do arquivo. Atualize com o link completo do Teams.'
-                                        });
-                                      }
-                                    }}
+                                    onClick={() => window.open(decision.decision_link!, '_blank')}
                                   >
                                     <ExternalLink className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>
-                                  {decision.decision_link?.startsWith('http') 
-                                    ? 'Abrir arquivo da decisão no Teams' 
-                                    : `Arquivo: ${decision.decision_link}`}
-                                </TooltipContent>
+                                <TooltipContent>Abrir arquivo da decisão no Teams</TooltipContent>
                               </Tooltip>
                             )}
                             {isSocioOrRafael && (
