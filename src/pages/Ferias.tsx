@@ -1625,88 +1625,175 @@ export default function Ferias() {
           </CardContent>
         </Card>
 
-        {/* Report Section - Only for admins */}
+        {/* Report Section - Only for admins - Grouped by Employee */}
         {canManageVacations && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Painel Geral de Férias - Todos os Colaboradores
+                Painel Geral de Férias - Agrupado por Colaborador
               </CardTitle>
               <CardDescription>
-                Visualize todas as férias cadastradas de todos os colaboradores
+                Visualize todas as férias cadastradas, organizadas por colaborador
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[500px]">
+              <ScrollArea className="h-[600px]">
                 {allVacationRequests.length === 0 ? (
                   <p className="text-muted-foreground text-center py-8">
                     Nenhuma férias cadastrada
                   </p>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Colaborador</TableHead>
-                        <TableHead>Período</TableHead>
-                        <TableHead>Duração</TableHead>
-                        <TableHead>Período Aquisitivo</TableHead>
-                        <TableHead>Vendidos</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Tipo</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {allVacationRequests.map((request) => (
-                        <TableRow key={request.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Avatar className="h-8 w-8">
-                                <AvatarImage src={request.profiles.avatar_url || ''} />
-                                <AvatarFallback>
-                                  {request.profiles.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                              <span className="font-medium">{request.profiles.full_name}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {format(parseISO(request.start_date), 'dd/MM/yyyy')} - {format(parseISO(request.end_date), 'dd/MM/yyyy')}
-                          </TableCell>
-                          <TableCell>
-                            {request.business_days} {isCLT(request.profiles.position) ? 'dias corridos' : 'dias úteis'}
-                          </TableCell>
-                          <TableCell>
-                            {request.acquisition_period_start && request.acquisition_period_end ? (
-                              <span className="text-sm">
-                                {format(parseISO(request.acquisition_period_start), 'dd/MM/yyyy')} - {format(parseISO(request.acquisition_period_end), 'dd/MM/yyyy')}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {request.sold_days && request.sold_days > 0 ? (
-                              <Badge variant="secondary" className="flex items-center gap-1 w-fit">
-                                <DollarSign className="h-3 w-3" />
-                                {request.sold_days}
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {getStatusBadge(request.status)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={isCLT(request.profiles.position) ? 'secondary' : 'outline'}>
-                              {isCLT(request.profiles.position) ? 'CLT' : 'Padrão'}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  <div className="space-y-6">
+                    {/* Group requests by user */}
+                    {(() => {
+                      const groupedByUser: Record<string, VacationRequest[]> = {};
+                      allVacationRequests.forEach((request) => {
+                        const userId = request.user_id;
+                        if (!groupedByUser[userId]) {
+                          groupedByUser[userId] = [];
+                        }
+                        groupedByUser[userId].push(request);
+                      });
+
+                      // Sort users alphabetically by name
+                      const sortedUserIds = Object.keys(groupedByUser).sort((a, b) => {
+                        const nameA = groupedByUser[a][0]?.profiles.full_name || '';
+                        const nameB = groupedByUser[b][0]?.profiles.full_name || '';
+                        return nameA.localeCompare(nameB);
+                      });
+
+                      return sortedUserIds.map((userId) => {
+                        const userRequests = groupedByUser[userId];
+                        const firstRequest = userRequests[0];
+                        const userProfile = firstRequest?.profiles;
+                        const today = new Date();
+                        
+                        // Sort requests by start_date descending (most recent first)
+                        const sortedRequests = [...userRequests].sort((a, b) => 
+                          parseISO(b.start_date).getTime() - parseISO(a.start_date).getTime()
+                        );
+
+                        // Calculate totals
+                        const approvedRequests = sortedRequests.filter(r => r.status === 'approved');
+                        const totalApprovedDays = approvedRequests.reduce((sum, r) => sum + (r.business_days || 0), 0);
+                        const pastVacations = approvedRequests.filter(r => isBefore(parseISO(r.end_date), today));
+                        const futureVacations = approvedRequests.filter(r => !isBefore(parseISO(r.end_date), today));
+
+                        return (
+                          <Card key={userId} className="border-2">
+                            <CardHeader className="pb-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <Avatar className="h-10 w-10">
+                                    <AvatarImage src={userProfile?.avatar_url || ''} />
+                                    <AvatarFallback>
+                                      {userProfile?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??'}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                    <CardTitle className="text-lg">{userProfile?.full_name}</CardTitle>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <Badge variant={isCLT(userProfile?.position) ? 'secondary' : 'outline'} className="text-xs">
+                                        {isCLT(userProfile?.position) ? 'CLT - 30 dias corridos' : '20 dias úteis'}
+                                      </Badge>
+                                      {profiles.find(p => p.id === userId)?.join_date && (
+                                        <span className="text-xs text-muted-foreground">
+                                          Admissão: {format(parseISO(profiles.find(p => p.id === userId)!.join_date!), 'dd/MM/yyyy')}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-4 text-sm">
+                                  <div className="text-center">
+                                    <p className="text-muted-foreground text-xs">Usufruídas</p>
+                                    <p className="font-semibold text-green-600">{pastVacations.length}</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-muted-foreground text-xs">Agendadas</p>
+                                    <p className="font-semibold text-blue-600">{futureVacations.length}</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-muted-foreground text-xs">Total dias</p>
+                                    <p className="font-semibold">{totalApprovedDays}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </CardHeader>
+                            <CardContent className="pt-0">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead className="w-[180px]">Período</TableHead>
+                                    <TableHead className="w-[100px]">Duração</TableHead>
+                                    <TableHead className="w-[180px]">Período Aquisitivo</TableHead>
+                                    <TableHead className="w-[80px]">Vendidos</TableHead>
+                                    <TableHead className="w-[100px]">Status</TableHead>
+                                    <TableHead className="w-[100px]">Situação</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {sortedRequests.map((request) => {
+                                    const isPast = isBefore(parseISO(request.end_date), today);
+                                    return (
+                                      <TableRow key={request.id} className={isPast ? 'bg-green-50/50 dark:bg-green-950/20' : 'bg-blue-50/50 dark:bg-blue-950/20'}>
+                                        <TableCell className="font-medium">
+                                          {format(parseISO(request.start_date), 'dd/MM/yyyy')} - {format(parseISO(request.end_date), 'dd/MM/yyyy')}
+                                        </TableCell>
+                                        <TableCell>
+                                          {request.business_days} {isCLT(userProfile?.position) ? 'dias' : 'dias úteis'}
+                                        </TableCell>
+                                        <TableCell>
+                                          {request.acquisition_period_start && request.acquisition_period_end ? (
+                                            <span className="text-sm">
+                                              {format(parseISO(request.acquisition_period_start), 'dd/MM/yyyy')} - {format(parseISO(request.acquisition_period_end), 'dd/MM/yyyy')}
+                                            </span>
+                                          ) : (
+                                            <span className="text-muted-foreground text-sm">-</span>
+                                          )}
+                                        </TableCell>
+                                        <TableCell>
+                                          {request.sold_days && request.sold_days > 0 ? (
+                                            <Badge variant="secondary" className="flex items-center gap-1 w-fit">
+                                              <DollarSign className="h-3 w-3" />
+                                              {request.sold_days}
+                                            </Badge>
+                                          ) : (
+                                            <span className="text-muted-foreground text-sm">-</span>
+                                          )}
+                                        </TableCell>
+                                        <TableCell>
+                                          {getStatusBadge(request.status)}
+                                        </TableCell>
+                                        <TableCell>
+                                          {request.status === 'approved' ? (
+                                            isPast ? (
+                                              <Badge variant="default" className="gap-1 bg-green-600">
+                                                <CheckCircle className="h-3 w-3" />
+                                                Usufruída
+                                              </Badge>
+                                            ) : (
+                                              <Badge variant="outline" className="gap-1 border-blue-500 text-blue-600">
+                                                <Clock className="h-3 w-3" />
+                                                Agendada
+                                              </Badge>
+                                            )
+                                          ) : (
+                                            <span className="text-muted-foreground text-sm">-</span>
+                                          )}
+                                        </TableCell>
+                                      </TableRow>
+                                    );
+                                  })}
+                                </TableBody>
+                              </Table>
+                            </CardContent>
+                          </Card>
+                        );
+                      });
+                    })()}
+                  </div>
                 )}
               </ScrollArea>
             </CardContent>
