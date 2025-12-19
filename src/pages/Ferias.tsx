@@ -122,48 +122,138 @@ interface AcquisitionPeriod {
   label: string;
   startDate: Date;
   endDate: Date;
+  totalDays?: number; // Optional override for total vacation days in this period
+  note?: string; // Optional note for special periods
 }
 
+// Special acquisition periods configuration for specific users
+// Jordânia: Had 15 days as intern (15/01/2024 to 30/09/2024), then 20 days as lawyer from 01/10/2024
+const SPECIAL_USER_PERIODS: Record<string, { 
+  periods: Array<{ 
+    start: string; 
+    end: string; 
+    totalDays: number; 
+    note: string;
+    fullyUsed?: boolean; // Mark if all days were already used
+  }>;
+  regularPeriodsStartFrom: string; // Date from which regular periods start
+}> = {
+  '1b5787c3-c10d-4e0b-8699-83d0a2215dea': { // Jordânia Luíze Guedes Almeida
+    periods: [
+      {
+        start: '2024-01-15',
+        end: '2024-09-30',
+        totalDays: 15,
+        note: 'Período como estagiária - 15 dias úteis (já gozados integralmente)',
+        fullyUsed: true
+      }
+    ],
+    regularPeriodsStartFrom: '2024-10-01' // Regular 20-day periods start from here
+  }
+};
+
 // Generate all acquisition periods for a user based on join_date
-const generateAcquisitionPeriods = (joinDate: string | null): AcquisitionPeriod[] => {
+const generateAcquisitionPeriods = (joinDate: string | null, userId?: string): AcquisitionPeriod[] => {
   if (!joinDate) return [];
   
-  const join = parseISO(joinDate);
-  const today = new Date();
+  const specialConfig = userId ? SPECIAL_USER_PERIODS[userId] : null;
   const periods: AcquisitionPeriod[] = [];
+  const today = new Date();
   
-  let periodStart = join;
-  let periodEnd = addYears(join, 1);
-  let periodNumber = 1;
-  
-  // Generate periods up to current year + 1
-  const maxPeriods = 10; // Limit to prevent infinite loops
-  let count = 0;
-  
-  while (count < maxPeriods) {
-    // Only include periods where the start has already passed
-    if (isBefore(periodStart, addYears(today, 1))) {
-      const startStr = format(periodStart, 'yyyy-MM-dd');
-      const endStr = format(periodEnd, 'yyyy-MM-dd');
-      
+  // If user has special periods, add them first
+  if (specialConfig) {
+    for (const special of specialConfig.periods) {
       periods.push({
-        value: `${startStr}|${endStr}`,
-        label: `${format(periodStart, "dd/MM/yyyy")} a ${format(periodEnd, "dd/MM/yyyy")}`,
-        startDate: periodStart,
-        endDate: periodEnd,
+        value: `${special.start}|${special.end}`,
+        label: `${format(parseISO(special.start), "dd/MM/yyyy")} a ${format(parseISO(special.end), "dd/MM/yyyy")}`,
+        startDate: parseISO(special.start),
+        endDate: parseISO(special.end),
+        totalDays: special.totalDays,
+        note: special.note
       });
     }
     
-    periodStart = periodEnd;
-    periodEnd = addYears(periodStart, 1);
-    periodNumber++;
-    count++;
+    // Generate regular periods starting from the configured date
+    let periodStart = parseISO(specialConfig.regularPeriodsStartFrom);
+    let periodEnd = addYears(periodStart, 1);
+    const maxPeriods = 10;
+    let count = 0;
     
-    // Stop if we've gone past current date by more than 1 year
-    if (isAfter(periodStart, addYears(today, 1))) break;
+    while (count < maxPeriods) {
+      if (isBefore(periodStart, addYears(today, 1))) {
+        const startStr = format(periodStart, 'yyyy-MM-dd');
+        const endStr = format(periodEnd, 'yyyy-MM-dd');
+        
+        periods.push({
+          value: `${startStr}|${endStr}`,
+          label: `${format(periodStart, "dd/MM/yyyy")} a ${format(periodEnd, "dd/MM/yyyy")}`,
+          startDate: periodStart,
+          endDate: periodEnd,
+        });
+      }
+      
+      periodStart = periodEnd;
+      periodEnd = addYears(periodStart, 1);
+      count++;
+      
+      if (isAfter(periodStart, addYears(today, 1))) break;
+    }
+  } else {
+    // Standard logic for users without special periods
+    const join = parseISO(joinDate);
+    let periodStart = join;
+    let periodEnd = addYears(join, 1);
+    const maxPeriods = 10;
+    let count = 0;
+    
+    while (count < maxPeriods) {
+      if (isBefore(periodStart, addYears(today, 1))) {
+        const startStr = format(periodStart, 'yyyy-MM-dd');
+        const endStr = format(periodEnd, 'yyyy-MM-dd');
+        
+        periods.push({
+          value: `${startStr}|${endStr}`,
+          label: `${format(periodStart, "dd/MM/yyyy")} a ${format(periodEnd, "dd/MM/yyyy")}`,
+          startDate: periodStart,
+          endDate: periodEnd,
+        });
+      }
+      
+      periodStart = periodEnd;
+      periodEnd = addYears(periodStart, 1);
+      count++;
+      
+      if (isAfter(periodStart, addYears(today, 1))) break;
+    }
   }
   
   return periods;
+};
+
+// Get total days for a specific acquisition period (handles special periods)
+const getTotalDaysForPeriod = (
+  period: AcquisitionPeriod | undefined, 
+  position: string | null,
+  userId?: string
+): number => {
+  // If period has explicit totalDays (special period), use it
+  if (period?.totalDays !== undefined) {
+    return period.totalDays;
+  }
+  // Otherwise use standard logic based on position
+  return getTotalVacationDays(position);
+};
+
+// Check if a period is fully used (for special cases like Jordânia's internship period)
+const isPeriodFullyUsed = (periodStart: string, periodEnd: string, userId?: string): boolean => {
+  if (!userId) return false;
+  const specialConfig = SPECIAL_USER_PERIODS[userId];
+  if (!specialConfig) return false;
+  
+  const specialPeriod = specialConfig.periods.find(
+    p => p.start === periodStart && p.end === periodEnd
+  );
+  return specialPeriod?.fullyUsed === true;
 };
 
 // Calculate used days in a specific acquisition period
@@ -240,9 +330,8 @@ export default function Ferias() {
   const vacationChartData = useMemo(() => {
     if (!balanceUserAllRequests.length || !balanceUserAcquisitionPeriods.length) return [];
     
-    const totalDays = getTotalVacationDays(balanceUserProfile?.position || null);
-    
     return balanceUserAcquisitionPeriods.map((period, index) => {
+      const periodTotalDays = getTotalDaysForPeriod(period, balanceUserProfile?.position || null, balanceSelectedUser);
       const usedInPeriod = balanceUserAllRequests
         .filter(req => 
           req.acquisition_period_start === period.value.split('|')[0] &&
@@ -250,21 +339,21 @@ export default function Ferias() {
         )
         .reduce((sum, req) => sum + (req.business_days || 0), 0);
       
-      const availableInPeriod = Math.max(0, totalDays - usedInPeriod);
+      const availableInPeriod = Math.max(0, periodTotalDays - usedInPeriod);
       
       return {
         name: `${format(period.startDate, 'yyyy')}/${format(period.endDate, 'yyyy')}`,
-        fullLabel: period.label,
+        fullLabel: period.label + (period.note ? ` (${period.note})` : ''),
         usado: usedInPeriod,
         disponivel: availableInPeriod,
-        total: totalDays,
+        total: periodTotalDays,
       };
     }).filter(item => item.usado > 0 || balanceUserAcquisitionPeriods.length <= 5);
-  }, [balanceUserAllRequests, balanceUserAcquisitionPeriods, balanceUserProfile]);
+  }, [balanceUserAllRequests, balanceUserAcquisitionPeriods, balanceUserProfile, balanceSelectedUser]);
   
   // Generate acquisition periods for current user
-  const currentUserAcquisitionPeriods = generateAcquisitionPeriods(currentUserProfile?.join_date || null);
-  const selectedUserAcquisitionPeriods = generateAcquisitionPeriods(selectedUserProfile?.join_date || null);
+  const currentUserAcquisitionPeriods = generateAcquisitionPeriods(currentUserProfile?.join_date || null, user?.id);
+  const selectedUserAcquisitionPeriods = generateAcquisitionPeriods(selectedUserProfile?.join_date || null, adminSelectedUser || undefined);
   
   // Check if user can manage vacations
   const canManageVacations = isAdmin && (isSocioOrRafael || canEdit('vacation'));
@@ -352,7 +441,7 @@ export default function Ferias() {
           position: profile.position,
           join_date: profile.join_date
         });
-        const periods = generateAcquisitionPeriods(profile.join_date);
+        const periods = generateAcquisitionPeriods(profile.join_date, balanceSelectedUser);
         setBalanceUserAcquisitionPeriods(periods);
         setBalanceSelectedPeriod('all'); // Reset to all when user changes
         fetchBalanceUserData(balanceSelectedUser, profile.position, 'all');
@@ -593,8 +682,21 @@ export default function Ferias() {
     }
 
     const days = calculateDays(startDate, endDate, currentUserProfile?.position || null);
-    const totalDays = getTotalVacationDays(currentUserProfile?.position || null);
     const [acqStart, acqEnd] = selectedAcquisitionPeriod.split('|');
+    
+    // Check if this period is marked as fully used (special case like Jordânia's internship)
+    if (isPeriodFullyUsed(acqStart, acqEnd, user?.id)) {
+      toast({
+        title: 'Período totalmente utilizado',
+        description: 'Este período aquisitivo já foi totalmente gozado. Selecione outro período aquisitivo.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // Get total days for this specific period (may be different for special periods)
+    const currentPeriod = currentUserAcquisitionPeriods.find(p => p.value === selectedAcquisitionPeriod);
+    const totalDays = getTotalDaysForPeriod(currentPeriod, currentUserProfile?.position || null, user?.id);
     
     // Calculate used days in the selected acquisition period
     const usedDaysInPeriod = calculateUsedDaysInPeriod(currentUserRequests, acqStart, acqEnd);
@@ -668,7 +770,20 @@ export default function Ferias() {
 
     const days = calculateDays(startDate, endDate, selectedUserProfile?.position || null);
     const [acqStart, acqEnd] = adminSelectedAcquisitionPeriod.split('|');
-    const totalDays = getTotalVacationDays(selectedUserProfile?.position || null);
+    
+    // Check if this period is marked as fully used (special case like Jordânia's internship)
+    if (isPeriodFullyUsed(acqStart, acqEnd, adminSelectedUser)) {
+      toast({
+        title: 'Período totalmente utilizado',
+        description: 'Este período aquisitivo já foi totalmente gozado. Selecione outro período aquisitivo.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // Get total days for this specific period (may be different for special periods)
+    const currentPeriod = selectedUserAcquisitionPeriods.find(p => p.value === adminSelectedAcquisitionPeriod);
+    const totalDays = getTotalDaysForPeriod(currentPeriod, selectedUserProfile?.position || null, adminSelectedUser);
     
     // Calculate used days in the selected acquisition period for the selected user
     const usedDaysInPeriod = calculateUsedDaysInPeriod(selectedUserRequests, acqStart, acqEnd);
@@ -997,7 +1112,12 @@ export default function Ferias() {
                         <SelectContent>
                           {currentUserAcquisitionPeriods.map((period) => (
                             <SelectItem key={period.value} value={period.value}>
-                              {period.label}
+                              <div className="flex flex-col">
+                                <span>{period.label}</span>
+                                {period.note && (
+                                  <span className="text-xs text-muted-foreground">{period.totalDays} dias - {period.note}</span>
+                                )}
+                              </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1007,9 +1127,11 @@ export default function Ferias() {
                   {/* Saldo no período aquisitivo selecionado */}
                   {selectedAcquisitionPeriod && (() => {
                     const [acqStart, acqEnd] = selectedAcquisitionPeriod.split('|');
-                    const totalDays = getTotalVacationDays(currentUserProfile?.position || null);
+                    const currentPeriod = currentUserAcquisitionPeriods.find(p => p.value === selectedAcquisitionPeriod);
+                    const isFullyUsed = isPeriodFullyUsed(acqStart, acqEnd, user?.id);
+                    const totalDays = getTotalDaysForPeriod(currentPeriod, currentUserProfile?.position || null, user?.id);
                     const usedInPeriod = calculateUsedDaysInPeriod(currentUserRequests, acqStart, acqEnd);
-                    const availableInPeriod = totalDays - usedInPeriod;
+                    const availableInPeriod = isFullyUsed ? 0 : totalDays - usedInPeriod;
                     const typeLabel = getVacationTypeLabel(currentUserProfile?.position || null);
                     return (
                       <Alert className={availableInPeriod <= 0 ? 'border-destructive' : ''}>
@@ -1017,9 +1139,16 @@ export default function Ferias() {
                         <AlertDescription>
                           <strong>Saldo neste período:</strong> {availableInPeriod} {typeLabel} disponíveis
                           {usedInPeriod > 0 && ` (${usedInPeriod} já utilizados)`}
+                          {currentPeriod?.note && (
+                            <span className="block text-muted-foreground text-xs mt-1">
+                              {currentPeriod.note}
+                            </span>
+                          )}
                           {availableInPeriod <= 0 && (
                             <span className="block text-destructive font-medium mt-1">
-                              Não há saldo disponível neste período. Selecione outro período aquisitivo.
+                              {isFullyUsed 
+                                ? 'Este período já foi totalmente gozado. Selecione outro período aquisitivo.'
+                                : 'Não há saldo disponível neste período. Selecione outro período aquisitivo.'}
                             </span>
                           )}
                         </AlertDescription>
@@ -1181,7 +1310,12 @@ export default function Ferias() {
                           <SelectContent>
                             {selectedUserAcquisitionPeriods.map((period) => (
                               <SelectItem key={period.value} value={period.value}>
-                                {period.label}
+                                <div className="flex flex-col">
+                                  <span>{period.label}</span>
+                                  {period.note && (
+                                    <span className="text-xs text-muted-foreground">{period.totalDays} dias - {period.note}</span>
+                                  )}
+                                </div>
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1191,9 +1325,11 @@ export default function Ferias() {
                     {/* Saldo no período aquisitivo selecionado */}
                     {adminSelectedAcquisitionPeriod && selectedUserProfile && (() => {
                       const [acqStart, acqEnd] = adminSelectedAcquisitionPeriod.split('|');
-                      const totalDays = getTotalVacationDays(selectedUserProfile.position);
+                      const currentPeriod = selectedUserAcquisitionPeriods.find(p => p.value === adminSelectedAcquisitionPeriod);
+                      const isFullyUsed = isPeriodFullyUsed(acqStart, acqEnd, adminSelectedUser);
+                      const totalDays = getTotalDaysForPeriod(currentPeriod, selectedUserProfile.position, adminSelectedUser);
                       const usedInPeriod = calculateUsedDaysInPeriod(selectedUserRequests, acqStart, acqEnd);
-                      const availableInPeriod = totalDays - usedInPeriod;
+                      const availableInPeriod = isFullyUsed ? 0 : totalDays - usedInPeriod;
                       const typeLabel = getVacationTypeLabel(selectedUserProfile.position);
                       return (
                         <Alert className={availableInPeriod <= 0 ? 'border-destructive' : ''}>
@@ -1201,9 +1337,16 @@ export default function Ferias() {
                           <AlertDescription>
                             <strong>Saldo neste período:</strong> {availableInPeriod} {typeLabel} disponíveis
                             {usedInPeriod > 0 && ` (${usedInPeriod} já utilizados)`}
+                            {currentPeriod?.note && (
+                              <span className="block text-muted-foreground text-xs mt-1">
+                                {currentPeriod.note}
+                              </span>
+                            )}
                             {availableInPeriod <= 0 && (
                               <span className="block text-destructive font-medium mt-1">
-                                Não há saldo disponível neste período. Selecione outro período aquisitivo.
+                                {isFullyUsed 
+                                  ? 'Este período já foi totalmente gozado. Selecione outro período aquisitivo.'
+                                  : 'Não há saldo disponível neste período. Selecione outro período aquisitivo.'}
                               </span>
                             )}
                           </AlertDescription>
