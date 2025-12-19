@@ -326,6 +326,7 @@ export default function Ferias() {
   const [currentUserRequests, setCurrentUserRequests] = useState<VacationRequest[]>([]);
   const [selectedUserRequests, setSelectedUserRequests] = useState<VacationRequest[]>([]);
   const [panelFilterUser, setPanelFilterUser] = useState<string>('all');
+  const [solicitationsSubTab, setSolicitationsSubTab] = useState<'requests' | 'planning' | 'daily'>('requests');
 
   // Chart data for vacation distribution by acquisition period
   const vacationChartData = useMemo(() => {
@@ -1448,454 +1449,685 @@ export default function Ferias() {
           </TabsList>
 
           <TabsContent value="solicitations" className="space-y-6 mt-6">
-            {canManageVacations && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Filtrar por Colaborador</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Select value={selectedUser} onValueChange={setSelectedUser}>
-                    <SelectTrigger className="w-full md:w-[300px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os colaboradores</SelectItem>
-                      {profiles.map((profile) => (
-                        <SelectItem key={profile.id} value={profile.id}>
-                          {profile.full_name} {isCLT(profile.position) && '(CLT)'}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </CardContent>
-              </Card>
-            )}
+            {/* Sub-navigation for Solicitations Tab */}
+            {canManageVacations ? (
+              <div className="space-y-4">
+                {/* Quick Navigation Menu */}
+                <div className="flex flex-wrap gap-2 p-2 bg-muted/50 rounded-lg border">
+                  <Button
+                    variant={solicitationsSubTab === 'requests' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setSolicitationsSubTab('requests')}
+                    className="gap-2"
+                  >
+                    <ClipboardList className="h-4 w-4" />
+                    Histórico
+                  </Button>
+                  <Button
+                    variant={solicitationsSubTab === 'planning' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setSolicitationsSubTab('planning')}
+                    className="gap-2"
+                  >
+                    <Users className="h-4 w-4" />
+                    Planejamento
+                  </Button>
+                  <Button
+                    variant={solicitationsSubTab === 'daily' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setSolicitationsSubTab('daily')}
+                    className="gap-2"
+                  >
+                    <CalendarIcon className="h-4 w-4" />
+                    Por Data
+                  </Button>
+                </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Saldo de Férias
-              {vacationPeriod && (
-                <Badge variant="outline" className="font-normal">
-                  Período: {vacationPeriod.periodLabel}
-                </Badge>
-              )}
-            </CardTitle>
-            <CardDescription>
-              {isCLT(displayProfile?.position || null) ? (
-                <>Colaborador CLT - 30 dias corridos por ano</>
-              ) : (
-                <>Colaborador - 20 dias úteis por ano</>
-              )}
-              {displayProfile?.join_date && (
-                <> (ingresso em {format(parseISO(displayProfile.join_date), "dd/MM/yyyy")})</>
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 border rounded-lg">
-                <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-2xl font-bold">{totalDays} {vacationTypeLabel}</p>
-              </div>
-              <div className="p-4 border rounded-lg">
-                <p className="text-sm text-muted-foreground">Utilizados</p>
-                <p className="text-2xl font-bold text-orange-600">{usedDays} {vacationTypeLabel}</p>
-              </div>
-              <div className="p-4 border rounded-lg">
-                <p className="text-sm text-muted-foreground">Disponíveis</p>
-                <p className="text-2xl font-bold text-green-600">{availableDays} {vacationTypeLabel}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                {/* Requests Sub-Tab */}
+                {solicitationsSubTab === 'requests' && (
+                  <>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Filtrar por Colaborador</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <Select value={selectedUser} onValueChange={setSelectedUser}>
+                          <SelectTrigger className="w-full md:w-[300px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todos os colaboradores</SelectItem>
+                            {profiles.map((profile) => (
+                              <SelectItem key={profile.id} value={profile.id}>
+                                {profile.full_name} {isCLT(profile.position) && '(CLT)'}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </CardContent>
+                    </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Histórico de Solicitações</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="all">
-              <TabsList>
-                <TabsTrigger value="all">Todas</TabsTrigger>
-                <TabsTrigger value="pending">Pendentes</TabsTrigger>
-                <TabsTrigger value="approved">Aprovadas</TabsTrigger>
-                <TabsTrigger value="rejected">Rejeitadas</TabsTrigger>
-              </TabsList>
-              
-              {['all', 'pending', 'approved', 'rejected'].map((tab) => (
-                <TabsContent key={tab} value={tab} className="space-y-4">
-                  {requests
-                    .filter((req) => tab === 'all' || req.status === tab)
-                    .map((request) => (
-                      <Card key={request.id}>
-                        <CardContent className="pt-6">
-                          <div className="flex items-start justify-between">
-                            <div className="space-y-2 flex-1">
-                              {canManageVacations && (
-                                <div className="flex items-center gap-2">
-                                  <User className="h-4 w-4 text-muted-foreground" />
-                                  <span className="font-medium">{request.profiles.full_name}</span>
-                                  {isCLT(request.profiles.position) && (
-                                    <Badge variant="secondary" className="text-xs">CLT</Badge>
-                                  )}
-                                </div>
-                              )}
-                              <div className="flex items-center gap-4 text-sm">
-                                <span>
-                                  {format(parseISO(request.start_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                                </span>
-                                <span>→</span>
-                                <span>
-                                  {format(parseISO(request.end_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                                </span>
-                                <span className="text-muted-foreground">
-                                  ({request.business_days} {isCLT(request.profiles.position) ? 'dias corridos' : 'dias úteis'})
-                                </span>
-                              </div>
-                              {request.notes && (
-                                <p className="text-sm text-muted-foreground mt-2">{request.notes}</p>
-                              )}
-                              {request.rejection_reason && (
-                                <p className="text-sm text-destructive mt-2">
-                                  Motivo: {request.rejection_reason}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          Saldo de Férias
+                          {vacationPeriod && (
+                            <Badge variant="outline" className="font-normal">
+                              Período: {vacationPeriod.periodLabel}
+                            </Badge>
+                          )}
+                        </CardTitle>
+                        <CardDescription>
+                          {isCLT(displayProfile?.position || null) ? (
+                            <>Colaborador CLT - 30 dias corridos por ano</>
+                          ) : (
+                            <>Colaborador - 20 dias úteis por ano</>
+                          )}
+                          {displayProfile?.join_date && (
+                            <> (ingresso em {format(parseISO(displayProfile.join_date), "dd/MM/yyyy")})</>
+                          )}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="p-4 border rounded-lg">
+                            <p className="text-sm text-muted-foreground">Total</p>
+                            <p className="text-2xl font-bold">{totalDays} {vacationTypeLabel}</p>
+                          </div>
+                          <div className="p-4 border rounded-lg">
+                            <p className="text-sm text-muted-foreground">Utilizados</p>
+                            <p className="text-2xl font-bold text-orange-600">{usedDays} {vacationTypeLabel}</p>
+                          </div>
+                          <div className="p-4 border rounded-lg">
+                            <p className="text-sm text-muted-foreground">Disponíveis</p>
+                            <p className="text-2xl font-bold text-green-600">{availableDays} {vacationTypeLabel}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Histórico de Solicitações</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <Tabs defaultValue="all">
+                          <TabsList>
+                            <TabsTrigger value="all">Todas</TabsTrigger>
+                            <TabsTrigger value="pending">Pendentes</TabsTrigger>
+                            <TabsTrigger value="approved">Aprovadas</TabsTrigger>
+                            <TabsTrigger value="rejected">Rejeitadas</TabsTrigger>
+                          </TabsList>
+                          
+                          {['all', 'pending', 'approved', 'rejected'].map((tab) => (
+                            <TabsContent key={tab} value={tab} className="space-y-4">
+                              {requests
+                                .filter((req) => tab === 'all' || req.status === tab)
+                                .map((request) => (
+                                  <Card key={request.id}>
+                                    <CardContent className="pt-6">
+                                      <div className="flex items-start justify-between">
+                                        <div className="space-y-2 flex-1">
+                                          <div className="flex items-center gap-2">
+                                            <User className="h-4 w-4 text-muted-foreground" />
+                                            <span className="font-medium">{request.profiles.full_name}</span>
+                                            {isCLT(request.profiles.position) && (
+                                              <Badge variant="secondary" className="text-xs">CLT</Badge>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-4 text-sm">
+                                            <span>
+                                              {format(parseISO(request.start_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                                            </span>
+                                            <span>→</span>
+                                            <span>
+                                              {format(parseISO(request.end_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                                            </span>
+                                            <span className="text-muted-foreground">
+                                              ({request.business_days} {isCLT(request.profiles.position) ? 'dias corridos' : 'dias úteis'})
+                                            </span>
+                                          </div>
+                                          {request.notes && (
+                                            <p className="text-sm text-muted-foreground mt-2">{request.notes}</p>
+                                          )}
+                                          {request.rejection_reason && (
+                                            <p className="text-sm text-destructive mt-2">
+                                              Motivo: {request.rejection_reason}
+                                            </p>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          {getStatusBadge(request.status)}
+                                          {request.status === 'pending' && (
+                                            <div className="flex gap-2">
+                                              <Button
+                                                size="sm"
+                                                onClick={() => handleApprove(request.id)}
+                                              >
+                                                Aprovar
+                                              </Button>
+                                              <Dialog>
+                                                <DialogTrigger asChild>
+                                                  <Button size="sm" variant="outline">
+                                                    Rejeitar
+                                                  </Button>
+                                                </DialogTrigger>
+                                                <DialogContent>
+                                                  <DialogHeader>
+                                                    <DialogTitle>Rejeitar Solicitação</DialogTitle>
+                                                    <DialogDescription>
+                                                      Informe o motivo da rejeição
+                                                    </DialogDescription>
+                                                  </DialogHeader>
+                                                  <div className="space-y-4">
+                                                    <Textarea
+                                                      id={`reason-${request.id}`}
+                                                      placeholder="Motivo da rejeição"
+                                                      rows={3}
+                                                    />
+                                                    <Button
+                                                      onClick={() => {
+                                                        const reason = (document.getElementById(`reason-${request.id}`) as HTMLTextAreaElement)?.value;
+                                                        if (reason) {
+                                                          handleReject(request.id, reason);
+                                                        }
+                                                      }}
+                                                      className="w-full"
+                                                    >
+                                                      Confirmar Rejeição
+                                                    </Button>
+                                                  </div>
+                                                </DialogContent>
+                                              </Dialog>
+                                            </div>
+                                          )}
+                                          <div className="flex gap-1">
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() => openEditDialog(request)}
+                                              title="Editar"
+                                            >
+                                              <Pencil className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              className="text-destructive hover:text-destructive"
+                                              onClick={() => handleDelete(request.id)}
+                                              title="Excluir"
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                ))}
+                              {requests.filter((req) => tab === 'all' || req.status === tab).length === 0 && (
+                                <p className="text-center text-muted-foreground py-8">
+                                  Nenhuma solicitação encontrada
                                 </p>
                               )}
+                            </TabsContent>
+                          ))}
+                        </Tabs>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
+
+                {/* Planning Sub-Tab */}
+                {solicitationsSubTab === 'planning' && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Users className="h-5 w-5" />
+                        Relatório de Férias - Planejamento da Equipe
+                      </CardTitle>
+                      <CardDescription>
+                        Visualize quem estará de férias em determinado período
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {/* Period Selection */}
+                      <div className="flex flex-wrap gap-4 items-end">
+                        <div>
+                          <Label>Data Inicial</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-[200px] justify-start text-left font-normal",
+                                  !reportStartDate && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {reportStartDate ? format(reportStartDate, 'dd/MM/yyyy') : 'Selecione'}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={reportStartDate}
+                                onSelect={(date) => date && setReportStartDate(date)}
+                                initialFocus
+                                className="pointer-events-auto"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div>
+                          <Label>Data Final</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-[200px] justify-start text-left font-normal",
+                                  !reportEndDate && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {reportEndDate ? format(reportEndDate, 'dd/MM/yyyy') : 'Selecione'}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={reportEndDate}
+                                onSelect={(date) => date && setReportEndDate(date)}
+                                initialFocus
+                                className="pointer-events-auto"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              setReportStartDate(startOfMonth(new Date()));
+                              setReportEndDate(endOfMonth(new Date()));
+                            }}
+                          >
+                            Este mês
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              setReportStartDate(startOfMonth(addMonths(new Date(), 1)));
+                              setReportEndDate(endOfMonth(addMonths(new Date(), 1)));
+                            }}
+                          >
+                            Próximo mês
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              setReportStartDate(startOfMonth(new Date()));
+                              setReportEndDate(endOfMonth(addMonths(new Date(), 2)));
+                            }}
+                          >
+                            Próx. 3 meses
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Summary Stats */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Card>
+                          <CardContent className="pt-4">
+                            <div className="text-center">
+                              <p className="text-sm text-muted-foreground">Período</p>
+                              <p className="text-lg font-semibold">
+                                {format(reportStartDate, 'dd/MM')} - {format(reportEndDate, 'dd/MM/yyyy')}
+                              </p>
                             </div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {getStatusBadge(request.status)}
-                              {canManageVacations && request.status === 'pending' && (
-                                <div className="flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleApprove(request.id)}
-                                  >
-                                    Aprovar
-                                  </Button>
-                                  <Dialog>
-                                    <DialogTrigger asChild>
-                                      <Button size="sm" variant="outline">
-                                        Rejeitar
-                                      </Button>
-                                    </DialogTrigger>
-                                    <DialogContent>
-                                      <DialogHeader>
-                                        <DialogTitle>Rejeitar Solicitação</DialogTitle>
-                                        <DialogDescription>
-                                          Informe o motivo da rejeição
-                                        </DialogDescription>
-                                      </DialogHeader>
-                                      <div className="space-y-4">
-                                        <Textarea
-                                          id={`reason-${request.id}`}
-                                          placeholder="Motivo da rejeição"
-                                          rows={3}
-                                        />
-                                        <Button
-                                          onClick={() => {
-                                            const reason = (document.getElementById(`reason-${request.id}`) as HTMLTextAreaElement)?.value;
-                                            if (reason) {
-                                              handleReject(request.id, reason);
-                                            }
-                                          }}
-                                          className="w-full"
-                                        >
-                                          Confirmar Rejeição
-                                        </Button>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                          <CardContent className="pt-4">
+                            <div className="text-center">
+                              <p className="text-sm text-muted-foreground">Férias no período</p>
+                              <p className="text-2xl font-bold">{getVacationsInPeriod().length}</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                          <CardContent className="pt-4">
+                            <div className="text-center">
+                              <p className="text-sm text-muted-foreground">De férias hoje</p>
+                              <p className="text-2xl font-bold text-primary">{getPeopleOnVacation(new Date()).length}</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      {/* Vacation List for Period */}
+                      <div>
+                        <h4 className="font-semibold mb-3">Férias Aprovadas no Período</h4>
+                        {getVacationsInPeriod().length === 0 ? (
+                          <p className="text-muted-foreground text-center py-4">
+                            Nenhuma férias aprovada para este período
+                          </p>
+                        ) : (
+                          <ScrollArea className="h-[400px]">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Colaborador</TableHead>
+                                  <TableHead>Início</TableHead>
+                                  <TableHead>Fim</TableHead>
+                                  <TableHead>Duração</TableHead>
+                                  <TableHead>Tipo</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {getVacationsInPeriod().map((request) => {
+                                  const isOnVacationNow = isWithinInterval(new Date(), { 
+                                    start: parseISO(request.start_date), 
+                                    end: parseISO(request.end_date) 
+                                  });
+                                  return (
+                                    <TableRow key={request.id} className={cn(isOnVacationNow && "bg-primary/5")}>
+                                      <TableCell>
+                                        <div className="flex items-center gap-2">
+                                          <Avatar className="h-8 w-8">
+                                            <AvatarImage src={request.profiles.avatar_url || ''} />
+                                            <AvatarFallback>
+                                              {request.profiles.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                                            </AvatarFallback>
+                                          </Avatar>
+                                          <div>
+                                            <p className="font-medium">{request.profiles.full_name}</p>
+                                            {isOnVacationNow && (
+                                              <Badge variant="default" className="text-xs">De férias agora</Badge>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>
+                                        {format(parseISO(request.start_date), 'dd/MM/yyyy')}
+                                      </TableCell>
+                                      <TableCell>
+                                        {format(parseISO(request.end_date), 'dd/MM/yyyy')}
+                                      </TableCell>
+                                      <TableCell>
+                                        {request.business_days} {request.profiles.position === 'administrativo' ? 'dias' : 'dias úteis'}
+                                      </TableCell>
+                                      <TableCell>
+                                        <Badge variant={request.profiles.position === 'administrativo' ? 'secondary' : 'outline'}>
+                                          {request.profiles.position === 'administrativo' ? 'CLT' : 'Padrão'}
+                                        </Badge>
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </TableBody>
+                            </Table>
+                          </ScrollArea>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Daily View Sub-Tab */}
+                {solicitationsSubTab === 'daily' && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <CalendarIcon className="h-5 w-5" />
+                        Visualização por Data
+                      </CardTitle>
+                      <CardDescription>
+                        Veja quem está de férias em cada dia do período selecionado
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Period Selection for Daily View */}
+                      <div className="flex flex-wrap gap-4 items-end">
+                        <div>
+                          <Label>Data Inicial</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-[200px] justify-start text-left font-normal",
+                                  !reportStartDate && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {reportStartDate ? format(reportStartDate, 'dd/MM/yyyy') : 'Selecione'}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={reportStartDate}
+                                onSelect={(date) => date && setReportStartDate(date)}
+                                initialFocus
+                                className="pointer-events-auto"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div>
+                          <Label>Data Final</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-[200px] justify-start text-left font-normal",
+                                  !reportEndDate && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {reportEndDate ? format(reportEndDate, 'dd/MM/yyyy') : 'Selecione'}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={reportEndDate}
+                                onSelect={(date) => date && setReportEndDate(date)}
+                                initialFocus
+                                className="pointer-events-auto"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              setReportStartDate(startOfMonth(new Date()));
+                              setReportEndDate(endOfMonth(new Date()));
+                            }}
+                          >
+                            Este mês
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              setReportStartDate(startOfMonth(addMonths(new Date(), 1)));
+                              setReportEndDate(endOfMonth(addMonths(new Date(), 1)));
+                            }}
+                          >
+                            Próximo mês
+                          </Button>
+                        </div>
+                      </div>
+
+                      {getVacationsInPeriod().length === 0 ? (
+                        <p className="text-muted-foreground text-center py-8">
+                          Nenhuma férias aprovada para este período
+                        </p>
+                      ) : (
+                        <ScrollArea className="h-[500px]">
+                          <div className="space-y-2">
+                            {getReportDays().map((day) => {
+                              const peopleOnVacation = getPeopleOnVacation(day);
+                              if (peopleOnVacation.length === 0) return null;
+                              
+                              const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+                              const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                              
+                              return (
+                                <div 
+                                  key={day.toISOString()} 
+                                  className={cn(
+                                    "flex items-start gap-4 p-3 rounded-lg border",
+                                    isToday && "bg-primary/10 border-primary",
+                                    isWeekend && "bg-muted/50"
+                                  )}
+                                >
+                                  <div className="min-w-[120px]">
+                                    <p className={cn("font-medium", isToday && "text-primary")}>
+                                      {format(day, 'EEEE', { locale: ptBR })}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                      {format(day, 'dd/MM/yyyy')}
+                                    </p>
+                                    {isToday && <Badge className="mt-1">Hoje</Badge>}
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {peopleOnVacation.map((request) => (
+                                      <div key={request.id} className="flex items-center gap-1 bg-background px-2 py-1 rounded-md border">
+                                        <Avatar className="h-5 w-5">
+                                          <AvatarImage src={request.profiles.avatar_url || ''} />
+                                          <AvatarFallback className="text-[10px]">
+                                            {request.profiles.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                        <span className="text-sm">{request.profiles.full_name}</span>
                                       </div>
-                                    </DialogContent>
-                                  </Dialog>
-                                </div>
-                              )}
-                              {canManageVacations && (
-                                <div className="flex gap-1">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => openEditDialog(request)}
-                                    title="Editar"
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="text-destructive hover:text-destructive"
-                                    onClick={() => handleDelete(request.id)}
-                                    title="Excluir"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  {requests.filter((req) => tab === 'all' || req.status === tab).length === 0 && (
-                    <p className="text-center text-muted-foreground py-8">
-                      Nenhuma solicitação encontrada
-                    </p>
-                  )}
-                </TabsContent>
-              ))}
-            </Tabs>
-          </CardContent>
-        </Card>
-
-
-        {/* Planning Report Section - Only for admins */}
-        {canManageVacations && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Relatório de Férias - Planejamento da Equipe
-              </CardTitle>
-              <CardDescription>
-                Visualize quem estará de férias em determinado período
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Period Selection */}
-              <div className="flex flex-wrap gap-4 items-end">
-                <div>
-                  <Label>Data Inicial</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-[200px] justify-start text-left font-normal",
-                          !reportStartDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {reportStartDate ? format(reportStartDate, 'dd/MM/yyyy') : 'Selecione'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={reportStartDate}
-                        onSelect={(date) => date && setReportStartDate(date)}
-                        initialFocus
-                        className="pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div>
-                  <Label>Data Final</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-[200px] justify-start text-left font-normal",
-                          !reportEndDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {reportEndDate ? format(reportEndDate, 'dd/MM/yyyy') : 'Selecione'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={reportEndDate}
-                        onSelect={(date) => date && setReportEndDate(date)}
-                        initialFocus
-                        className="pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      setReportStartDate(startOfMonth(new Date()));
-                      setReportEndDate(endOfMonth(new Date()));
-                    }}
-                  >
-                    Este mês
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      setReportStartDate(startOfMonth(addMonths(new Date(), 1)));
-                      setReportEndDate(endOfMonth(addMonths(new Date(), 1)));
-                    }}
-                  >
-                    Próximo mês
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      setReportStartDate(startOfMonth(new Date()));
-                      setReportEndDate(endOfMonth(addMonths(new Date(), 2)));
-                    }}
-                  >
-                    Próx. 3 meses
-                  </Button>
-                </div>
-              </div>
-
-              {/* Summary Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground">Período</p>
-                      <p className="text-lg font-semibold">
-                        {format(reportStartDate, 'dd/MM')} - {format(reportEndDate, 'dd/MM/yyyy')}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground">Férias no período</p>
-                      <p className="text-2xl font-bold">{getVacationsInPeriod().length}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4">
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground">De férias hoje</p>
-                      <p className="text-2xl font-bold text-primary">{getPeopleOnVacation(new Date()).length}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Vacation List for Period */}
-              <div>
-                <h4 className="font-semibold mb-3">Férias Aprovadas no Período</h4>
-                {getVacationsInPeriod().length === 0 ? (
-                  <p className="text-muted-foreground text-center py-4">
-                    Nenhuma férias aprovada para este período
-                  </p>
-                ) : (
-                  <ScrollArea className="h-[400px]">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Colaborador</TableHead>
-                          <TableHead>Início</TableHead>
-                          <TableHead>Fim</TableHead>
-                          <TableHead>Duração</TableHead>
-                          <TableHead>Tipo</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {getVacationsInPeriod().map((request) => {
-                          const isOnVacationNow = isWithinInterval(new Date(), { 
-                            start: parseISO(request.start_date), 
-                            end: parseISO(request.end_date) 
-                          });
-                          return (
-                            <TableRow key={request.id} className={cn(isOnVacationNow && "bg-primary/5")}>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="h-8 w-8">
-                                    <AvatarImage src={request.profiles.avatar_url || ''} />
-                                    <AvatarFallback>
-                                      {request.profiles.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div>
-                                    <p className="font-medium">{request.profiles.full_name}</p>
-                                    {isOnVacationNow && (
-                                      <Badge variant="default" className="text-xs">De férias agora</Badge>
-                                    )}
+                                    ))}
                                   </div>
                                 </div>
-                              </TableCell>
-                              <TableCell>
-                                {format(parseISO(request.start_date), 'dd/MM/yyyy')}
-                              </TableCell>
-                              <TableCell>
-                                {format(parseISO(request.end_date), 'dd/MM/yyyy')}
-                              </TableCell>
-                              <TableCell>
-                                {request.business_days} {request.profiles.position === 'administrativo' ? 'dias' : 'dias úteis'}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={request.profiles.position === 'administrativo' ? 'secondary' : 'outline'}>
-                                  {request.profiles.position === 'administrativo' ? 'CLT' : 'Padrão'}
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </ScrollArea>
+                              );
+                            })}
+                          </div>
+                        </ScrollArea>
+                      )}
+                    </CardContent>
+                  </Card>
                 )}
               </div>
-
-              {/* Daily View */}
-              {getVacationsInPeriod().length > 0 && (
-                <div>
-                  <h4 className="font-semibold mb-3">Visualização por Data</h4>
-                  <ScrollArea className="h-[300px]">
-                    <div className="space-y-2">
-                      {getReportDays().map((day) => {
-                        const peopleOnVacation = getPeopleOnVacation(day);
-                        if (peopleOnVacation.length === 0) return null;
-                        
-                        const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-                        const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                        
-                        return (
-                          <div 
-                            key={day.toISOString()} 
-                            className={cn(
-                              "flex items-start gap-4 p-3 rounded-lg border",
-                              isToday && "bg-primary/10 border-primary",
-                              isWeekend && "bg-muted/50"
-                            )}
-                          >
-                            <div className="min-w-[120px]">
-                              <p className={cn("font-medium", isToday && "text-primary")}>
-                                {format(day, 'EEEE', { locale: ptBR })}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                {format(day, 'dd/MM/yyyy')}
-                              </p>
-                              {isToday && <Badge className="mt-1">Hoje</Badge>}
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {peopleOnVacation.map((request) => (
-                                <div key={request.id} className="flex items-center gap-1 bg-background px-2 py-1 rounded-md border">
-                                  <Avatar className="h-5 w-5">
-                                    <AvatarImage src={request.profiles.avatar_url || ''} />
-                                    <AvatarFallback className="text-[10px]">
-                                      {request.profiles.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <span className="text-sm">{request.profiles.full_name}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
+            ) : (
+              /* Non-admin user view - simpler layout */
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      Saldo de Férias
+                      {vacationPeriod && (
+                        <Badge variant="outline" className="font-normal">
+                          Período: {vacationPeriod.periodLabel}
+                        </Badge>
+                      )}
+                    </CardTitle>
+                    <CardDescription>
+                      {isCLT(displayProfile?.position || null) ? (
+                        <>Colaborador CLT - 30 dias corridos por ano</>
+                      ) : (
+                        <>Colaborador - 20 dias úteis por ano</>
+                      )}
+                      {displayProfile?.join_date && (
+                        <> (ingresso em {format(parseISO(displayProfile.join_date), "dd/MM/yyyy")})</>
+                      )}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="p-4 border rounded-lg">
+                        <p className="text-sm text-muted-foreground">Total</p>
+                        <p className="text-2xl font-bold">{totalDays} {vacationTypeLabel}</p>
+                      </div>
+                      <div className="p-4 border rounded-lg">
+                        <p className="text-sm text-muted-foreground">Utilizados</p>
+                        <p className="text-2xl font-bold text-orange-600">{usedDays} {vacationTypeLabel}</p>
+                      </div>
+                      <div className="p-4 border rounded-lg">
+                        <p className="text-sm text-muted-foreground">Disponíveis</p>
+                        <p className="text-2xl font-bold text-green-600">{availableDays} {vacationTypeLabel}</p>
+                      </div>
                     </div>
-                  </ScrollArea>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Histórico de Solicitações</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Tabs defaultValue="all">
+                      <TabsList>
+                        <TabsTrigger value="all">Todas</TabsTrigger>
+                        <TabsTrigger value="pending">Pendentes</TabsTrigger>
+                        <TabsTrigger value="approved">Aprovadas</TabsTrigger>
+                        <TabsTrigger value="rejected">Rejeitadas</TabsTrigger>
+                      </TabsList>
+                      
+                      {['all', 'pending', 'approved', 'rejected'].map((tab) => (
+                        <TabsContent key={tab} value={tab} className="space-y-4">
+                          {requests
+                            .filter((req) => tab === 'all' || req.status === tab)
+                            .map((request) => (
+                              <Card key={request.id}>
+                                <CardContent className="pt-6">
+                                  <div className="flex items-start justify-between">
+                                    <div className="space-y-2 flex-1">
+                                      <div className="flex items-center gap-4 text-sm">
+                                        <span>
+                                          {format(parseISO(request.start_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                                        </span>
+                                        <span>→</span>
+                                        <span>
+                                          {format(parseISO(request.end_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                                        </span>
+                                        <span className="text-muted-foreground">
+                                          ({request.business_days} {isCLT(request.profiles.position) ? 'dias corridos' : 'dias úteis'})
+                                        </span>
+                                      </div>
+                                      {request.notes && (
+                                        <p className="text-sm text-muted-foreground mt-2">{request.notes}</p>
+                                      )}
+                                      {request.rejection_reason && (
+                                        <p className="text-sm text-destructive mt-2">
+                                          Motivo: {request.rejection_reason}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {getStatusBadge(request.status)}
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          {requests.filter((req) => tab === 'all' || req.status === tab).length === 0 && (
+                            <p className="text-center text-muted-foreground py-8">
+                              Nenhuma solicitação encontrada
+                            </p>
+                          )}
+                        </TabsContent>
+                      ))}
+                    </Tabs>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </TabsContent>
 
           {/* Panel Tab - Grouped by Employee - Only for admins */}
