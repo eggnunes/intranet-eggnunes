@@ -166,6 +166,29 @@ const generateAcquisitionPeriods = (joinDate: string | null): AcquisitionPeriod[
   return periods;
 };
 
+// Calculate used days in a specific acquisition period
+const calculateUsedDaysInPeriod = (
+  requests: Array<{
+    id: string;
+    status: string;
+    acquisition_period_start: string | null;
+    acquisition_period_end: string | null;
+    business_days: number;
+  }>,
+  periodStart: string,
+  periodEnd: string,
+  excludeRequestId?: string
+): number => {
+  return requests
+    .filter(req => 
+      req.status === 'approved' &&
+      req.acquisition_period_start === periodStart &&
+      req.acquisition_period_end === periodEnd &&
+      req.id !== excludeRequestId
+    )
+    .reduce((sum, req) => sum + (req.business_days || 0), 0);
+};
+
 export default function Ferias() {
   const { user } = useAuth();
   const { isAdmin, profile: userProfile } = useUserRole();
@@ -210,6 +233,8 @@ export default function Ferias() {
   const [balanceUserData, setBalanceUserData] = useState<{ total: number; used: number; available: number } | null>(null);
   const [balanceSelectedPeriod, setBalanceSelectedPeriod] = useState<string>('all');
   const [balanceUserAcquisitionPeriods, setBalanceUserAcquisitionPeriods] = useState<AcquisitionPeriod[]>([]);
+  const [currentUserRequests, setCurrentUserRequests] = useState<VacationRequest[]>([]);
+  const [selectedUserRequests, setSelectedUserRequests] = useState<VacationRequest[]>([]);
 
   // Chart data for vacation distribution by acquisition period
   const vacationChartData = useMemo(() => {
@@ -248,6 +273,7 @@ export default function Ferias() {
     if (user) {
       fetchData();
       fetchCurrentUserProfile();
+      fetchCurrentUserRequests();
       if (canManageVacations) {
         fetchProfiles();
         fetchAllApprovedRequests();
@@ -256,7 +282,20 @@ export default function Ferias() {
     }
   }, [user, canManageVacations, selectedUser]);
 
-  // Update selected user profile when admin selects a user for creating vacation
+  // Fetch current user's vacation requests for balance calculation
+  const fetchCurrentUserRequests = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('vacation_requests')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('status', 'approved');
+    if (data) {
+      setCurrentUserRequests(data as any);
+    }
+  };
+
+  // Update selected user profile and fetch their requests when admin selects a user for creating vacation
   useEffect(() => {
     if (adminSelectedUser) {
       const profile = profiles.find(p => p.id === adminSelectedUser);
@@ -268,11 +307,26 @@ export default function Ferias() {
       }
       // Reset acquisition period selection when user changes
       setAdminSelectedAcquisitionPeriod('');
+      // Fetch selected user's vacation requests
+      fetchSelectedUserRequests(adminSelectedUser);
     } else {
       setSelectedUserProfile(null);
       setAdminSelectedAcquisitionPeriod('');
+      setSelectedUserRequests([]);
     }
   }, [adminSelectedUser, profiles]);
+
+  // Fetch selected user's vacation requests for balance calculation
+  const fetchSelectedUserRequests = async (userId: string) => {
+    const { data } = await supabase
+      .from('vacation_requests')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'approved');
+    if (data) {
+      setSelectedUserRequests(data as any);
+    }
+  };
 
   // Update filtered user profile when admin filters by a specific user
   useEffect(() => {
@@ -540,19 +594,21 @@ export default function Ferias() {
 
     const days = calculateDays(startDate, endDate, currentUserProfile?.position || null);
     const totalDays = getTotalVacationDays(currentUserProfile?.position || null);
-    const usedDays = balance?.used_days ?? 0;
-    const availableDays = totalDays - usedDays;
+    const [acqStart, acqEnd] = selectedAcquisitionPeriod.split('|');
+    
+    // Calculate used days in the selected acquisition period
+    const usedDaysInPeriod = calculateUsedDaysInPeriod(currentUserRequests, acqStart, acqEnd);
+    const availableDaysInPeriod = totalDays - usedDaysInPeriod;
+    const vacationTypeLabel = getVacationTypeLabel(currentUserProfile?.position || null);
 
-    if (days > availableDays) {
+    if (days > availableDaysInPeriod) {
       toast({
-        title: 'Saldo insuficiente',
-        description: `Você tem apenas ${availableDays} ${getVacationTypeLabel(currentUserProfile?.position || null)} disponíveis`,
+        title: 'Saldo insuficiente no período aquisitivo',
+        description: `Você tem apenas ${availableDaysInPeriod} ${vacationTypeLabel} disponíveis neste período aquisitivo. Já foram utilizados ${usedDaysInPeriod} ${vacationTypeLabel}.`,
         variant: 'destructive',
       });
       return;
     }
-
-    const [acqStart, acqEnd] = selectedAcquisitionPeriod.split('|');
 
     const { error } = await supabase
       .from('vacation_requests')
@@ -588,6 +644,7 @@ export default function Ferias() {
     setSelectedAcquisitionPeriod('');
     setSoldDays(0);
     fetchData();
+    fetchCurrentUserRequests();
   };
 
   const handleAdminCreate = async () => {
@@ -611,6 +668,21 @@ export default function Ferias() {
 
     const days = calculateDays(startDate, endDate, selectedUserProfile?.position || null);
     const [acqStart, acqEnd] = adminSelectedAcquisitionPeriod.split('|');
+    const totalDays = getTotalVacationDays(selectedUserProfile?.position || null);
+    
+    // Calculate used days in the selected acquisition period for the selected user
+    const usedDaysInPeriod = calculateUsedDaysInPeriod(selectedUserRequests, acqStart, acqEnd);
+    const availableDaysInPeriod = totalDays - usedDaysInPeriod;
+    const vacationTypeLabel = getVacationTypeLabel(selectedUserProfile?.position || null);
+
+    if (days > availableDaysInPeriod) {
+      toast({
+        title: 'Saldo insuficiente no período aquisitivo',
+        description: `Este colaborador tem apenas ${availableDaysInPeriod} ${vacationTypeLabel} disponíveis neste período aquisitivo. Já foram utilizados ${usedDaysInPeriod} ${vacationTypeLabel}.`,
+        variant: 'destructive',
+      });
+      return;
+    }
 
     const { error } = await supabase
       .from('vacation_requests')
@@ -650,6 +722,7 @@ export default function Ferias() {
     setAdminSelectedAcquisitionPeriod('');
     setSoldDays(0);
     fetchData();
+    fetchSelectedUserRequests(adminSelectedUser);
   };
 
   const handleApprove = async (requestId: string) => {
@@ -904,9 +977,6 @@ export default function Ferias() {
                       <p className="text-sm font-medium">
                         {previewTypeLabel === 'dias corridos' ? 'Dias corridos' : 'Dias úteis'}: {previewDays}
                       </p>
-                      <p className="text-sm text-muted-foreground">
-                        Saldo disponível: {availableDays} {vacationTypeLabel}
-                      </p>
                     </div>
                   )}
                   {/* Período Aquisitivo */}
@@ -934,6 +1004,28 @@ export default function Ferias() {
                       </Select>
                     )}
                   </div>
+                  {/* Saldo no período aquisitivo selecionado */}
+                  {selectedAcquisitionPeriod && (() => {
+                    const [acqStart, acqEnd] = selectedAcquisitionPeriod.split('|');
+                    const totalDays = getTotalVacationDays(currentUserProfile?.position || null);
+                    const usedInPeriod = calculateUsedDaysInPeriod(currentUserRequests, acqStart, acqEnd);
+                    const availableInPeriod = totalDays - usedInPeriod;
+                    const typeLabel = getVacationTypeLabel(currentUserProfile?.position || null);
+                    return (
+                      <Alert className={availableInPeriod <= 0 ? 'border-destructive' : ''}>
+                        <Wallet className="h-4 w-4" />
+                        <AlertDescription>
+                          <strong>Saldo neste período:</strong> {availableInPeriod} {typeLabel} disponíveis
+                          {usedInPeriod > 0 && ` (${usedInPeriod} já utilizados)`}
+                          {availableInPeriod <= 0 && (
+                            <span className="block text-destructive font-medium mt-1">
+                              Não há saldo disponível neste período. Selecione outro período aquisitivo.
+                            </span>
+                          )}
+                        </AlertDescription>
+                      </Alert>
+                    );
+                  })()}
                   {/* Dias Vendidos */}
                   <div>
                     <Label className="flex items-center gap-2">
@@ -1096,6 +1188,28 @@ export default function Ferias() {
                         </Select>
                       )}
                     </div>
+                    {/* Saldo no período aquisitivo selecionado */}
+                    {adminSelectedAcquisitionPeriod && selectedUserProfile && (() => {
+                      const [acqStart, acqEnd] = adminSelectedAcquisitionPeriod.split('|');
+                      const totalDays = getTotalVacationDays(selectedUserProfile.position);
+                      const usedInPeriod = calculateUsedDaysInPeriod(selectedUserRequests, acqStart, acqEnd);
+                      const availableInPeriod = totalDays - usedInPeriod;
+                      const typeLabel = getVacationTypeLabel(selectedUserProfile.position);
+                      return (
+                        <Alert className={availableInPeriod <= 0 ? 'border-destructive' : ''}>
+                          <Wallet className="h-4 w-4" />
+                          <AlertDescription>
+                            <strong>Saldo neste período:</strong> {availableInPeriod} {typeLabel} disponíveis
+                            {usedInPeriod > 0 && ` (${usedInPeriod} já utilizados)`}
+                            {availableInPeriod <= 0 && (
+                              <span className="block text-destructive font-medium mt-1">
+                                Não há saldo disponível neste período. Selecione outro período aquisitivo.
+                              </span>
+                            )}
+                          </AlertDescription>
+                        </Alert>
+                      );
+                    })()}
                     {/* Dias Vendidos */}
                     <div>
                       <Label className="flex items-center gap-2">
