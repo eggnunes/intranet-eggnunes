@@ -347,11 +347,24 @@ export default function Ferias() {
         usedInPeriod = specialPeriod.totalDays;
       } else {
         // Calculate from actual requests
+        // Compare dates with tolerance (30/09 vs 01/10 of next year are the same period end)
         usedInPeriod = balanceUserAllRequests
-          .filter(req => 
-            req.acquisition_period_start === periodStart &&
-            req.acquisition_period_end === periodEnd
-          )
+          .filter(req => {
+            if (!req.acquisition_period_start || !req.acquisition_period_end) return false;
+            
+            // Check if start dates match
+            const startMatch = req.acquisition_period_start === periodStart;
+            if (!startMatch) return false;
+            
+            // Check if end dates match (with 1 day tolerance for 30/09 vs 01/10)
+            if (req.acquisition_period_end === periodEnd) return true;
+            
+            // Handle the case where DB has 30/09 and generator uses 01/10
+            const reqEnd = parseISO(req.acquisition_period_end);
+            const periodEndDate = parseISO(periodEnd);
+            const daysDiff = Math.abs(differenceInCalendarDays(reqEnd, periodEndDate));
+            return daysDiff <= 1;
+          })
           .reduce((sum, req) => sum + (req.business_days || 0), 0);
       }
       
@@ -2055,7 +2068,7 @@ export default function Ferias() {
                                                 )}
                                               </TableCell>
                                               <TableCell>
-                                                {request.sold_days && request.sold_days > 0 ? (
+                                                {request.sold_days !== null && request.sold_days !== undefined && request.sold_days > 0 ? (
                                                   <Badge variant="secondary" className="flex items-center gap-1 w-fit">
                                                     <DollarSign className="h-3 w-3" />
                                                     {request.sold_days}
@@ -2373,7 +2386,7 @@ export default function Ferias() {
                                                     Período aquisitivo: {format(parseISO(request.acquisition_period_start), 'dd/MM/yyyy')} - {format(parseISO(request.acquisition_period_end), 'dd/MM/yyyy')}
                                                   </span>
                                                 )}
-                                                {request.sold_days && request.sold_days > 0 && (
+                                                {request.sold_days !== null && request.sold_days !== undefined && request.sold_days > 0 && (
                                                   <Badge variant="secondary" className="gap-1">
                                                     <DollarSign className="h-3 w-3" />
                                                     {request.sold_days} vendidos
@@ -2436,7 +2449,7 @@ export default function Ferias() {
                                                     Período aquisitivo: {format(parseISO(request.acquisition_period_start), 'dd/MM/yyyy')} - {format(parseISO(request.acquisition_period_end), 'dd/MM/yyyy')}
                                                   </span>
                                                 )}
-                                                {request.sold_days && request.sold_days > 0 && (
+                                                {request.sold_days !== null && request.sold_days !== undefined && request.sold_days > 0 && (
                                                   <Badge variant="secondary" className="gap-1">
                                                     <DollarSign className="h-3 w-3" />
                                                     {request.sold_days} vendidos
