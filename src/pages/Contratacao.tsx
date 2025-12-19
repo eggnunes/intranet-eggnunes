@@ -570,13 +570,38 @@ export default function Contratacao() {
     fetchCandidates();
   };
 
+  // Helper function to sanitize filenames with special characters
+  const sanitizeFileName = (fileName: string): string => {
+    // Get file extension
+    const lastDotIndex = fileName.lastIndexOf('.');
+    const extension = lastDotIndex !== -1 ? fileName.substring(lastDotIndex) : '';
+    const nameWithoutExt = lastDotIndex !== -1 ? fileName.substring(0, lastDotIndex) : fileName;
+    
+    // Replace special characters with underscore, keeping only alphanumeric, dash, underscore
+    const sanitized = nameWithoutExt
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+      .replace(/[^a-zA-Z0-9\-_\s]/g, '_') // Replace special chars with underscore
+      .replace(/\s+/g, '_') // Replace spaces with underscore
+      .replace(/_+/g, '_') // Remove multiple consecutive underscores
+      .trim();
+    
+    return sanitized + extension;
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, jobOpeningId?: string) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !user) return;
 
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+
     const fileList = Array.from(files).filter(file => {
-      if (file.type !== 'application/pdf') {
-        toast.error(`${file.name} não é um arquivo PDF`);
+      if (!allowedTypes.includes(file.type)) {
+        toast.error(`${file.name} não é um arquivo PDF ou Word válido`);
         return false;
       }
       return true;
@@ -645,7 +670,8 @@ export default function Contratacao() {
           }
         }
 
-        const filePath = `${crypto.randomUUID()}_${file.name}`;
+        const safeFileName = sanitizeFileName(file.name);
+        const filePath = `${crypto.randomUUID()}_${safeFileName}`;
         const { error: uploadError } = await supabase.storage.from('resumes').upload(filePath, file);
         
         if (uploadError) {
@@ -1436,7 +1462,7 @@ export default function Contratacao() {
                                 <Button size="sm" variant="outline" asChild>
                                   <label className="cursor-pointer">
                                     <Upload className="h-4 w-4 mr-1" />Currículos
-                                    <input type="file" accept=".pdf" multiple onChange={(e) => handleFileUpload(e, jo.id)} className="hidden" disabled={uploading} />
+                                    <input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple onChange={(e) => handleFileUpload(e, jo.id)} className="hidden" disabled={uploading} />
                                   </label>
                                 </Button>
                                 <Button size="sm" variant="destructive" onClick={() => handleCloseJobOpening(jo.id)}>
@@ -1514,7 +1540,7 @@ export default function Contratacao() {
                       <label className="cursor-pointer">
                         <Upload className="h-4 w-4 mr-2" />
                         {uploading ? `Processando ${uploadProgress.current}/${uploadProgress.total}...` : 'Upload'}
-                        <input type="file" accept=".pdf" multiple onChange={(e) => handleFileUpload(e)} className="hidden" disabled={uploading} />
+                        <input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple onChange={(e) => handleFileUpload(e)} className="hidden" disabled={uploading} />
                       </label>
                     </Button>
                   </div>
@@ -1723,7 +1749,7 @@ export default function Contratacao() {
                   <Button asChild>
                     <label className="cursor-pointer">
                       <Upload className="h-4 w-4 mr-2" />{uploading ? 'Processando...' : 'Upload Currículo'}
-                      <input type="file" accept=".pdf" multiple onChange={(e) => handleFileUpload(e)} className="hidden" disabled={uploading} />
+                      <input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple onChange={(e) => handleFileUpload(e)} className="hidden" disabled={uploading} />
                     </label>
                   </Button>
                 </div>
