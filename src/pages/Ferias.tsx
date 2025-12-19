@@ -141,10 +141,10 @@ const SPECIAL_USER_PERIODS: Record<string, {
   '1b5787c3-c10d-4e0b-8699-83d0a2215dea': { // Jordânia Luíze Guedes Almeida
     periods: [
       {
-        start: '2024-01-15',
+        start: '2023-10-01',
         end: '2024-09-30',
-        totalDays: 15,
-        note: 'Período como estagiária - 15 dias úteis (já gozados integralmente)',
+        totalDays: 20,
+        note: 'Período 2023/2024 - Totalmente gozado',
         fullyUsed: true
       }
     ],
@@ -325,6 +325,7 @@ export default function Ferias() {
   const [balanceUserAcquisitionPeriods, setBalanceUserAcquisitionPeriods] = useState<AcquisitionPeriod[]>([]);
   const [currentUserRequests, setCurrentUserRequests] = useState<VacationRequest[]>([]);
   const [selectedUserRequests, setSelectedUserRequests] = useState<VacationRequest[]>([]);
+  const [panelFilterUser, setPanelFilterUser] = useState<string>('all');
 
   // Chart data for vacation distribution by acquisition period
   const vacationChartData = useMemo(() => {
@@ -1406,7 +1407,7 @@ export default function Ferias() {
 
         {/* Main Navigation Tabs */}
         <Tabs value={mainTab} onValueChange={setMainTab} className="w-full">
-          <TabsList className={cn("grid w-full max-w-2xl", canManageVacations ? "grid-cols-3" : "grid-cols-1")}>
+          <TabsList className={cn("grid w-full max-w-3xl", canManageVacations ? "grid-cols-4" : "grid-cols-1")}>
             <TabsTrigger value="solicitations" className="flex items-center gap-2">
               <ClipboardList className="h-4 w-4" />
               <span className="hidden sm:inline">Solicitações</span>
@@ -1414,9 +1415,14 @@ export default function Ferias() {
             </TabsTrigger>
             {canManageVacations && (
               <>
+                <TabsTrigger value="panel" className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  <span className="hidden sm:inline">Painel Geral</span>
+                  <span className="sm:hidden">Painel</span>
+                </TabsTrigger>
                 <TabsTrigger value="balance" className="flex items-center gap-2">
                   <Wallet className="h-4 w-4" />
-                  <span className="hidden sm:inline">Saldo por Colaborador</span>
+                  <span className="hidden sm:inline">Saldo</span>
                   <span className="sm:hidden">Saldo</span>
                 </TabsTrigger>
                 <TabsTrigger value="dashboard" className="flex items-center gap-2">
@@ -1625,180 +1631,6 @@ export default function Ferias() {
           </CardContent>
         </Card>
 
-        {/* Report Section - Only for admins - Grouped by Employee */}
-        {canManageVacations && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Painel Geral de Férias - Agrupado por Colaborador
-              </CardTitle>
-              <CardDescription>
-                Visualize todas as férias cadastradas, organizadas por colaborador
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[600px]">
-                {allVacationRequests.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">
-                    Nenhuma férias cadastrada
-                  </p>
-                ) : (
-                  <div className="space-y-6">
-                    {/* Group requests by user */}
-                    {(() => {
-                      const groupedByUser: Record<string, VacationRequest[]> = {};
-                      allVacationRequests.forEach((request) => {
-                        const userId = request.user_id;
-                        if (!groupedByUser[userId]) {
-                          groupedByUser[userId] = [];
-                        }
-                        groupedByUser[userId].push(request);
-                      });
-
-                      // Sort users alphabetically by name
-                      const sortedUserIds = Object.keys(groupedByUser).sort((a, b) => {
-                        const nameA = groupedByUser[a][0]?.profiles.full_name || '';
-                        const nameB = groupedByUser[b][0]?.profiles.full_name || '';
-                        return nameA.localeCompare(nameB);
-                      });
-
-                      return sortedUserIds.map((userId) => {
-                        const userRequests = groupedByUser[userId];
-                        const firstRequest = userRequests[0];
-                        const userProfile = firstRequest?.profiles;
-                        const today = new Date();
-                        
-                        // Sort requests by start_date descending (most recent first)
-                        const sortedRequests = [...userRequests].sort((a, b) => 
-                          parseISO(b.start_date).getTime() - parseISO(a.start_date).getTime()
-                        );
-
-                        // Calculate totals
-                        const approvedRequests = sortedRequests.filter(r => r.status === 'approved');
-                        const totalApprovedDays = approvedRequests.reduce((sum, r) => sum + (r.business_days || 0), 0);
-                        const pastVacations = approvedRequests.filter(r => isBefore(parseISO(r.end_date), today));
-                        const futureVacations = approvedRequests.filter(r => !isBefore(parseISO(r.end_date), today));
-
-                        return (
-                          <Card key={userId} className="border-2">
-                            <CardHeader className="pb-3">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <Avatar className="h-10 w-10">
-                                    <AvatarImage src={userProfile?.avatar_url || ''} />
-                                    <AvatarFallback>
-                                      {userProfile?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??'}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div>
-                                    <CardTitle className="text-lg">{userProfile?.full_name}</CardTitle>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <Badge variant={isCLT(userProfile?.position) ? 'secondary' : 'outline'} className="text-xs">
-                                        {isCLT(userProfile?.position) ? 'CLT - 30 dias corridos' : '20 dias úteis'}
-                                      </Badge>
-                                      {profiles.find(p => p.id === userId)?.join_date && (
-                                        <span className="text-xs text-muted-foreground">
-                                          Admissão: {format(parseISO(profiles.find(p => p.id === userId)!.join_date!), 'dd/MM/yyyy')}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-4 text-sm">
-                                  <div className="text-center">
-                                    <p className="text-muted-foreground text-xs">Usufruídas</p>
-                                    <p className="font-semibold text-green-600">{pastVacations.length}</p>
-                                  </div>
-                                  <div className="text-center">
-                                    <p className="text-muted-foreground text-xs">Agendadas</p>
-                                    <p className="font-semibold text-blue-600">{futureVacations.length}</p>
-                                  </div>
-                                  <div className="text-center">
-                                    <p className="text-muted-foreground text-xs">Total dias</p>
-                                    <p className="font-semibold">{totalApprovedDays}</p>
-                                  </div>
-                                </div>
-                              </div>
-                            </CardHeader>
-                            <CardContent className="pt-0">
-                              <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead className="w-[180px]">Período</TableHead>
-                                    <TableHead className="w-[100px]">Duração</TableHead>
-                                    <TableHead className="w-[180px]">Período Aquisitivo</TableHead>
-                                    <TableHead className="w-[80px]">Vendidos</TableHead>
-                                    <TableHead className="w-[100px]">Status</TableHead>
-                                    <TableHead className="w-[100px]">Situação</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {sortedRequests.map((request) => {
-                                    const isPast = isBefore(parseISO(request.end_date), today);
-                                    return (
-                                      <TableRow key={request.id} className={isPast ? 'bg-green-50/50 dark:bg-green-950/20' : 'bg-blue-50/50 dark:bg-blue-950/20'}>
-                                        <TableCell className="font-medium">
-                                          {format(parseISO(request.start_date), 'dd/MM/yyyy')} - {format(parseISO(request.end_date), 'dd/MM/yyyy')}
-                                        </TableCell>
-                                        <TableCell>
-                                          {request.business_days} {isCLT(userProfile?.position) ? 'dias' : 'dias úteis'}
-                                        </TableCell>
-                                        <TableCell>
-                                          {request.acquisition_period_start && request.acquisition_period_end ? (
-                                            <span className="text-sm">
-                                              {format(parseISO(request.acquisition_period_start), 'dd/MM/yyyy')} - {format(parseISO(request.acquisition_period_end), 'dd/MM/yyyy')}
-                                            </span>
-                                          ) : (
-                                            <span className="text-muted-foreground text-sm">-</span>
-                                          )}
-                                        </TableCell>
-                                        <TableCell>
-                                          {request.sold_days && request.sold_days > 0 ? (
-                                            <Badge variant="secondary" className="flex items-center gap-1 w-fit">
-                                              <DollarSign className="h-3 w-3" />
-                                              {request.sold_days}
-                                            </Badge>
-                                          ) : (
-                                            <span className="text-muted-foreground text-sm">-</span>
-                                          )}
-                                        </TableCell>
-                                        <TableCell>
-                                          {getStatusBadge(request.status)}
-                                        </TableCell>
-                                        <TableCell>
-                                          {request.status === 'approved' ? (
-                                            isPast ? (
-                                              <Badge variant="default" className="gap-1 bg-green-600">
-                                                <CheckCircle className="h-3 w-3" />
-                                                Usufruída
-                                              </Badge>
-                                            ) : (
-                                              <Badge variant="outline" className="gap-1 border-blue-500 text-blue-600">
-                                                <Clock className="h-3 w-3" />
-                                                Agendada
-                                              </Badge>
-                                            )
-                                          ) : (
-                                            <span className="text-muted-foreground text-sm">-</span>
-                                          )}
-                                        </TableCell>
-                                      </TableRow>
-                                    );
-                                  })}
-                                </TableBody>
-                              </Table>
-                            </CardContent>
-                          </Card>
-                        );
-                      });
-                    })()}
-                  </div>
-                )}
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Planning Report Section - Only for admins */}
         {canManageVacations && (
@@ -2052,6 +1884,224 @@ export default function Ferias() {
           </Card>
         )}
           </TabsContent>
+
+          {/* Panel Tab - Grouped by Employee - Only for admins */}
+          {canManageVacations && (
+            <TabsContent value="panel" className="space-y-6 mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Painel Geral de Férias - Agrupado por Colaborador
+                  </CardTitle>
+                  <CardDescription>
+                    Visualize todas as férias cadastradas, organizadas por colaborador
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Filter by Employee */}
+                  <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
+                    <div className="flex-1 max-w-md">
+                      <Label>Filtrar por Colaborador</Label>
+                      <Select value={panelFilterUser} onValueChange={setPanelFilterUser}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Todos os colaboradores" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos os colaboradores</SelectItem>
+                          {profiles.map((profile) => (
+                            <SelectItem key={profile.id} value={profile.id}>
+                              {profile.full_name} {isCLT(profile.position) && '(CLT)'}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {panelFilterUser !== 'all' && (
+                      <Button variant="outline" size="sm" onClick={() => setPanelFilterUser('all')}>
+                        Limpar filtro
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <ScrollArea className="h-[600px]">
+                    {allVacationRequests.length === 0 ? (
+                      <p className="text-muted-foreground text-center py-8">
+                        Nenhuma férias cadastrada
+                      </p>
+                    ) : (
+                      <div className="space-y-6">
+                        {/* Group requests by user */}
+                        {(() => {
+                          const groupedByUser: Record<string, VacationRequest[]> = {};
+                          allVacationRequests.forEach((request) => {
+                            const userId = request.user_id;
+                            if (!groupedByUser[userId]) {
+                              groupedByUser[userId] = [];
+                            }
+                            groupedByUser[userId].push(request);
+                          });
+
+                          // Filter by selected user
+                          let filteredUserIds = Object.keys(groupedByUser);
+                          if (panelFilterUser !== 'all') {
+                            filteredUserIds = filteredUserIds.filter(id => id === panelFilterUser);
+                          }
+
+                          // Sort users alphabetically by name
+                          const sortedUserIds = filteredUserIds.sort((a, b) => {
+                            const nameA = groupedByUser[a][0]?.profiles.full_name || '';
+                            const nameB = groupedByUser[b][0]?.profiles.full_name || '';
+                            return nameA.localeCompare(nameB);
+                          });
+
+                          if (sortedUserIds.length === 0) {
+                            return (
+                              <p className="text-muted-foreground text-center py-8">
+                                Nenhuma férias encontrada para este colaborador
+                              </p>
+                            );
+                          }
+
+                          return sortedUserIds.map((userId) => {
+                            const userRequests = groupedByUser[userId];
+                            const firstRequest = userRequests[0];
+                            const userProfile = firstRequest?.profiles;
+                            const today = new Date();
+                            
+                            // Sort requests by start_date descending (most recent first)
+                            const sortedRequests = [...userRequests].sort((a, b) => 
+                              parseISO(b.start_date).getTime() - parseISO(a.start_date).getTime()
+                            );
+
+                            // Calculate totals
+                            const approvedRequests = sortedRequests.filter(r => r.status === 'approved');
+                            const totalApprovedDays = approvedRequests.reduce((sum, r) => sum + (r.business_days || 0), 0);
+                            const pastVacations = approvedRequests.filter(r => isBefore(parseISO(r.end_date), today));
+                            const futureVacations = approvedRequests.filter(r => !isBefore(parseISO(r.end_date), today));
+
+                            return (
+                              <Card key={userId} className="border-2">
+                                <CardHeader className="pb-3">
+                                  <div className="flex items-center justify-between flex-wrap gap-4">
+                                    <div className="flex items-center gap-3">
+                                      <Avatar className="h-10 w-10">
+                                        <AvatarImage src={userProfile?.avatar_url || ''} />
+                                        <AvatarFallback>
+                                          {userProfile?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??'}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <div>
+                                        <CardTitle className="text-lg">{userProfile?.full_name}</CardTitle>
+                                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                          <Badge variant={isCLT(userProfile?.position) ? 'secondary' : 'outline'} className="text-xs">
+                                            {isCLT(userProfile?.position) ? 'CLT - 30 dias corridos' : '20 dias úteis'}
+                                          </Badge>
+                                          {profiles.find(p => p.id === userId)?.join_date && (
+                                            <span className="text-xs text-muted-foreground">
+                                              Admissão: {format(parseISO(profiles.find(p => p.id === userId)!.join_date!), 'dd/MM/yyyy')}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-4 text-sm">
+                                      <div className="text-center">
+                                        <p className="text-muted-foreground text-xs">Usufruídas</p>
+                                        <p className="font-semibold text-green-600">{pastVacations.length}</p>
+                                      </div>
+                                      <div className="text-center">
+                                        <p className="text-muted-foreground text-xs">Agendadas</p>
+                                        <p className="font-semibold text-blue-600">{futureVacations.length}</p>
+                                      </div>
+                                      <div className="text-center">
+                                        <p className="text-muted-foreground text-xs">Total dias</p>
+                                        <p className="font-semibold">{totalApprovedDays}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </CardHeader>
+                                <CardContent className="pt-0">
+                                  <div className="overflow-x-auto">
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          <TableHead className="w-[180px]">Período</TableHead>
+                                          <TableHead className="w-[100px]">Duração</TableHead>
+                                          <TableHead className="w-[180px]">Período Aquisitivo</TableHead>
+                                          <TableHead className="w-[80px]">Vendidos</TableHead>
+                                          <TableHead className="w-[100px]">Status</TableHead>
+                                          <TableHead className="w-[100px]">Situação</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {sortedRequests.map((request) => {
+                                          const isPast = isBefore(parseISO(request.end_date), today);
+                                          return (
+                                            <TableRow key={request.id} className={isPast ? 'bg-green-50/50 dark:bg-green-950/20' : 'bg-blue-50/50 dark:bg-blue-950/20'}>
+                                              <TableCell className="font-medium">
+                                                {format(parseISO(request.start_date), 'dd/MM/yyyy')} - {format(parseISO(request.end_date), 'dd/MM/yyyy')}
+                                              </TableCell>
+                                              <TableCell>
+                                                {request.business_days} {isCLT(userProfile?.position) ? 'dias' : 'dias úteis'}
+                                              </TableCell>
+                                              <TableCell>
+                                                {request.acquisition_period_start && request.acquisition_period_end ? (
+                                                  <span className="text-sm">
+                                                    {format(parseISO(request.acquisition_period_start), 'dd/MM/yyyy')} - {format(parseISO(request.acquisition_period_end), 'dd/MM/yyyy')}
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-muted-foreground text-sm">-</span>
+                                                )}
+                                              </TableCell>
+                                              <TableCell>
+                                                {request.sold_days && request.sold_days > 0 ? (
+                                                  <Badge variant="secondary" className="flex items-center gap-1 w-fit">
+                                                    <DollarSign className="h-3 w-3" />
+                                                    {request.sold_days}
+                                                  </Badge>
+                                                ) : (
+                                                  <span className="text-muted-foreground text-sm">-</span>
+                                                )}
+                                              </TableCell>
+                                              <TableCell>
+                                                {getStatusBadge(request.status)}
+                                              </TableCell>
+                                              <TableCell>
+                                                {request.status === 'approved' ? (
+                                                  isPast ? (
+                                                    <Badge variant="default" className="gap-1 bg-green-600">
+                                                      <CheckCircle className="h-3 w-3" />
+                                                      Usufruída
+                                                    </Badge>
+                                                  ) : (
+                                                    <Badge variant="outline" className="gap-1 border-blue-500 text-blue-600">
+                                                      <Clock className="h-3 w-3" />
+                                                      Agendada
+                                                    </Badge>
+                                                  )
+                                                ) : (
+                                                  <span className="text-muted-foreground text-sm">-</span>
+                                                )}
+                                              </TableCell>
+                                            </TableRow>
+                                          );
+                                        })}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            );
+                          });
+                        })()}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
 
           {/* Balance Tab - Only for admins */}
           {canManageVacations && (
