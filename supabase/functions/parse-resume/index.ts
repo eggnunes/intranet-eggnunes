@@ -31,8 +31,27 @@ serve(async (req) => {
 
     console.log(`Processing resume: ${fileName}`);
 
+    // Determine MIME type based on file extension
+    const getFileMimeType = (filename: string): string => {
+      const ext = filename.toLowerCase().split('.').pop();
+      switch (ext) {
+        case 'pdf':
+          return 'application/pdf';
+        case 'doc':
+          return 'application/msword';
+        case 'docx':
+          return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        default:
+          return 'application/octet-stream';
+      }
+    };
+
+    const mimeType = getFileMimeType(fileName);
+    const fileExtension = fileName.toLowerCase().split('.').pop();
+    const fileDescription = fileExtension === 'pdf' ? 'PDF' : 'documento Word';
+
     const systemPrompt = `Você é um assistente especializado em extrair informações de currículos.
-Analise o documento PDF fornecido e extraia as seguintes informações:
+Analise o documento ${fileDescription} fornecido e extraia as seguintes informações:
 - Nome completo do candidato
 - Email
 - Telefone
@@ -65,12 +84,12 @@ Retorne APENAS um JSON válido com a seguinte estrutura:
                 type: 'file',
                 file: {
                   filename: fileName,
-                  file_data: `data:application/pdf;base64,${fileBase64}`
+                  file_data: `data:${mimeType};base64,${fileBase64}`
                 }
               },
               {
                 type: 'text',
-                text: 'Por favor, extraia as informações deste currículo em PDF.'
+                text: `Por favor, extraia as informações deste currículo em ${fileDescription}.`
               }
             ]
           }
