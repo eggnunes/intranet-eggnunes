@@ -328,16 +328,31 @@ export default function Ferias() {
 
   // Chart data for vacation distribution by acquisition period
   const vacationChartData = useMemo(() => {
-    if (!balanceUserAllRequests.length || !balanceUserAcquisitionPeriods.length) return [];
+    if (!balanceUserAcquisitionPeriods.length) return [];
     
-    return balanceUserAcquisitionPeriods.map((period, index) => {
+    return balanceUserAcquisitionPeriods.map((period) => {
       const periodTotalDays = getTotalDaysForPeriod(period, balanceUserProfile?.position || null, balanceSelectedUser);
-      const usedInPeriod = balanceUserAllRequests
-        .filter(req => 
-          req.acquisition_period_start === period.value.split('|')[0] &&
-          req.acquisition_period_end === period.value.split('|')[1]
-        )
-        .reduce((sum, req) => sum + (req.business_days || 0), 0);
+      const [periodStart, periodEnd] = period.value.split('|');
+      
+      // Check if this is a special period marked as fully used
+      const specialConfig = SPECIAL_USER_PERIODS[balanceSelectedUser];
+      const specialPeriod = specialConfig?.periods.find(
+        p => p.start === periodStart && p.end === periodEnd
+      );
+      
+      let usedInPeriod: number;
+      if (specialPeriod?.fullyUsed) {
+        // For fully used special periods, use the total days as used
+        usedInPeriod = specialPeriod.totalDays;
+      } else {
+        // Calculate from actual requests
+        usedInPeriod = balanceUserAllRequests
+          .filter(req => 
+            req.acquisition_period_start === periodStart &&
+            req.acquisition_period_end === periodEnd
+          )
+          .reduce((sum, req) => sum + (req.business_days || 0), 0);
+      }
       
       const availableInPeriod = Math.max(0, periodTotalDays - usedInPeriod);
       
@@ -348,7 +363,7 @@ export default function Ferias() {
         disponivel: availableInPeriod,
         total: periodTotalDays,
       };
-    }).filter(item => item.usado > 0 || balanceUserAcquisitionPeriods.length <= 5);
+    }).filter(item => item.usado > 0 || item.disponivel > 0 || balanceUserAcquisitionPeriods.length <= 5);
   }, [balanceUserAllRequests, balanceUserAcquisitionPeriods, balanceUserProfile, balanceSelectedUser]);
   
   // Generate acquisition periods for current user
@@ -2146,29 +2161,29 @@ export default function Ferias() {
                                     }}
                                   />
                                   <Bar 
-                                    dataKey="usado" 
+                                    dataKey="disponivel" 
                                     stackId="a" 
-                                    fill="hsl(var(--chart-1))" 
-                                    name="Utilizado"
+                                    fill="hsl(142 76% 36%)" 
+                                    name="Disponível"
                                     radius={[0, 0, 0, 0]}
                                   />
                                   <Bar 
-                                    dataKey="disponivel" 
+                                    dataKey="usado" 
                                     stackId="a" 
-                                    fill="hsl(var(--chart-2))" 
-                                    name="Disponível"
+                                    fill="hsl(24 95% 53%)" 
+                                    name="Utilizado"
                                     radius={[0, 4, 4, 0]}
                                   />
                                 </BarChart>
                               </ResponsiveContainer>
                               <div className="flex justify-center gap-6 mt-4 text-sm">
                                 <div className="flex items-center gap-2">
-                                  <div className="w-3 h-3 rounded" style={{ backgroundColor: 'hsl(var(--chart-1))' }} />
-                                  <span className="text-muted-foreground">Utilizado</span>
+                                  <div className="w-3 h-3 rounded" style={{ backgroundColor: 'hsl(142 76% 36%)' }} />
+                                  <span className="text-muted-foreground">Disponível</span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <div className="w-3 h-3 rounded" style={{ backgroundColor: 'hsl(var(--chart-2))' }} />
-                                  <span className="text-muted-foreground">Disponível</span>
+                                  <div className="w-3 h-3 rounded" style={{ backgroundColor: 'hsl(24 95% 53%)' }} />
+                                  <span className="text-muted-foreground">Utilizado</span>
                                 </div>
                               </div>
                             </CardContent>
@@ -2176,68 +2191,142 @@ export default function Ferias() {
                         </div>
                       )}
 
-                      {/* Vacation History */}
-                      <div className="space-y-4">
-                        <h4 className="font-semibold flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          Períodos de Férias Usufruídos
-                        </h4>
-                        {balanceUserRequests.length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground border rounded-lg">
-                            Nenhuma férias usufruída até o momento
-                          </div>
-                        ) : (
-                          <ScrollArea className="h-[300px]">
-                            <div className="space-y-3">
-                              {balanceUserRequests.map((request) => (
-                                <Card key={request.id} className="border">
-                                  <CardContent className="pt-4 pb-4">
-                                    <div className="flex items-center justify-between">
-                                      <div className="space-y-1">
-                                        <div className="flex items-center gap-2">
-                                          <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                                          <span className="font-medium">
-                                            {format(parseISO(request.start_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                                          </span>
-                                          <span>→</span>
-                                          <span className="font-medium">
-                                            {format(parseISO(request.end_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                                          </span>
-                                        </div>
-                                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                                          <span className="font-medium text-foreground">
-                                            {request.business_days} {isCLT(balanceUserProfile.position) ? 'dias corridos' : 'dias úteis'}
-                                          </span>
-                                          {request.acquisition_period_start && request.acquisition_period_end && (
-                                            <span>
-                                              Período aquisitivo: {format(parseISO(request.acquisition_period_start), 'dd/MM/yyyy')} - {format(parseISO(request.acquisition_period_end), 'dd/MM/yyyy')}
-                                            </span>
-                                          )}
-                                          {request.sold_days && request.sold_days > 0 && (
-                                            <Badge variant="secondary" className="gap-1">
-                                              <DollarSign className="h-3 w-3" />
-                                              {request.sold_days} vendidos
+                      {/* Vacation History - Separated by Past and Future */}
+                      {(() => {
+                        const today = new Date();
+                        const pastVacations = balanceUserRequests.filter(req => isBefore(parseISO(req.end_date), today));
+                        const futureVacations = balanceUserRequests.filter(req => !isBefore(parseISO(req.end_date), today));
+                        
+                        return (
+                          <>
+                            {/* Already Enjoyed Vacations */}
+                            <div className="space-y-4">
+                              <h4 className="font-semibold flex items-center gap-2">
+                                <CheckCircle className="h-4 w-4 text-green-600" />
+                                Períodos de Férias Usufruídos
+                              </h4>
+                              {pastVacations.length === 0 ? (
+                                <div className="text-center py-6 text-muted-foreground border rounded-lg">
+                                  Nenhuma férias usufruída até o momento
+                                </div>
+                              ) : (
+                                <ScrollArea className="h-[200px]">
+                                  <div className="space-y-3">
+                                    {pastVacations.map((request) => (
+                                      <Card key={request.id} className="border border-green-200 dark:border-green-900 bg-green-50/50 dark:bg-green-950/20">
+                                        <CardContent className="pt-4 pb-4">
+                                          <div className="flex items-center justify-between">
+                                            <div className="space-y-1">
+                                              <div className="flex items-center gap-2">
+                                                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                                                <span className="font-medium">
+                                                  {format(parseISO(request.start_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                                                </span>
+                                                <span>→</span>
+                                                <span className="font-medium">
+                                                  {format(parseISO(request.end_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                                                </span>
+                                              </div>
+                                              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                                                <span className="font-medium text-foreground">
+                                                  {request.business_days} {isCLT(balanceUserProfile.position) ? 'dias corridos' : 'dias úteis'}
+                                                </span>
+                                                {request.acquisition_period_start && request.acquisition_period_end && (
+                                                  <span>
+                                                    Período aquisitivo: {format(parseISO(request.acquisition_period_start), 'dd/MM/yyyy')} - {format(parseISO(request.acquisition_period_end), 'dd/MM/yyyy')}
+                                                  </span>
+                                                )}
+                                                {request.sold_days && request.sold_days > 0 && (
+                                                  <Badge variant="secondary" className="gap-1">
+                                                    <DollarSign className="h-3 w-3" />
+                                                    {request.sold_days} vendidos
+                                                  </Badge>
+                                                )}
+                                              </div>
+                                              {request.notes && (
+                                                <p className="text-sm text-muted-foreground mt-1">
+                                                  Obs: {request.notes}
+                                                </p>
+                                              )}
+                                            </div>
+                                            <Badge variant="default" className="gap-1 bg-green-600">
+                                              <CheckCircle className="h-3 w-3" />
+                                              Usufruída
                                             </Badge>
-                                          )}
-                                        </div>
-                                        {request.notes && (
-                                          <p className="text-sm text-muted-foreground mt-1">
-                                            Obs: {request.notes}
-                                          </p>
-                                        )}
-                                      </div>
-                                      <Badge variant="default" className="gap-1">
-                                        <CheckCircle className="h-3 w-3" />
-                                        Aprovada
-                                      </Badge>
-                                    </div>
-                                  </CardContent>
-                                </Card>
-                              ))}
+                                          </div>
+                                        </CardContent>
+                                      </Card>
+                                    ))}
+                                  </div>
+                                </ScrollArea>
+                              )}
                             </div>
-                          </ScrollArea>
-                        )}
-                      </div>
+
+                            {/* Future Vacations (Approved but not yet enjoyed) */}
+                            <div className="space-y-4">
+                              <h4 className="font-semibold flex items-center gap-2">
+                                <Clock className="h-4 w-4 text-blue-600" />
+                                Períodos de Férias a Usufruir
+                              </h4>
+                              {futureVacations.length === 0 ? (
+                                <div className="text-center py-6 text-muted-foreground border rounded-lg">
+                                  Nenhuma férias agendada para o futuro
+                                </div>
+                              ) : (
+                                <ScrollArea className="h-[200px]">
+                                  <div className="space-y-3">
+                                    {futureVacations.map((request) => (
+                                      <Card key={request.id} className="border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20">
+                                        <CardContent className="pt-4 pb-4">
+                                          <div className="flex items-center justify-between">
+                                            <div className="space-y-1">
+                                              <div className="flex items-center gap-2">
+                                                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                                                <span className="font-medium">
+                                                  {format(parseISO(request.start_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                                                </span>
+                                                <span>→</span>
+                                                <span className="font-medium">
+                                                  {format(parseISO(request.end_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                                                </span>
+                                              </div>
+                                              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                                                <span className="font-medium text-foreground">
+                                                  {request.business_days} {isCLT(balanceUserProfile.position) ? 'dias corridos' : 'dias úteis'}
+                                                </span>
+                                                {request.acquisition_period_start && request.acquisition_period_end && (
+                                                  <span>
+                                                    Período aquisitivo: {format(parseISO(request.acquisition_period_start), 'dd/MM/yyyy')} - {format(parseISO(request.acquisition_period_end), 'dd/MM/yyyy')}
+                                                  </span>
+                                                )}
+                                                {request.sold_days && request.sold_days > 0 && (
+                                                  <Badge variant="secondary" className="gap-1">
+                                                    <DollarSign className="h-3 w-3" />
+                                                    {request.sold_days} vendidos
+                                                  </Badge>
+                                                )}
+                                              </div>
+                                              {request.notes && (
+                                                <p className="text-sm text-muted-foreground mt-1">
+                                                  Obs: {request.notes}
+                                                </p>
+                                              )}
+                                            </div>
+                                            <Badge variant="outline" className="gap-1 border-blue-500 text-blue-600">
+                                              <Clock className="h-3 w-3" />
+                                              Agendada
+                                            </Badge>
+                                          </div>
+                                        </CardContent>
+                                      </Card>
+                                    ))}
+                                  </div>
+                                </ScrollArea>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </>
                   )}
 
