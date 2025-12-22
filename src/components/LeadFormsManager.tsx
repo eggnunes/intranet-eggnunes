@@ -121,10 +121,12 @@ export function LeadFormsManager() {
 
   const generateEmbedCode = (form: LeadForm) => {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const formId = form.id.replace(/-/g, '_'); // Safe ID for JavaScript
     
     return `<!-- Formulário de Captura de Leads - ${form.name} -->
+<!-- Compatível com WordPress/Elementor -->
 <style>
-  .lead-form-container {
+  .lead-form-container-${formId} {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     max-width: 400px;
     margin: 0 auto;
@@ -132,34 +134,46 @@ export function LeadFormsManager() {
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
   }
-  .lead-form-container h3 {
+  .lead-form-container-${formId} * {
+    box-sizing: border-box;
+  }
+  .lead-form-container-${formId} h3 {
     margin: 0 0 16px;
     font-size: 1.25rem;
     text-align: center;
+    color: #333;
   }
-  .lead-form-container .form-group {
+  .lead-form-container-${formId} .form-group {
     margin-bottom: 16px;
   }
-  .lead-form-container label {
+  .lead-form-container-${formId} label {
     display: block;
     margin-bottom: 4px;
     font-weight: 500;
     font-size: 14px;
+    color: #333;
   }
-  .lead-form-container input {
+  .lead-form-container-${formId} input {
     width: 100%;
     padding: 12px;
     border: 1px solid #ddd;
     border-radius: 8px;
     font-size: 16px;
     box-sizing: border-box;
+    background: #fff;
+    color: #333;
   }
-  .lead-form-container input:focus {
+  .lead-form-container-${formId} input:focus {
     outline: none;
     border-color: #25D366;
+    box-shadow: 0 0 0 2px rgba(37, 211, 102, 0.2);
   }
-  .lead-form-container button {
+  .lead-form-container-${formId} input::placeholder {
+    color: #999;
+  }
+  .lead-form-container-${formId} button[type="submit"] {
     width: 100%;
     padding: 14px;
     background: #25D366;
@@ -173,33 +187,40 @@ export function LeadFormsManager() {
     align-items: center;
     justify-content: center;
     gap: 8px;
+    transition: background-color 0.2s ease;
   }
-  .lead-form-container button:hover {
+  .lead-form-container-${formId} button[type="submit"]:hover {
     background: #128C7E;
   }
-  .lead-form-container button:disabled {
+  .lead-form-container-${formId} button[type="submit"]:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
+  .lead-form-container-${formId} .whatsapp-icon {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+  }
 </style>
 
-<div class="lead-form-container">
+<div class="lead-form-container-${formId}" id="lead-container-${form.id}">
   <h3>Fale Conosco</h3>
-  <form id="lead-form-${form.id}">
+  <form id="lead-form-${form.id}" autocomplete="on">
     <div class="form-group">
       <label for="name-${form.id}">Nome *</label>
-      <input type="text" id="name-${form.id}" name="name" required placeholder="Seu nome completo">
+      <input type="text" id="name-${form.id}" name="name" required placeholder="Seu nome completo" autocomplete="name">
     </div>
     <div class="form-group">
       <label for="phone-${form.id}">Telefone *</label>
-      <input type="tel" id="phone-${form.id}" name="phone" required placeholder="(00) 00000-0000">
+      <input type="tel" id="phone-${form.id}" name="phone" required placeholder="(00) 00000-0000" autocomplete="tel">
     </div>
     <div class="form-group">
       <label for="email-${form.id}">E-mail</label>
-      <input type="email" id="email-${form.id}" name="email" placeholder="seu@email.com">
+      <input type="email" id="email-${form.id}" name="email" placeholder="seu@email.com" autocomplete="email">
     </div>
+    <input type="text" name="website_url" style="display:none !important;position:absolute;left:-9999px;" tabindex="-1" autocomplete="off">
     <button type="submit" id="submit-btn-${form.id}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+      <svg class="whatsapp-icon" viewBox="0 0 24 24" fill="currentColor">
         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
       </svg>
       Falar no WhatsApp
@@ -209,80 +230,177 @@ export function LeadFormsManager() {
 
 <script>
 (function() {
-  const form = document.getElementById('lead-form-${form.id}');
-  const submitBtn = document.getElementById('submit-btn-${form.id}');
+  // Prevent multiple initializations
+  if (window['leadForm_${formId}_initialized']) return;
   
-  // Captura UTMs da URL
-  const urlParams = new URLSearchParams(window.location.search);
-  
-  // Helper to create WhatsApp SVG icon
-  function createWhatsAppIcon() {
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('width', '20');
-    svg.setAttribute('height', '20');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('fill', 'currentColor');
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', 'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z');
-    svg.appendChild(path);
-    return svg;
-  }
-  
-  function setButtonContent(btn, text, includeIcon) {
-    while (btn.firstChild) btn.removeChild(btn.firstChild);
-    if (includeIcon) {
-      btn.appendChild(createWhatsAppIcon());
-      btn.appendChild(document.createTextNode(' '));
+  function initLeadForm() {
+    var form = document.getElementById('lead-form-${form.id}');
+    var submitBtn = document.getElementById('submit-btn-${form.id}');
+    var container = document.getElementById('lead-container-${form.id}');
+    
+    // Check if elements exist
+    if (!form || !submitBtn || !container) {
+      console.log('Lead form elements not found yet, retrying...');
+      return false;
     }
-    btn.appendChild(document.createTextNode(text));
-  }
-
-  form.addEventListener('submit', async function(e) {
-    e.preventDefault();
-    submitBtn.disabled = true;
-    setButtonContent(submitBtn, 'Enviando...', false);
     
-    const formData = new FormData(form);
+    // Check if already initialized
+    if (form.dataset.initialized === 'true') return true;
+    form.dataset.initialized = 'true';
+    window['leadForm_${formId}_initialized'] = true;
     
-    try {
-      const response = await fetch('${supabaseUrl}/functions/v1/capture-lead', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          form_id: '${form.id}',
-          name: formData.get('name'),
-          email: formData.get('email'),
-          phone: formData.get('phone'),
-          utm_source: urlParams.get('utm_source'),
-          utm_medium: urlParams.get('utm_medium'),
-          utm_campaign: urlParams.get('utm_campaign'),
-          utm_content: urlParams.get('utm_content'),
-          utm_term: urlParams.get('utm_term'),
-          landing_page: window.location.href,
-          referrer: document.referrer,
-          user_agent: navigator.userAgent
-        })
-      });
-      
-      const result = await response.json();
-      
-      if (result.whatsapp_url) {
-        window.open(result.whatsapp_url, '_blank');
+    // Get UTM params from URL
+    var urlParams = new URLSearchParams(window.location.search);
+    
+    // Create WhatsApp icon
+    function createWhatsAppIcon() {
+      var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'whatsapp-icon');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('fill', 'currentColor');
+      var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', 'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z');
+      svg.appendChild(path);
+      return svg;
+    }
+    
+    function setButtonContent(btn, text, includeIcon) {
+      while (btn.firstChild) btn.removeChild(btn.firstChild);
+      if (includeIcon) {
+        btn.appendChild(createWhatsAppIcon());
       }
+      var textNode = document.createTextNode(text);
+      btn.appendChild(textNode);
+    }
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
       
-      form.reset();
-      setButtonContent(submitBtn, 'Enviado! ✓', false);
-      setTimeout(() => {
+      submitBtn.disabled = true;
+      setButtonContent(submitBtn, 'Enviando...', false);
+      
+      var formDataObj = new FormData(form);
+      var nameVal = (formDataObj.get('name') || '').toString().trim();
+      var phoneVal = (formDataObj.get('phone') || '').toString().trim();
+      var emailVal = (formDataObj.get('email') || '').toString().trim();
+      
+      // Basic validation
+      if (!nameVal || nameVal.length < 2) {
+        alert('Por favor, informe seu nome.');
         submitBtn.disabled = false;
         setButtonContent(submitBtn, 'Falar no WhatsApp', true);
-      }, 3000);
+        return;
+      }
       
-    } catch (error) {
-      console.error('Error:', error);
-      submitBtn.disabled = false;
-      setButtonContent(submitBtn, 'Erro. Tente novamente.', false);
+      if (!phoneVal || phoneVal.replace(/\\D/g, '').length < 10) {
+        alert('Por favor, informe um telefone válido.');
+        submitBtn.disabled = false;
+        setButtonContent(submitBtn, 'Falar no WhatsApp', true);
+        return;
+      }
+      
+      var payload = {
+        form_id: '${form.id}',
+        name: nameVal,
+        email: emailVal || null,
+        phone: phoneVal,
+        utm_source: urlParams.get('utm_source'),
+        utm_medium: urlParams.get('utm_medium'),
+        utm_campaign: urlParams.get('utm_campaign'),
+        utm_content: urlParams.get('utm_content'),
+        utm_term: urlParams.get('utm_term'),
+        landing_page: window.location.href,
+        referrer: document.referrer || null,
+        user_agent: navigator.userAgent,
+        website_url: formDataObj.get('website_url') || ''
+      };
+      
+      fetch('${supabaseUrl}/functions/v1/capture-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(function(response) {
+        return response.json();
+      })
+      .then(function(result) {
+        if (result.error) {
+          throw new Error(result.error);
+        }
+        
+        if (result.whatsapp_url) {
+          window.open(result.whatsapp_url, '_blank');
+        }
+        
+        form.reset();
+        setButtonContent(submitBtn, 'Enviado! ✓', false);
+        
+        setTimeout(function() {
+          submitBtn.disabled = false;
+          setButtonContent(submitBtn, 'Falar no WhatsApp', true);
+        }, 3000);
+      })
+      .catch(function(error) {
+        console.error('Lead form error:', error);
+        submitBtn.disabled = false;
+        setButtonContent(submitBtn, 'Erro. Tente novamente.', false);
+        
+        setTimeout(function() {
+          setButtonContent(submitBtn, 'Falar no WhatsApp', true);
+        }, 3000);
+      });
+    });
+    
+    console.log('Lead form ${form.id} initialized successfully');
+    return true;
+  }
+  
+  // Try to initialize immediately
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    if (!initLeadForm()) {
+      // If elements not found, retry with delay (for Elementor async loading)
+      var retryCount = 0;
+      var maxRetries = 20;
+      var retryInterval = setInterval(function() {
+        retryCount++;
+        if (initLeadForm() || retryCount >= maxRetries) {
+          clearInterval(retryInterval);
+          if (retryCount >= maxRetries) {
+            console.warn('Lead form: max retries reached');
+          }
+        }
+      }, 250);
     }
-  });
+  } else {
+    // Wait for DOM to be ready
+    document.addEventListener('DOMContentLoaded', function() {
+      if (!initLeadForm()) {
+        var retryCount = 0;
+        var maxRetries = 20;
+        var retryInterval = setInterval(function() {
+          retryCount++;
+          if (initLeadForm() || retryCount >= maxRetries) {
+            clearInterval(retryInterval);
+          }
+        }, 250);
+      }
+    });
+  }
+  
+  // Also listen for jQuery ready if available (WordPress compatibility)
+  if (typeof jQuery !== 'undefined') {
+    jQuery(document).ready(function() {
+      setTimeout(initLeadForm, 100);
+    });
+  }
+  
+  // Elementor frontend loaded event
+  if (typeof jQuery !== 'undefined') {
+    jQuery(window).on('elementor/frontend/init', function() {
+      setTimeout(initLeadForm, 500);
+    });
+  }
 })();
 </script>`;
   };
