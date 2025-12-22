@@ -333,12 +333,24 @@ export function LeadFormsManager() {
           window.open(result.whatsapp_url, '_blank');
         }
         
-        form.reset();
-        setButtonContent(submitBtn, 'Enviado! ✓', false);
+        // Hide form and show success message
+        form.style.display = 'none';
         
+        // Create success message
+        var successDiv = document.createElement('div');
+        successDiv.style.cssText = 'text-align: center; padding: 20px 0;';
+        successDiv.innerHTML = '<div style="font-size: 48px; margin-bottom: 12px;">✓</div>' +
+          '<h3 style="color: #25D366; margin: 0 0 8px; font-size: 1.25rem;">Enviado com sucesso!</h3>' +
+          '<p style="color: #666; margin: 0; font-size: 14px;">Em breve entraremos em contato.</p>';
+        container.appendChild(successDiv);
+        
+        // Optional: hide entire container after delay
         setTimeout(function() {
-          submitBtn.disabled = false;
-          setButtonContent(submitBtn, 'Falar no WhatsApp', true);
+          container.style.opacity = '0';
+          container.style.transition = 'opacity 0.5s ease';
+          setTimeout(function() {
+            container.style.display = 'none';
+          }, 500);
         }, 3000);
       })
       .catch(function(error) {
