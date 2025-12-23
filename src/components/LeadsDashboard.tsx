@@ -33,16 +33,20 @@ interface LeadStats {
   week: number;
   bySource: Record<string, number>;
   byCampaign: Record<string, number>;
+  byAdSet: Record<string, number>;
+  byAd: Record<string, number>;
 }
 
 export function LeadsDashboard() {
   const { toast } = useToast();
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [stats, setStats] = useState<LeadStats>({ total: 0, today: 0, week: 0, bySource: {}, byCampaign: {} });
+  const [stats, setStats] = useState<LeadStats>({ total: 0, today: 0, week: 0, bySource: {}, byCampaign: {}, byAdSet: {}, byAd: {} });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSource, setFilterSource] = useState('all');
   const [filterCampaign, setFilterCampaign] = useState('all');
+  const [filterAdSet, setFilterAdSet] = useState('all');
+  const [filterAd, setFilterAd] = useState('all');
   const [filterPeriod, setFilterPeriod] = useState('30');
 
   useEffect(() => {
@@ -79,6 +83,8 @@ export function LeadsDashboard() {
 
     const bySource: Record<string, number> = {};
     const byCampaign: Record<string, number> = {};
+    const byAdSet: Record<string, number> = {};
+    const byAd: Record<string, number> = {};
 
     let todayCount = 0;
     let weekCount = 0;
@@ -95,6 +101,14 @@ export function LeadsDashboard() {
       if (lead.utm_campaign) {
         byCampaign[lead.utm_campaign] = (byCampaign[lead.utm_campaign] || 0) + 1;
       }
+
+      if (lead.utm_content) {
+        byAdSet[lead.utm_content] = (byAdSet[lead.utm_content] || 0) + 1;
+      }
+
+      if (lead.utm_term) {
+        byAd[lead.utm_term] = (byAd[lead.utm_term] || 0) + 1;
+      }
     });
 
     setStats({
@@ -103,6 +117,8 @@ export function LeadsDashboard() {
       week: weekCount,
       bySource,
       byCampaign,
+      byAdSet,
+      byAd,
     });
   };
 
@@ -114,12 +130,16 @@ export function LeadsDashboard() {
 
     const matchesSource = filterSource === 'all' || lead.utm_source === filterSource;
     const matchesCampaign = filterCampaign === 'all' || lead.utm_campaign === filterCampaign;
+    const matchesAdSet = filterAdSet === 'all' || lead.utm_content === filterAdSet;
+    const matchesAd = filterAd === 'all' || lead.utm_term === filterAd;
 
-    return matchesSearch && matchesSource && matchesCampaign;
+    return matchesSearch && matchesSource && matchesCampaign && matchesAdSet && matchesAd;
   });
 
   const uniqueSources = [...new Set(leads.map((l) => l.utm_source).filter(Boolean))];
   const uniqueCampaigns = [...new Set(leads.map((l) => l.utm_campaign).filter(Boolean))];
+  const uniqueAdSets = [...new Set(leads.map((l) => l.utm_content).filter(Boolean))];
+  const uniqueAds = [...new Set(leads.map((l) => l.utm_term).filter(Boolean))];
 
   const exportToCSV = () => {
     const headers = ['Nome', 'Email', 'Telefone', 'Origem', 'Mídia', 'Campanha', 'Conteúdo', 'Termo', 'Landing Page', 'RD Station', 'Data'];
@@ -201,25 +221,151 @@ export function LeadsDashboard() {
         </Card>
       </div>
 
-      {/* By Source */}
-      {Object.keys(stats.bySource).length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Leads por Origem</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(stats.bySource)
-                .sort((a, b) => b[1] - a[1])
-                .map(([source, count]) => (
-                  <Badge key={source} variant="secondary" className="text-sm">
-                    {source}: {count}
-                  </Badge>
-                ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Detailed Origin Report */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* By Source */}
+        {Object.keys(stats.bySource).length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <ExternalLink className="h-4 w-4" />
+                Por Origem (Source)
+              </CardTitle>
+              <CardDescription>De onde os leads vieram</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {Object.entries(stats.bySource)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([source, count]) => (
+                    <div key={source} className="flex items-center justify-between">
+                      <span className="text-sm">{source}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 bg-muted rounded-full h-2">
+                          <div 
+                            className="bg-primary h-2 rounded-full" 
+                            style={{ width: `${(count / stats.total) * 100}%` }}
+                          />
+                        </div>
+                        <Badge variant="secondary" className="text-xs min-w-[40px] justify-center">
+                          {count}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* By Campaign */}
+        {Object.keys(stats.byCampaign).length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Por Campanha
+              </CardTitle>
+              <CardDescription>Campanhas de marketing</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {Object.entries(stats.byCampaign)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 8)
+                  .map(([campaign, count]) => (
+                    <div key={campaign} className="flex items-center justify-between">
+                      <span className="text-sm truncate max-w-[180px]" title={campaign}>{campaign}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 bg-muted rounded-full h-2">
+                          <div 
+                            className="bg-blue-500 h-2 rounded-full" 
+                            style={{ width: `${(count / stats.total) * 100}%` }}
+                          />
+                        </div>
+                        <Badge variant="secondary" className="text-xs min-w-[40px] justify-center">
+                          {count}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* By Ad Set */}
+        {Object.keys(stats.byAdSet).length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Por Conjunto de Anúncios
+              </CardTitle>
+              <CardDescription>Segmentação de público</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {Object.entries(stats.byAdSet)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 8)
+                  .map(([adSet, count]) => (
+                    <div key={adSet} className="flex items-center justify-between">
+                      <span className="text-sm truncate max-w-[180px]" title={adSet}>{adSet}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 bg-muted rounded-full h-2">
+                          <div 
+                            className="bg-green-500 h-2 rounded-full" 
+                            style={{ width: `${(count / stats.total) * 100}%` }}
+                          />
+                        </div>
+                        <Badge variant="secondary" className="text-xs min-w-[40px] justify-center">
+                          {count}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* By Ad */}
+        {Object.keys(stats.byAd).length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                Por Anúncio
+              </CardTitle>
+              <CardDescription>Criativos específicos</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {Object.entries(stats.byAd)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 8)
+                  .map(([ad, count]) => (
+                    <div key={ad} className="flex items-center justify-between">
+                      <span className="text-sm truncate max-w-[180px]" title={ad}>{ad}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 bg-muted rounded-full h-2">
+                          <div 
+                            className="bg-orange-500 h-2 rounded-full" 
+                            style={{ width: `${(count / stats.total) * 100}%` }}
+                          />
+                        </div>
+                        <Badge variant="secondary" className="text-xs min-w-[40px] justify-center">
+                          {count}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/* Leads Table */}
       <Card>
@@ -277,7 +423,7 @@ export function LeadsDashboard() {
               </SelectContent>
             </Select>
             <Select value={filterCampaign} onValueChange={setFilterCampaign}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-[160px]">
                 <SelectValue placeholder="Campanha" />
               </SelectTrigger>
               <SelectContent>
@@ -285,6 +431,32 @@ export function LeadsDashboard() {
                 {uniqueCampaigns.map((campaign) => (
                   <SelectItem key={campaign} value={campaign!}>
                     {campaign}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterAdSet} onValueChange={setFilterAdSet}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Conj. Anúncios" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos conjuntos</SelectItem>
+                {uniqueAdSets.map((adSet) => (
+                  <SelectItem key={adSet} value={adSet!}>
+                    {adSet}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterAd} onValueChange={setFilterAd}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Anúncio" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos anúncios</SelectItem>
+                {uniqueAds.map((ad) => (
+                  <SelectItem key={ad} value={ad!}>
+                    {ad}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -305,6 +477,8 @@ export function LeadsDashboard() {
                     <TableHead>Contato</TableHead>
                     <TableHead>Origem</TableHead>
                     <TableHead>Campanha</TableHead>
+                    <TableHead>Conj. Anúncios</TableHead>
+                    <TableHead>Anúncio</TableHead>
                     <TableHead>RD Station</TableHead>
                     <TableHead>Data</TableHead>
                   </TableRow>
@@ -322,28 +496,39 @@ export function LeadsDashboard() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="space-y-1">
+                        <div className="flex flex-wrap gap-1">
                           {lead.utm_source && (
                             <Badge variant="secondary" className="text-xs">
                               {lead.utm_source}
                             </Badge>
                           )}
                           {lead.utm_medium && (
-                            <Badge variant="outline" className="text-xs ml-1">
+                            <Badge variant="outline" className="text-xs">
                               {lead.utm_medium}
                             </Badge>
                           )}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="space-y-1">
-                          {lead.utm_campaign && (
-                            <div className="text-sm">{lead.utm_campaign}</div>
-                          )}
-                          {lead.utm_content && (
-                            <div className="text-xs text-muted-foreground">{lead.utm_content}</div>
-                          )}
-                        </div>
+                        {lead.utm_campaign ? (
+                          <span className="text-sm">{lead.utm_campaign}</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {lead.utm_content ? (
+                          <span className="text-sm">{lead.utm_content}</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {lead.utm_term ? (
+                          <span className="text-sm">{lead.utm_term}</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {lead.rd_station_synced ? (
