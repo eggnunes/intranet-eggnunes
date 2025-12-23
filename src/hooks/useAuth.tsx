@@ -125,29 +125,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        // Check inactivity on session restore
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          if (checkInactivityOnLoad()) {
-            // Session should be invalidated due to inactivity
-            setTimeout(() => signOut(), 0);
-            return;
-          }
-          // Update last activity on successful sign in
-          updateLastActivity();
-        }
-        
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+        
+        // Check inactivity on session restore (deferred to avoid deadlock)
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+          setTimeout(() => {
+            const lastActivity = localStorage.getItem(LAST_ACTIVITY_KEY);
+            if (lastActivity) {
+              const lastActivityTime = parseInt(lastActivity, 10);
+              const now = Date.now();
+              if (now - lastActivityTime > INACTIVITY_TIMEOUT) {
+                console.log('Auto-logout: Session expired due to inactivity');
+                supabase.auth.signOut();
+                return;
+              }
+            }
+            // Update last activity on successful sign in
+            localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+          }, 0);
+        }
       }
     );
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       // Check if we should invalidate the session due to inactivity
-      if (session && checkInactivityOnLoad()) {
-        console.log('Invalidating session due to inactivity on page load');
-        signOut();
-        return;
+      if (session) {
+        const lastActivity = localStorage.getItem(LAST_ACTIVITY_KEY);
+        if (lastActivity) {
+          const lastActivityTime = parseInt(lastActivity, 10);
+          const now = Date.now();
+          if (now - lastActivityTime > INACTIVITY_TIMEOUT) {
+            console.log('Invalidating session due to inactivity on page load');
+            supabase.auth.signOut();
+            return;
+          }
+        }
       }
       
       setSession(session);
@@ -156,7 +170,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return () => subscription.unsubscribe();
-  }, [checkInactivityOnLoad, signOut, updateLastActivity]);
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, session, loading, signOut }}>
