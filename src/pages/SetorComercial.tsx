@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
@@ -24,6 +25,7 @@ import { ContractGenerator } from "@/components/ContractGenerator";
 import { ProcuracaoGenerator } from "@/components/ProcuracaoGenerator";
 import { DeclaracaoGenerator } from "@/components/DeclaracaoGenerator";
 import { DocumentTemplatesManager } from "@/components/DocumentTemplatesManager";
+import { LeadsDashboard } from "@/components/LeadsDashboard";
 import { 
   RefreshCw, 
   Search, 
@@ -45,7 +47,8 @@ import {
   Check,
   RotateCcw,
   Save,
-  Settings
+  Settings,
+  BarChart3
 } from "lucide-react";
 import { format, parse, isAfter, isBefore, isEqual, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -386,53 +389,66 @@ const SetorComercial = () => {
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Clientes que Preencheram o Formulário</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{clients.length}</div>
-              <p className="text-xs text-muted-foreground">
-                registros no formulário
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Último Registro</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {reversedClients.length > 0 
-                  ? reversedClients[0]?.nomeCompleto?.split(' ')[0] || '-'
-                  : '-'
-                }
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {reversedClients.length > 0 ? reversedClients[0]?.timestamp : 'Nenhum registro'}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Documentos</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">3</div>
-              <p className="text-xs text-muted-foreground">
-                tipos disponíveis para geração
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <Tabs defaultValue="clientes" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:inline-grid">
+            <TabsTrigger value="clientes" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              <span>Clientes</span>
+            </TabsTrigger>
+            <TabsTrigger value="leads" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              <span>Tracking de Leads</span>
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Search and Table */}
-        <Card>
+          <TabsContent value="clientes" className="space-y-6">
+            {/* Stats Cards */}
+            <div className="grid gap-4 md:grid-cols-3">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total de Clientes que Preencheram o Formulário</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{clients.length}</div>
+                  <p className="text-xs text-muted-foreground">
+                    registros no formulário
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Último Registro</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {reversedClients.length > 0 
+                      ? reversedClients[0]?.nomeCompleto?.split(' ')[0] || '-'
+                      : '-'
+                    }
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {reversedClients.length > 0 ? reversedClients[0]?.timestamp : 'Nenhum registro'}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Documentos</CardTitle>
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">3</div>
+                  <p className="text-xs text-muted-foreground">
+                    tipos disponíveis para geração
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Search and Table */}
+            <Card>
           <CardHeader>
             <CardTitle>Clientes do Formulário</CardTitle>
             <CardDescription>
@@ -638,7 +654,12 @@ const SetorComercial = () => {
             )}
           </CardContent>
         </Card>
-      </div>
+          </TabsContent>
+
+          <TabsContent value="leads">
+            <LeadsDashboard />
+          </TabsContent>
+        </Tabs>
 
       {/* Client Details Dialog */}
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
@@ -1001,6 +1022,7 @@ const SetorComercial = () => {
         client={clientForDeclaracao}
         qualification={clientForDeclaracao ? (qualificationSaved && selectedClient?.id === clientForDeclaracao.id ? editedQualification : generateClientQualification(clientForDeclaracao)) : ''}
       />
+      </div>
     </Layout>
   );
 };
