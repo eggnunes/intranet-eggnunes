@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 
 const INACTIVITY_TIMEOUT = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+const LAST_ACTIVITY_KEY = 'egg_nunes_last_activity';
 
 interface AuthContextType {
   user: User | null;
@@ -23,12 +24,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const signOut = useCallback(async () => {
+    localStorage.removeItem(LAST_ACTIVITY_KEY);
     await supabase.auth.signOut();
     navigate('/auth');
   }, [navigate]);
 
+  // Check if session should be invalidated due to inactivity
+  const checkInactivityOnLoad = useCallback(() => {
+    const lastActivity = localStorage.getItem(LAST_ACTIVITY_KEY);
+    if (lastActivity) {
+      const lastActivityTime = parseInt(lastActivity, 10);
+      const now = Date.now();
+      const timeSinceLastActivity = now - lastActivityTime;
+      
+      if (timeSinceLastActivity > INACTIVITY_TIMEOUT) {
+        console.log('Auto-logout: Session expired due to inactivity (more than 6 hours since last activity)');
+        return true; // Should sign out
+      }
+    }
+    return false;
+  }, []);
+
+  // Update last activity timestamp
+  const updateLastActivity = useCallback(() => {
+    localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+  }, []);
+
   // Reset inactivity timer on user activity
   const resetInactivityTimer = useCallback(() => {
+    // Update last activity in localStorage
+    updateLastActivity();
+    
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
     }
@@ -37,7 +63,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log('Auto-logout due to 6 hours of inactivity');
       signOut();
     }, INACTIVITY_TIMEOUT);
-  }, [signOut]);
+  }, [signOut, updateLastActivity]);
 
   // Setup activity listeners for auto-logout
   useEffect(() => {
@@ -45,17 +71,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
     
+    // Throttle activity updates to avoid excessive localStorage writes
+    let lastUpdate = 0;
+    const throttleMs = 60000; // Update localStorage at most once per minute
+    
     const handleActivity = () => {
-      resetInactivityTimer();
+      const now = Date.now();
+      if (now - lastUpdate > throttleMs) {
+        lastUpdate = now;
+        resetInactivityTimer();
+      } else if (inactivityTimerRef.current) {
+        // Still reset the timer even if we don't update localStorage
+        clearTimeout(inactivityTimerRef.current);
+        inactivityTimerRef.current = setTimeout(() => {
+          console.log('Auto-logout due to 6 hours of inactivity');
+          signOut();
+        }, INACTIVITY_TIMEOUT);
+      }
     };
 
-    // Start the timer
+    // Start the timer and set initial activity
     resetInactivityTimer();
 
     // Add event listeners
     activityEvents.forEach(event => {
       document.addEventListener(event, handleActivity, { passive: true });
     });
+
+    // Also listen for visibility change to handle when user comes back to tab
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Check if too much time has passed while tab was hidden
+        if (checkInactivityOnLoad()) {
+          signOut();
+        } else {
+          resetInactivityTimer();
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       if (inactivityTimerRef.current) {
@@ -64,12 +118,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       activityEvents.forEach(event => {
         document.removeEventListener(event, handleActivity);
       });
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [user, resetInactivityTimer]);
+  }, [user, resetInactivityTimer, checkInactivityOnLoad, signOut]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        // Check inactivity on session restore
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          if (checkInactivityOnLoad()) {
+            // Session should be invalidated due to inactivity
+            setTimeout(() => signOut(), 0);
+            return;
+          }
+          // Update last activity on successful sign in
+          updateLastActivity();
+        }
+        
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
@@ -77,13 +143,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
 
     supabase.auth.getSession().then(({ data: { session } }) => {
+      // Check if we should invalidate the session due to inactivity
+      if (session && checkInactivityOnLoad()) {
+        console.log('Invalidating session due to inactivity on page load');
+        signOut();
+        return;
+      }
+      
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [checkInactivityOnLoad, signOut, updateLastActivity]);
 
   return (
     <AuthContext.Provider value={{ user, session, loading, signOut }}>
