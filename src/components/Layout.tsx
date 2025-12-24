@@ -341,14 +341,16 @@ export const Layout = ({ children }: LayoutProps) => {
           <Users className="w-4 h-4" />
           CRM
         </Button>
-        <Button 
-          variant="ghost" 
-          onClick={() => { navigate('/lead-tracking'); setMobileMenuOpen(false); }}
-          className="gap-2 justify-start w-full mb-1"
-        >
-          <Target className="w-4 h-4" />
-          Tracking de Leads
-        </Button>
+        {profile?.position === 'socio' && (
+          <Button 
+            variant="ghost" 
+            onClick={() => { navigate('/lead-tracking'); setMobileMenuOpen(false); }}
+            className="gap-2 justify-start w-full mb-1"
+          >
+            <Target className="w-4 h-4" />
+            Tracking de Leads
+          </Button>
+        )}
       </div>
       <div className="px-2 py-2">
         <p className="text-xs font-semibold text-muted-foreground mb-2">ADVBOX</p>
@@ -570,16 +572,18 @@ export const Layout = ({ children }: LayoutProps) => {
                         <span className="text-xs text-muted-foreground">Leads e oportunidades</span>
                       </div>
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={() => navigate('/lead-tracking')}
-                      className="gap-2 cursor-pointer"
-                    >
-                      <Target className="w-4 h-4" />
-                      <div className="flex flex-col">
-                        <span className="font-medium">Tracking de Leads</span>
-                        <span className="text-xs text-muted-foreground">UTMs e formulários</span>
-                      </div>
-                    </DropdownMenuItem>
+                    {profile?.position === 'socio' && (
+                      <DropdownMenuItem 
+                        onClick={() => navigate('/lead-tracking')}
+                        className="gap-2 cursor-pointer"
+                      >
+                        <Target className="w-4 h-4" />
+                        <div className="flex flex-col">
+                          <span className="font-medium">Tracking de Leads</span>
+                          <span className="text-xs text-muted-foreground">UTMs e formulários</span>
+                        </div>
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
                 
