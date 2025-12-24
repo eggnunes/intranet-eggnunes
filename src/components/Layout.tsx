@@ -570,6 +570,16 @@ export const Layout = ({ children }: LayoutProps) => {
                         <span className="text-xs text-muted-foreground">Leads e oportunidades</span>
                       </div>
                     </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => navigate('/lead-tracking')}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <Target className="w-4 h-4" />
+                      <div className="flex flex-col">
+                        <span className="font-medium">Tracking de Leads</span>
+                        <span className="text-xs text-muted-foreground">UTMs e formulários</span>
+                      </div>
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
                 
