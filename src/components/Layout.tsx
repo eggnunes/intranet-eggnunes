@@ -341,6 +341,14 @@ export const Layout = ({ children }: LayoutProps) => {
           <Users className="w-4 h-4" />
           CRM
         </Button>
+        <Button 
+          variant="ghost" 
+          onClick={() => { navigate('/lead-tracking'); setMobileMenuOpen(false); }}
+          className="gap-2 justify-start w-full mb-1"
+        >
+          <Target className="w-4 h-4" />
+          Tracking de Leads
+        </Button>
       </div>
       <div className="px-2 py-2">
         <p className="text-xs font-semibold text-muted-foreground mb-2">ADVBOX</p>
