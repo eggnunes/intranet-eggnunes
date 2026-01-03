@@ -168,6 +168,8 @@ export const Layout = ({ children }: LayoutProps) => {
     { path: '/copa-cozinha', label: 'Copa e Cozinha', description: 'Sugestões de alimentos', category: 'Administrativo' },
     { path: '/sala-reuniao', label: 'Sala de Reunião', description: 'Reservar sala', category: 'Administrativo' },
     { path: '/galeria-eventos', label: 'Galeria de Eventos', description: 'Fotos dos eventos', category: 'Administrativo' },
+    { path: '/documentos-uteis', label: 'Documentos Úteis', description: 'Documentos internos', category: 'Administrativo' },
+    { path: '/sobre-escritorio', label: 'Sobre o Escritório', description: 'História e áreas de atuação', category: 'Sobre o Escritório' },
     { path: '/profile', label: 'Perfil', description: 'Editar perfil', category: 'Minha Conta' },
     { path: '/historico', label: 'Histórico', description: 'Histórico de uso', category: 'Minha Conta' },
     ...(isAdmin ? [
@@ -219,16 +221,21 @@ export const Layout = ({ children }: LayoutProps) => {
           {/* Top Bar */}
           <header className="border-b border-border bg-card sticky top-0 z-50 backdrop-blur-sm bg-card/95">
             <div className="flex items-center justify-between h-14 px-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <SidebarTrigger className="-ml-1" />
                 
-                {/* Logo on mobile */}
-                <img 
-                  src={logoEggNunes} 
-                  alt="Egg Nunes" 
-                  className="h-8 lg:hidden cursor-pointer"
+                {/* Logo with Intranet text - always visible */}
+                <div 
+                  className="flex items-center gap-2 cursor-pointer" 
                   onClick={() => navigate('/dashboard')}
-                />
+                >
+                  <img 
+                    src={logoEggNunes} 
+                    alt="Egg Nunes" 
+                    className="h-8 object-contain"
+                  />
+                  <span className="font-semibold text-sm text-foreground hidden sm:inline">Intranet</span>
+                </div>
               </div>
 
               <div className="flex items-center gap-1 md:gap-2">
