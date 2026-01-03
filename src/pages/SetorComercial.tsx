@@ -363,9 +363,9 @@ const SetorComercial = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Setor Comercial</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Contratos e Documentos</h1>
             <p className="text-muted-foreground">
-              Geração de contratos e documentos a partir dos formulários de clientes
+              Geração de contratos, procurações e declarações a partir dos formulários de clientes
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -389,21 +389,8 @@ const SetorComercial = () => {
           </div>
         </div>
 
-        <Tabs defaultValue="clientes" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:inline-grid">
-            <TabsTrigger value="clientes" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              <span>Clientes</span>
-            </TabsTrigger>
-            <TabsTrigger value="leads" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              <span>Tracking de Leads</span>
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="clientes" className="space-y-6">
-            {/* Stats Cards */}
-            <div className="grid gap-4 md:grid-cols-3">
+        {/* Stats Cards */}
+        <div className="grid gap-4 md:grid-cols-3">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total de Clientes que Preencheram o Formulário</CardTitle>
@@ -654,12 +641,7 @@ const SetorComercial = () => {
             )}
           </CardContent>
         </Card>
-          </TabsContent>
-
-          <TabsContent value="leads">
-            <LeadsDashboard />
-          </TabsContent>
-        </Tabs>
+        
 
       {/* Client Details Dialog */}
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>

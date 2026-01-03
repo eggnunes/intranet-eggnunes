@@ -43,6 +43,7 @@ import SalaReuniao from "./pages/SalaReuniao";
 import PesquisaJurisprudencia from "./pages/PesquisaJurisprudencia";
 import AssistenteIA from "./pages/AssistenteIA";
 import SetorComercial from "./pages/SetorComercial";
+import SetorComercialDashboard from "./pages/SetorComercialDashboard";
 import Integracoes from "./pages/Integracoes";
 import Notificacoes from "./pages/Notificacoes";
 import LeadTracking from "./pages/LeadTracking";
@@ -354,6 +355,14 @@ const App = () => (
             />
             <Route
               path="/setor-comercial"
+              element={
+                <ProtectedRoute>
+                  <SetorComercialDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/setor-comercial/contratos"
               element={
                 <ProtectedRoute>
                   <SetorComercial />
