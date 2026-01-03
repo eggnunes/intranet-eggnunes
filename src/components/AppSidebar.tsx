@@ -140,7 +140,7 @@ export function AppSidebar() {
 
   const isActive = (path: string) => location.pathname === path;
 
-  // Menu structure based on the document
+  // Menu structure based on the document - REORGANIZED ORDER
   const menuGroups = [
     {
       label: '🏠 INÍCIO',
@@ -159,6 +159,21 @@ export function AppSidebar() {
       ],
     },
     {
+      label: '💼 SETOR COMERCIAL',
+      items: [
+        { icon: FileSignature, path: '/setor-comercial', label: 'Painel Comercial' },
+        { icon: Users, path: '/crm', label: 'CRM' },
+        ...(profile?.position === 'socio' ? [{ icon: Target, path: '/lead-tracking', label: 'Tracking de Leads' }] : []),
+      ],
+    },
+    {
+      label: '⚖️ GESTÃO PROCESSUAL',
+      items: [
+        { icon: Award, path: '/decisoes-favoraveis', label: 'Decisões Favoráveis' },
+        { icon: KeyRound, path: '/codigos-autenticacao', label: 'Códigos TOTP' },
+      ],
+    },
+    {
       label: '📦 ADVBOX',
       items: [
         { icon: Briefcase, path: '/processos', label: 'Processos' },
@@ -172,18 +187,9 @@ export function AppSidebar() {
       ],
     },
     {
-      label: '⚖️ GESTÃO PROCESSUAL',
+      label: '📁 MICROSOFT TEAMS',
       items: [
-        { icon: Award, path: '/decisoes-favoraveis', label: 'Decisões Favoráveis' },
-        { icon: KeyRound, path: '/codigos-autenticacao', label: 'Códigos TOTP' },
-      ],
-    },
-    {
-      label: '💼 SETOR COMERCIAL',
-      items: [
-        { icon: FileSignature, path: '/setor-comercial', label: 'Painel Comercial' },
-        { icon: Users, path: '/crm', label: 'CRM' },
-        ...(profile?.position === 'socio' ? [{ icon: Target, path: '/lead-tracking', label: 'Tracking de Leads' }] : []),
+        { icon: HardDrive, path: '/arquivos-teams', label: 'Arquivos Teams' },
       ],
     },
     {
@@ -204,12 +210,6 @@ export function AppSidebar() {
         { icon: MessageSquare, path: '/forum', label: 'Fórum' },
         { icon: Lightbulb, path: '/sugestoes', label: 'Sugestões' },
         { icon: HeartHandshake, path: '/caixinha-desabafo', label: 'Caixinha de Desabafo' },
-      ],
-    },
-    {
-      label: '📁 MICROSOFT TEAMS',
-      items: [
-        { icon: HardDrive, path: '/arquivos-teams', label: 'Arquivos Teams' },
       ],
     },
     {

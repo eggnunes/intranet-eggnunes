@@ -18,7 +18,11 @@ import {
   Music,
   Video,
   Trophy,
-  MapPin
+  MapPin,
+  Sparkles,
+  Scale,
+  Calendar,
+  Target
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -131,7 +135,7 @@ export default function SobreEscritorio() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="w-5 h-5 text-primary" />
-              Sobre Nós
+              Quem Somos
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -142,10 +146,49 @@ export default function SobreEscritorio() {
               com excelência e dedicação.
             </p>
             <p className="text-foreground/80 leading-relaxed">
-              Com mais de 30 anos de história, o escritório se destaca pela combinação de experiência 
+              Com mais de <strong>30 anos de história</strong>, o escritório se destaca pela combinação de experiência 
               jurídica sólida com a adoção de tecnologias inovadoras, incluindo Inteligência Artificial, 
               para proporcionar um atendimento ainda mais eficiente aos seus clientes.
             </p>
+            
+            {/* Diferenciais */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <Calendar className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-semibold text-sm">+30 anos</p>
+                  <p className="text-xs text-muted-foreground">de experiência</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <Scale className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-semibold text-sm">Atuação Nacional</p>
+                  <p className="text-xs text-muted-foreground">em todo o Brasil</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <Target className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-semibold text-sm">Especialistas</p>
+                  <p className="text-xs text-muted-foreground">em Direito Público</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Missão e Valores */}
+            <div className="pt-4 space-y-3">
+              <h4 className="font-semibold text-foreground flex items-center gap-2">
+                <Shield className="h-4 w-4 text-primary" />
+                Nossa Missão
+              </h4>
+              <p className="text-foreground/70 text-sm leading-relaxed">
+                Defender com excelência os direitos de nossos clientes, especialmente servidores públicos 
+                civis e militares, oferecendo assessoria jurídica de alta qualidade, com ética, transparência 
+                e compromisso com resultados.
+              </p>
+            </div>
+
             <div className="flex flex-wrap gap-2 pt-4">
               <Button variant="outline" size="sm" asChild>
                 <a href="https://www.eggnunes.com.br" target="_blank" rel="noopener noreferrer" className="gap-2">
@@ -177,13 +220,30 @@ export default function SobreEscritorio() {
               Prêmios e Reconhecimentos
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Prêmio Law Summit 2024 */}
             <div className="flex items-start gap-4 p-4 rounded-lg bg-gradient-to-br from-amber-500/10 to-orange-500/5 border border-amber-200/50">
               <div className="p-3 rounded-lg bg-amber-500/20">
                 <Trophy className="h-6 w-6 text-amber-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-lg text-foreground">Prêmio Melhor Escritório em IA</h3>
+                <h3 className="font-semibold text-lg text-foreground">Melhor Escritório em Direito Administrativo e Militar do Brasil</h3>
+                <p className="text-muted-foreground text-sm">Law Summit 2024 - Safe Experience</p>
+                <p className="text-foreground/70 mt-2 text-sm">
+                  Reconhecimento como o melhor escritório de advocacia do Brasil nas áreas de Direito Administrativo 
+                  e Direito Militar, concedido pela Law Summit, o maior evento sobre tecnologia e gestão jurídica 
+                  da América Latina.
+                </p>
+              </div>
+            </div>
+
+            {/* Prêmio IA 2025 */}
+            <div className="flex items-start gap-4 p-4 rounded-lg bg-gradient-to-br from-primary/10 to-accent/5 border border-primary/20">
+              <div className="p-3 rounded-lg bg-primary/20">
+                <Sparkles className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg text-foreground">Prêmio Inovação em Inteligência Artificial</h3>
                 <p className="text-muted-foreground text-sm">Law Summit 2025</p>
                 <p className="text-foreground/70 mt-2 text-sm">
                   Reconhecimento pela implementação pioneira de Inteligência Artificial na advocacia, 
