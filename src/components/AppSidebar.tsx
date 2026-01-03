@@ -64,7 +64,7 @@ import {
   History,
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import logoEggNunes from '@/assets/logo-eggnunes.png';
+
 
 export function AppSidebar() {
   const navigate = useNavigate();
@@ -213,18 +213,19 @@ export function AppSidebar() {
       ],
     },
     {
-      label: '📚 DOCUMENTOS',
-      items: [
-        { icon: FolderOpen, path: '/documentos-uteis', label: 'Documentos Úteis' },
-      ],
-    },
-    {
       label: '🏢 ADMINISTRATIVO',
       items: [
         { icon: ClipboardIcon, path: '/solicitacoes-administrativas', label: 'Solicitações' },
         { icon: Coffee, path: '/copa-cozinha', label: 'Copa e Cozinha' },
         { icon: DoorOpen, path: '/sala-reuniao', label: 'Sala de Reunião' },
         { icon: Camera, path: '/galeria-eventos', label: 'Galeria de Eventos' },
+        { icon: FolderOpen, path: '/documentos-uteis', label: 'Documentos Úteis' },
+      ],
+    },
+    {
+      label: '🏛️ SOBRE O ESCRITÓRIO',
+      items: [
+        { icon: Building2, path: '/sobre-escritorio', label: 'Sobre Nós' },
       ],
     },
     {
@@ -250,19 +251,9 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-border bg-card">
       <SidebarHeader className="p-4 border-b border-border">
-        <div 
-          className="flex items-center gap-3 cursor-pointer" 
-          onClick={() => navigate('/dashboard')}
-        >
-          <img 
-            src={logoEggNunes} 
-            alt="Egg Nunes" 
-            className={collapsed ? "h-8 w-8 object-contain" : "h-10 object-contain"}
-          />
-          {!collapsed && (
-            <span className="font-semibold text-sm text-foreground">Intranet</span>
-          )}
-        </div>
+        {!collapsed ? (
+          <span className="font-semibold text-sm text-muted-foreground">Menu</span>
+        ) : null}
       </SidebarHeader>
 
       <SidebarContent className="overflow-y-auto">

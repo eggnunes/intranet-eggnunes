@@ -53,6 +53,7 @@ import Mensagens from "./pages/Mensagens";
 import CaixinhaDesabafo from "./pages/CaixinhaDesabafo";
 import MensagensEncaminhadas from "./pages/MensagensEncaminhadas";
 import DecisoesFavoraveis from "./pages/DecisoesFavoraveis";
+import SobreEscritorio from "./pages/SobreEscritorio";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient({
@@ -436,6 +437,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <DecisoesFavoraveis />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sobre-escritorio"
+              element={
+                <ProtectedRoute>
+                  <SobreEscritorio />
                 </ProtectedRoute>
               }
             />
