@@ -161,7 +161,8 @@ export function AppSidebar() {
     {
       label: '💼 SETOR COMERCIAL',
       items: [
-        { icon: FileSignature, path: '/setor-comercial', label: 'Painel Comercial' },
+        { icon: Briefcase, path: '/setor-comercial', label: 'Dashboard Comercial' },
+        { icon: FileSignature, path: '/setor-comercial/contratos', label: 'Contratos' },
         { icon: Users, path: '/crm', label: 'CRM' },
         ...(profile?.position === 'socio' ? [{ icon: Target, path: '/lead-tracking', label: 'Tracking de Leads' }] : []),
       ],
