@@ -39,6 +39,20 @@ interface LeadStats {
   today: number;
 }
 
+interface CRMStats {
+  totalDeals: number;
+  wonDeals: number;
+  lostDeals: number;
+  activeDeals: number;
+  totalValue: number;
+  wonValue: number;
+  dealsLast30Days: number;
+  leadsLast30Days: number;
+  leadsLast7Days: number;
+  oldestDealDate: string | null;
+  oldestLeadDate: string | null;
+}
+
 const SetorComercialDashboard = () => {
   const navigate = useNavigate();
   const { hasPermission, loading: permissionsLoading } = useAdminPermissions();
@@ -47,6 +61,19 @@ const SetorComercialDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [leadStats, setLeadStats] = useState<LeadStats>({ total: 0, last7Days: 0, last30Days: 0, today: 0 });
+  const [crmStats, setCrmStats] = useState<CRMStats>({
+    totalDeals: 0,
+    wonDeals: 0,
+    lostDeals: 0,
+    activeDeals: 0,
+    totalValue: 0,
+    wonValue: 0,
+    dealsLast30Days: 0,
+    leadsLast30Days: 0,
+    leadsLast7Days: 0,
+    oldestDealDate: null,
+    oldestLeadDate: null
+  });
   const [capturedLeadsCount, setCapturedLeadsCount] = useState(0);
   const [dealsCount, setDealsCount] = useState(0);
   const [contactsCount, setContactsCount] = useState(0);
@@ -125,19 +152,27 @@ const SetorComercialDashboard = () => {
 
   const fetchCRMStats = async () => {
     try {
-      // Fetch captured leads count
-      const { count: leadsCount } = await supabase
+      const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
+      const sevenDaysAgo = subDays(new Date(), 7).toISOString();
+
+      // Fetch captured leads with date info
+      const { data: leadsData, count: leadsCount } = await supabase
         .from('captured_leads')
-        .select('*', { count: 'exact', head: true });
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: true });
       
       setCapturedLeadsCount(leadsCount || 0);
 
-      // Fetch deals count
-      const { count: deals } = await supabase
+      // Count leads last 30 days and 7 days
+      const leadsLast30Days = leadsData?.filter(l => l.created_at >= thirtyDaysAgo).length || 0;
+      const leadsLast7Days = leadsData?.filter(l => l.created_at >= sevenDaysAgo).length || 0;
+      const oldestLeadDate = leadsData?.[0]?.created_at || null;
+
+      // Fetch all deals for statistics
+      const { data: dealsData } = await supabase
         .from('crm_deals')
-        .select('*', { count: 'exact', head: true });
-      
-      setDealsCount(deals || 0);
+        .select('*, crm_deal_stages(is_won, is_lost)')
+        .order('created_at', { ascending: true });
 
       // Fetch contacts count
       const { count: contacts } = await supabase
@@ -145,8 +180,50 @@ const SetorComercialDashboard = () => {
         .select('*', { count: 'exact', head: true });
       
       setContactsCount(contacts || 0);
+
+      if (dealsData) {
+        const totalDeals = dealsData.length;
+        const wonDeals = dealsData.filter(d => d.won === true || d.crm_deal_stages?.is_won).length;
+        const lostDeals = dealsData.filter(d => d.won === false || d.crm_deal_stages?.is_lost).length;
+        const activeDeals = totalDeals - wonDeals - lostDeals;
+        const totalValue = dealsData.reduce((sum, d) => sum + (d.value || 0), 0);
+        const wonValue = dealsData.filter(d => d.won === true || d.crm_deal_stages?.is_won).reduce((sum, d) => sum + (d.value || 0), 0);
+        const dealsLast30Days = dealsData.filter(d => d.created_at >= thirtyDaysAgo).length;
+        const oldestDealDate = dealsData[0]?.created_at || null;
+
+        setCrmStats({
+          totalDeals,
+          wonDeals,
+          lostDeals,
+          activeDeals,
+          totalValue,
+          wonValue,
+          dealsLast30Days,
+          leadsLast30Days,
+          leadsLast7Days,
+          oldestDealDate,
+          oldestLeadDate
+        });
+        setDealsCount(totalDeals);
+      }
     } catch (error) {
       console.error('Error fetching CRM stats:', error);
+    }
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
+  };
+
+  const formatPeriodLabel = (date: string | null) => {
+    if (!date) return "todo período";
+    try {
+      return `desde ${format(new Date(date), "MMM/yyyy", { locale: ptBR })}`;
+    } catch {
+      return "todo período";
     }
   };
 
@@ -226,7 +303,7 @@ const SetorComercialDashboard = () => {
 
           <Card className="border-l-4 border-l-green-500">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Últimos 7 dias</CardTitle>
+              <CardTitle className="text-sm font-medium">Formulários (7 dias)</CardTitle>
               <Calendar className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
@@ -236,7 +313,7 @@ const SetorComercialDashboard = () => {
                 <>
                   <div className="text-2xl font-bold">{leadStats.last7Days}</div>
                   <p className="text-xs text-muted-foreground">
-                    novos formulários na semana
+                    novos nos últimos 7 dias
                   </p>
                 </>
               )}
@@ -251,7 +328,7 @@ const SetorComercialDashboard = () => {
             <CardContent>
               <div className="text-2xl font-bold">{capturedLeadsCount}</div>
               <p className="text-xs text-muted-foreground">
-                via landing pages
+                {formatPeriodLabel(crmStats.oldestLeadDate)} • via landing pages
               </p>
             </CardContent>
           </Card>
@@ -264,7 +341,62 @@ const SetorComercialDashboard = () => {
             <CardContent>
               <div className="text-2xl font-bold">{dealsCount}</div>
               <p className="text-xs text-muted-foreground">
-                oportunidades em andamento
+                {formatPeriodLabel(crmStats.oldestDealDate)} • total acumulado
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* CRM Performance Stats */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Negócios Ganhos</CardTitle>
+              <TrendingUp className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{crmStats.wonDeals}</div>
+              <p className="text-xs text-muted-foreground">
+                {formatCurrency(crmStats.wonValue)} em valor
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Negócios Ativos</CardTitle>
+              <Clock className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{crmStats.activeDeals}</div>
+              <p className="text-xs text-muted-foreground">
+                em andamento no funil
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Valor Total Pipeline</CardTitle>
+              <Scale className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(crmStats.totalValue)}</div>
+              <p className="text-xs text-muted-foreground">
+                soma de todos os negócios
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Novos (30 dias)</CardTitle>
+              <UserPlus className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{crmStats.dealsLast30Days}</div>
+              <p className="text-xs text-muted-foreground">
+                negócios criados no mês
               </p>
             </CardContent>
           </Card>
