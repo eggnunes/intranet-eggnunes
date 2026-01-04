@@ -55,6 +55,8 @@ import CaixinhaDesabafo from "./pages/CaixinhaDesabafo";
 import MensagensEncaminhadas from "./pages/MensagensEncaminhadas";
 import DecisoesFavoraveis from "./pages/DecisoesFavoraveis";
 import SobreEscritorio from "./pages/SobreEscritorio";
+import Financeiro from "./pages/Financeiro";
+import FinanceiroAdmin from "./pages/FinanceiroAdmin";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient({
@@ -454,6 +456,22 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <SobreEscritorio />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/financeiro"
+              element={
+                <ProtectedRoute>
+                  <Financeiro />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/financeiro/admin"
+              element={
+                <ProtectedRoute>
+                  <FinanceiroAdmin />
                 </ProtectedRoute>
               }
             />
