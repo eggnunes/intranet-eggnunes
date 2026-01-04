@@ -15,11 +15,10 @@ import { toast } from 'sonner';
 interface Categoria {
   id: string;
   nome: string;
-  tipo: string;
   tipo: 'receita' | 'despesa';
-  grupo: string;
-  descricao: string;
-  cor: string;
+  grupo: string | null;
+  descricao: string | null;
+  cor: string | null;
   ativa: boolean;
   _count?: number;
 }
@@ -104,6 +103,7 @@ export function FinanceiroCategoriasAdmin() {
 
       setCategorias((cats || []).map(c => ({
         ...c,
+        tipo: c.tipo as 'receita' | 'despesa',
         _count: countMap.get(c.id) || 0
       })));
 
@@ -143,7 +143,7 @@ export function FinanceiroCategoriasAdmin() {
     if (categoria) {
       setEditingCategoria(categoria);
       setFormNome(categoria.nome);
-      setFormTipo(categoria.tipo);
+      setFormTipo(categoria.tipo as 'receita' | 'despesa');
       setFormGrupo(categoria.grupo || '');
       setFormDescricao(categoria.descricao || '');
       setFormCor(categoria.cor || '#6B7280');

@@ -224,6 +224,12 @@ export function AppSidebar() {
       ],
     },
     {
+      label: '💰 FINANCEIRO',
+      items: [
+        { icon: DollarSign, path: '/financeiro', label: 'Sistema Financeiro' },
+      ],
+    },
+    {
       label: '🏛️ SOBRE O ESCRITÓRIO',
       items: [
         { icon: Building2, path: '/sobre-escritorio', label: 'Sobre Nós' },
