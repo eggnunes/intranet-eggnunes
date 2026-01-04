@@ -1883,6 +1883,418 @@ export type Database = {
           },
         ]
       }
+      fin_auditoria: {
+        Row: {
+          acao: string
+          created_at: string | null
+          dados_anteriores: Json | null
+          dados_novos: Json | null
+          id: string
+          registro_id: string
+          tabela: string
+          usuario_id: string
+        }
+        Insert: {
+          acao: string
+          created_at?: string | null
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          id?: string
+          registro_id: string
+          tabela: string
+          usuario_id: string
+        }
+        Update: {
+          acao?: string
+          created_at?: string | null
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          id?: string
+          registro_id?: string
+          tabela?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
+      fin_categorias: {
+        Row: {
+          ativa: boolean | null
+          cor: string | null
+          created_at: string | null
+          descricao: string | null
+          grupo: string | null
+          icone: string | null
+          id: string
+          nome: string
+          ordem: number | null
+          tipo: string
+          updated_at: string | null
+        }
+        Insert: {
+          ativa?: boolean | null
+          cor?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          grupo?: string | null
+          icone?: string | null
+          id?: string
+          nome: string
+          ordem?: number | null
+          tipo: string
+          updated_at?: string | null
+        }
+        Update: {
+          ativa?: boolean | null
+          cor?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          grupo?: string | null
+          icone?: string | null
+          id?: string
+          nome?: string
+          ordem?: number | null
+          tipo?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      fin_clientes: {
+        Row: {
+          advbox_id: string | null
+          ativo: boolean | null
+          cpf_cnpj: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          nome: string
+          telefone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          advbox_id?: string | null
+          ativo?: boolean | null
+          cpf_cnpj?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          nome: string
+          telefone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          advbox_id?: string | null
+          ativo?: boolean | null
+          cpf_cnpj?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          nome?: string
+          telefone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      fin_configuracoes: {
+        Row: {
+          chave: string
+          descricao: string | null
+          id: string
+          updated_at: string | null
+          updated_by: string | null
+          valor: Json | null
+        }
+        Insert: {
+          chave: string
+          descricao?: string | null
+          id?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          valor?: Json | null
+        }
+        Update: {
+          chave?: string
+          descricao?: string | null
+          id?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          valor?: Json | null
+        }
+        Relationships: []
+      }
+      fin_contas: {
+        Row: {
+          agencia: string | null
+          ativa: boolean | null
+          banco: string | null
+          cor: string | null
+          created_at: string | null
+          created_by: string | null
+          icone: string | null
+          id: string
+          nome: string
+          numero_conta: string | null
+          saldo_atual: number | null
+          saldo_inicial: number | null
+          tipo: string
+          updated_at: string | null
+        }
+        Insert: {
+          agencia?: string | null
+          ativa?: boolean | null
+          banco?: string | null
+          cor?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          icone?: string | null
+          id?: string
+          nome: string
+          numero_conta?: string | null
+          saldo_atual?: number | null
+          saldo_inicial?: number | null
+          tipo: string
+          updated_at?: string | null
+        }
+        Update: {
+          agencia?: string | null
+          ativa?: boolean | null
+          banco?: string | null
+          cor?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          icone?: string | null
+          id?: string
+          nome?: string
+          numero_conta?: string | null
+          saldo_atual?: number | null
+          saldo_inicial?: number | null
+          tipo?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      fin_lancamentos: {
+        Row: {
+          a_reembolsar: boolean | null
+          anexo_url: string | null
+          categoria_id: string | null
+          cliente_id: string | null
+          conciliacao_id: string | null
+          conciliado: boolean | null
+          conciliado_em: string | null
+          conta_destino_id: string | null
+          conta_origem_id: string
+          created_at: string | null
+          created_by: string
+          data_lancamento: string
+          data_pagamento: string | null
+          data_reembolso: string | null
+          data_vencimento: string | null
+          deleted_at: string | null
+          descricao: string
+          id: string
+          lancamento_pai_id: string | null
+          numero_documento: string | null
+          observacoes: string | null
+          origem: string | null
+          produto_id: string | null
+          recorrencia_fim: string | null
+          recorrencia_tipo: string | null
+          recorrente: boolean | null
+          reembolsada: boolean | null
+          setor_id: string | null
+          status: string | null
+          subcategoria_id: string | null
+          tipo: string
+          updated_at: string | null
+          updated_by: string | null
+          valor: number
+        }
+        Insert: {
+          a_reembolsar?: boolean | null
+          anexo_url?: string | null
+          categoria_id?: string | null
+          cliente_id?: string | null
+          conciliacao_id?: string | null
+          conciliado?: boolean | null
+          conciliado_em?: string | null
+          conta_destino_id?: string | null
+          conta_origem_id: string
+          created_at?: string | null
+          created_by: string
+          data_lancamento?: string
+          data_pagamento?: string | null
+          data_reembolso?: string | null
+          data_vencimento?: string | null
+          deleted_at?: string | null
+          descricao: string
+          id?: string
+          lancamento_pai_id?: string | null
+          numero_documento?: string | null
+          observacoes?: string | null
+          origem?: string | null
+          produto_id?: string | null
+          recorrencia_fim?: string | null
+          recorrencia_tipo?: string | null
+          recorrente?: boolean | null
+          reembolsada?: boolean | null
+          setor_id?: string | null
+          status?: string | null
+          subcategoria_id?: string | null
+          tipo: string
+          updated_at?: string | null
+          updated_by?: string | null
+          valor: number
+        }
+        Update: {
+          a_reembolsar?: boolean | null
+          anexo_url?: string | null
+          categoria_id?: string | null
+          cliente_id?: string | null
+          conciliacao_id?: string | null
+          conciliado?: boolean | null
+          conciliado_em?: string | null
+          conta_destino_id?: string | null
+          conta_origem_id?: string
+          created_at?: string | null
+          created_by?: string
+          data_lancamento?: string
+          data_pagamento?: string | null
+          data_reembolso?: string | null
+          data_vencimento?: string | null
+          deleted_at?: string | null
+          descricao?: string
+          id?: string
+          lancamento_pai_id?: string | null
+          numero_documento?: string | null
+          observacoes?: string | null
+          origem?: string | null
+          produto_id?: string | null
+          recorrencia_fim?: string | null
+          recorrencia_tipo?: string | null
+          recorrente?: boolean | null
+          reembolsada?: boolean | null
+          setor_id?: string | null
+          status?: string | null
+          subcategoria_id?: string | null
+          tipo?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_lancamentos_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "fin_categorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_lancamentos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "fin_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_lancamentos_conta_destino_id_fkey"
+            columns: ["conta_destino_id"]
+            isOneToOne: false
+            referencedRelation: "fin_contas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_lancamentos_conta_origem_id_fkey"
+            columns: ["conta_origem_id"]
+            isOneToOne: false
+            referencedRelation: "fin_contas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_lancamentos_lancamento_pai_id_fkey"
+            columns: ["lancamento_pai_id"]
+            isOneToOne: false
+            referencedRelation: "fin_lancamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_lancamentos_setor_id_fkey"
+            columns: ["setor_id"]
+            isOneToOne: false
+            referencedRelation: "fin_setores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_lancamentos_subcategoria_id_fkey"
+            columns: ["subcategoria_id"]
+            isOneToOne: false
+            referencedRelation: "fin_subcategorias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_setores: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          descricao: string | null
+          id: string
+          nome: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+        }
+        Relationships: []
+      }
+      fin_subcategorias: {
+        Row: {
+          ativa: boolean | null
+          categoria_id: string
+          created_at: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          updated_at: string | null
+        }
+        Insert: {
+          ativa?: boolean | null
+          categoria_id: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          updated_at?: string | null
+        }
+        Update: {
+          ativa?: boolean | null
+          categoria_id?: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_subcategorias_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "fin_categorias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_alerts: {
         Row: {
           alert_type: string
