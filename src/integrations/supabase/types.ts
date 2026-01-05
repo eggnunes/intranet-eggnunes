@@ -4225,6 +4225,7 @@ export type Database = {
           oab_state: string | null
           perfil_completo: boolean | null
           position: Database["public"]["Enums"]["position_type"] | null
+          salario: number | null
           telefone: string | null
           updated_at: string
         }
@@ -4254,6 +4255,7 @@ export type Database = {
           oab_state?: string | null
           perfil_completo?: boolean | null
           position?: Database["public"]["Enums"]["position_type"] | null
+          salario?: number | null
           telefone?: string | null
           updated_at?: string
         }
@@ -4283,6 +4285,7 @@ export type Database = {
           oab_state?: string | null
           perfil_completo?: boolean | null
           position?: Database["public"]["Enums"]["position_type"] | null
+          salario?: number | null
           telefone?: string | null
           updated_at?: string
         }
@@ -4824,6 +4827,44 @@ export type Database = {
             columns: ["pasta_id"]
             isOneToOne: false
             referencedRelation: "rh_pastas_documentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rh_historico_salario: {
+        Row: {
+          colaborador_id: string
+          created_at: string | null
+          data_alteracao: string | null
+          id: string
+          observacao: string | null
+          salario_anterior: number | null
+          salario_novo: number | null
+        }
+        Insert: {
+          colaborador_id: string
+          created_at?: string | null
+          data_alteracao?: string | null
+          id?: string
+          observacao?: string | null
+          salario_anterior?: number | null
+          salario_novo?: number | null
+        }
+        Update: {
+          colaborador_id?: string
+          created_at?: string | null
+          data_alteracao?: string | null
+          id?: string
+          observacao?: string | null
+          salario_anterior?: number | null
+          salario_novo?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rh_historico_salario_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
