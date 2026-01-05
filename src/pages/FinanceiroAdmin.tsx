@@ -13,6 +13,7 @@ import { FinanceiroIndices } from '@/components/financeiro/FinanceiroIndices';
 import { FinanceiroRelatorios } from '@/components/financeiro/FinanceiroRelatorios';
 import { FinanceiroPrevisoes } from '@/components/financeiro/FinanceiroPrevisoes';
 import { FinanceiroRankingClientes } from '@/components/financeiro/FinanceiroRankingClientes';
+import { FinanceiroContratos } from '@/components/financeiro/FinanceiroContratos';
 
 export default function FinanceiroAdmin() {
   const navigate = useNavigate();
@@ -29,8 +30,9 @@ export default function FinanceiroAdmin() {
         </div>
       </div>
 
-      <Tabs defaultValue="metas" className="space-y-6">
+      <Tabs defaultValue="contratos" className="space-y-6">
         <TabsList className="flex flex-wrap gap-1 h-auto">
+          <TabsTrigger value="contratos">Contratos</TabsTrigger>
           <TabsTrigger value="metas">Metas</TabsTrigger>
           <TabsTrigger value="orcamento">Orçamento</TabsTrigger>
           <TabsTrigger value="indices">Índices</TabsTrigger>
@@ -44,6 +46,7 @@ export default function FinanceiroAdmin() {
           <TabsTrigger value="auditoria">Auditoria</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="contratos"><FinanceiroContratos /></TabsContent>
         <TabsContent value="metas"><FinanceiroMetas /></TabsContent>
         <TabsContent value="orcamento"><FinanceiroOrcamento /></TabsContent>
         <TabsContent value="indices"><FinanceiroIndices /></TabsContent>

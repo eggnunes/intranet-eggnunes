@@ -19,3 +19,4 @@ export { FinanceiroOrcamento } from './FinanceiroOrcamento';
 export { FinanceiroAnexos } from './FinanceiroAnexos';
 export { FinanceiroAprovacoes } from './FinanceiroAprovacoes';
 export { FinanceiroPrevisoes } from './FinanceiroPrevisoes';
+export { FinanceiroContratos } from './FinanceiroContratos';

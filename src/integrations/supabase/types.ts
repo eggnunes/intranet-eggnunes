@@ -2497,6 +2497,93 @@ export type Database = {
         }
         Relationships: []
       }
+      fin_contratos: {
+        Row: {
+          advbox_customer_id: string | null
+          advbox_lawsuit_id: string | null
+          advbox_sync_error: string | null
+          advbox_sync_status: string | null
+          client_cpf: string | null
+          client_email: string | null
+          client_id: number
+          client_name: string
+          client_phone: string | null
+          contract_file_url: string | null
+          created_at: string
+          created_by: string | null
+          data_vencimento: string | null
+          descricao_exito: string | null
+          forma_pagamento: string | null
+          id: string
+          numero_parcelas: number | null
+          objeto_contrato: string | null
+          product_name: string
+          qualification: string | null
+          status: string | null
+          tem_honorarios_exito: boolean | null
+          updated_at: string
+          valor_entrada: number | null
+          valor_parcela: number | null
+          valor_total: number | null
+        }
+        Insert: {
+          advbox_customer_id?: string | null
+          advbox_lawsuit_id?: string | null
+          advbox_sync_error?: string | null
+          advbox_sync_status?: string | null
+          client_cpf?: string | null
+          client_email?: string | null
+          client_id: number
+          client_name: string
+          client_phone?: string | null
+          contract_file_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_vencimento?: string | null
+          descricao_exito?: string | null
+          forma_pagamento?: string | null
+          id?: string
+          numero_parcelas?: number | null
+          objeto_contrato?: string | null
+          product_name: string
+          qualification?: string | null
+          status?: string | null
+          tem_honorarios_exito?: boolean | null
+          updated_at?: string
+          valor_entrada?: number | null
+          valor_parcela?: number | null
+          valor_total?: number | null
+        }
+        Update: {
+          advbox_customer_id?: string | null
+          advbox_lawsuit_id?: string | null
+          advbox_sync_error?: string | null
+          advbox_sync_status?: string | null
+          client_cpf?: string | null
+          client_email?: string | null
+          client_id?: number
+          client_name?: string
+          client_phone?: string | null
+          contract_file_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_vencimento?: string | null
+          descricao_exito?: string | null
+          forma_pagamento?: string | null
+          id?: string
+          numero_parcelas?: number | null
+          objeto_contrato?: string | null
+          product_name?: string
+          qualification?: string | null
+          status?: string | null
+          tem_honorarios_exito?: boolean | null
+          updated_at?: string
+          valor_entrada?: number | null
+          valor_parcela?: number | null
+          valor_total?: number | null
+        }
+        Relationships: []
+      }
       fin_importacao_itens: {
         Row: {
           created_at: string | null
