@@ -5102,6 +5102,35 @@ export type Database = {
           },
         ]
       }
+      rh_rubrica_subcategoria_mapping: {
+        Row: {
+          created_at: string | null
+          id: string
+          rubrica_nome: string
+          subcategoria_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          rubrica_nome: string
+          subcategoria_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          rubrica_nome?: string
+          subcategoria_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rh_rubrica_subcategoria_mapping_subcategoria_id_fkey"
+            columns: ["subcategoria_id"]
+            isOneToOne: false
+            referencedRelation: "fin_subcategorias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rh_rubricas: {
         Row: {
           created_at: string
