@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Upload, X, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
+import { Upload, X, GripVertical, ArrowUp, ArrowDown, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ImageCropEditor } from './ImageCropEditor';
 
 interface FilePreviewProps {
   files: File[];
@@ -10,6 +11,7 @@ interface FilePreviewProps {
 
 export const FilePreview = ({ files, onFilesChange, onRemove }: FilePreviewProps) => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   const moveFile = (fromIndex: number, toIndex: number) => {
     const newFiles = [...files];
@@ -45,6 +47,20 @@ export const FilePreview = ({ files, onFilesChange, onRemove }: FilePreviewProps
   const handleDragEnd = () => {
     setDraggedIndex(null);
   };
+
+  const handleEditImage = (index: number) => {
+    setEditingIndex(index);
+  };
+
+  const handleSaveEditedImage = (editedFile: File) => {
+    if (editingIndex !== null) {
+      const newFiles = [...files];
+      newFiles[editingIndex] = editedFile;
+      onFilesChange(newFiles);
+    }
+  };
+
+  const isImageFile = (file: File) => file.type.startsWith('image/');
 
   if (files.length === 0) return null;
 
@@ -89,6 +105,17 @@ export const FilePreview = ({ files, onFilesChange, onRemove }: FilePreviewProps
             </div>
 
             <div className="flex items-center gap-1">
+              {isImageFile(file) && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleEditImage(index)}
+                  className="h-8 w-8 text-primary hover:text-primary"
+                  title="Editar imagem (cortar, rotacionar)"
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -119,6 +146,16 @@ export const FilePreview = ({ files, onFilesChange, onRemove }: FilePreviewProps
           </div>
         ))}
       </div>
+
+      {/* Image Editor Modal */}
+      {editingIndex !== null && files[editingIndex] && isImageFile(files[editingIndex]) && (
+        <ImageCropEditor
+          file={files[editingIndex]}
+          isOpen={editingIndex !== null}
+          onClose={() => setEditingIndex(null)}
+          onSave={handleSaveEditedImage}
+        />
+      )}
     </div>
   );
 };
