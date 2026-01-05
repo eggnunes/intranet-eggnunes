@@ -84,6 +84,7 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
   const [dataLancamento, setDataLancamento] = useState(new Date().toISOString().split('T')[0]);
   const [aReembolsar, setAReembolsar] = useState(false);
   const [status, setStatus] = useState<'pago' | 'pendente'>('pago');
+  const [produtoRdStation, setProdutoRdStation] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -107,6 +108,7 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
     setDataLancamento(new Date().toISOString().split('T')[0]);
     setAReembolsar(false);
     setStatus('pago');
+    setProdutoRdStation('');
   };
 
   const fetchDados = async () => {
@@ -196,6 +198,7 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
         origem: tipo === 'despesa' ? origem : null,
         a_reembolsar: origem === 'cliente' ? aReembolsar : false,
         status,
+        produto_rd_station: tipo === 'receita' ? produtoRdStation || null : null,
         created_by: user?.id
       };
 
@@ -216,6 +219,7 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
         setDataLancamento(new Date().toISOString().split('T')[0]);
         setAReembolsar(false);
         setStatus('pago');
+        setProdutoRdStation('');
         toast.info('Pronto para novo lançamento');
       } else {
         onSuccess();
@@ -494,6 +498,21 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
                       </p>
                     </div>
                     <Switch checked={aReembolsar} onCheckedChange={setAReembolsar} />
+                  </div>
+                )}
+
+                {/* Produto RD Station (se receita) */}
+                {tipo === 'receita' && (
+                  <div className="space-y-2">
+                    <Label>Produto RD Station (opcional)</Label>
+                    <Input
+                      placeholder="Ex: Honorários INSS, Trabalhista..."
+                      value={produtoRdStation}
+                      onChange={(e) => setProdutoRdStation(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Nome do produto conforme cadastrado no RD Station
+                    </p>
                   </div>
                 )}
 
