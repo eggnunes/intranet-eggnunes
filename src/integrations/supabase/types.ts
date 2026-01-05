@@ -6376,6 +6376,15 @@ export type Database = {
         }
         Returns: string
       }
+      registrar_atualizacao_intranet: {
+        Args: {
+          p_categoria?: string
+          p_created_by?: string
+          p_descricao: string
+          p_titulo: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "admin" | "user"

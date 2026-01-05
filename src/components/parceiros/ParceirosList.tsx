@@ -29,12 +29,19 @@ interface Parceiro {
   areas: { id: string; nome: string }[];
 }
 
+interface AreaAtuacao {
+  id: string;
+  nome: string;
+}
+
 export function ParceirosList() {
   const [parceiros, setParceiros] = useState<Parceiro[]>([]);
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('todos');
   const [filtroStatus, setFiltroStatus] = useState('ativos');
+  const [filtroArea, setFiltroArea] = useState('todas');
+  const [areasDisponiveis, setAreasDisponiveis] = useState<AreaAtuacao[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingParceiro, setEditingParceiro] = useState<Parceiro | null>(null);
   const [detalhesOpen, setDetalhesOpen] = useState(false);
@@ -54,39 +61,97 @@ export function ParceirosList() {
   const podeInativar = isSocioOrRafael || isAdmin || profile?.position === 'comercial' || canEdit('parceiros');
   const podeExcluir = isSocioOrRafael || isAdmin;
 
+  const fetchAreas = async () => {
+    const { data } = await supabase
+      .from('parceiros_areas_atuacao')
+      .select('id, nome')
+      .eq('ativo', true)
+      .order('nome');
+    
+    if (data) setAreasDisponiveis(data);
+  };
+
   const fetchParceiros = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('parceiros')
-        .select(`
-          *,
-          parceiros_areas!inner(
-            area:parceiros_areas_atuacao(id, nome)
-          )
-        `)
-        .order('ranking', { ascending: false });
+      // Se filtro por área está ativo, precisamos buscar de forma diferente
+      if (filtroArea !== 'todas') {
+        // Primeiro buscar os IDs de parceiros que têm essa área
+        const { data: parceiroIds } = await supabase
+          .from('parceiros_areas')
+          .select('parceiro_id')
+          .eq('area_id', filtroArea);
+        
+        const ids = parceiroIds?.map(p => p.parceiro_id) || [];
+        
+        if (ids.length === 0) {
+          setParceiros([]);
+          setLoading(false);
+          return;
+        }
 
-      if (filtroStatus === 'ativos') {
-        query = query.eq('ativo', true);
-      } else if (filtroStatus === 'inativos') {
-        query = query.eq('ativo', false);
+        let query = supabase
+          .from('parceiros')
+          .select(`
+            *,
+            parceiros_areas(
+              area:parceiros_areas_atuacao(id, nome)
+            )
+          `)
+          .in('id', ids)
+          .order('ranking', { ascending: false });
+
+        if (filtroStatus === 'ativos') {
+          query = query.eq('ativo', true);
+        } else if (filtroStatus === 'inativos') {
+          query = query.eq('ativo', false);
+        }
+
+        if (filtroTipo !== 'todos') {
+          query = query.eq('tipo', filtroTipo);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const parceirosFormatados = (data || []).map((p: any) => ({
+          ...p,
+          areas: p.parceiros_areas?.map((pa: any) => pa.area).filter(Boolean) || []
+        }));
+
+        setParceiros(parceirosFormatados);
+      } else {
+        let query = supabase
+          .from('parceiros')
+          .select(`
+            *,
+            parceiros_areas(
+              area:parceiros_areas_atuacao(id, nome)
+            )
+          `)
+          .order('ranking', { ascending: false });
+
+        if (filtroStatus === 'ativos') {
+          query = query.eq('ativo', true);
+        } else if (filtroStatus === 'inativos') {
+          query = query.eq('ativo', false);
+        }
+
+        if (filtroTipo !== 'todos') {
+          query = query.eq('tipo', filtroTipo);
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+
+        const parceirosFormatados = (data || []).map((p: any) => ({
+          ...p,
+          areas: p.parceiros_areas?.map((pa: any) => pa.area).filter(Boolean) || []
+        }));
+
+        setParceiros(parceirosFormatados);
       }
-
-      if (filtroTipo !== 'todos') {
-        query = query.eq('tipo', filtroTipo);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      const parceirosFormatados = (data || []).map((p: any) => ({
-        ...p,
-        areas: p.parceiros_areas?.map((pa: any) => pa.area).filter(Boolean) || []
-      }));
-
-      setParceiros(parceirosFormatados);
     } catch (error) {
       console.error('Erro ao carregar parceiros:', error);
       // Se erro for de relacionamento, buscar sem as áreas
@@ -118,8 +183,12 @@ export function ParceirosList() {
   };
 
   useEffect(() => {
+    fetchAreas();
+  }, []);
+
+  useEffect(() => {
     fetchParceiros();
-  }, [filtroTipo, filtroStatus]);
+  }, [filtroTipo, filtroStatus, filtroArea]);
 
   const filteredParceiros = parceiros.filter(p =>
     p.nome_completo.toLowerCase().includes(busca.toLowerCase()) ||
@@ -290,6 +359,19 @@ export function ParceirosList() {
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="ativos">Ativos</SelectItem>
                 <SelectItem value="inativos">Inativos</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filtroArea} onValueChange={setFiltroArea}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Área de Atuação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas as Áreas</SelectItem>
+                {areasDisponiveis.map((area) => (
+                  <SelectItem key={area.id} value={area.id}>
+                    {area.nome}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
