@@ -1646,6 +1646,96 @@ export type Database = {
         }
         Relationships: []
       }
+      email_log: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          resend_id: string | null
+          sent_at: string | null
+          status: string
+          subject: string
+          template_type: string
+          to_email: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          resend_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subject: string
+          template_type: string
+          to_email: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          resend_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          template_type?: string
+          to_email?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      email_notification_preferences: {
+        Row: {
+          created_at: string | null
+          id: string
+          notify_announcements: boolean | null
+          notify_approvals: boolean | null
+          notify_birthdays: boolean | null
+          notify_crm: boolean | null
+          notify_financial: boolean | null
+          notify_forum: boolean | null
+          notify_messages: boolean | null
+          notify_tasks: boolean | null
+          notify_vacation: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          notify_announcements?: boolean | null
+          notify_approvals?: boolean | null
+          notify_birthdays?: boolean | null
+          notify_crm?: boolean | null
+          notify_financial?: boolean | null
+          notify_forum?: boolean | null
+          notify_messages?: boolean | null
+          notify_tasks?: boolean | null
+          notify_vacation?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          notify_announcements?: boolean | null
+          notify_approvals?: boolean | null
+          notify_birthdays?: boolean | null
+          notify_crm?: boolean | null
+          notify_financial?: boolean | null
+          notify_forum?: boolean | null
+          notify_messages?: boolean | null
+          notify_tasks?: boolean | null
+          notify_vacation?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       event_gallery: {
         Row: {
           created_at: string

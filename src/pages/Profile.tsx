@@ -18,6 +18,7 @@ import { ptBR } from 'date-fns/locale';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
+import { EmailNotificationSettings } from '@/components/EmailNotificationSettings';
 
 const BRAZILIAN_STATES = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
@@ -609,6 +610,9 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
             </Button>
           </CardContent>
         </Card>
+
+        {/* Email Notification Settings */}
+        <EmailNotificationSettings />
 
         {/* Jurisprudências Salvas */}
         <Card>
