@@ -1968,6 +1968,86 @@ export type Database = {
           },
         ]
       }
+      fin_aprovacao_config: {
+        Row: {
+          aprovador_id: string
+          ativo: boolean | null
+          created_at: string | null
+          id: string
+          updated_at: string | null
+          valor_maximo: number | null
+          valor_minimo: number
+        }
+        Insert: {
+          aprovador_id: string
+          ativo?: boolean | null
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          valor_maximo?: number | null
+          valor_minimo?: number
+        }
+        Update: {
+          aprovador_id?: string
+          ativo?: boolean | null
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          valor_maximo?: number | null
+          valor_minimo?: number
+        }
+        Relationships: []
+      }
+      fin_aprovacoes: {
+        Row: {
+          aprovador_id: string | null
+          created_at: string | null
+          id: string
+          justificativa: string | null
+          lancamento_id: string | null
+          respondido_em: string | null
+          resposta_aprovador: string | null
+          solicitado_em: string | null
+          solicitante_id: string
+          status: string
+          valor_limite: number | null
+        }
+        Insert: {
+          aprovador_id?: string | null
+          created_at?: string | null
+          id?: string
+          justificativa?: string | null
+          lancamento_id?: string | null
+          respondido_em?: string | null
+          resposta_aprovador?: string | null
+          solicitado_em?: string | null
+          solicitante_id: string
+          status?: string
+          valor_limite?: number | null
+        }
+        Update: {
+          aprovador_id?: string | null
+          created_at?: string | null
+          id?: string
+          justificativa?: string | null
+          lancamento_id?: string | null
+          respondido_em?: string | null
+          resposta_aprovador?: string | null
+          solicitado_em?: string | null
+          solicitante_id?: string
+          status?: string
+          valor_limite?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_aprovacoes_lancamento_id_fkey"
+            columns: ["lancamento_id"]
+            isOneToOne: false
+            referencedRelation: "fin_lancamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fin_auditoria: {
         Row: {
           acao: string
@@ -2428,8 +2508,10 @@ export type Database = {
           recorrencia_tipo: string | null
           recorrente: boolean | null
           reembolsada: boolean | null
+          requer_aprovacao: boolean | null
           setor_id: string | null
           status: string | null
+          status_aprovacao: string | null
           subcategoria_id: string | null
           tipo: string
           total_parcelas: number | null
@@ -2469,8 +2551,10 @@ export type Database = {
           recorrencia_tipo?: string | null
           recorrente?: boolean | null
           reembolsada?: boolean | null
+          requer_aprovacao?: boolean | null
           setor_id?: string | null
           status?: string | null
+          status_aprovacao?: string | null
           subcategoria_id?: string | null
           tipo: string
           total_parcelas?: number | null
@@ -2510,8 +2594,10 @@ export type Database = {
           recorrencia_tipo?: string | null
           recorrente?: boolean | null
           reembolsada?: boolean | null
+          requer_aprovacao?: boolean | null
           setor_id?: string | null
           status?: string | null
+          status_aprovacao?: string | null
           subcategoria_id?: string | null
           tipo?: string
           total_parcelas?: number | null
@@ -2675,6 +2761,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      fin_previsoes: {
+        Row: {
+          confianca: number | null
+          created_at: string | null
+          id: string
+          modelo_utilizado: string | null
+          parametros: Json | null
+          periodo_fim: string
+          periodo_inicio: string
+          tipo: string
+          updated_at: string | null
+          valor_previsto: number
+          valor_realizado: number | null
+        }
+        Insert: {
+          confianca?: number | null
+          created_at?: string | null
+          id?: string
+          modelo_utilizado?: string | null
+          parametros?: Json | null
+          periodo_fim: string
+          periodo_inicio: string
+          tipo: string
+          updated_at?: string | null
+          valor_previsto: number
+          valor_realizado?: number | null
+        }
+        Update: {
+          confianca?: number | null
+          created_at?: string | null
+          id?: string
+          modelo_utilizado?: string | null
+          parametros?: Json | null
+          periodo_fim?: string
+          periodo_inicio?: string
+          tipo?: string
+          updated_at?: string | null
+          valor_previsto?: number
+          valor_realizado?: number | null
+        }
+        Relationships: []
       }
       fin_recorrencias: {
         Row: {

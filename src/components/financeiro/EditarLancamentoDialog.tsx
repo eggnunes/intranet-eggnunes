@@ -9,7 +9,8 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Loader2, History } from 'lucide-react';
+import { Loader2, History, Paperclip } from 'lucide-react';
+import { FinanceiroAnexos } from './FinanceiroAnexos';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -240,13 +241,21 @@ export function EditarLancamentoDialog({ open, onOpenChange, lancamentoId, onSuc
           </div>
         ) : lancamento ? (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="dados">Dados</TabsTrigger>
+              <TabsTrigger value="anexos">
+                <Paperclip className="h-4 w-4 mr-2" />
+                Anexos
+              </TabsTrigger>
               <TabsTrigger value="historico">
                 <History className="h-4 w-4 mr-2" />
                 Histórico
               </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="anexos" className="mt-4">
+              {lancamentoId && <FinanceiroAnexos lancamentoId={lancamentoId} />}
+            </TabsContent>
 
             <TabsContent value="dados" className="space-y-4 mt-4">
               <div className="grid grid-cols-2 gap-4">
