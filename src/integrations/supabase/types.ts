@@ -2171,6 +2171,42 @@ export type Database = {
         }
         Relationships: []
       }
+      fin_backups: {
+        Row: {
+          arquivo_url: string | null
+          created_at: string | null
+          created_by: string | null
+          erro_mensagem: string | null
+          id: string
+          status: string
+          tabelas_incluidas: string[] | null
+          tamanho_bytes: number | null
+          tipo: string
+        }
+        Insert: {
+          arquivo_url?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          erro_mensagem?: string | null
+          id?: string
+          status?: string
+          tabelas_incluidas?: string[] | null
+          tamanho_bytes?: number | null
+          tipo: string
+        }
+        Update: {
+          arquivo_url?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          erro_mensagem?: string | null
+          id?: string
+          status?: string
+          tabelas_incluidas?: string[] | null
+          tamanho_bytes?: number | null
+          tipo?: string
+        }
+        Relationships: []
+      }
       fin_categorias: {
         Row: {
           ativa: boolean | null
