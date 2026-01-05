@@ -1,12 +1,17 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Download, Upload, Settings } from 'lucide-react';
+import { ArrowLeft, Plus, Settings, Bell, TrendingUp, Target, RefreshCw, Scale } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { FinanceiroDashboard } from '@/components/financeiro/FinanceiroDashboard';
 import { FinanceiroLancamentos } from '@/components/financeiro/FinanceiroLancamentos';
 import { FinanceiroReembolsos } from '@/components/financeiro/FinanceiroReembolsos';
 import { FinanceiroRelatorios } from '@/components/financeiro/FinanceiroRelatorios';
+import { FinanceiroMetas } from '@/components/financeiro/FinanceiroMetas';
+import { FinanceiroRecorrencias } from '@/components/financeiro/FinanceiroRecorrencias';
+import { FinanceiroFluxoCaixa } from '@/components/financeiro/FinanceiroFluxoCaixa';
+import { FinanceiroAlertas } from '@/components/financeiro/FinanceiroAlertas';
+import { FinanceiroConciliacao } from '@/components/financeiro/FinanceiroConciliacao';
 import { NovoLancamentoDialog } from '@/components/financeiro/NovoLancamentoDialog';
 import { useUserRole } from '@/hooks/useUserRole';
 
@@ -51,28 +56,42 @@ export default function Financeiro() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full max-w-2xl grid-cols-4">
+        <TabsList className="flex flex-wrap h-auto gap-1">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="lancamentos">Lançamentos</TabsTrigger>
+          <TabsTrigger value="fluxo">
+            <TrendingUp className="h-4 w-4 mr-1" />
+            Fluxo de Caixa
+          </TabsTrigger>
+          <TabsTrigger value="metas">
+            <Target className="h-4 w-4 mr-1" />
+            Metas
+          </TabsTrigger>
+          <TabsTrigger value="recorrencias">
+            <RefreshCw className="h-4 w-4 mr-1" />
+            Recorrências
+          </TabsTrigger>
+          <TabsTrigger value="conciliacao">
+            <Scale className="h-4 w-4 mr-1" />
+            Conciliação
+          </TabsTrigger>
           <TabsTrigger value="reembolsos">Reembolsos</TabsTrigger>
+          <TabsTrigger value="alertas">
+            <Bell className="h-4 w-4 mr-1" />
+            Alertas
+          </TabsTrigger>
           <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="dashboard">
-          <FinanceiroDashboard />
-        </TabsContent>
-
-        <TabsContent value="lancamentos">
-          <FinanceiroLancamentos onNovoLancamento={() => setShowNovoLancamento(true)} />
-        </TabsContent>
-
-        <TabsContent value="reembolsos">
-          <FinanceiroReembolsos />
-        </TabsContent>
-
-        <TabsContent value="relatorios">
-          <FinanceiroRelatorios />
-        </TabsContent>
+        <TabsContent value="dashboard"><FinanceiroDashboard /></TabsContent>
+        <TabsContent value="lancamentos"><FinanceiroLancamentos onNovoLancamento={() => setShowNovoLancamento(true)} /></TabsContent>
+        <TabsContent value="fluxo"><FinanceiroFluxoCaixa /></TabsContent>
+        <TabsContent value="metas"><FinanceiroMetas /></TabsContent>
+        <TabsContent value="recorrencias"><FinanceiroRecorrencias /></TabsContent>
+        <TabsContent value="conciliacao"><FinanceiroConciliacao /></TabsContent>
+        <TabsContent value="reembolsos"><FinanceiroReembolsos /></TabsContent>
+        <TabsContent value="alertas"><FinanceiroAlertas /></TabsContent>
+        <TabsContent value="relatorios"><FinanceiroRelatorios /></TabsContent>
       </Tabs>
 
       <NovoLancamentoDialog 
@@ -80,7 +99,6 @@ export default function Financeiro() {
         onOpenChange={setShowNovoLancamento}
         onSuccess={() => {
           setShowNovoLancamento(false);
-          // Trigger refresh
         }}
       />
     </div>
