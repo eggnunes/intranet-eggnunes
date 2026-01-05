@@ -4,7 +4,7 @@ import { Layout } from '@/components/Layout';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, MessageSquare, TrendingUp, User, Mail, Users, Video, Building2, ExternalLink, Gavel, Clock, Cake, Megaphone, Calendar, Trophy, Pin, Search } from 'lucide-react';
+import { FileText, MessageSquare, TrendingUp, User, Mail, Users, Video, Building2, ExternalLink, Gavel, Clock, Cake, Megaphone, Calendar, Trophy, Pin, Search, Star, Zap } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -14,6 +14,7 @@ import { format, getMonth, getDate } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { TaskNotifications } from '@/components/TaskNotifications';
 import { BirthdayMessageFailuresAlert } from '@/components/BirthdayMessageFailuresAlert';
+import { getTopAccessedPages } from '@/hooks/useAccessTracking';
 
 interface BirthdayProfile {
   id: string;
@@ -32,6 +33,12 @@ interface Announcement {
   created_at: string;
 }
 
+interface TopPage {
+  page_path: string;
+  page_name: string;
+  access_count: number;
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { profile, loading, isApproved } = useUserRole();
@@ -39,11 +46,26 @@ export default function Dashboard() {
   const [loadingBirthdays, setLoadingBirthdays] = useState(true);
   const [recentAnnouncements, setRecentAnnouncements] = useState<Announcement[]>([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
+  const [topPages, setTopPages] = useState<TopPage[]>([]);
+  const [loadingTopPages, setLoadingTopPages] = useState(true);
 
   useEffect(() => {
     fetchMonthBirthdays();
     fetchRecentAnnouncements();
   }, []);
+
+  useEffect(() => {
+    if (profile?.id) {
+      fetchTopPages();
+    }
+  }, [profile?.id]);
+
+  const fetchTopPages = async () => {
+    if (!profile?.id) return;
+    const pages = await getTopAccessedPages(profile.id, 6);
+    setTopPages(pages);
+    setLoadingTopPages(false);
+  };
 
   const fetchMonthBirthdays = async () => {
     const currentMonth = getMonth(new Date());
@@ -231,6 +253,40 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* Atalhos Personalizados - Páginas mais acessadas */}
+        {topPages.length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-yellow-500/20 to-amber-500/20">
+                  <Zap className="h-5 w-5 text-yellow-600" />
+                </div>
+                Acesso Rápido
+              </h2>
+              <Badge variant="secondary" className="text-xs">
+                <Star className="h-3 w-3 mr-1" />
+                Baseado no seu uso
+              </Badge>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {topPages.map((page, idx) => (
+                <Card
+                  key={page.page_path}
+                  className="hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer border-l-2 border-l-yellow-500/50 bg-gradient-to-br from-yellow-50/50 to-amber-50/30 dark:from-yellow-950/20 dark:to-amber-950/10"
+                  onClick={() => navigate(page.page_path)}
+                >
+                  <CardContent className="p-3">
+                    <p className="font-medium text-sm truncate">{page.page_name}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {page.access_count} {page.access_count === 1 ? 'acesso' : 'acessos'}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Alertas de Tarefas */}
         <TaskNotifications />

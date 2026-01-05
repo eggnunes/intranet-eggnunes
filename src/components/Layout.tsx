@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useAccessTracking } from '@/hooks/useAccessTracking';
 
 import logoEggNunes from '@/assets/logo-eggnunes.png';
 
@@ -32,6 +33,9 @@ export const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   const { toast } = useToast();
   const showBackButton = location.pathname !== '/dashboard' && location.pathname !== '/';
+  
+  // Rastrear acessos às páginas
+  useAccessTracking();
   
   // Fix mobile scroll on route change
   useLayoutEffect(() => {
