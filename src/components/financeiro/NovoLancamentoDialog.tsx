@@ -157,7 +157,7 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
     return false;
   });
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (salvarENovo: boolean = false) => {
     // Validações
     if (!descricao.trim()) {
       toast.error('Descrição é obrigatória');
@@ -206,7 +206,20 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
       if (error) throw error;
 
       toast.success('Lançamento criado com sucesso!');
-      onSuccess();
+      
+      if (salvarENovo) {
+        // Limpa apenas os campos do formulário, mantém tipo e origem
+        setCategoriaId('');
+        setSubcategoriaId('');
+        setValor('');
+        setDescricao('');
+        setDataLancamento(new Date().toISOString().split('T')[0]);
+        setAReembolsar(false);
+        setStatus('pago');
+        toast.info('Pronto para novo lançamento');
+      } else {
+        onSuccess();
+      }
     } catch (error) {
       console.error('Erro ao criar lançamento:', error);
       toast.error('Erro ao criar lançamento');
@@ -506,7 +519,11 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                       Cancelar
                     </Button>
-                    <Button onClick={handleSubmit} disabled={submitting}>
+                    <Button variant="secondary" onClick={() => handleSubmit(true)} disabled={submitting}>
+                      {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Salvar e Novo
+                    </Button>
+                    <Button onClick={() => handleSubmit(false)} disabled={submitting}>
                       {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                       Salvar
                     </Button>
