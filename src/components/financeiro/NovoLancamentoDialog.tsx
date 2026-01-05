@@ -180,6 +180,10 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
       toast.error('Selecione um cliente');
       return;
     }
+    if (tipo === 'despesa' && origem === 'escritorio' && !setorId) {
+      toast.error('Selecione o setor responsável pela despesa');
+      return;
+    }
     if (tipo === 'transferencia' && contaOrigemId === contaDestinoId) {
       toast.error('Conta de origem e destino não podem ser iguais');
       return;
@@ -547,10 +551,10 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
                 {/* Setor (se despesa de escritório) */}
                 {tipo === 'despesa' && origem === 'escritorio' && (
                   <div className="space-y-2">
-                    <Label>Setor (opcional)</Label>
+                    <Label>Setor *</Label>
                     <Select value={setorId} onValueChange={setSetorId}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione o setor" />
+                        <SelectValue placeholder="Selecione o setor responsável" />
                       </SelectTrigger>
                       <SelectContent>
                         {setores.map(s => (
@@ -558,6 +562,9 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Selecione o setor para análise de gastos por área
+                    </p>
                   </div>
                 )}
 
