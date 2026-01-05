@@ -5,11 +5,15 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Search, Star, Edit, Eye, Ban, CheckCircle, Phone, Building2 } from 'lucide-react';
+import { Plus, Search, Star, Edit, Eye, Ban, CheckCircle, Phone, Building2, Trash2, MessageSquare } from 'lucide-react';
 import { ParceiroDialog } from './ParceiroDialog';
 import { ParceiroDetalhes } from './ParceiroDetalhes';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
+import { useUserRole } from '@/hooks/useUserRole';
 
 interface Parceiro {
   id: string;
@@ -35,6 +39,20 @@ export function ParceirosList() {
   const [editingParceiro, setEditingParceiro] = useState<Parceiro | null>(null);
   const [detalhesOpen, setDetalhesOpen] = useState(false);
   const [selectedParceiro, setSelectedParceiro] = useState<Parceiro | null>(null);
+  const [observacaoDialogOpen, setObservacaoDialogOpen] = useState(false);
+  const [observacaoParceiro, setObservacaoParceiro] = useState<Parceiro | null>(null);
+  const [novaObservacao, setNovaObservacao] = useState('');
+  const [savingObservacao, setSavingObservacao] = useState(false);
+
+  const { canEdit, isSocioOrRafael } = useAdminPermissions();
+  const { isAdmin, profile } = useUserRole();
+
+  // Verificar permissões:
+  // - Qualquer usuário pode cadastrar (sempre true)
+  // - Inativar: somente comercial e admins
+  // - Excluir: somente admins
+  const podeInativar = isSocioOrRafael || isAdmin || profile?.position === 'comercial' || canEdit('parceiros');
+  const podeExcluir = isSocioOrRafael || isAdmin;
 
   const fetchParceiros = async () => {
     setLoading(true);
@@ -120,6 +138,11 @@ export function ParceirosList() {
   };
 
   const handleToggleStatus = async (parceiro: Parceiro) => {
+    if (!podeInativar) {
+      toast.error('Você não tem permissão para inativar parceiros');
+      return;
+    }
+
     const action = parceiro.ativo ? 'inativar' : 'reativar';
     if (!confirm(`Tem certeza que deseja ${action} este parceiro?`)) return;
 
@@ -139,6 +162,57 @@ export function ParceirosList() {
     } catch (error) {
       console.error('Erro ao alterar status:', error);
       toast.error('Erro ao alterar status do parceiro');
+    }
+  };
+
+  const handleDelete = async (parceiro: Parceiro) => {
+    if (!podeExcluir) {
+      toast.error('Você não tem permissão para excluir parceiros');
+      return;
+    }
+
+    if (!confirm(`Tem certeza que deseja EXCLUIR PERMANENTEMENTE o parceiro "${parceiro.nome_completo}"? Esta ação não pode ser desfeita.`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('parceiros')
+        .delete()
+        .eq('id', parceiro.id);
+
+      if (error) throw error;
+      toast.success('Parceiro excluído com sucesso!');
+      fetchParceiros();
+    } catch (error) {
+      console.error('Erro ao excluir parceiro:', error);
+      toast.error('Erro ao excluir parceiro. Verifique se não há indicações ou pagamentos vinculados.');
+    }
+  };
+
+  const handleOpenObservacao = (parceiro: Parceiro) => {
+    setObservacaoParceiro(parceiro);
+    setNovaObservacao(parceiro.observacoes || '');
+    setObservacaoDialogOpen(true);
+  };
+
+  const handleSaveObservacao = async () => {
+    if (!observacaoParceiro) return;
+    
+    setSavingObservacao(true);
+    try {
+      const { error } = await supabase
+        .from('parceiros')
+        .update({ observacoes: novaObservacao || null })
+        .eq('id', observacaoParceiro.id);
+
+      if (error) throw error;
+      toast.success('Observação salva com sucesso!');
+      setObservacaoDialogOpen(false);
+      fetchParceiros();
+    } catch (error) {
+      console.error('Erro ao salvar observação:', error);
+      toast.error('Erro ao salvar observação');
+    } finally {
+      setSavingObservacao(false);
     }
   };
 
@@ -232,7 +306,7 @@ export function ParceirosList() {
                   <TableHead>Contato</TableHead>
                   <TableHead>Áreas</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="w-[120px]">Ações</TableHead>
+                  <TableHead className="w-[180px]">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -255,7 +329,14 @@ export function ParceirosList() {
                   filteredParceiros.map((parceiro) => (
                     <TableRow key={parceiro.id} className={!parceiro.ativo ? 'opacity-60' : ''}>
                       <TableCell>{renderStars(parceiro.ranking)}</TableCell>
-                      <TableCell className="font-medium">{parceiro.nome_completo}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {parceiro.nome_completo}
+                          {parceiro.observacoes && (
+                            <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -290,19 +371,29 @@ export function ParceirosList() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleViewDetails(parceiro)}>
+                          <Button variant="ghost" size="icon" onClick={() => handleViewDetails(parceiro)} title="Ver detalhes">
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(parceiro)}>
+                          <Button variant="ghost" size="icon" onClick={() => handleEdit(parceiro)} title="Editar">
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleToggleStatus(parceiro)}>
-                            {parceiro.ativo ? (
-                              <Ban className="h-4 w-4 text-destructive" />
-                            ) : (
-                              <CheckCircle className="h-4 w-4 text-green-500" />
-                            )}
+                          <Button variant="ghost" size="icon" onClick={() => handleOpenObservacao(parceiro)} title="Observação">
+                            <MessageSquare className="h-4 w-4" />
                           </Button>
+                          {podeInativar && (
+                            <Button variant="ghost" size="icon" onClick={() => handleToggleStatus(parceiro)} title={parceiro.ativo ? 'Inativar' : 'Reativar'}>
+                              {parceiro.ativo ? (
+                                <Ban className="h-4 w-4 text-destructive" />
+                              ) : (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              )}
+                            </Button>
+                          )}
+                          {podeExcluir && (
+                            <Button variant="ghost" size="icon" onClick={() => handleDelete(parceiro)} title="Excluir">
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -327,6 +418,31 @@ export function ParceirosList() {
         parceiro={selectedParceiro}
         onRefresh={fetchParceiros}
       />
+
+      {/* Dialog para Observação */}
+      <Dialog open={observacaoDialogOpen} onOpenChange={setObservacaoDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Observação - {observacaoParceiro?.nome_completo}</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea
+              placeholder="Digite uma observação sobre este parceiro..."
+              value={novaObservacao}
+              onChange={(e) => setNovaObservacao(e.target.value)}
+              rows={5}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setObservacaoDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveObservacao} disabled={savingObservacao}>
+              {savingObservacao ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
