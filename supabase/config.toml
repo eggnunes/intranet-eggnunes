@@ -80,3 +80,6 @@ verify_jwt = true
 
 [functions.favorable-decisions-sync]
 verify_jwt = true
+
+[functions.send-notification-email]
+verify_jwt = true
