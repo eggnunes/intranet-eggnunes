@@ -1883,6 +1883,91 @@ export type Database = {
           },
         ]
       }
+      fin_alertas: {
+        Row: {
+          created_at: string | null
+          data_alerta: string
+          id: string
+          lancamento_id: string | null
+          lido: boolean | null
+          lido_em: string | null
+          lido_por: string | null
+          mensagem: string
+          tipo: string
+        }
+        Insert: {
+          created_at?: string | null
+          data_alerta: string
+          id?: string
+          lancamento_id?: string | null
+          lido?: boolean | null
+          lido_em?: string | null
+          lido_por?: string | null
+          mensagem: string
+          tipo: string
+        }
+        Update: {
+          created_at?: string | null
+          data_alerta?: string
+          id?: string
+          lancamento_id?: string | null
+          lido?: boolean | null
+          lido_em?: string | null
+          lido_por?: string | null
+          mensagem?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_alertas_lancamento_id_fkey"
+            columns: ["lancamento_id"]
+            isOneToOne: false
+            referencedRelation: "fin_lancamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_anexos: {
+        Row: {
+          created_at: string | null
+          id: string
+          lancamento_id: string | null
+          nome_arquivo: string
+          tamanho: number | null
+          tipo_arquivo: string | null
+          uploaded_by: string | null
+          url_arquivo: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          lancamento_id?: string | null
+          nome_arquivo: string
+          tamanho?: number | null
+          tipo_arquivo?: string | null
+          uploaded_by?: string | null
+          url_arquivo: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          lancamento_id?: string | null
+          nome_arquivo?: string
+          tamanho?: number | null
+          tipo_arquivo?: string | null
+          uploaded_by?: string | null
+          url_arquivo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_anexos_lancamento_id_fkey"
+            columns: ["lancamento_id"]
+            isOneToOne: false
+            referencedRelation: "fin_lancamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fin_auditoria: {
         Row: {
           acao: string
@@ -1958,6 +2043,39 @@ export type Database = {
         }
         Relationships: []
       }
+      fin_centros_custo: {
+        Row: {
+          ativo: boolean | null
+          codigo: string | null
+          created_at: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          responsavel_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          codigo?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          responsavel_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          codigo?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          responsavel_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       fin_clientes: {
         Row: {
           advbox_id: string | null
@@ -1993,6 +2111,107 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      fin_conciliacao_itens: {
+        Row: {
+          conciliacao_id: string
+          conciliado: boolean | null
+          created_at: string | null
+          data_extrato: string | null
+          descricao_extrato: string | null
+          id: string
+          lancamento_id: string | null
+          observacao: string | null
+          valor_extrato: number | null
+        }
+        Insert: {
+          conciliacao_id: string
+          conciliado?: boolean | null
+          created_at?: string | null
+          data_extrato?: string | null
+          descricao_extrato?: string | null
+          id?: string
+          lancamento_id?: string | null
+          observacao?: string | null
+          valor_extrato?: number | null
+        }
+        Update: {
+          conciliacao_id?: string
+          conciliado?: boolean | null
+          created_at?: string | null
+          data_extrato?: string | null
+          descricao_extrato?: string | null
+          id?: string
+          lancamento_id?: string | null
+          observacao?: string | null
+          valor_extrato?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_conciliacao_itens_conciliacao_id_fkey"
+            columns: ["conciliacao_id"]
+            isOneToOne: false
+            referencedRelation: "fin_conciliacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_conciliacao_itens_lancamento_id_fkey"
+            columns: ["lancamento_id"]
+            isOneToOne: false
+            referencedRelation: "fin_lancamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_conciliacoes: {
+        Row: {
+          conciliado_em: string | null
+          conciliado_por: string | null
+          conta_id: string
+          created_at: string | null
+          data_conciliacao: string
+          diferenca: number
+          id: string
+          observacoes: string | null
+          saldo_banco: number
+          saldo_sistema: number
+          status: string | null
+        }
+        Insert: {
+          conciliado_em?: string | null
+          conciliado_por?: string | null
+          conta_id: string
+          created_at?: string | null
+          data_conciliacao: string
+          diferenca: number
+          id?: string
+          observacoes?: string | null
+          saldo_banco: number
+          saldo_sistema: number
+          status?: string | null
+        }
+        Update: {
+          conciliado_em?: string | null
+          conciliado_por?: string | null
+          conta_id?: string
+          created_at?: string | null
+          data_conciliacao?: string
+          diferenca?: number
+          id?: string
+          observacoes?: string | null
+          saldo_banco?: number
+          saldo_sistema?: number
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_conciliacoes_conta_id_fkey"
+            columns: ["conta_id"]
+            isOneToOne: false
+            referencedRelation: "fin_contas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       fin_configuracoes: {
         Row: {
@@ -2077,6 +2296,7 @@ export type Database = {
           a_reembolsar: boolean | null
           anexo_url: string | null
           categoria_id: string | null
+          centro_custo_id: string | null
           cliente_id: string | null
           conciliacao_id: string | null
           conciliado: boolean | null
@@ -2096,8 +2316,11 @@ export type Database = {
           numero_documento: string | null
           observacoes: string | null
           origem: string | null
+          parcela_atual: number | null
           produto_id: string | null
+          produto_rd_station: string | null
           recorrencia_fim: string | null
+          recorrencia_id: string | null
           recorrencia_tipo: string | null
           recorrente: boolean | null
           reembolsada: boolean | null
@@ -2105,6 +2328,7 @@ export type Database = {
           status: string | null
           subcategoria_id: string | null
           tipo: string
+          total_parcelas: number | null
           updated_at: string | null
           updated_by: string | null
           valor: number
@@ -2113,6 +2337,7 @@ export type Database = {
           a_reembolsar?: boolean | null
           anexo_url?: string | null
           categoria_id?: string | null
+          centro_custo_id?: string | null
           cliente_id?: string | null
           conciliacao_id?: string | null
           conciliado?: boolean | null
@@ -2132,8 +2357,11 @@ export type Database = {
           numero_documento?: string | null
           observacoes?: string | null
           origem?: string | null
+          parcela_atual?: number | null
           produto_id?: string | null
+          produto_rd_station?: string | null
           recorrencia_fim?: string | null
+          recorrencia_id?: string | null
           recorrencia_tipo?: string | null
           recorrente?: boolean | null
           reembolsada?: boolean | null
@@ -2141,6 +2369,7 @@ export type Database = {
           status?: string | null
           subcategoria_id?: string | null
           tipo: string
+          total_parcelas?: number | null
           updated_at?: string | null
           updated_by?: string | null
           valor: number
@@ -2149,6 +2378,7 @@ export type Database = {
           a_reembolsar?: boolean | null
           anexo_url?: string | null
           categoria_id?: string | null
+          centro_custo_id?: string | null
           cliente_id?: string | null
           conciliacao_id?: string | null
           conciliado?: boolean | null
@@ -2168,8 +2398,11 @@ export type Database = {
           numero_documento?: string | null
           observacoes?: string | null
           origem?: string | null
+          parcela_atual?: number | null
           produto_id?: string | null
+          produto_rd_station?: string | null
           recorrencia_fim?: string | null
+          recorrencia_id?: string | null
           recorrencia_tipo?: string | null
           recorrente?: boolean | null
           reembolsada?: boolean | null
@@ -2177,6 +2410,7 @@ export type Database = {
           status?: string | null
           subcategoria_id?: string | null
           tipo?: string
+          total_parcelas?: number | null
           updated_at?: string | null
           updated_by?: string | null
           valor?: number
@@ -2187,6 +2421,13 @@ export type Database = {
             columns: ["categoria_id"]
             isOneToOne: false
             referencedRelation: "fin_categorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_lancamentos_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "fin_centros_custo"
             referencedColumns: ["id"]
           },
           {
@@ -2218,6 +2459,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "fin_lancamentos_recorrencia_id_fkey"
+            columns: ["recorrencia_id"]
+            isOneToOne: false
+            referencedRelation: "fin_recorrencias"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "fin_lancamentos_setor_id_fkey"
             columns: ["setor_id"]
             isOneToOne: false
@@ -2226,6 +2474,152 @@ export type Database = {
           },
           {
             foreignKeyName: "fin_lancamentos_subcategoria_id_fkey"
+            columns: ["subcategoria_id"]
+            isOneToOne: false
+            referencedRelation: "fin_subcategorias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_metas: {
+        Row: {
+          ano: number
+          categoria_id: string | null
+          created_at: string | null
+          created_by: string | null
+          descricao: string | null
+          id: string
+          mes: number
+          tipo: string
+          updated_at: string | null
+          valor_meta: number
+        }
+        Insert: {
+          ano: number
+          categoria_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          mes: number
+          tipo: string
+          updated_at?: string | null
+          valor_meta: number
+        }
+        Update: {
+          ano?: number
+          categoria_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          mes?: number
+          tipo?: string
+          updated_at?: string | null
+          valor_meta?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_metas_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "fin_categorias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_recorrencias: {
+        Row: {
+          ativo: boolean | null
+          categoria_id: string | null
+          cliente_id: string | null
+          conta_id: string | null
+          created_at: string | null
+          created_by: string | null
+          data_fim: string | null
+          data_inicio: string
+          descricao: string
+          dia_vencimento: number | null
+          frequencia: string
+          id: string
+          proxima_geracao: string | null
+          setor_id: string | null
+          subcategoria_id: string | null
+          tipo: string
+          updated_at: string | null
+          valor: number
+        }
+        Insert: {
+          ativo?: boolean | null
+          categoria_id?: string | null
+          cliente_id?: string | null
+          conta_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data_fim?: string | null
+          data_inicio: string
+          descricao: string
+          dia_vencimento?: number | null
+          frequencia: string
+          id?: string
+          proxima_geracao?: string | null
+          setor_id?: string | null
+          subcategoria_id?: string | null
+          tipo: string
+          updated_at?: string | null
+          valor: number
+        }
+        Update: {
+          ativo?: boolean | null
+          categoria_id?: string | null
+          cliente_id?: string | null
+          conta_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data_fim?: string | null
+          data_inicio?: string
+          descricao?: string
+          dia_vencimento?: number | null
+          frequencia?: string
+          id?: string
+          proxima_geracao?: string | null
+          setor_id?: string | null
+          subcategoria_id?: string | null
+          tipo?: string
+          updated_at?: string | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_recorrencias_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "fin_categorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_recorrencias_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "fin_clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_recorrencias_conta_id_fkey"
+            columns: ["conta_id"]
+            isOneToOne: false
+            referencedRelation: "fin_contas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_recorrencias_setor_id_fkey"
+            columns: ["setor_id"]
+            isOneToOne: false
+            referencedRelation: "fin_setores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_recorrencias_subcategoria_id_fkey"
             columns: ["subcategoria_id"]
             isOneToOne: false
             referencedRelation: "fin_subcategorias"
