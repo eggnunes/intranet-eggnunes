@@ -46,7 +46,8 @@ export type PermissionFeature =
   | 'caixinha_desabafo'
   | 'arquivos_teams'
   | 'utm_generator'
-  | 'rota_doc';
+  | 'rota_doc'
+  | 'parceiros';
 
 export interface AdminPermissions {
   perm_financial: PermissionLevel;
@@ -90,6 +91,7 @@ export interface AdminPermissions {
   perm_arquivos_teams: PermissionLevel;
   perm_utm_generator: PermissionLevel;
   perm_rota_doc: PermissionLevel;
+  perm_parceiros: PermissionLevel;
 }
 
 export const useAdminPermissions = () => {
@@ -178,6 +180,7 @@ export const useAdminPermissions = () => {
           perm_arquivos_teams: 'edit',
           perm_utm_generator: 'edit',
           perm_rota_doc: 'edit',
+          perm_parceiros: 'edit',
         };
         setPermissions(fullPermissions);
         setGroupPermissions(fullPermissions);
@@ -246,6 +249,7 @@ export const useAdminPermissions = () => {
           perm_arquivos_teams: (groupData.perm_arquivos_teams as PermissionLevel) || 'view',
           perm_utm_generator: (groupData.perm_utm_generator as PermissionLevel) || 'none',
           perm_rota_doc: (groupData.perm_rota_doc as PermissionLevel) || 'view',
+          perm_parceiros: (groupData.perm_parceiros as PermissionLevel) || 'view',
         };
         setGroupPermissions(basePermissions);
       } else {
@@ -292,6 +296,7 @@ export const useAdminPermissions = () => {
           perm_arquivos_teams: 'view',
           perm_utm_generator: 'none',
           perm_rota_doc: 'view',
+          perm_parceiros: 'view',
         };
         setGroupPermissions(basePermissions);
       }
@@ -351,6 +356,7 @@ export const useAdminPermissions = () => {
           perm_arquivos_teams: (individualData.perm_arquivos_teams as PermissionLevel) || basePermissions.perm_arquivos_teams,
           perm_utm_generator: (individualData.perm_utm_generator as PermissionLevel) || basePermissions.perm_utm_generator,
           perm_rota_doc: (individualData.perm_rota_doc as PermissionLevel) || basePermissions.perm_rota_doc,
+          perm_parceiros: (individualData.perm_parceiros as PermissionLevel) || basePermissions.perm_parceiros,
         };
         setPermissions(mergedPermissions);
       } else {

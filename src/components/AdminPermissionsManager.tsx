@@ -111,6 +111,7 @@ const PERMISSION_CATEGORIES = [
       { key: 'setor_comercial', label: 'Setor Comercial' },
       { key: 'utm_generator', label: 'Gerador de UTM' },
       { key: 'aniversarios_clientes', label: 'Aniversários de Clientes' },
+      { key: 'parceiros', label: 'Parceiros' },
     ]
   },
   {

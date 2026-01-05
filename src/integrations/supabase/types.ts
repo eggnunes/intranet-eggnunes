@@ -45,6 +45,7 @@ export type Database = {
           perm_lead_tracking: string
           perm_mensagens: string | null
           perm_onboarding: string
+          perm_parceiros: string | null
           perm_payroll: string | null
           perm_processos: string | null
           perm_publicacoes: string | null
@@ -93,6 +94,7 @@ export type Database = {
           perm_lead_tracking?: string
           perm_mensagens?: string | null
           perm_onboarding?: string
+          perm_parceiros?: string | null
           perm_payroll?: string | null
           perm_processos?: string | null
           perm_publicacoes?: string | null
@@ -141,6 +143,7 @@ export type Database = {
           perm_lead_tracking?: string
           perm_mensagens?: string | null
           perm_onboarding?: string
+          perm_parceiros?: string | null
           perm_payroll?: string | null
           perm_processos?: string | null
           perm_publicacoes?: string | null
@@ -4379,6 +4382,7 @@ export type Database = {
           perm_lead_tracking: string
           perm_mensagens: string | null
           perm_onboarding: string
+          perm_parceiros: string | null
           perm_payroll: string | null
           perm_processos: string | null
           perm_publicacoes: string | null
@@ -4427,6 +4431,7 @@ export type Database = {
           perm_lead_tracking?: string
           perm_mensagens?: string | null
           perm_onboarding?: string
+          perm_parceiros?: string | null
           perm_payroll?: string | null
           perm_processos?: string | null
           perm_publicacoes?: string | null
@@ -4475,6 +4480,7 @@ export type Database = {
           perm_lead_tracking?: string
           perm_mensagens?: string | null
           perm_onboarding?: string
+          perm_parceiros?: string | null
           perm_payroll?: string | null
           perm_processos?: string | null
           perm_publicacoes?: string | null
