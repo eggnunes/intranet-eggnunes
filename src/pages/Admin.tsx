@@ -64,6 +64,15 @@ interface ApprovedUser {
   oab_number: string | null;
   oab_state: string | null;
   is_active: boolean;
+  telefone: string | null;
+  cpf: string | null;
+  endereco_cep: string | null;
+  endereco_logradouro: string | null;
+  endereco_numero: string | null;
+  endereco_complemento: string | null;
+  endereco_bairro: string | null;
+  endereco_cidade: string | null;
+  endereco_estado: string | null;
 }
 
 interface AdminUser {
@@ -133,6 +142,15 @@ export default function Admin() {
     oab_state: string | null;
     is_active: boolean;
     is_admin: boolean;
+    telefone: string | null;
+    cpf: string | null;
+    endereco_cep: string | null;
+    endereco_logradouro: string | null;
+    endereco_numero: string | null;
+    endereco_complemento: string | null;
+    endereco_bairro: string | null;
+    endereco_cidade: string | null;
+    endereco_estado: string | null;
   } | null>(null);
   const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
   const [resetPasswordUser, setResetPasswordUser] = useState<{ id: string; email: string; full_name: string } | null>(null);
@@ -192,7 +210,7 @@ export default function Admin() {
   const fetchApprovedUsers = async () => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, email, full_name, avatar_url, position, join_date, birth_date, oab_number, oab_state, is_active')
+      .select('id, email, full_name, avatar_url, position, join_date, birth_date, oab_number, oab_state, is_active, telefone, cpf, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado')
       .eq('approval_status', 'approved')
       .order('full_name');
     setApprovedUsers(data || []);
@@ -244,6 +262,15 @@ export default function Admin() {
       oab_state: user.oab_state,
       is_active: user.is_active,
       is_admin: adminUsers.some(a => a.id === user.id),
+      telefone: user.telefone,
+      cpf: user.cpf,
+      endereco_cep: user.endereco_cep,
+      endereco_logradouro: user.endereco_logradouro,
+      endereco_numero: user.endereco_numero,
+      endereco_complemento: user.endereco_complemento,
+      endereco_bairro: user.endereco_bairro,
+      endereco_cidade: user.endereco_cidade,
+      endereco_estado: user.endereco_estado,
     });
     setEditUserDialogOpen(true);
   };
@@ -257,6 +284,16 @@ export default function Admin() {
       join_date: editingUserData.join_date || null,
       oab_number: editingUserData.oab_number || null,
       oab_state: editingUserData.oab_state || null,
+      telefone: editingUserData.telefone || null,
+      cpf: editingUserData.cpf || null,
+      endereco_cep: editingUserData.endereco_cep || null,
+      endereco_logradouro: editingUserData.endereco_logradouro || null,
+      endereco_numero: editingUserData.endereco_numero || null,
+      endereco_complemento: editingUserData.endereco_complemento || null,
+      endereco_bairro: editingUserData.endereco_bairro || null,
+      endereco_cidade: editingUserData.endereco_cidade || null,
+      endereco_estado: editingUserData.endereco_estado || null,
+      perfil_completo: !!(editingUserData.telefone && editingUserData.cpf),
     };
 
     if (editingUserData.position) {
@@ -1465,6 +1502,117 @@ export default function Admin() {
                     </div>
                   </div>
                 )}
+
+                {/* Informações de Contato */}
+                <div className="border-t pt-4 mt-4 space-y-4">
+                  <Label className="text-sm font-medium text-muted-foreground">Informações de Contato</Label>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-telefone">Telefone (com DDD)</Label>
+                      <Input
+                        id="edit-telefone"
+                        value={editingUserData.telefone || ''}
+                        onChange={(e) => setEditingUserData({ ...editingUserData, telefone: e.target.value })}
+                        placeholder="(31) 99999-9999"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-cpf">CPF</Label>
+                      <Input
+                        id="edit-cpf"
+                        value={editingUserData.cpf || ''}
+                        onChange={(e) => setEditingUserData({ ...editingUserData, cpf: e.target.value })}
+                        placeholder="000.000.000-00"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Endereço */}
+                <div className="border-t pt-4 mt-4 space-y-4">
+                  <Label className="text-sm font-medium text-muted-foreground">Endereço</Label>
+                  
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-cep">CEP</Label>
+                      <Input
+                        id="edit-cep"
+                        value={editingUserData.endereco_cep || ''}
+                        onChange={(e) => setEditingUserData({ ...editingUserData, endereco_cep: e.target.value })}
+                        placeholder="00000-000"
+                      />
+                    </div>
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="edit-logradouro">Logradouro</Label>
+                      <Input
+                        id="edit-logradouro"
+                        value={editingUserData.endereco_logradouro || ''}
+                        onChange={(e) => setEditingUserData({ ...editingUserData, endereco_logradouro: e.target.value })}
+                        placeholder="Rua, Avenida, etc."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-numero">Número</Label>
+                      <Input
+                        id="edit-numero"
+                        value={editingUserData.endereco_numero || ''}
+                        onChange={(e) => setEditingUserData({ ...editingUserData, endereco_numero: e.target.value })}
+                        placeholder="000"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-complemento">Complemento</Label>
+                      <Input
+                        id="edit-complemento"
+                        value={editingUserData.endereco_complemento || ''}
+                        onChange={(e) => setEditingUserData({ ...editingUserData, endereco_complemento: e.target.value })}
+                        placeholder="Apto, Sala"
+                      />
+                    </div>
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="edit-bairro">Bairro</Label>
+                      <Input
+                        id="edit-bairro"
+                        value={editingUserData.endereco_bairro || ''}
+                        onChange={(e) => setEditingUserData({ ...editingUserData, endereco_bairro: e.target.value })}
+                        placeholder="Bairro"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="edit-cidade">Cidade</Label>
+                      <Input
+                        id="edit-cidade"
+                        value={editingUserData.endereco_cidade || ''}
+                        onChange={(e) => setEditingUserData({ ...editingUserData, endereco_cidade: e.target.value })}
+                        placeholder="Cidade"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-estado-endereco">Estado</Label>
+                      <Select
+                        value={editingUserData.endereco_estado || 'none'}
+                        onValueChange={(value) => setEditingUserData({ ...editingUserData, endereco_estado: value === 'none' ? null : value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="UF" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Selecione</SelectItem>
+                          {BRAZILIAN_STATES.map((state) => (
+                            <SelectItem key={state} value={state}>{state}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Ações Administrativas */}
                 <div className="border-t pt-4 mt-4 space-y-3">

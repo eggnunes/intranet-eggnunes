@@ -30,16 +30,45 @@ export const useNotifications = () => {
     }
 
     try {
-      const { data, error } = await supabase
+      // Fetch from user_notifications
+      const { data: userNotifs, error: userError } = await supabase
         .from('user_notifications')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(50);
 
-      if (error) throw error;
+      if (userError) throw userError;
 
-      const typedData = (data || []) as UserNotification[];
+      // Fetch from system_notifications
+      const { data: systemNotifs, error: sysError } = await supabase
+        .from('system_notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('lida', false)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      // Map system notifications to UserNotification format
+      const mappedSystemNotifs: UserNotification[] = (systemNotifs || []).map((n: any) => ({
+        id: n.id,
+        user_id: n.user_id,
+        title: n.titulo,
+        message: n.mensagem,
+        type: n.tipo,
+        is_read: n.lida,
+        action_url: '/profile',
+        metadata: null,
+        created_at: n.created_at,
+        read_at: n.read_at,
+      }));
+
+      // Merge and sort by created_at
+      const allNotifications = [...(userNotifs || []), ...mappedSystemNotifs].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      const typedData = allNotifications as UserNotification[];
       setNotifications(typedData);
       setUnreadCount(typedData.filter(n => !n.is_read).length);
     } catch (error) {
@@ -117,12 +146,21 @@ export const useNotifications = () => {
 
   const markAsRead = async (notificationId: string) => {
     try {
-      const { error } = await supabase
+      // Try user_notifications first
+      const { error: userError } = await supabase
         .from('user_notifications')
         .update({ is_read: true, read_at: new Date().toISOString() })
         .eq('id', notificationId);
 
-      if (error) throw error;
+      // If not found in user_notifications, try system_notifications
+      if (userError) {
+        const { error: sysError } = await supabase
+          .from('system_notifications')
+          .update({ lida: true, read_at: new Date().toISOString() })
+          .eq('id', notificationId);
+        
+        if (sysError) throw sysError;
+      }
 
       setNotifications(prev => 
         prev.map(n => n.id === notificationId ? { ...n, is_read: true, read_at: new Date().toISOString() } : n)
