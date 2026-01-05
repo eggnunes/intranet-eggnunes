@@ -33,6 +33,7 @@ export type Database = {
           perm_home_office: string
           perm_lead_tracking: string
           perm_onboarding: string
+          perm_payroll: string | null
           perm_recruitment: string
           perm_suggestions: string
           perm_task_rules: string
@@ -60,6 +61,7 @@ export type Database = {
           perm_home_office?: string
           perm_lead_tracking?: string
           perm_onboarding?: string
+          perm_payroll?: string | null
           perm_recruitment?: string
           perm_suggestions?: string
           perm_task_rules?: string
@@ -87,6 +89,7 @@ export type Database = {
           perm_home_office?: string
           perm_lead_tracking?: string
           perm_onboarding?: string
+          perm_payroll?: string | null
           perm_recruitment?: string
           perm_suggestions?: string
           perm_task_rules?: string
@@ -3961,6 +3964,7 @@ export type Database = {
           perm_home_office: string
           perm_lead_tracking: string
           perm_onboarding: string
+          perm_payroll: string | null
           perm_recruitment: string
           perm_suggestions: string
           perm_task_rules: string
@@ -3988,6 +3992,7 @@ export type Database = {
           perm_home_office?: string
           perm_lead_tracking?: string
           perm_onboarding?: string
+          perm_payroll?: string | null
           perm_recruitment?: string
           perm_suggestions?: string
           perm_task_rules?: string
@@ -4015,6 +4020,7 @@ export type Database = {
           perm_home_office?: string
           perm_lead_tracking?: string
           perm_onboarding?: string
+          perm_payroll?: string | null
           perm_recruitment?: string
           perm_suggestions?: string
           perm_task_rules?: string
@@ -4079,6 +4085,8 @@ export type Database = {
           approved_by: string | null
           avatar_url: string | null
           birth_date: string | null
+          cargo_id: string | null
+          contrato_associado_registrado: boolean | null
           created_at: string
           email: string
           full_name: string
@@ -4096,6 +4104,8 @@ export type Database = {
           approved_by?: string | null
           avatar_url?: string | null
           birth_date?: string | null
+          cargo_id?: string | null
+          contrato_associado_registrado?: boolean | null
           created_at?: string
           email: string
           full_name: string
@@ -4113,6 +4123,8 @@ export type Database = {
           approved_by?: string | null
           avatar_url?: string | null
           birth_date?: string | null
+          cargo_id?: string | null
+          contrato_associado_registrado?: boolean | null
           created_at?: string
           email?: string
           full_name?: string
@@ -4124,7 +4136,15 @@ export type Database = {
           position?: Database["public"]["Enums"]["position_type"] | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_profiles_cargo"
+            columns: ["cargo_id"]
+            isOneToOne: false
+            referencedRelation: "rh_cargos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       publication_reads: {
         Row: {
@@ -4570,6 +4590,298 @@ export type Database = {
             columns: ["candidate_id"]
             isOneToOne: false
             referencedRelation: "recruitment_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rh_cargos: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          id: string
+          is_active: boolean | null
+          nome: string
+          updated_at: string
+          valor_base: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          is_active?: boolean | null
+          nome: string
+          updated_at?: string
+          valor_base?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          is_active?: boolean | null
+          nome?: string
+          updated_at?: string
+          valor_base?: number
+        }
+        Relationships: []
+      }
+      rh_documentos: {
+        Row: {
+          arquivo_url: string
+          colaborador_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          nome: string
+          pasta_id: string | null
+          tamanho_bytes: number | null
+          tipo_arquivo: string | null
+        }
+        Insert: {
+          arquivo_url: string
+          colaborador_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome: string
+          pasta_id?: string | null
+          tamanho_bytes?: number | null
+          tipo_arquivo?: string | null
+        }
+        Update: {
+          arquivo_url?: string
+          colaborador_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome?: string
+          pasta_id?: string | null
+          tamanho_bytes?: number | null
+          tipo_arquivo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_rh_documentos_colaborador"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_rh_documentos_pasta"
+            columns: ["pasta_id"]
+            isOneToOne: false
+            referencedRelation: "rh_pastas_documentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rh_pagamento_itens: {
+        Row: {
+          created_at: string
+          id: string
+          observacao: string | null
+          pagamento_id: string
+          rubrica_id: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          observacao?: string | null
+          pagamento_id: string
+          rubrica_id: string
+          valor?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          observacao?: string | null
+          pagamento_id?: string
+          rubrica_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_rh_pagamento_itens_pagamento"
+            columns: ["pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "rh_pagamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_rh_pagamento_itens_rubrica"
+            columns: ["rubrica_id"]
+            isOneToOne: false
+            referencedRelation: "rh_rubricas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rh_pagamentos: {
+        Row: {
+          colaborador_id: string
+          created_at: string
+          created_by: string | null
+          data_pagamento: string | null
+          id: string
+          lancamento_financeiro_id: string | null
+          mes_referencia: string
+          observacoes: string | null
+          recibo_gerado: boolean | null
+          recibo_url: string | null
+          status: string | null
+          total_descontos: number | null
+          total_liquido: number | null
+          total_vantagens: number | null
+          updated_at: string
+        }
+        Insert: {
+          colaborador_id: string
+          created_at?: string
+          created_by?: string | null
+          data_pagamento?: string | null
+          id?: string
+          lancamento_financeiro_id?: string | null
+          mes_referencia: string
+          observacoes?: string | null
+          recibo_gerado?: boolean | null
+          recibo_url?: string | null
+          status?: string | null
+          total_descontos?: number | null
+          total_liquido?: number | null
+          total_vantagens?: number | null
+          updated_at?: string
+        }
+        Update: {
+          colaborador_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_pagamento?: string | null
+          id?: string
+          lancamento_financeiro_id?: string | null
+          mes_referencia?: string
+          observacoes?: string | null
+          recibo_gerado?: boolean | null
+          recibo_url?: string | null
+          status?: string | null
+          total_descontos?: number | null
+          total_liquido?: number | null
+          total_vantagens?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_rh_pagamentos_colaborador"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rh_pastas_documentos: {
+        Row: {
+          colaborador_id: string
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          id: string
+          nome: string
+        }
+        Insert: {
+          colaborador_id: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+        }
+        Update: {
+          colaborador_id?: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_rh_pastas_colaborador"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rh_rubricas: {
+        Row: {
+          created_at: string
+          descricao: string | null
+          id: string
+          is_active: boolean | null
+          nome: string
+          ordem: number | null
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          is_active?: boolean | null
+          nome: string
+          ordem?: number | null
+          tipo: string
+        }
+        Update: {
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          is_active?: boolean | null
+          nome?: string
+          ordem?: number | null
+          tipo?: string
+        }
+        Relationships: []
+      }
+      rh_sugestoes_valores: {
+        Row: {
+          colaborador_id: string
+          id: string
+          rubrica_id: string
+          updated_at: string
+          valor_sugerido: number | null
+        }
+        Insert: {
+          colaborador_id: string
+          id?: string
+          rubrica_id: string
+          updated_at?: string
+          valor_sugerido?: number | null
+        }
+        Update: {
+          colaborador_id?: string
+          id?: string
+          rubrica_id?: string
+          updated_at?: string
+          valor_sugerido?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_rh_sugestoes_colaborador"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_rh_sugestoes_rubrica"
+            columns: ["rubrica_id"]
+            isOneToOne: false
+            referencedRelation: "rh_rubricas"
             referencedColumns: ["id"]
           },
         ]
