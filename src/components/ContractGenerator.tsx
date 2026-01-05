@@ -1660,14 +1660,87 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
       
       doc.save(nomeArquivo);
       
-      toast.success("Contrato gerado com sucesso!", {
-        description: "Deseja salvar também no SharePoint/Teams?",
-        action: {
-          label: "Salvar no Teams",
-          onClick: () => setShowSaveToTeams(true),
-        },
-        duration: 10000,
-      });
+      // Chamar automação para registrar contrato e sincronizar com ADVBOX
+      try {
+        console.log('Iniciando automação de contrato...');
+        
+        const firstOption = initialFeeOptions[0];
+        const valorTotalNum = firstOption?.valorTotal ? parseFloat(firstOption.valorTotal.replace(/\./g, '').replace(',', '.')) : null;
+        const valorParcelaNum = firstOption?.valorParcela ? parseFloat(firstOption.valorParcela.replace(/\./g, '').replace(',', '.')) : null;
+        const valorEntradaNum = firstOption?.valorEntrada ? parseFloat(firstOption.valorEntrada.replace(/\./g, '').replace(',', '.')) : null;
+        const numParcelas = firstOption?.numeroParcelas ? parseInt(firstOption.numeroParcelas) : null;
+        
+        const contractData = {
+          client: client,
+          productName: productName,
+          objetoContrato: objetoContrato,
+          valorTotal: valorTotalNum,
+          formaPagamento: firstOption?.tipoHonorarios === 'avista' 
+            ? formatarFormasPagamento(firstOption.formasPagamento)
+            : `Parcelado ${formatarFormasPagamento(firstOption?.formasPagamentoParcelas || [])}`,
+          numeroParcelas: numParcelas,
+          valorParcela: valorParcelaNum,
+          valorEntrada: valorEntradaNum,
+          dataVencimento: firstOption?.dataVencimento,
+          temHonorariosExito: temHonorariosExito,
+          descricaoExito: temHonorariosExito ? exitoOptions.map(o => o.descricao).filter(d => d).join('; ') : null,
+          qualification: qualification,
+        };
+        
+        const { data: automationResult, error: automationError } = await supabase.functions.invoke('contract-automation', {
+          body: contractData,
+        });
+        
+        if (automationError) {
+          console.error('Erro na automação:', automationError);
+          toast.warning("Contrato gerado, mas houve erro na automação", {
+            description: "O registro no ADVBOX pode não ter sido feito automaticamente.",
+          });
+        } else {
+          console.log('Automação concluída:', automationResult);
+          
+          if (automationResult.syncStatus === 'synced') {
+            toast.success("Contrato gerado e sincronizado!", {
+              description: "Cliente e processo registrados no ADVBOX e financeiro.",
+              action: {
+                label: "Salvar no Teams",
+                onClick: () => setShowSaveToTeams(true),
+              },
+              duration: 10000,
+            });
+          } else if (automationResult.syncStatus === 'partial') {
+            toast.warning("Contrato registrado parcialmente", {
+              description: automationResult.message,
+              action: {
+                label: "Salvar no Teams",
+                onClick: () => setShowSaveToTeams(true),
+              },
+              duration: 10000,
+            });
+          } else {
+            toast.info("Contrato gerado e registrado", {
+              description: automationResult.message || "Sincronização com ADVBOX pendente.",
+              action: {
+                label: "Salvar no Teams",
+                onClick: () => setShowSaveToTeams(true),
+              },
+              duration: 10000,
+            });
+          }
+        }
+      } catch (automationCatchError) {
+        console.error('Erro ao chamar automação:', automationCatchError);
+        // Não bloquear a geração do contrato por erro na automação
+        toast.success("Contrato gerado com sucesso!", {
+          description: "Deseja salvar também no SharePoint/Teams?",
+          action: {
+            label: "Salvar no Teams",
+            onClick: () => setShowSaveToTeams(true),
+          },
+          duration: 10000,
+        });
+      }
+      
       setShowPreview(false);
       onOpenChange(false);
       

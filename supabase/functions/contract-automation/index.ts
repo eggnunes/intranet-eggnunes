@@ -1,0 +1,480 @@
+// Contract Automation Edge Function
+// Cadastra cliente e processo no ADVBOX automaticamente após geração de contrato
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+const ADVBOX_API_BASE = 'https://app.advbox.com.br/api/v1';
+const ADVBOX_TOKEN = Deno.env.get('ADVBOX_API_TOKEN');
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
+
+interface ClientData {
+  id: number;
+  nomeCompleto: string;
+  cpf: string;
+  documentoIdentidade?: string;
+  dataNascimento?: string;
+  estadoCivil?: string;
+  profissao?: string;
+  telefone: string;
+  email: string;
+  cep?: string;
+  cidade?: string;
+  rua?: string;
+  numero?: string;
+  complemento?: string;
+  bairro?: string;
+  estado?: string;
+}
+
+interface ContractData {
+  client: ClientData;
+  productName: string;
+  objetoContrato?: string;
+  valorTotal?: number;
+  formaPagamento?: string;
+  numeroParcelas?: number;
+  valorParcela?: number;
+  valorEntrada?: number;
+  dataVencimento?: string;
+  temHonorariosExito?: boolean;
+  descricaoExito?: string;
+  qualification?: string;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function makeAdvboxRequest(
+  endpoint: string, 
+  method = 'GET', 
+  body?: Record<string, unknown>,
+  retryCount = 0
+): Promise<any> {
+  const url = `${ADVBOX_API_BASE}${endpoint}`;
+  const maxRetries = 3;
+  
+  console.log(`Making ${method} request to Advbox:`, url);
+  
+  const options: RequestInit = {
+    method,
+    headers: {
+      'Authorization': `Bearer ${ADVBOX_TOKEN}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+  };
+
+  if (body && method !== 'GET') {
+    options.body = JSON.stringify(body);
+    console.log('Request body:', JSON.stringify(body));
+  }
+
+  try {
+    const response = await fetch(url, options);
+    
+    console.log('Response status:', response.status);
+    
+    // Se recebeu 429 (Too Many Requests), aguardar e tentar novamente
+    if (response.status === 429 && retryCount < maxRetries) {
+      const waitTime = Math.pow(2, retryCount) * 2000;
+      console.log(`Rate limited. Waiting ${waitTime}ms before retry ${retryCount + 1}/${maxRetries}`);
+      await sleep(waitTime);
+      return makeAdvboxRequest(endpoint, method, body, retryCount + 1);
+    }
+    
+    const responseText = await response.text();
+    
+    if (!response.ok) {
+      console.error('Advbox API error:', response.status, responseText.substring(0, 500));
+      throw new Error(`Advbox API error: ${response.status} - ${responseText.substring(0, 200)}`);
+    }
+
+    if (!responseText.trim()) {
+      return { success: true };
+    }
+
+    // Verificar se a resposta é JSON válido
+    if (!responseText.trim().startsWith('{') && !responseText.trim().startsWith('[')) {
+      console.error('Response is not JSON:', responseText.substring(0, 200));
+      throw new Error(`API retornou HTML em vez de JSON`);
+    }
+
+    return JSON.parse(responseText);
+  } catch (e) {
+    if (e instanceof Error && e.message.includes('Advbox API error')) {
+      throw e;
+    }
+    console.error('Failed to make request:', e);
+    throw new Error(`Falha na requisição: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+// Buscar cliente existente pelo CPF ou nome
+async function findExistingCustomer(cpf: string, name: string): Promise<any | null> {
+  try {
+    console.log('Searching for existing customer with CPF:', cpf, 'or name:', name);
+    
+    const response = await makeAdvboxRequest('/customers?limit=1000');
+    const customers = response.data || [];
+    
+    // Buscar por CPF primeiro (mais preciso)
+    const cpfClean = cpf.replace(/\D/g, '');
+    let found = customers.find((c: any) => {
+      const customerCpf = (c.cpf || c.document || '').replace(/\D/g, '');
+      return customerCpf === cpfClean;
+    });
+    
+    if (found) {
+      console.log('Found customer by CPF:', found.id);
+      return found;
+    }
+    
+    // Buscar por nome (case insensitive)
+    const nameLower = name.toLowerCase().trim();
+    found = customers.find((c: any) => {
+      const customerName = (c.name || c.full_name || '').toLowerCase().trim();
+      return customerName === nameLower;
+    });
+    
+    if (found) {
+      console.log('Found customer by name:', found.id);
+      return found;
+    }
+    
+    console.log('No existing customer found');
+    return null;
+  } catch (error) {
+    console.error('Error searching for existing customer:', error);
+    return null;
+  }
+}
+
+// Criar cliente no ADVBOX
+async function createCustomer(client: ClientData): Promise<{ id: string } | null> {
+  try {
+    console.log('Creating customer in ADVBOX:', client.nomeCompleto);
+    
+    // Formatar data de nascimento
+    let birthDate = null;
+    if (client.dataNascimento) {
+      // Tentar converter formato DD/MM/YYYY para YYYY-MM-DD
+      const parts = client.dataNascimento.split('/');
+      if (parts.length === 3) {
+        birthDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      } else {
+        birthDate = client.dataNascimento;
+      }
+    }
+    
+    const customerData = {
+      name: client.nomeCompleto,
+      cpf: client.cpf?.replace(/\D/g, ''),
+      rg: client.documentoIdentidade,
+      birth_date: birthDate,
+      marital_status: client.estadoCivil,
+      profession: client.profissao,
+      phone: client.telefone?.replace(/\D/g, ''),
+      email: client.email,
+      zip_code: client.cep?.replace(/\D/g, ''),
+      city: client.cidade,
+      street: client.rua,
+      number: client.numero,
+      complement: client.complemento,
+      neighborhood: client.bairro,
+      state: client.estado,
+      type: 'person', // pessoa física
+    };
+    
+    const response = await makeAdvboxRequest('/customers', 'POST', customerData);
+    
+    console.log('Customer created successfully:', response);
+    
+    return { id: response.data?.id || response.id };
+  } catch (error) {
+    console.error('Error creating customer in ADVBOX:', error);
+    throw error;
+  }
+}
+
+// Criar processo no ADVBOX
+async function createLawsuit(
+  customerId: string, 
+  productName: string, 
+  objetoContrato?: string
+): Promise<{ id: string } | null> {
+  try {
+    console.log('Creating lawsuit in ADVBOX for customer:', customerId);
+    
+    const lawsuitData = {
+      customer_id: customerId,
+      title: productName,
+      description: objetoContrato || `Contrato: ${productName}`,
+      type: 'judicial', // Tipo padrão
+      status: 'active',
+      // O número do processo será preenchido quando houver
+    };
+    
+    const response = await makeAdvboxRequest('/lawsuits', 'POST', lawsuitData);
+    
+    console.log('Lawsuit created successfully:', response);
+    
+    return { id: response.data?.id || response.id };
+  } catch (error) {
+    console.error('Error creating lawsuit in ADVBOX:', error);
+    throw error;
+  }
+}
+
+// Registrar contrato no banco de dados
+async function registerContract(
+  token: string,
+  contractData: ContractData,
+  advboxCustomerId?: string,
+  advboxLawsuitId?: string,
+  syncStatus = 'pending',
+  syncError?: string
+): Promise<string> {
+  console.log('Registering contract in database...');
+  
+  const contractRecord = {
+    client_id: contractData.client.id,
+    client_name: contractData.client.nomeCompleto,
+    client_cpf: contractData.client.cpf,
+    client_email: contractData.client.email,
+    client_phone: contractData.client.telefone,
+    product_name: contractData.productName,
+    objeto_contrato: contractData.objetoContrato,
+    valor_total: contractData.valorTotal,
+    forma_pagamento: contractData.formaPagamento,
+    numero_parcelas: contractData.numeroParcelas,
+    valor_parcela: contractData.valorParcela,
+    valor_entrada: contractData.valorEntrada,
+    data_vencimento: contractData.dataVencimento,
+    tem_honorarios_exito: contractData.temHonorariosExito,
+    descricao_exito: contractData.descricaoExito,
+    qualification: contractData.qualification,
+    advbox_customer_id: advboxCustomerId,
+    advbox_lawsuit_id: advboxLawsuitId,
+    advbox_sync_status: syncStatus,
+    advbox_sync_error: syncError,
+  };
+  
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/fin_contratos`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_ANON_KEY!,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+    },
+    body: JSON.stringify(contractRecord),
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Error registering contract:', errorText);
+    throw new Error(`Error registering contract: ${errorText}`);
+  }
+  
+  const result = await response.json();
+  console.log('Contract registered:', result[0]?.id);
+  
+  return result[0]?.id;
+}
+
+// Atualizar status de sincronização do contrato
+async function updateContractSyncStatus(
+  token: string,
+  contractId: string,
+  advboxCustomerId?: string,
+  advboxLawsuitId?: string,
+  syncStatus?: string,
+  syncError?: string
+): Promise<void> {
+  console.log('Updating contract sync status:', contractId, syncStatus);
+  
+  const updateData: Record<string, any> = {
+    advbox_sync_status: syncStatus,
+  };
+  
+  if (advboxCustomerId) updateData.advbox_customer_id = advboxCustomerId;
+  if (advboxLawsuitId) updateData.advbox_lawsuit_id = advboxLawsuitId;
+  if (syncError) updateData.advbox_sync_error = syncError;
+  
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/fin_contratos?id=eq.${contractId}`, {
+    method: 'PATCH',
+    headers: {
+      'apikey': SUPABASE_ANON_KEY!,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(updateData),
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Error updating contract:', errorText);
+  }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    // Verificar autenticação
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    
+    // Verificar usuário
+    const userResponse = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'apikey': SUPABASE_ANON_KEY!,
+      },
+    });
+
+    if (!userResponse.ok) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const userData = await userResponse.json();
+    console.log('User verified:', userData.id);
+
+    // Obter dados do contrato
+    const contractData: ContractData = await req.json();
+    
+    if (!contractData.client || !contractData.productName) {
+      return new Response(JSON.stringify({ error: 'Dados incompletos' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log('Processing contract for:', contractData.client.nomeCompleto);
+    
+    let advboxCustomerId: string | undefined;
+    let advboxLawsuitId: string | undefined;
+    let syncStatus = 'pending';
+    let syncError: string | undefined;
+    
+    // Verificar se o token do ADVBOX está configurado
+    if (!ADVBOX_TOKEN) {
+      console.warn('ADVBOX_API_TOKEN não configurado. Contrato será registrado sem sincronização.');
+      syncStatus = 'error';
+      syncError = 'Token ADVBOX não configurado';
+    } else {
+      try {
+        // 1. Verificar se cliente já existe no ADVBOX
+        const existingCustomer = await findExistingCustomer(
+          contractData.client.cpf, 
+          contractData.client.nomeCompleto
+        );
+        
+        if (existingCustomer) {
+          advboxCustomerId = String(existingCustomer.id);
+          console.log('Using existing customer:', advboxCustomerId);
+        } else {
+          // 2. Criar cliente no ADVBOX
+          const newCustomer = await createCustomer(contractData.client);
+          if (newCustomer) {
+            advboxCustomerId = newCustomer.id;
+            console.log('Created new customer:', advboxCustomerId);
+          }
+        }
+        
+        // 3. Criar processo no ADVBOX
+        if (advboxCustomerId) {
+          await sleep(1500); // Aguardar para evitar rate limit
+          
+          try {
+            const lawsuit = await createLawsuit(
+              advboxCustomerId, 
+              contractData.productName,
+              contractData.objetoContrato
+            );
+            
+            if (lawsuit) {
+              advboxLawsuitId = lawsuit.id;
+              syncStatus = 'synced';
+              console.log('Created lawsuit:', advboxLawsuitId);
+            }
+          } catch (lawsuitError) {
+            console.error('Error creating lawsuit, but customer was created:', lawsuitError);
+            syncStatus = 'partial';
+            syncError = `Cliente criado, mas erro ao criar processo: ${lawsuitError instanceof Error ? lawsuitError.message : String(lawsuitError)}`;
+          }
+        }
+        
+        if (!advboxCustomerId) {
+          syncStatus = 'error';
+          syncError = 'Não foi possível criar/encontrar cliente no ADVBOX';
+        }
+        
+      } catch (advboxError) {
+        console.error('Error syncing with ADVBOX:', advboxError);
+        syncStatus = 'error';
+        syncError = advboxError instanceof Error ? advboxError.message : String(advboxError);
+      }
+    }
+    
+    // 4. Registrar contrato no banco de dados (sempre, independente do status ADVBOX)
+    const contractId = await registerContract(
+      token,
+      contractData,
+      advboxCustomerId,
+      advboxLawsuitId,
+      syncStatus,
+      syncError
+    );
+    
+    console.log('Contract automation completed:', {
+      contractId,
+      advboxCustomerId,
+      advboxLawsuitId,
+      syncStatus,
+    });
+    
+    return new Response(JSON.stringify({
+      success: true,
+      contractId,
+      advboxCustomerId,
+      advboxLawsuitId,
+      syncStatus,
+      syncError,
+      message: syncStatus === 'synced' 
+        ? 'Contrato registrado e sincronizado com ADVBOX com sucesso!'
+        : syncStatus === 'partial'
+        ? 'Contrato registrado. Cliente criado no ADVBOX, mas houve erro ao criar processo.'
+        : 'Contrato registrado, mas não foi possível sincronizar com ADVBOX.',
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+    
+  } catch (error) {
+    console.error('Error in contract automation:', error);
+    return new Response(JSON.stringify({ 
+      error: error instanceof Error ? error.message : 'Erro interno',
+      success: false,
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+});
