@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { User, Lock, Calendar, Upload, IdCard, History, Building, Bookmark, Download, Trash2, Search, Phone, MapPin, AlertTriangle, ArrowLeft, TrendingUp } from 'lucide-react';
+import { User, Lock, Calendar, Upload, IdCard, History, Building, Bookmark, Download, Trash2, Search, Phone, MapPin, AlertTriangle, ArrowLeft, TrendingUp, DollarSign, Briefcase, FileText } from 'lucide-react';
 import { FeedbackBox } from '@/components/FeedbackBox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { EmailNotificationSettings } from '@/components/EmailNotificationSettings';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const BRAZILIAN_STATES = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
@@ -50,6 +51,28 @@ interface Promocao {
   cargo_novo_nome: string;
   data_promocao: string;
   observacoes: string | null;
+}
+
+interface HistoricoSalario {
+  id: string;
+  salario_anterior: number;
+  salario_novo: number;
+  data_alteracao: string;
+  observacao: string | null;
+}
+
+interface Pagamento {
+  id: string;
+  mes_referencia: string;
+  total_liquido: number;
+  data_pagamento: string | null;
+  status: string;
+}
+
+interface Cargo {
+  id: string;
+  nome: string;
+  valor_base: number;
 }
 
 export default function Profile() {
@@ -101,13 +124,19 @@ export default function Profile() {
   const [showProfileAlert, setShowProfileAlert] = useState(false);
   const [promocoes, setPromocoes] = useState<Promocao[]>([]);
   const [viewingPromocoes, setViewingPromocoes] = useState<Promocao[]>([]);
+  const [historicoSalario, setHistoricoSalario] = useState<HistoricoSalario[]>([]);
+  const [viewingHistoricoSalario, setViewingHistoricoSalario] = useState<HistoricoSalario[]>([]);
+  const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
+  const [viewingPagamentos, setViewingPagamentos] = useState<Pagamento[]>([]);
+  const [cargoAtual, setCargoAtual] = useState<Cargo | null>(null);
+  const [viewingCargoAtual, setViewingCargoAtual] = useState<Cargo | null>(null);
 
   // Fetch viewing profile if viewing another user
   useEffect(() => {
     const fetchViewingProfile = async () => {
       if (isViewingOther && canViewOther && viewingUserId) {
         setViewingLoading(true);
-        const [profileRes, promocoesRes] = await Promise.all([
+        const [profileRes, promocoesRes, historicoRes, pagamentosRes] = await Promise.all([
           supabase
             .from('profiles')
             .select('*')
@@ -117,11 +146,34 @@ export default function Profile() {
             .from('rh_promocoes')
             .select('id, cargo_anterior_nome, cargo_novo_nome, data_promocao, observacoes')
             .eq('colaborador_id', viewingUserId)
-            .order('data_promocao', { ascending: false })
+            .order('data_promocao', { ascending: false }),
+          supabase
+            .from('rh_historico_salario')
+            .select('id, salario_anterior, salario_novo, data_alteracao, observacao')
+            .eq('colaborador_id', viewingUserId)
+            .order('data_alteracao', { ascending: false }),
+          supabase
+            .from('rh_pagamentos')
+            .select('id, mes_referencia, total_liquido, data_pagamento, status')
+            .eq('colaborador_id', viewingUserId)
+            .order('mes_referencia', { ascending: false })
+            .limit(12)
         ]);
         
         if (!profileRes.error && profileRes.data) {
           setViewingProfile(profileRes.data);
+          
+          // Buscar cargo atual se existir cargo_id
+          if (profileRes.data.cargo_id) {
+            const { data: cargoData } = await supabase
+              .from('rh_cargos')
+              .select('id, nome, valor_base')
+              .eq('id', profileRes.data.cargo_id)
+              .single();
+            if (cargoData) {
+              setViewingCargoAtual(cargoData as Cargo);
+            }
+          }
         } else {
           toast({
             title: 'Erro',
@@ -133,6 +185,14 @@ export default function Profile() {
         
         if (!promocoesRes.error && promocoesRes.data) {
           setViewingPromocoes(promocoesRes.data as Promocao[]);
+        }
+        
+        if (!historicoRes.error && historicoRes.data) {
+          setViewingHistoricoSalario(historicoRes.data as HistoricoSalario[]);
+        }
+        
+        if (!pagamentosRes.error && pagamentosRes.data) {
+          setViewingPagamentos(pagamentosRes.data as Pagamento[]);
         }
         
         setViewingLoading(false);
@@ -175,6 +235,9 @@ export default function Profile() {
       fetchUsageHistory();
       fetchSavedJurisprudence();
       fetchPromocoes();
+      fetchHistoricoSalario();
+      fetchPagamentos();
+      fetchCargoAtual();
     }
   }, [currentProfile, isViewingOther]);
 
@@ -189,6 +252,49 @@ export default function Profile() {
 
     if (!error && data) {
       setPromocoes(data as Promocao[]);
+    }
+  };
+
+  const fetchHistoricoSalario = async () => {
+    if (!user) return;
+    
+    const { data, error } = await supabase
+      .from('rh_historico_salario')
+      .select('id, salario_anterior, salario_novo, data_alteracao, observacao')
+      .eq('colaborador_id', user.id)
+      .order('data_alteracao', { ascending: false });
+
+    if (!error && data) {
+      setHistoricoSalario(data as HistoricoSalario[]);
+    }
+  };
+
+  const fetchPagamentos = async () => {
+    if (!user) return;
+    
+    const { data, error } = await supabase
+      .from('rh_pagamentos')
+      .select('id, mes_referencia, total_liquido, data_pagamento, status')
+      .eq('colaborador_id', user.id)
+      .order('mes_referencia', { ascending: false })
+      .limit(12);
+
+    if (!error && data) {
+      setPagamentos(data as Pagamento[]);
+    }
+  };
+
+  const fetchCargoAtual = async () => {
+    if (!user || !(profile as any)?.cargo_id) return;
+    
+    const { data, error } = await supabase
+      .from('rh_cargos')
+      .select('id, nome, valor_base')
+      .eq('id', (profile as any).cargo_id)
+      .single();
+
+    if (!error && data) {
+      setCargoAtual(data as Cargo);
     }
   };
 
@@ -590,6 +696,41 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
             </CardContent>
           </Card>
 
+          {/* Cargo e Salário Atual */}
+          {(viewingCargoAtual || vp.salario) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Briefcase className="w-5 h-5" />
+                  Cargo e Remuneração
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  {viewingCargoAtual && (
+                    <div>
+                      <Label className="text-muted-foreground text-sm">Cargo Atual</Label>
+                      <p className="font-medium">{viewingCargoAtual.nome}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Base: {viewingCargoAtual.valor_base?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </p>
+                    </div>
+                  )}
+                  {vp.salario && (
+                    <div>
+                      <Label className="text-muted-foreground text-sm">
+                        {vp.position === 'advogado' || vp.position === 'socio' ? 'Pagamento' : 'Salário'}
+                      </Label>
+                      <p className="font-medium text-lg">
+                        {Number(vp.salario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Histórico de Promoções */}
           {viewingPromocoes.length > 0 && (
             <Card>
@@ -621,6 +762,89 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Histórico de Salário */}
+          {viewingHistoricoSalario.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="w-5 h-5" />
+                  Histórico de Alterações Salariais
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {viewingHistoricoSalario.map((item) => (
+                    <div key={item.id} className="flex items-start gap-4 p-3 bg-muted/50 rounded-lg">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="outline">
+                            {Number(item.salario_anterior).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </Badge>
+                          <span className="text-muted-foreground">→</span>
+                          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            {Number(item.salario_novo).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {format(new Date(item.data_alteracao), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                        </p>
+                        {item.observacao && (
+                          <p className="text-sm mt-1">{item.observacao}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Histórico de Pagamentos */}
+          {viewingPagamentos.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Histórico de Pagamentos
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Mês Referência</TableHead>
+                      <TableHead>Valor Líquido</TableHead>
+                      <TableHead>Data Pagamento</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {viewingPagamentos.map((pag) => (
+                      <TableRow key={pag.id}>
+                        <TableCell>
+                          {format(new Date(pag.mes_referencia), "MMMM/yyyy", { locale: ptBR })}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {Number(pag.total_liquido).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </TableCell>
+                        <TableCell>
+                          {pag.data_pagamento 
+                            ? format(new Date(pag.data_pagamento), "dd/MM/yyyy") 
+                            : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={pag.status === 'processado' ? 'default' : 'outline'}>
+                            {pag.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           )}
@@ -1111,6 +1335,41 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
           </CardContent>
         </Card>
 
+        {/* Cargo e Salário Atual */}
+        {(cargoAtual || (profile as any)?.salario) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Briefcase className="w-5 h-5" />
+                Cargo e Remuneração
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                {cargoAtual && (
+                  <div>
+                    <Label className="text-muted-foreground text-sm">Cargo Atual</Label>
+                    <p className="font-medium">{cargoAtual.nome}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Base: {cargoAtual.valor_base?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </p>
+                  </div>
+                )}
+                {(profile as any)?.salario && (
+                  <div>
+                    <Label className="text-muted-foreground text-sm">
+                      {profile?.position === 'advogado' || profile?.position === 'socio' ? 'Pagamento' : 'Salário'}
+                    </Label>
+                    <p className="font-medium text-lg">
+                      {Number((profile as any).salario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Histórico de Promoções do próprio usuário */}
         {promocoes.length > 0 && (
           <Card>
@@ -1142,6 +1401,89 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Histórico de Salário */}
+        {historicoSalario.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign className="w-5 h-5" />
+                Histórico de Alterações Salariais
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {historicoSalario.map((item) => (
+                  <div key={item.id} className="flex items-start gap-4 p-3 bg-muted/50 rounded-lg">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline">
+                          {Number(item.salario_anterior).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </Badge>
+                        <span className="text-muted-foreground">→</span>
+                        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                          {Number(item.salario_novo).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {format(new Date(item.data_alteracao), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                      </p>
+                      {item.observacao && (
+                        <p className="text-sm mt-1">{item.observacao}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Histórico de Pagamentos */}
+        {pagamentos.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Histórico de Pagamentos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Mês Referência</TableHead>
+                    <TableHead>Valor Líquido</TableHead>
+                    <TableHead>Data Pagamento</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pagamentos.map((pag) => (
+                    <TableRow key={pag.id}>
+                      <TableCell>
+                        {format(new Date(pag.mes_referencia), "MMMM/yyyy", { locale: ptBR })}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {Number(pag.total_liquido).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </TableCell>
+                      <TableCell>
+                        {pag.data_pagamento 
+                          ? format(new Date(pag.data_pagamento), "dd/MM/yyyy") 
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={pag.status === 'processado' ? 'default' : 'outline'}>
+                          {pag.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         )}
