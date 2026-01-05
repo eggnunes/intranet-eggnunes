@@ -1658,6 +1658,30 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
       const base64Content = btoa(binary);
       setPdfForTeams({ fileName: nomeArquivo, content: base64Content });
       
+      // Salvar PDF na pasta do cliente no storage
+      try {
+        const clientFolder = client.nomeCompleto.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+        const filePath = `clientes/${clientFolder}/${nomeArquivo}`;
+        
+        const pdfBlob = new Blob([pdfOutput], { type: 'application/pdf' });
+        
+        const { error: uploadError } = await supabase.storage
+          .from('contracts')
+          .upload(filePath, pdfBlob, {
+            contentType: 'application/pdf',
+            upsert: true
+          });
+
+        if (uploadError) {
+          console.warn('Erro ao salvar contrato no storage:', uploadError);
+        } else {
+          console.log('Contrato salvo no storage:', filePath);
+          toast.success("Contrato salvo na pasta do cliente");
+        }
+      } catch (storageError) {
+        console.warn('Erro ao fazer upload do contrato:', storageError);
+      }
+      
       doc.save(nomeArquivo);
       
       // Chamar automação para registrar contrato e sincronizar com ADVBOX

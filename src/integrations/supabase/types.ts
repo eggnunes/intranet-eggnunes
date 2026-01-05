@@ -2516,10 +2516,12 @@ export type Database = {
           forma_pagamento: string | null
           id: string
           numero_parcelas: number | null
+          numero_processo: string | null
           objeto_contrato: string | null
           product_name: string
           qualification: string | null
           status: string | null
+          status_processo: string | null
           tem_honorarios_exito: boolean | null
           updated_at: string
           valor_entrada: number | null
@@ -2544,10 +2546,12 @@ export type Database = {
           forma_pagamento?: string | null
           id?: string
           numero_parcelas?: number | null
+          numero_processo?: string | null
           objeto_contrato?: string | null
           product_name: string
           qualification?: string | null
           status?: string | null
+          status_processo?: string | null
           tem_honorarios_exito?: boolean | null
           updated_at?: string
           valor_entrada?: number | null
@@ -2572,10 +2576,12 @@ export type Database = {
           forma_pagamento?: string | null
           id?: string
           numero_parcelas?: number | null
+          numero_processo?: string | null
           objeto_contrato?: string | null
           product_name?: string
           qualification?: string | null
           status?: string | null
+          status_processo?: string | null
           tem_honorarios_exito?: boolean | null
           updated_at?: string
           valor_entrada?: number | null
