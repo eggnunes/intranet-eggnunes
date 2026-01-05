@@ -7,9 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Users, AlertTriangle, Briefcase, FileCheck } from 'lucide-react';
+import { Users, AlertTriangle, FileCheck, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Colaborador {
   id: string;
@@ -29,13 +30,20 @@ interface Cargo {
 }
 
 export function RHColaboradores() {
+  const { user } = useAuth();
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [cargos, setCargos] = useState<Cargo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+
+  const isRafael = currentUserEmail === 'rafael@eggnunes.com.br';
 
   useEffect(() => {
+    if (user?.email) {
+      setCurrentUserEmail(user.email);
+    }
     fetchData();
-  }, []);
+  }, [user]);
 
   const fetchData = async () => {
     try {
@@ -104,6 +112,25 @@ export function RHColaboradores() {
     }
   };
 
+  // Apenas Rafael pode dispensar alerta de contrato (marcando como registrado)
+  const handleDispensarAlertaContrato = async (colaboradorId: string) => {
+    if (!isRafael) return;
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ contrato_associado_registrado: true })
+        .eq('id', colaboradorId);
+
+      if (error) throw error;
+
+      toast.success('Alerta dispensado!');
+      fetchData();
+    } catch (error: any) {
+      toast.error('Erro ao dispensar alerta: ' + error.message);
+    }
+  };
+
   const getPositionLabel = (position: string) => {
     const labels: Record<string, string> = {
       'socio': 'Sócio',
@@ -119,10 +146,12 @@ export function RHColaboradores() {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
+  // Apenas advogados precisam de contrato (sócios não)
   const isAdvogado = (position: string) => {
-    return position === 'advogado' || position === 'socio';
+    return position === 'advogado';
   };
 
+  // Filtrar apenas advogados (não sócios) sem contrato
   const advogadosSemContrato = colaboradores.filter(
     c => isAdvogado(c.position) && c.contrato_associado_registrado !== true
   );
@@ -133,7 +162,7 @@ export function RHColaboradores() {
 
   return (
     <div className="space-y-6">
-      {/* Alerta de Pendências */}
+      {/* Alerta de Pendências - Apenas advogados (não sócios) */}
       {advogadosSemContrato.length > 0 && (
         <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
           <CardHeader>
@@ -144,12 +173,27 @@ export function RHColaboradores() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-3">
-              Os seguintes advogados/sócios não possuem contrato de associado registrado:
+              Os seguintes advogados não possuem contrato de associado registrado:
             </p>
             <div className="flex flex-wrap gap-2">
               {advogadosSemContrato.map(c => (
-                <Badge key={c.id} variant="outline" className="border-orange-300">
+                <Badge 
+                  key={c.id} 
+                  variant="outline" 
+                  className="border-orange-300 flex items-center gap-1"
+                >
                   {c.full_name}
+                  {isRafael && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-4 w-4 p-0 ml-1 hover:bg-orange-200"
+                      onClick={() => handleDispensarAlertaContrato(c.id)}
+                      title="Dispensar alerta"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
                 </Badge>
               ))}
             </div>
