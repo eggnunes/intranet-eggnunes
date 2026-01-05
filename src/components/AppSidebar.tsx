@@ -156,6 +156,7 @@ export function AppSidebar() {
         { icon: Sparkles, path: '/agentes-ia', label: 'Agentes de IA' },
         { icon: SearchIcon, path: '/pesquisa-jurisprudencia', label: 'Pesquisa Jurisprudência' },
         { icon: FileText, path: '/tools/rotadoc', label: 'RotaDoc' },
+        { icon: Link2, path: '/gerador-qrcode', label: 'Gerador de QR Code' },
       ],
     },
     {

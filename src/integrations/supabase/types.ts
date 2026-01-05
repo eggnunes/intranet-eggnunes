@@ -4404,6 +4404,33 @@ export type Database = {
         }
         Relationships: []
       }
+      qr_codes: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          qr_code_data: string
+          title: string | null
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          qr_code_data: string
+          title?: string | null
+          url: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          qr_code_data?: string
+          title?: string | null
+          url?: string
+        }
+        Relationships: []
+      }
       recruitment_candidate_documents: {
         Row: {
           candidate_id: string
