@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { User, Lock, Calendar, Upload, IdCard, History, Building, Bookmark, Download, Trash2, Search } from 'lucide-react';
+import { User, Lock, Calendar, Upload, IdCard, History, Building, Bookmark, Download, Trash2, Search, Phone, MapPin, AlertTriangle } from 'lucide-react';
 import { FeedbackBox } from '@/components/FeedbackBox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -59,6 +59,17 @@ export default function Profile() {
   const [oabState, setOabState] = useState('');
   const [position, setPosition] = useState('');
   
+  // Novos campos de contato
+  const [telefone, setTelefone] = useState('');
+  const [cpf, setCpf] = useState('');
+  const [enderecoCep, setEnderecoCep] = useState('');
+  const [enderecoLogradouro, setEnderecoLogradouro] = useState('');
+  const [enderecoNumero, setEnderecoNumero] = useState('');
+  const [enderecoComplemento, setEnderecoComplemento] = useState('');
+  const [enderecoBairro, setEnderecoBairro] = useState('');
+  const [enderecoCidade, setEnderecoCidade] = useState('');
+  const [enderecoEstado, setEnderecoEstado] = useState('');
+  
   // Campos de senha
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -70,6 +81,7 @@ export default function Profile() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [savedJurisprudence, setSavedJurisprudence] = useState<SavedJurisprudence[]>([]);
   const [jurisprudenceLoading, setJurisprudenceLoading] = useState(true);
+  const [showProfileAlert, setShowProfileAlert] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -77,6 +89,21 @@ export default function Profile() {
       setPosition(profile.position || '');
       setOabNumber((profile as any).oab_number || '');
       setOabState((profile as any).oab_state || '');
+      // Novos campos de contato
+      setTelefone((profile as any).telefone || '');
+      setCpf((profile as any).cpf || '');
+      setEnderecoCep((profile as any).endereco_cep || '');
+      setEnderecoLogradouro((profile as any).endereco_logradouro || '');
+      setEnderecoNumero((profile as any).endereco_numero || '');
+      setEnderecoComplemento((profile as any).endereco_complemento || '');
+      setEnderecoBairro((profile as any).endereco_bairro || '');
+      setEnderecoCidade((profile as any).endereco_cidade || '');
+      setEnderecoEstado((profile as any).endereco_estado || '');
+      
+      // Verificar se perfil está incompleto
+      const isIncomplete = !(profile as any).telefone || !(profile as any).cpf;
+      setShowProfileAlert(isIncomplete);
+      
       if (profile.birth_date) {
         setBirthDate(parse(profile.birth_date, 'yyyy-MM-dd', new Date()));
       }
@@ -237,6 +264,17 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
         birth_date: birthDate ? format(birthDate, 'yyyy-MM-dd') : null,
         oab_number: oabNumber || null,
         oab_state: oabState || null,
+        // Novos campos de contato
+        telefone: telefone || null,
+        cpf: cpf || null,
+        endereco_cep: enderecoCep || null,
+        endereco_logradouro: enderecoLogradouro || null,
+        endereco_numero: enderecoNumero || null,
+        endereco_complemento: enderecoComplemento || null,
+        endereco_bairro: enderecoBairro || null,
+        endereco_cidade: enderecoCidade || null,
+        endereco_estado: enderecoEstado || null,
+        perfil_completo: !!(telefone && cpf),
         updated_at: new Date().toISOString(),
       };
 
@@ -363,6 +401,23 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
   return (
     <Layout>
       <div className="max-w-4xl mx-auto space-y-6">
+        {/* Alerta de perfil incompleto */}
+        {showProfileAlert && (
+          <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-orange-800 dark:text-orange-200">Perfil incompleto</p>
+                  <p className="text-sm text-orange-700 dark:text-orange-300">
+                    Por favor, preencha seus dados de contato (telefone e CPF) para completar seu perfil.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
         <div className="flex items-center gap-3 mb-8">
           <div className="p-2 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20">
             <User className="h-6 w-6 text-primary" />
@@ -555,13 +610,138 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                 </div>
               </>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Dados de Contato */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Phone className="w-5 h-5" />
+              Dados de Contato
+              {!telefone && !cpf && (
+                <span className="text-xs text-orange-600 ml-2">(Obrigatório)</span>
+              )}
+            </CardTitle>
+            <CardDescription>
+              Mantenha seus dados de contato atualizados
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="telefone">Telefone *</Label>
+                <Input
+                  id="telefone"
+                  value={telefone}
+                  onChange={(e) => setTelefone(e.target.value)}
+                  placeholder="(31) 99999-9999"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cpf">CPF *</Label>
+                <Input
+                  id="cpf"
+                  value={cpf}
+                  onChange={(e) => setCpf(e.target.value)}
+                  placeholder="000.000.000-00"
+                />
+              </div>
+            </div>
+
+            <Separator />
+            
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <MapPin className="w-4 h-4" />
+                Endereço
+              </Label>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="cep">CEP</Label>
+                <Input
+                  id="cep"
+                  value={enderecoCep}
+                  onChange={(e) => setEnderecoCep(e.target.value)}
+                  placeholder="30000-000"
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="logradouro">Logradouro</Label>
+                <Input
+                  id="logradouro"
+                  value={enderecoLogradouro}
+                  onChange={(e) => setEnderecoLogradouro(e.target.value)}
+                  placeholder="Rua, Avenida, etc."
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="numero">Número</Label>
+                <Input
+                  id="numero"
+                  value={enderecoNumero}
+                  onChange={(e) => setEnderecoNumero(e.target.value)}
+                  placeholder="123"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="complemento">Complemento</Label>
+                <Input
+                  id="complemento"
+                  value={enderecoComplemento}
+                  onChange={(e) => setEnderecoComplemento(e.target.value)}
+                  placeholder="Apto, Sala, etc."
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="bairro">Bairro</Label>
+                <Input
+                  id="bairro"
+                  value={enderecoBairro}
+                  onChange={(e) => setEnderecoBairro(e.target.value)}
+                  placeholder="Bairro"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="cidade">Cidade</Label>
+                <Input
+                  id="cidade"
+                  value={enderecoCidade}
+                  onChange={(e) => setEnderecoCidade(e.target.value)}
+                  placeholder="Cidade"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="estado">Estado</Label>
+                <Select value={enderecoEstado} onValueChange={setEnderecoEstado}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="UF" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BRAZILIAN_STATES.map((state) => (
+                      <SelectItem key={state} value={state}>
+                        {state}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
             <Button
               onClick={handleSaveProfile}
               disabled={saving || uploadingAvatar}
               className="w-full"
             >
-              {saving || uploadingAvatar ? 'Salvando...' : 'Salvar Alterações'}
+              {saving || uploadingAvatar ? 'Salvando...' : 'Salvar Dados de Contato'}
             </Button>
           </CardContent>
         </Card>
