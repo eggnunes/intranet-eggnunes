@@ -58,6 +58,7 @@ import SobreEscritorio from "./pages/SobreEscritorio";
 import Financeiro from "./pages/Financeiro";
 import FinanceiroAdmin from "./pages/FinanceiroAdmin";
 import GeradorQRCode from "./pages/GeradorQRCode";
+import Parceiros from "./pages/Parceiros";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient({
@@ -481,6 +482,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <GeradorQRCode />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/parceiros"
+              element={
+                <ProtectedRoute>
+                  <Parceiros />
                 </ProtectedRoute>
               }
             />

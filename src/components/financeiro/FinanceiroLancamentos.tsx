@@ -23,7 +23,8 @@ import {
   Clock,
   XCircle,
   Download,
-  Zap
+  Zap,
+  Check
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { toast } from 'sonner';
@@ -232,6 +233,25 @@ export function FinanceiroLancamentos({ onNovoLancamento }: FinanceiroLancamento
     }
   };
 
+  const handleQuickPay = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('fin_lancamentos')
+        .update({ 
+          status: 'pago', 
+          data_pagamento: new Date().toISOString().split('T')[0]
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+      toast.success('Lançamento marcado como pago!');
+      fetchLancamentos();
+    } catch (error) {
+      console.error('Erro ao quitar:', error);
+      toast.error('Erro ao quitar lançamento');
+    }
+  };
+
   const handleAtalhoRapido = async (atalho: typeof atalhosRapidos[0]) => {
     try {
       // Buscar categoria
@@ -381,6 +401,7 @@ export function FinanceiroLancamentos({ onNovoLancamento }: FinanceiroLancamento
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[50px]"></TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Categoria</TableHead>
@@ -394,7 +415,7 @@ export function FinanceiroLancamentos({ onNovoLancamento }: FinanceiroLancamento
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       <div className="flex items-center justify-center gap-2">
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
                         Carregando...
@@ -403,7 +424,7 @@ export function FinanceiroLancamentos({ onNovoLancamento }: FinanceiroLancamento
                   </TableRow>
                 ) : lancamentos.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       Nenhum lançamento encontrado
                     </TableCell>
                   </TableRow>
@@ -411,7 +432,20 @@ export function FinanceiroLancamentos({ onNovoLancamento }: FinanceiroLancamento
                   lancamentos.map((l) => (
                     <TableRow key={l.id}>
                       <TableCell>
-                        {format(new Date(l.data_lancamento), 'dd/MM/yyyy')}
+                        {l.status !== 'pago' ? (
+                          <button
+                            onClick={() => handleQuickPay(l.id)}
+                            className="h-5 w-5 rounded border-2 border-muted-foreground/30 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-950 flex items-center justify-center transition-colors"
+                            title="Marcar como pago"
+                          >
+                          </button>
+                        ) : (
+                          <div className="h-5 w-5 rounded bg-green-500 flex items-center justify-center">
+                            <Check className="h-3 w-3 text-white" />
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
