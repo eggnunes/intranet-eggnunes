@@ -12,7 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, MessageSquareHeart, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck, Lock, Pencil, Key, UserX, UserCheck, Circle } from 'lucide-react';
+import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, MessageSquareHeart, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck, Lock, Pencil, Key, UserX, UserCheck, Circle, ClipboardList } from 'lucide-react';
+import { AuditLogHistory } from '@/components/AuditLogHistory';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -1340,51 +1341,7 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="history">
-            <Card>
-              <CardHeader>
-                <CardTitle>Histórico de Uso Geral</CardTitle>
-                <CardDescription>
-                  Acompanhe o uso das ferramentas por todos os usuários
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {usageHistory.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">
-                    Nenhum histórico de uso registrado
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {usageHistory.map((item) => (
-                      <div
-                        key={item.id}
-                        className="p-4 border border-border rounded-lg"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <p className="font-medium">{item.profiles.full_name}</p>
-                            <p className="text-sm text-muted-foreground">{item.profiles.email}</p>
-                          </div>
-                          <Badge variant="outline">{item.tool_name}</Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-2">
-                          {item.action}
-                        </p>
-                        {item.metadata && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {item.metadata.fileCount && `${item.metadata.fileCount} arquivos`}
-                            {item.metadata.documentCount && ` → ${item.metadata.documentCount} documentos`}
-                            {item.metadata.processingTime && ` (${item.metadata.processingTime}s)`}
-                          </p>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-2">
-                          {new Date(item.created_at).toLocaleString('pt-BR')}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <AuditLogHistory />
           </TabsContent>
 
           {/* Permissions Tab - Only for Sócios and Rafael */}
