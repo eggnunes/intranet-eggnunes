@@ -4081,6 +4081,274 @@ export type Database = {
         }
         Relationships: []
       }
+      parceiros: {
+        Row: {
+          ativo: boolean | null
+          created_at: string
+          created_by: string | null
+          data_cadastro: string
+          data_inativacao: string | null
+          email: string | null
+          id: string
+          motivo_inativacao: string | null
+          nome_completo: string
+          nome_escritorio: string | null
+          observacoes: string | null
+          ranking: number | null
+          telefone: string | null
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string
+          created_by?: string | null
+          data_cadastro?: string
+          data_inativacao?: string | null
+          email?: string | null
+          id?: string
+          motivo_inativacao?: string | null
+          nome_completo: string
+          nome_escritorio?: string | null
+          observacoes?: string | null
+          ranking?: number | null
+          telefone?: string | null
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string
+          created_by?: string | null
+          data_cadastro?: string
+          data_inativacao?: string | null
+          email?: string | null
+          id?: string
+          motivo_inativacao?: string | null
+          nome_completo?: string
+          nome_escritorio?: string | null
+          observacoes?: string | null
+          ranking?: number | null
+          telefone?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      parceiros_areas: {
+        Row: {
+          area_id: string
+          created_at: string
+          id: string
+          parceiro_id: string
+        }
+        Insert: {
+          area_id: string
+          created_at?: string
+          id?: string
+          parceiro_id: string
+        }
+        Update: {
+          area_id?: string
+          created_at?: string
+          id?: string
+          parceiro_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parceiros_areas_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "parceiros_areas_atuacao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parceiros_areas_parceiro_id_fkey"
+            columns: ["parceiro_id"]
+            isOneToOne: false
+            referencedRelation: "parceiros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parceiros_areas_atuacao: {
+        Row: {
+          ativo: boolean | null
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      parceiros_indicacoes: {
+        Row: {
+          area_atuacao_id: string | null
+          created_at: string
+          created_by: string | null
+          data_indicacao: string
+          descricao_caso: string | null
+          id: string
+          nome_cliente: string
+          observacoes: string | null
+          parceiro_id: string
+          percentual_comissao: number | null
+          status: string | null
+          tipo_indicacao: string
+          updated_at: string
+          valor_comissao: number | null
+          valor_total_causa: number | null
+        }
+        Insert: {
+          area_atuacao_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_indicacao?: string
+          descricao_caso?: string | null
+          id?: string
+          nome_cliente: string
+          observacoes?: string | null
+          parceiro_id: string
+          percentual_comissao?: number | null
+          status?: string | null
+          tipo_indicacao: string
+          updated_at?: string
+          valor_comissao?: number | null
+          valor_total_causa?: number | null
+        }
+        Update: {
+          area_atuacao_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_indicacao?: string
+          descricao_caso?: string | null
+          id?: string
+          nome_cliente?: string
+          observacoes?: string | null
+          parceiro_id?: string
+          percentual_comissao?: number | null
+          status?: string | null
+          tipo_indicacao?: string
+          updated_at?: string
+          valor_comissao?: number | null
+          valor_total_causa?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parceiros_indicacoes_area_atuacao_id_fkey"
+            columns: ["area_atuacao_id"]
+            isOneToOne: false
+            referencedRelation: "parceiros_areas_atuacao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parceiros_indicacoes_parceiro_id_fkey"
+            columns: ["parceiro_id"]
+            isOneToOne: false
+            referencedRelation: "parceiros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parceiros_pagamentos: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          data_pagamento: string | null
+          data_vencimento: string
+          forma_pagamento: string | null
+          id: string
+          indicacao_id: string | null
+          lancamento_financeiro_id: string | null
+          observacoes: string | null
+          parceiro_id: string
+          parcela_atual: number | null
+          status: string | null
+          tipo: string
+          total_parcelas: number | null
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          data_pagamento?: string | null
+          data_vencimento: string
+          forma_pagamento?: string | null
+          id?: string
+          indicacao_id?: string | null
+          lancamento_financeiro_id?: string | null
+          observacoes?: string | null
+          parceiro_id: string
+          parcela_atual?: number | null
+          status?: string | null
+          tipo: string
+          total_parcelas?: number | null
+          updated_at?: string
+          valor: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          data_pagamento?: string | null
+          data_vencimento?: string
+          forma_pagamento?: string | null
+          id?: string
+          indicacao_id?: string | null
+          lancamento_financeiro_id?: string | null
+          observacoes?: string | null
+          parceiro_id?: string
+          parcela_atual?: number | null
+          status?: string | null
+          tipo?: string
+          total_parcelas?: number | null
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parceiros_pagamentos_indicacao_id_fkey"
+            columns: ["indicacao_id"]
+            isOneToOne: false
+            referencedRelation: "parceiros_indicacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parceiros_pagamentos_lancamento_financeiro_id_fkey"
+            columns: ["lancamento_financeiro_id"]
+            isOneToOne: false
+            referencedRelation: "fin_lancamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parceiros_pagamentos_parceiro_id_fkey"
+            columns: ["parceiro_id"]
+            isOneToOne: false
+            referencedRelation: "parceiros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       position_permission_defaults: {
         Row: {
           created_at: string
