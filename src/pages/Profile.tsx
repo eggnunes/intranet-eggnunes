@@ -10,17 +10,18 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { User, Lock, Calendar, Upload, IdCard, History, Building, Bookmark, Download, Trash2, Search, Phone, MapPin, AlertTriangle, ArrowLeft, TrendingUp, DollarSign, Briefcase, FileText, FileSignature } from 'lucide-react';
+import { User, Lock, Calendar, Upload, IdCard, History, Building, Bookmark, Download, Trash2, Search, Phone, MapPin, AlertTriangle, ArrowLeft, TrendingUp, DollarSign, Briefcase, FileText, FileSignature, CheckSquare, BarChart3 } from 'lucide-react';
 import { FeedbackBox } from '@/components/FeedbackBox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { format, parse } from 'date-fns';
+import { format, parse, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { EmailNotificationSettings } from '@/components/EmailNotificationSettings';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 const BRAZILIAN_STATES = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
@@ -84,6 +85,20 @@ interface ContratoColaborador {
   created_at: string;
 }
 
+interface PagamentoGrafico {
+  mes: string;
+  total_liquido: number;
+  total_vantagens: number;
+  total_descontos: number;
+}
+
+interface PontuacaoAdvbox {
+  mes: string;
+  tarefas_concluidas: number;
+  tarefas_atribuidas: number;
+  percentual_conclusao: number;
+}
+
 export default function Profile() {
   const { user } = useAuth();
   const { profile, loading, isAdmin } = useUserRole();
@@ -141,6 +156,8 @@ export default function Profile() {
   const [viewingCargoAtual, setViewingCargoAtual] = useState<Cargo | null>(null);
   const [contratos, setContratos] = useState<ContratoColaborador[]>([]);
   const [viewingContratos, setViewingContratos] = useState<ContratoColaborador[]>([]);
+  const [pagamentosGrafico, setPagamentosGrafico] = useState<PagamentoGrafico[]>([]);
+  const [pontuacaoAdvbox, setPontuacaoAdvbox] = useState<PontuacaoAdvbox[]>([]);
 
   // Fetch viewing profile if viewing another user
   useEffect(() => {
@@ -260,6 +277,8 @@ export default function Profile() {
       fetchPagamentos();
       fetchCargoAtual();
       fetchContratos();
+      fetchPagamentosGrafico();
+      fetchPontuacaoAdvbox();
     }
   }, [currentProfile, isViewingOther]);
 
@@ -332,6 +351,83 @@ export default function Profile() {
 
     if (!error && data) {
       setContratos(data as ContratoColaborador[]);
+    }
+  };
+
+  const fetchPagamentosGrafico = async () => {
+    if (!user) return;
+    
+    const startDate = format(subMonths(new Date(), 12), 'yyyy-MM-dd');
+    
+    const { data, error } = await supabase
+      .from('rh_pagamentos')
+      .select('mes_referencia, total_liquido, total_vantagens, total_descontos')
+      .eq('colaborador_id', user.id)
+      .gte('mes_referencia', startDate)
+      .order('mes_referencia', { ascending: true });
+
+    if (!error && data) {
+      const pagamentosFormatados = data.map(p => ({
+        mes: format(new Date(p.mes_referencia), 'MMM/yy', { locale: ptBR }),
+        total_liquido: p.total_liquido,
+        total_vantagens: p.total_vantagens,
+        total_descontos: p.total_descontos
+      }));
+      setPagamentosGrafico(pagamentosFormatados);
+    }
+  };
+
+  const fetchPontuacaoAdvbox = async () => {
+    if (!user || !profile) return;
+    
+    try {
+      const { data: tasksData, error } = await supabase.functions.invoke('advbox-integration/tasks', {
+        body: { force_refresh: false }
+      });
+
+      if (error) {
+        console.error('Erro ao buscar tarefas ADVBOX:', error);
+        return;
+      }
+
+      const tasks = tasksData?.data || tasksData || [];
+      
+      // Filtrar tarefas pelo nome do colaborador
+      const colaboradorNome = profile.full_name?.toLowerCase() || '';
+      const colaboradorTasks = tasks.filter((task: any) => {
+        const assignedTo = (task.assigned_to || task.assigned_users || '').toLowerCase();
+        return assignedTo.includes(colaboradorNome.split(' ')[0]);
+      });
+
+      // Agrupar por mês
+      const porMes: Record<string, { concluidas: number; total: number }> = {};
+      
+      colaboradorTasks.forEach((task: any) => {
+        const dueDate = task.due_date || task.deadline;
+        if (!dueDate) return;
+        
+        const mes = format(new Date(dueDate), 'MMM/yy', { locale: ptBR });
+        if (!porMes[mes]) {
+          porMes[mes] = { concluidas: 0, total: 0 };
+        }
+        porMes[mes].total++;
+        
+        const status = (task.status || '').toLowerCase();
+        if (status === 'concluída' || status === 'completed' || status === 'done') {
+          porMes[mes].concluidas++;
+        }
+      });
+
+      const pontuacaoArray = Object.entries(porMes).map(([mes, dados]) => ({
+        mes,
+        tarefas_concluidas: dados.concluidas,
+        tarefas_atribuidas: dados.total,
+        percentual_conclusao: dados.total > 0 ? Math.round((dados.concluidas / dados.total) * 100) : 0
+      }));
+
+      setPontuacaoAdvbox(pontuacaoArray);
+    } catch (error) {
+      console.error('Erro ao buscar pontuação ADVBOX:', error);
     }
   };
 
@@ -1451,6 +1547,65 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Gráficos de Evolução */}
+        {(pagamentosGrafico.length > 0 || pontuacaoAdvbox.length > 0) && (
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Gráfico de Pagamentos Mensais */}
+            {pagamentosGrafico.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5" />
+                    Evolução de Pagamentos
+                  </CardTitle>
+                  <CardDescription>Últimos 12 meses</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <LineChart data={pagamentosGrafico}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
+                      <YAxis tickFormatter={(v) => `R$${(v/1000).toFixed(0)}k`} tick={{ fontSize: 12 }} />
+                      <Tooltip 
+                        formatter={(value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} 
+                      />
+                      <Legend />
+                      <Line type="monotone" dataKey="total_liquido" name="Líquido" stroke="#22c55e" strokeWidth={2} />
+                      <Line type="monotone" dataKey="total_vantagens" name="Vantagens" stroke="#3b82f6" strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Gráfico de Pontuação ADVBOX */}
+            {pontuacaoAdvbox.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckSquare className="w-5 h-5" />
+                    Pontuação Mensal ADVBOX
+                  </CardTitle>
+                  <CardDescription>Tarefas concluídas vs atribuídas</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={pontuacaoAdvbox}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="tarefas_concluidas" name="Concluídas" fill="#22c55e" />
+                      <Bar dataKey="tarefas_atribuidas" name="Atribuídas" fill="#3b82f6" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         )}
 
         {/* Histórico de Promoções do próprio usuário */}

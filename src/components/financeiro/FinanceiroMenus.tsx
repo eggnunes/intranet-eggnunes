@@ -102,6 +102,7 @@ const menuItems: MenuItem[] = [
     icon: Users,
     items: [
       { id: 'rh-dashboard', label: 'Dashboard RH' },
+      { id: 'rh-colaborador-dashboard', label: 'Dashboard Colaborador' },
       { id: 'rh-pagamentos', label: 'Folha de Pagamento' },
       { id: 'rh-cargos', label: 'Cargos e Salários' },
       { id: 'rh-colaboradores', label: 'Colaboradores' },
