@@ -20,6 +20,7 @@ import { FinanceiroAnaliseClientes } from '@/components/financeiro/FinanceiroAna
 import { FinanceiroAnaliseSetores } from '@/components/financeiro/FinanceiroAnaliseSetores';
 import { NovoLancamentoDialog } from '@/components/financeiro/NovoLancamentoDialog';
 import { useFinanceiroKeyboardShortcuts, KeyboardShortcutsLegend } from '@/components/financeiro/FinanceiroKeyboardShortcuts';
+import { RHCargos, RHPagamentos, RHDashboard, RHDocumentos, RHColaboradores } from '@/components/rh';
 import { useUserRole } from '@/hooks/useUserRole';
 
 export default function Financeiro() {
@@ -75,6 +76,17 @@ export default function Financeiro() {
         return <FinanceiroAlertas />;
       case 'relatorios':
         return <FinanceiroRelatorios />;
+      // RH - Apenas admins
+      case 'rh-dashboard':
+        return (isAdmin || isSocio) ? <RHDashboard /> : null;
+      case 'rh-pagamentos':
+        return (isAdmin || isSocio) ? <RHPagamentos /> : null;
+      case 'rh-cargos':
+        return (isAdmin || isSocio) ? <RHCargos /> : null;
+      case 'rh-colaboradores':
+        return (isAdmin || isSocio) ? <RHColaboradores /> : null;
+      case 'rh-documentos':
+        return (isAdmin || isSocio) ? <RHDocumentos /> : null;
       default:
         return <FinanceiroExecutivoDashboard />;
     }
