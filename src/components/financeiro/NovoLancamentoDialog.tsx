@@ -85,7 +85,8 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
   const [aReembolsar, setAReembolsar] = useState(false);
   const [status, setStatus] = useState<'pago' | 'pendente'>('pago');
   const [produtoRdStation, setProdutoRdStation] = useState('');
-
+  const [parcelado, setParcelado] = useState(false);
+  const [numeroParcelas, setNumeroParcelas] = useState('2');
   useEffect(() => {
     if (open) {
       fetchDados();
@@ -109,6 +110,8 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
     setAReembolsar(false);
     setStatus('pago');
     setProdutoRdStation('');
+    setParcelado(false);
+    setNumeroParcelas('2');
   };
 
   const fetchDados = async () => {
@@ -184,31 +187,99 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
 
     setSubmitting(true);
     try {
-      const lancamento = {
-        tipo,
-        categoria_id: categoriaId || null,
-        subcategoria_id: subcategoriaId || null,
-        conta_origem_id: contaOrigemId,
-        conta_destino_id: tipo === 'transferencia' ? contaDestinoId : null,
-        cliente_id: origem === 'cliente' ? clienteId : null,
-        setor_id: origem === 'escritorio' ? setorId || null : null,
-        valor: parseFloat(valor),
-        descricao: descricao.trim(),
-        data_lancamento: dataLancamento,
-        origem: tipo === 'despesa' ? origem : null,
-        a_reembolsar: origem === 'cliente' ? aReembolsar : false,
-        status,
-        produto_rd_station: tipo === 'receita' ? produtoRdStation || null : null,
-        created_by: user?.id
-      };
+      const valorTotal = parseFloat(valor);
+      const totalParcelas = parcelado ? parseInt(numeroParcelas) : 1;
+      const valorParcela = valorTotal / totalParcelas;
 
-      const { error } = await supabase
-        .from('fin_lancamentos')
-        .insert(lancamento);
+      if (parcelado && totalParcelas > 1) {
+        // Criar lançamento pai
+        const { data: lancamentoPai, error: erroPai } = await supabase
+          .from('fin_lancamentos')
+          .insert({
+            tipo,
+            categoria_id: categoriaId || null,
+            subcategoria_id: subcategoriaId || null,
+            conta_origem_id: contaOrigemId,
+            conta_destino_id: tipo === 'transferencia' ? contaDestinoId : null,
+            cliente_id: origem === 'cliente' ? clienteId : null,
+            setor_id: origem === 'escritorio' ? setorId || null : null,
+            valor: valorTotal,
+            descricao: `${descricao.trim()} (Total ${totalParcelas}x)`,
+            data_lancamento: dataLancamento,
+            origem: tipo === 'despesa' ? origem : null,
+            a_reembolsar: origem === 'cliente' ? aReembolsar : false,
+            status: 'pendente',
+            produto_rd_station: tipo === 'receita' ? produtoRdStation || null : null,
+            total_parcelas: totalParcelas,
+            created_by: user?.id
+          })
+          .select()
+          .single();
 
-      if (error) throw error;
+        if (erroPai) throw erroPai;
 
-      toast.success('Lançamento criado com sucesso!');
+        // Criar parcelas individuais
+        const parcelas = [];
+        for (let i = 1; i <= totalParcelas; i++) {
+          const dataParcela = new Date(dataLancamento);
+          dataParcela.setMonth(dataParcela.getMonth() + (i - 1));
+          
+          parcelas.push({
+            tipo,
+            categoria_id: categoriaId || null,
+            subcategoria_id: subcategoriaId || null,
+            conta_origem_id: contaOrigemId,
+            conta_destino_id: tipo === 'transferencia' ? contaDestinoId : null,
+            cliente_id: origem === 'cliente' ? clienteId : null,
+            setor_id: origem === 'escritorio' ? setorId || null : null,
+            valor: valorParcela,
+            descricao: `${descricao.trim()} (${i}/${totalParcelas})`,
+            data_lancamento: dataParcela.toISOString().split('T')[0],
+            origem: tipo === 'despesa' ? origem : null,
+            a_reembolsar: origem === 'cliente' ? aReembolsar : false,
+            status: i === 1 ? status : 'pendente',
+            produto_rd_station: tipo === 'receita' ? produtoRdStation || null : null,
+            parcela_atual: i,
+            total_parcelas: totalParcelas,
+            lancamento_pai_id: lancamentoPai.id,
+            created_by: user?.id
+          });
+        }
+
+        const { error: erroParcelas } = await supabase
+          .from('fin_lancamentos')
+          .insert(parcelas);
+
+        if (erroParcelas) throw erroParcelas;
+
+        toast.success(`${totalParcelas} parcelas criadas com sucesso!`);
+      } else {
+        // Lançamento único (sem parcelamento)
+        const lancamento = {
+          tipo,
+          categoria_id: categoriaId || null,
+          subcategoria_id: subcategoriaId || null,
+          conta_origem_id: contaOrigemId,
+          conta_destino_id: tipo === 'transferencia' ? contaDestinoId : null,
+          cliente_id: origem === 'cliente' ? clienteId : null,
+          setor_id: origem === 'escritorio' ? setorId || null : null,
+          valor: valorTotal,
+          descricao: descricao.trim(),
+          data_lancamento: dataLancamento,
+          origem: tipo === 'despesa' ? origem : null,
+          a_reembolsar: origem === 'cliente' ? aReembolsar : false,
+          status,
+          produto_rd_station: tipo === 'receita' ? produtoRdStation || null : null,
+          created_by: user?.id
+        };
+
+        const { error } = await supabase
+          .from('fin_lancamentos')
+          .insert(lancamento);
+
+        if (error) throw error;
+        toast.success('Lançamento criado com sucesso!');
+      }
       
       if (salvarENovo) {
         // Limpa apenas os campos do formulário, mantém tipo e origem
@@ -220,6 +291,8 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
         setAReembolsar(false);
         setStatus('pago');
         setProdutoRdStation('');
+        setParcelado(false);
+        setNumeroParcelas('2');
         toast.info('Pronto para novo lançamento');
       } else {
         onSuccess();
@@ -516,9 +589,48 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
                   </div>
                 )}
 
+                {/* Parcelamento */}
+                {tipo !== 'transferencia' && (
+                  <div className="space-y-4 p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Parcelar?</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Dividir em múltiplas parcelas mensais
+                        </p>
+                      </div>
+                      <Switch checked={parcelado} onCheckedChange={setParcelado} />
+                    </div>
+                    
+                    {parcelado && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Número de Parcelas</Label>
+                          <Select value={numeroParcelas} onValueChange={setNumeroParcelas}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 24, 36].map(n => (
+                                <SelectItem key={n} value={n.toString()}>{n}x</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Valor por Parcela</Label>
+                          <div className="p-2 bg-muted rounded text-center font-medium">
+                            {valor ? `R$ ${(parseFloat(valor) / parseInt(numeroParcelas)).toFixed(2)}` : 'R$ 0,00'}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Status */}
                 <div className="space-y-2">
-                  <Label>Status</Label>
+                  <Label>Status {parcelado && '(primeira parcela)'}</Label>
                   <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
                     <SelectTrigger>
                       <SelectValue />

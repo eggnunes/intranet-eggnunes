@@ -2291,6 +2291,110 @@ export type Database = {
         }
         Relationships: []
       }
+      fin_importacao_itens: {
+        Row: {
+          created_at: string | null
+          data_transacao: string
+          descricao: string
+          id: string
+          identificador_banco: string | null
+          importacao_id: string | null
+          lancamento_id: string | null
+          status: string | null
+          tipo: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string | null
+          data_transacao: string
+          descricao: string
+          id?: string
+          identificador_banco?: string | null
+          importacao_id?: string | null
+          lancamento_id?: string | null
+          status?: string | null
+          tipo: string
+          valor: number
+        }
+        Update: {
+          created_at?: string | null
+          data_transacao?: string
+          descricao?: string
+          id?: string
+          identificador_banco?: string | null
+          importacao_id?: string | null
+          lancamento_id?: string | null
+          status?: string | null
+          tipo?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_importacao_itens_importacao_id_fkey"
+            columns: ["importacao_id"]
+            isOneToOne: false
+            referencedRelation: "fin_importacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fin_importacao_itens_lancamento_id_fkey"
+            columns: ["lancamento_id"]
+            isOneToOne: false
+            referencedRelation: "fin_lancamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_importacoes: {
+        Row: {
+          conta_id: string | null
+          created_at: string | null
+          erro_mensagem: string | null
+          id: string
+          imported_by: string | null
+          nome_arquivo: string
+          registros_duplicados: number | null
+          registros_importados: number | null
+          status: string | null
+          tipo_arquivo: string
+          total_registros: number | null
+        }
+        Insert: {
+          conta_id?: string | null
+          created_at?: string | null
+          erro_mensagem?: string | null
+          id?: string
+          imported_by?: string | null
+          nome_arquivo: string
+          registros_duplicados?: number | null
+          registros_importados?: number | null
+          status?: string | null
+          tipo_arquivo: string
+          total_registros?: number | null
+        }
+        Update: {
+          conta_id?: string | null
+          created_at?: string | null
+          erro_mensagem?: string | null
+          id?: string
+          imported_by?: string | null
+          nome_arquivo?: string
+          registros_duplicados?: number | null
+          registros_importados?: number | null
+          status?: string | null
+          tipo_arquivo?: string
+          total_registros?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_importacoes_conta_id_fkey"
+            columns: ["conta_id"]
+            isOneToOne: false
+            referencedRelation: "fin_contas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fin_lancamentos: {
         Row: {
           a_reembolsar: boolean | null
@@ -2521,6 +2625,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "fin_metas_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "fin_categorias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_orcamentos: {
+        Row: {
+          ano: number
+          categoria_id: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          mes: number
+          observacao: string | null
+          updated_at: string | null
+          valor_planejado: number
+        }
+        Insert: {
+          ano: number
+          categoria_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          mes: number
+          observacao?: string | null
+          updated_at?: string | null
+          valor_planejado?: number
+        }
+        Update: {
+          ano?: number
+          categoria_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          mes?: number
+          observacao?: string | null
+          updated_at?: string | null
+          valor_planejado?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_orcamentos_categoria_id_fkey"
             columns: ["categoria_id"]
             isOneToOne: false
             referencedRelation: "fin_categorias"

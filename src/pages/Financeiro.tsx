@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Plus, Settings, Bell, TrendingUp, Target, RefreshCw, Scale } from 'lucide-react';
+import { ArrowLeft, Plus, Settings, Bell, TrendingUp, Target, RefreshCw, Scale, Upload, Calculator } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { FinanceiroDashboard } from '@/components/financeiro/FinanceiroDashboard';
 import { FinanceiroLancamentos } from '@/components/financeiro/FinanceiroLancamentos';
@@ -12,6 +12,8 @@ import { FinanceiroRecorrencias } from '@/components/financeiro/FinanceiroRecorr
 import { FinanceiroFluxoCaixa } from '@/components/financeiro/FinanceiroFluxoCaixa';
 import { FinanceiroAlertas } from '@/components/financeiro/FinanceiroAlertas';
 import { FinanceiroConciliacao } from '@/components/financeiro/FinanceiroConciliacao';
+import { FinanceiroImportacaoBancaria } from '@/components/financeiro/FinanceiroImportacaoBancaria';
+import { FinanceiroOrcamento } from '@/components/financeiro/FinanceiroOrcamento';
 import { NovoLancamentoDialog } from '@/components/financeiro/NovoLancamentoDialog';
 import { useUserRole } from '@/hooks/useUserRole';
 
@@ -63,6 +65,10 @@ export default function Financeiro() {
             <TrendingUp className="h-4 w-4 mr-1" />
             Fluxo de Caixa
           </TabsTrigger>
+          <TabsTrigger value="orcamento">
+            <Calculator className="h-4 w-4 mr-1" />
+            Orçamento
+          </TabsTrigger>
           <TabsTrigger value="metas">
             <Target className="h-4 w-4 mr-1" />
             Metas
@@ -70,6 +76,10 @@ export default function Financeiro() {
           <TabsTrigger value="recorrencias">
             <RefreshCw className="h-4 w-4 mr-1" />
             Recorrências
+          </TabsTrigger>
+          <TabsTrigger value="importacao">
+            <Upload className="h-4 w-4 mr-1" />
+            Importar
           </TabsTrigger>
           <TabsTrigger value="conciliacao">
             <Scale className="h-4 w-4 mr-1" />
@@ -86,8 +96,10 @@ export default function Financeiro() {
         <TabsContent value="dashboard"><FinanceiroDashboard /></TabsContent>
         <TabsContent value="lancamentos"><FinanceiroLancamentos onNovoLancamento={() => setShowNovoLancamento(true)} /></TabsContent>
         <TabsContent value="fluxo"><FinanceiroFluxoCaixa /></TabsContent>
+        <TabsContent value="orcamento"><FinanceiroOrcamento /></TabsContent>
         <TabsContent value="metas"><FinanceiroMetas /></TabsContent>
         <TabsContent value="recorrencias"><FinanceiroRecorrencias /></TabsContent>
+        <TabsContent value="importacao"><FinanceiroImportacaoBancaria /></TabsContent>
         <TabsContent value="conciliacao"><FinanceiroConciliacao /></TabsContent>
         <TabsContent value="reembolsos"><FinanceiroReembolsos /></TabsContent>
         <TabsContent value="alertas"><FinanceiroAlertas /></TabsContent>
