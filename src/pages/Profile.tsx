@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { User, Lock, Calendar, Upload, IdCard, History, Building, Bookmark, Download, Trash2, Search, Phone, MapPin, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { User, Lock, Calendar, Upload, IdCard, History, Building, Bookmark, Download, Trash2, Search, Phone, MapPin, AlertTriangle, ArrowLeft, TrendingUp } from 'lucide-react';
 import { FeedbackBox } from '@/components/FeedbackBox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -41,6 +42,14 @@ interface SavedJurisprudence {
   source: string | null;
   notes: string | null;
   created_at: string;
+}
+
+interface Promocao {
+  id: string;
+  cargo_anterior_nome: string;
+  cargo_novo_nome: string;
+  data_promocao: string;
+  observacoes: string | null;
 }
 
 export default function Profile() {
@@ -90,20 +99,29 @@ export default function Profile() {
   const [savedJurisprudence, setSavedJurisprudence] = useState<SavedJurisprudence[]>([]);
   const [jurisprudenceLoading, setJurisprudenceLoading] = useState(true);
   const [showProfileAlert, setShowProfileAlert] = useState(false);
+  const [promocoes, setPromocoes] = useState<Promocao[]>([]);
+  const [viewingPromocoes, setViewingPromocoes] = useState<Promocao[]>([]);
 
   // Fetch viewing profile if viewing another user
   useEffect(() => {
     const fetchViewingProfile = async () => {
       if (isViewingOther && canViewOther && viewingUserId) {
         setViewingLoading(true);
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', viewingUserId)
-          .single();
+        const [profileRes, promocoesRes] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', viewingUserId)
+            .single(),
+          supabase
+            .from('rh_promocoes')
+            .select('id, cargo_anterior_nome, cargo_novo_nome, data_promocao, observacoes')
+            .eq('colaborador_id', viewingUserId)
+            .order('data_promocao', { ascending: false })
+        ]);
         
-        if (!error && data) {
-          setViewingProfile(data);
+        if (!profileRes.error && profileRes.data) {
+          setViewingProfile(profileRes.data);
         } else {
           toast({
             title: 'Erro',
@@ -112,6 +130,11 @@ export default function Profile() {
           });
           navigate('/equipe');
         }
+        
+        if (!promocoesRes.error && promocoesRes.data) {
+          setViewingPromocoes(promocoesRes.data as Promocao[]);
+        }
+        
         setViewingLoading(false);
       }
     };
@@ -151,8 +174,23 @@ export default function Profile() {
       }
       fetchUsageHistory();
       fetchSavedJurisprudence();
+      fetchPromocoes();
     }
   }, [currentProfile, isViewingOther]);
+
+  const fetchPromocoes = async () => {
+    if (!user) return;
+    
+    const { data, error } = await supabase
+      .from('rh_promocoes')
+      .select('id, cargo_anterior_nome, cargo_novo_nome, data_promocao, observacoes')
+      .eq('colaborador_id', user.id)
+      .order('data_promocao', { ascending: false });
+
+    if (!error && data) {
+      setPromocoes(data as Promocao[]);
+    }
+  };
 
   const fetchUsageHistory = async () => {
     if (!user) return;
@@ -551,6 +589,41 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
               )}
             </CardContent>
           </Card>
+
+          {/* Histórico de Promoções */}
+          {viewingPromocoes.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5" />
+                  Histórico de Promoções
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {viewingPromocoes.map((promo) => (
+                    <div key={promo.id} className="flex items-start gap-4 p-3 bg-muted/50 rounded-lg">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">{promo.cargo_anterior_nome}</Badge>
+                          <span className="text-muted-foreground">→</span>
+                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                            {promo.cargo_novo_nome}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {format(parse(promo.data_promocao, 'yyyy-MM-dd', new Date()), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                        </p>
+                        {promo.observacoes && (
+                          <p className="text-sm mt-1">{promo.observacoes}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </Layout>
     );
@@ -1037,6 +1110,41 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
             )}
           </CardContent>
         </Card>
+
+        {/* Histórico de Promoções do próprio usuário */}
+        {promocoes.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5" />
+                Histórico de Promoções
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {promocoes.map((promo) => (
+                  <div key={promo.id} className="flex items-start gap-4 p-3 bg-muted/50 rounded-lg">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline">{promo.cargo_anterior_nome}</Badge>
+                        <span className="text-muted-foreground">→</span>
+                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                          {promo.cargo_novo_nome}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {format(parse(promo.data_promocao, 'yyyy-MM-dd', new Date()), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                      </p>
+                      {promo.observacoes && (
+                        <p className="text-sm mt-1">{promo.observacoes}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Usage History */}
         <Card>

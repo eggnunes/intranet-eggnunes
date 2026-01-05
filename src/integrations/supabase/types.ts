@@ -4967,6 +4967,67 @@ export type Database = {
           },
         ]
       }
+      rh_promocoes: {
+        Row: {
+          cargo_anterior_id: string | null
+          cargo_anterior_nome: string
+          cargo_novo_id: string | null
+          cargo_novo_nome: string
+          colaborador_id: string
+          created_at: string
+          data_promocao: string
+          id: string
+          observacoes: string | null
+          registrado_por: string
+        }
+        Insert: {
+          cargo_anterior_id?: string | null
+          cargo_anterior_nome: string
+          cargo_novo_id?: string | null
+          cargo_novo_nome: string
+          colaborador_id: string
+          created_at?: string
+          data_promocao: string
+          id?: string
+          observacoes?: string | null
+          registrado_por: string
+        }
+        Update: {
+          cargo_anterior_id?: string | null
+          cargo_anterior_nome?: string
+          cargo_novo_id?: string | null
+          cargo_novo_nome?: string
+          colaborador_id?: string
+          created_at?: string
+          data_promocao?: string
+          id?: string
+          observacoes?: string | null
+          registrado_por?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rh_promocoes_cargo_anterior_id_fkey"
+            columns: ["cargo_anterior_id"]
+            isOneToOne: false
+            referencedRelation: "rh_cargos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rh_promocoes_cargo_novo_id_fkey"
+            columns: ["cargo_novo_id"]
+            isOneToOne: false
+            referencedRelation: "rh_cargos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rh_promocoes_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rh_rubricas: {
         Row: {
           created_at: string
