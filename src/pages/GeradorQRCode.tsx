@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import QRCode from 'qrcode';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -54,7 +55,6 @@ export default function GeradorQRCode() {
   const [history, setHistory] = useState<QRCodeRecord[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     loadHistory();
@@ -160,30 +160,21 @@ export default function GeradorQRCode() {
     }
   };
 
-  const generateQRCodeCanvas = (text: string): Promise<string> => {
-    return new Promise((resolve) => {
-      // Use a simple QR code generation API
-      const size = 256;
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.fillStyle = 'white';
-          ctx.fillRect(0, 0, size, size);
-          ctx.drawImage(img, 0, 0, size, size);
-          resolve(canvas.toDataURL('image/png'));
-        } else {
-          resolve('');
+  const generateQRCodeCanvas = async (text: string): Promise<string> => {
+    try {
+      const qrDataUrl = await QRCode.toDataURL(text, {
+        width: 256,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff'
         }
-      };
-      img.onerror = () => resolve('');
-      // Using Google Charts API for QR code generation
-      img.src = `https://chart.googleapis.com/chart?chs=${size}x${size}&cht=qr&chl=${encodeURIComponent(text)}&choe=UTF-8`;
-    });
+      });
+      return qrDataUrl;
+    } catch (error) {
+      console.error('Error generating QR code:', error);
+      return '';
+    }
   };
 
   const downloadQRCode = (qrData: string, qrTitle?: string | null) => {
@@ -433,7 +424,6 @@ export default function GeradorQRCode() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
     </Layout>
   );
 }
