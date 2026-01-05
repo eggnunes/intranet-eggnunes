@@ -1,7 +1,8 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { FinanceiroAdminMenus } from '@/components/financeiro/FinanceiroMenus';
 import { FinanceiroCategoriasAdmin } from '@/components/financeiro/FinanceiroCategoriasAdmin';
 import { FinanceiroContasAdmin } from '@/components/financeiro/FinanceiroContasAdmin';
 import { FinanceiroClientesAdmin } from '@/components/financeiro/FinanceiroClientesAdmin';
@@ -14,51 +15,121 @@ import { FinanceiroRelatorios } from '@/components/financeiro/FinanceiroRelatori
 import { FinanceiroPrevisoes } from '@/components/financeiro/FinanceiroPrevisoes';
 import { FinanceiroRankingClientes } from '@/components/financeiro/FinanceiroRankingClientes';
 import { FinanceiroContratos } from '@/components/financeiro/FinanceiroContratos';
+import { RelatorioSaudeFinanceira, RelatorioMargemCliente, RelatorioConformidade } from '@/components/financeiro/RelatoriosAvancados';
+import { AlertasAnomalias } from '@/components/financeiro/AlertasAnomalias';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function FinanceiroAdmin() {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('contratos');
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'contratos':
+        return <FinanceiroContratos />;
+      case 'ranking':
+        return <FinanceiroRankingClientes />;
+      case 'metas':
+        return <FinanceiroMetas />;
+      case 'orcamento':
+        return <FinanceiroOrcamento />;
+      case 'indices':
+        return <FinanceiroIndices />;
+      case 'previsoes':
+        return <FinanceiroPrevisoes />;
+      case 'relatorios':
+        return (
+          <Tabs defaultValue="geral" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="geral">Relatórios Gerais</TabsTrigger>
+              <TabsTrigger value="saude">Saúde Financeira</TabsTrigger>
+              <TabsTrigger value="margem">Margem por Cliente</TabsTrigger>
+              <TabsTrigger value="conformidade">Conformidade</TabsTrigger>
+              <TabsTrigger value="anomalias">Anomalias</TabsTrigger>
+            </TabsList>
+            <TabsContent value="geral"><FinanceiroRelatorios /></TabsContent>
+            <TabsContent value="saude"><RelatorioSaudeFinanceira /></TabsContent>
+            <TabsContent value="margem"><RelatorioMargemCliente /></TabsContent>
+            <TabsContent value="conformidade"><RelatorioConformidade /></TabsContent>
+            <TabsContent value="anomalias"><AlertasAnomalias /></TabsContent>
+          </Tabs>
+        );
+      case 'categorias':
+        return <FinanceiroCategoriasAdmin />;
+      case 'contas':
+        return <FinanceiroContasAdmin />;
+      case 'clientes':
+        return <FinanceiroClientesAdmin />;
+      case 'setores':
+        return <FinanceiroSetoresAdmin />;
+      case 'auditoria':
+        return <FinanceiroAuditoria />;
+      default:
+        return <FinanceiroContratos />;
+    }
+  };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/financeiro')}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold">Administração Financeira</h1>
-          <p className="text-muted-foreground">Gerencie categorias, contas, metas, orçamentos e análises</p>
+    <div className="min-h-screen">
+      {/* Header */}
+      <div className="border-b bg-background sticky top-0 z-30">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/financeiro')}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">Administração Financeira</h1>
+              <p className="text-sm text-muted-foreground">
+                Gerencie categorias, contas, metas, orçamentos e análises
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      <Tabs defaultValue="contratos" className="space-y-6">
-        <TabsList className="flex flex-wrap gap-1 h-auto">
-          <TabsTrigger value="contratos">Contratos</TabsTrigger>
-          <TabsTrigger value="metas">Metas</TabsTrigger>
-          <TabsTrigger value="orcamento">Orçamento</TabsTrigger>
-          <TabsTrigger value="indices">Índices</TabsTrigger>
-          <TabsTrigger value="previsoes">Previsões</TabsTrigger>
-          <TabsTrigger value="ranking">Ranking</TabsTrigger>
-          <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
-          <TabsTrigger value="categorias">Categorias</TabsTrigger>
-          <TabsTrigger value="contas">Contas</TabsTrigger>
-          <TabsTrigger value="clientes">Clientes</TabsTrigger>
-          <TabsTrigger value="setores">Setores</TabsTrigger>
-          <TabsTrigger value="auditoria">Auditoria</TabsTrigger>
-        </TabsList>
+      {/* Layout com menu lateral */}
+      <div className="flex">
+        {/* Menu Lateral */}
+        <aside className="hidden lg:block sticky top-[73px] h-[calc(100vh-73px)] overflow-y-auto">
+          <FinanceiroAdminMenus activeTab={activeTab} onTabChange={setActiveTab} />
+        </aside>
 
-        <TabsContent value="contratos"><FinanceiroContratos /></TabsContent>
-        <TabsContent value="metas"><FinanceiroMetas /></TabsContent>
-        <TabsContent value="orcamento"><FinanceiroOrcamento /></TabsContent>
-        <TabsContent value="indices"><FinanceiroIndices /></TabsContent>
-        <TabsContent value="previsoes"><FinanceiroPrevisoes /></TabsContent>
-        <TabsContent value="ranking"><FinanceiroRankingClientes /></TabsContent>
-        <TabsContent value="relatorios"><FinanceiroRelatorios /></TabsContent>
-        <TabsContent value="categorias"><FinanceiroCategoriasAdmin /></TabsContent>
-        <TabsContent value="contas"><FinanceiroContasAdmin /></TabsContent>
-        <TabsContent value="clientes"><FinanceiroClientesAdmin /></TabsContent>
-        <TabsContent value="setores"><FinanceiroSetoresAdmin /></TabsContent>
-        <TabsContent value="auditoria"><FinanceiroAuditoria /></TabsContent>
-      </Tabs>
+        {/* Conteúdo Principal */}
+        <main className="flex-1 p-6">
+          {/* Menu mobile/tablet */}
+          <div className="lg:hidden mb-6">
+            <select 
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value)}
+              className="w-full p-2 border rounded-md bg-background"
+            >
+              <optgroup label="Contratos & Vendas">
+                <option value="contratos">Contratos</option>
+                <option value="ranking">Ranking Clientes</option>
+              </optgroup>
+              <optgroup label="Metas & Orçamento">
+                <option value="metas">Metas</option>
+                <option value="orcamento">Orçamento</option>
+                <option value="indices">Índices</option>
+              </optgroup>
+              <optgroup label="Análises">
+                <option value="previsoes">Previsões IA</option>
+                <option value="relatorios">Relatórios</option>
+              </optgroup>
+              <optgroup label="Cadastros">
+                <option value="categorias">Categorias</option>
+                <option value="contas">Contas Bancárias</option>
+                <option value="clientes">Clientes</option>
+                <option value="setores">Setores</option>
+              </optgroup>
+              <option value="auditoria">Auditoria</option>
+            </select>
+          </div>
+
+          {renderContent()}
+        </main>
+      </div>
     </div>
   );
 }
