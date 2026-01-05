@@ -356,12 +356,12 @@ export function RHDocumentos() {
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label>Pasta (opcional)</Label>
-                      <Select value={selectedPasta} onValueChange={setSelectedPasta}>
+                      <Select value={selectedPasta || 'none'} onValueChange={(v) => setSelectedPasta(v === 'none' ? '' : v)}>
                         <SelectTrigger>
                           <SelectValue placeholder="Sem pasta" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Sem pasta</SelectItem>
+                          <SelectItem value="none">Sem pasta</SelectItem>
                           {pastas.map(p => (
                             <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
                           ))}

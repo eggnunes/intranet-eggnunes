@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { User, Lock, Calendar, Upload, IdCard, History, Building, Bookmark, Download, Trash2, Search, Phone, MapPin, AlertTriangle } from 'lucide-react';
+import { User, Lock, Calendar, Upload, IdCard, History, Building, Bookmark, Download, Trash2, Search, Phone, MapPin, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { FeedbackBox } from '@/components/FeedbackBox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -17,7 +17,7 @@ import { format, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { EmailNotificationSettings } from '@/components/EmailNotificationSettings';
 
 const BRAZILIAN_STATES = [
@@ -47,6 +47,14 @@ export default function Profile() {
   const { user } = useAuth();
   const { profile, loading, isAdmin } = useUserRole();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const viewingUserId = searchParams.get('userId');
+  const [viewingProfile, setViewingProfile] = useState<any>(null);
+  const [viewingLoading, setViewingLoading] = useState(false);
+  const isViewingOther = viewingUserId && viewingUserId !== user?.id;
+  const isSocio = profile?.position === 'socio';
+  const canViewOther = isSocio || isAdmin;
+  
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
@@ -83,37 +91,68 @@ export default function Profile() {
   const [jurisprudenceLoading, setJurisprudenceLoading] = useState(true);
   const [showProfileAlert, setShowProfileAlert] = useState(false);
 
+  // Fetch viewing profile if viewing another user
   useEffect(() => {
-    if (profile) {
-      setFullName(profile.full_name || '');
-      setPosition(profile.position || '');
-      setOabNumber((profile as any).oab_number || '');
-      setOabState((profile as any).oab_state || '');
+    const fetchViewingProfile = async () => {
+      if (isViewingOther && canViewOther && viewingUserId) {
+        setViewingLoading(true);
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', viewingUserId)
+          .single();
+        
+        if (!error && data) {
+          setViewingProfile(data);
+        } else {
+          toast({
+            title: 'Erro',
+            description: 'Não foi possível carregar o perfil',
+            variant: 'destructive',
+          });
+          navigate('/equipe');
+        }
+        setViewingLoading(false);
+      }
+    };
+    
+    fetchViewingProfile();
+  }, [viewingUserId, isViewingOther, canViewOther, navigate]);
+
+  // Use current profile data for own profile
+  const currentProfile = isViewingOther ? viewingProfile : profile;
+
+  useEffect(() => {
+    if (currentProfile && !isViewingOther) {
+      setFullName(currentProfile.full_name || '');
+      setPosition(currentProfile.position || '');
+      setOabNumber((currentProfile as any).oab_number || '');
+      setOabState((currentProfile as any).oab_state || '');
       // Novos campos de contato
-      setTelefone((profile as any).telefone || '');
-      setCpf((profile as any).cpf || '');
-      setEnderecoCep((profile as any).endereco_cep || '');
-      setEnderecoLogradouro((profile as any).endereco_logradouro || '');
-      setEnderecoNumero((profile as any).endereco_numero || '');
-      setEnderecoComplemento((profile as any).endereco_complemento || '');
-      setEnderecoBairro((profile as any).endereco_bairro || '');
-      setEnderecoCidade((profile as any).endereco_cidade || '');
-      setEnderecoEstado((profile as any).endereco_estado || '');
+      setTelefone((currentProfile as any).telefone || '');
+      setCpf((currentProfile as any).cpf || '');
+      setEnderecoCep((currentProfile as any).endereco_cep || '');
+      setEnderecoLogradouro((currentProfile as any).endereco_logradouro || '');
+      setEnderecoNumero((currentProfile as any).endereco_numero || '');
+      setEnderecoComplemento((currentProfile as any).endereco_complemento || '');
+      setEnderecoBairro((currentProfile as any).endereco_bairro || '');
+      setEnderecoCidade((currentProfile as any).endereco_cidade || '');
+      setEnderecoEstado((currentProfile as any).endereco_estado || '');
       
       // Verificar se perfil está incompleto
-      const isIncomplete = !(profile as any).telefone || !(profile as any).cpf;
+      const isIncomplete = !(currentProfile as any).telefone || !(currentProfile as any).cpf;
       setShowProfileAlert(isIncomplete);
       
-      if (profile.birth_date) {
-        setBirthDate(parse(profile.birth_date, 'yyyy-MM-dd', new Date()));
+      if (currentProfile.birth_date) {
+        setBirthDate(parse(currentProfile.birth_date, 'yyyy-MM-dd', new Date()));
       }
-      if ((profile as any).join_date) {
-        setJoinDate(parse((profile as any).join_date, 'yyyy-MM-dd', new Date()));
+      if ((currentProfile as any).join_date) {
+        setJoinDate(parse((currentProfile as any).join_date, 'yyyy-MM-dd', new Date()));
       }
       fetchUsageHistory();
       fetchSavedJurisprudence();
     }
-  }, [profile]);
+  }, [currentProfile, isViewingOther]);
 
   const fetchUsageHistory = async () => {
     if (!user) return;
@@ -388,7 +427,7 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
 
   const showOabFields = position === 'advogado' || position === 'estagiario';
 
-  if (loading) {
+  if (loading || viewingLoading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[400px]">
@@ -398,11 +437,130 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
     );
   }
 
+  // If viewing another user's profile (for sócios/admins)
+  if (isViewingOther && canViewOther && viewingProfile) {
+    const vp = viewingProfile;
+    const positionLabels: Record<string, string> = {
+      socio: 'Sócio',
+      advogado: 'Advogado',
+      estagiario: 'Estagiário',
+      comercial: 'Comercial',
+      administrativo: 'Administrativo',
+    };
+    
+    return (
+      <Layout>
+        <div className="max-w-4xl mx-auto space-y-6">
+          {/* Botão Voltar */}
+          <Button variant="ghost" onClick={() => navigate('/equipe')} className="gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar para Equipe
+          </Button>
+          
+          <div className="flex items-center gap-3 mb-8">
+            <Avatar className="h-20 w-20 border-4 border-primary/30">
+              <AvatarImage src={vp.avatar_url} />
+              <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-2xl">
+                {vp.full_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h1 className="text-3xl font-bold">{vp.full_name}</h1>
+              <p className="text-muted-foreground">{positionLabels[vp.position] || vp.position}</p>
+            </div>
+          </div>
+
+          {/* Informações do Perfil - Apenas Visualização */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="w-5 h-5" />
+                Informações Pessoais
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground text-sm">Email</Label>
+                  <p className="font-medium">{vp.email}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-sm">Telefone</Label>
+                  <p className="font-medium">{vp.telefone || 'Não informado'}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground text-sm">CPF</Label>
+                  <p className="font-medium">{vp.cpf || 'Não informado'}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-sm">Data de Nascimento</Label>
+                  <p className="font-medium">
+                    {vp.birth_date 
+                      ? format(parse(vp.birth_date, 'yyyy-MM-dd', new Date()), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+                      : 'Não informado'}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground text-sm">Data de Ingresso</Label>
+                  <p className="font-medium">
+                    {vp.join_date 
+                      ? format(parse(vp.join_date, 'yyyy-MM-dd', new Date()), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+                      : 'Não informado'}
+                  </p>
+                </div>
+                {(vp.position === 'advogado' || vp.position === 'socio' || vp.position === 'estagiario') && (
+                  <div>
+                    <Label className="text-muted-foreground text-sm">OAB</Label>
+                    <p className="font-medium">
+                      {vp.oab_number ? `${vp.oab_state || ''}/${vp.oab_number}` : 'Não informado'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Endereço */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="w-5 h-5" />
+                Endereço
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {vp.endereco_logradouro ? (
+                <>
+                  <p className="font-medium">
+                    {vp.endereco_logradouro}, {vp.endereco_numero}
+                    {vp.endereco_complemento && ` - ${vp.endereco_complemento}`}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {vp.endereco_bairro && `${vp.endereco_bairro}, `}
+                    {vp.endereco_cidade && `${vp.endereco_cidade} - `}
+                    {vp.endereco_estado}
+                    {vp.endereco_cep && ` | CEP: ${vp.endereco_cep}`}
+                  </p>
+                </>
+              ) : (
+                <p className="text-muted-foreground">Endereço não informado</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Alerta de perfil incompleto */}
-        {showProfileAlert && (
+        {showProfileAlert && !isViewingOther && (
           <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
             <CardContent className="pt-6">
               <div className="flex items-start gap-3">

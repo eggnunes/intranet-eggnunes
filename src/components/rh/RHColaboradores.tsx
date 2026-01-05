@@ -198,14 +198,14 @@ export function RHColaboradores() {
                   </TableCell>
                   <TableCell>
                     <Select
-                      value={colab.cargo_id || ''}
-                      onValueChange={(value) => handleCargoChange(colab.id, value)}
+                      value={colab.cargo_id || 'none'}
+                      onValueChange={(value) => handleCargoChange(colab.id, value === 'none' ? '' : value)}
                     >
                       <SelectTrigger className="w-48">
                         <SelectValue placeholder="Selecionar cargo" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Sem cargo definido</SelectItem>
+                        <SelectItem value="none">Sem cargo definido</SelectItem>
                         {cargos.map(c => (
                           <SelectItem key={c.id} value={c.id}>
                             {c.nome}
