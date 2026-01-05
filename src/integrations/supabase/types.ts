@@ -3678,6 +3678,39 @@ export type Database = {
         }
         Relationships: []
       }
+      integration_sync_log: {
+        Row: {
+          action: string
+          created_at: string | null
+          details: Json | null
+          id: string
+          source_id: string
+          source_table: string
+          target_id: string | null
+          target_table: string
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          source_id: string
+          source_table: string
+          target_id?: string | null
+          target_table: string
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          source_id?: string
+          source_table?: string
+          target_id?: string | null
+          target_table?: string
+        }
+        Relationships: []
+      }
       intranet_update_reads: {
         Row: {
           id: string
@@ -5960,6 +5993,17 @@ export type Database = {
       }
       is_rafael: { Args: { _user_id: string }; Returns: boolean }
       is_socio_or_rafael: { Args: { _user_id: string }; Returns: boolean }
+      log_integration_sync: {
+        Args: {
+          p_action: string
+          p_details?: Json
+          p_source_id: string
+          p_source_table: string
+          p_target_id: string
+          p_target_table: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "admin" | "user"

@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { User, Lock, Calendar, Upload, IdCard, History, Building, Bookmark, Download, Trash2, Search, Phone, MapPin, AlertTriangle, ArrowLeft, TrendingUp, DollarSign, Briefcase, FileText } from 'lucide-react';
+import { User, Lock, Calendar, Upload, IdCard, History, Building, Bookmark, Download, Trash2, Search, Phone, MapPin, AlertTriangle, ArrowLeft, TrendingUp, DollarSign, Briefcase, FileText, FileSignature } from 'lucide-react';
 import { FeedbackBox } from '@/components/FeedbackBox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -75,6 +75,15 @@ interface Cargo {
   valor_base: number;
 }
 
+interface ContratoColaborador {
+  id: string;
+  client_name: string;
+  product_name: string;
+  valor_total: number | null;
+  status: string | null;
+  created_at: string;
+}
+
 export default function Profile() {
   const { user } = useAuth();
   const { profile, loading, isAdmin } = useUserRole();
@@ -130,13 +139,15 @@ export default function Profile() {
   const [viewingPagamentos, setViewingPagamentos] = useState<Pagamento[]>([]);
   const [cargoAtual, setCargoAtual] = useState<Cargo | null>(null);
   const [viewingCargoAtual, setViewingCargoAtual] = useState<Cargo | null>(null);
+  const [contratos, setContratos] = useState<ContratoColaborador[]>([]);
+  const [viewingContratos, setViewingContratos] = useState<ContratoColaborador[]>([]);
 
   // Fetch viewing profile if viewing another user
   useEffect(() => {
     const fetchViewingProfile = async () => {
       if (isViewingOther && canViewOther && viewingUserId) {
         setViewingLoading(true);
-        const [profileRes, promocoesRes, historicoRes, pagamentosRes] = await Promise.all([
+        const [profileRes, promocoesRes, historicoRes, pagamentosRes, contratosRes] = await Promise.all([
           supabase
             .from('profiles')
             .select('*')
@@ -157,7 +168,13 @@ export default function Profile() {
             .select('id, mes_referencia, total_liquido, data_pagamento, status')
             .eq('colaborador_id', viewingUserId)
             .order('mes_referencia', { ascending: false })
-            .limit(12)
+            .limit(12),
+          supabase
+            .from('fin_contratos')
+            .select('id, client_name, product_name, valor_total, status, created_at')
+            .eq('created_by', viewingUserId)
+            .order('created_at', { ascending: false })
+            .limit(10)
         ]);
         
         if (!profileRes.error && profileRes.data) {
@@ -193,6 +210,10 @@ export default function Profile() {
         
         if (!pagamentosRes.error && pagamentosRes.data) {
           setViewingPagamentos(pagamentosRes.data as Pagamento[]);
+        }
+        
+        if (!contratosRes.error && contratosRes.data) {
+          setViewingContratos(contratosRes.data as ContratoColaborador[]);
         }
         
         setViewingLoading(false);
@@ -238,6 +259,7 @@ export default function Profile() {
       fetchHistoricoSalario();
       fetchPagamentos();
       fetchCargoAtual();
+      fetchContratos();
     }
   }, [currentProfile, isViewingOther]);
 
@@ -295,6 +317,21 @@ export default function Profile() {
 
     if (!error && data) {
       setCargoAtual(data as Cargo);
+    }
+  };
+
+  const fetchContratos = async () => {
+    if (!user) return;
+    
+    const { data, error } = await supabase
+      .from('fin_contratos')
+      .select('id, client_name, product_name, valor_total, status, created_at')
+      .eq('created_by', user.id)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (!error && data) {
+      setContratos(data as ContratoColaborador[]);
     }
   };
 
@@ -840,6 +877,52 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                           <Badge variant={pag.status === 'processado' ? 'default' : 'outline'}>
                             {pag.status}
                           </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Contratos Registrados */}
+          {viewingContratos.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileSignature className="w-5 h-5" />
+                  Contratos Registrados
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Produto</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Data</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {viewingContratos.map((contrato) => (
+                      <TableRow key={contrato.id}>
+                        <TableCell>{contrato.client_name}</TableCell>
+                        <TableCell className="max-w-[150px] truncate">{contrato.product_name}</TableCell>
+                        <TableCell className="font-medium">
+                          {contrato.valor_total 
+                            ? Number(contrato.valor_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) 
+                            : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={contrato.status === 'ativo' ? 'default' : 'outline'}>
+                            {contrato.status || 'Pendente'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {format(new Date(contrato.created_at), "dd/MM/yyyy")}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1479,6 +1562,52 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                         <Badge variant={pag.status === 'processado' ? 'default' : 'outline'}>
                           {pag.status}
                         </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Contratos Registrados */}
+        {contratos.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileSignature className="w-5 h-5" />
+                Meus Contratos Registrados
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Produto</TableHead>
+                    <TableHead>Valor</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Data</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {contratos.map((contrato) => (
+                    <TableRow key={contrato.id}>
+                      <TableCell>{contrato.client_name}</TableCell>
+                      <TableCell className="max-w-[150px] truncate">{contrato.product_name}</TableCell>
+                      <TableCell className="font-medium">
+                        {contrato.valor_total 
+                          ? Number(contrato.valor_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) 
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={contrato.status === 'ativo' ? 'default' : 'outline'}>
+                          {contrato.status || 'Pendente'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(contrato.created_at), "dd/MM/yyyy")}
                       </TableCell>
                     </TableRow>
                   ))}
