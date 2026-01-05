@@ -14,3 +14,5 @@ export { FinanceiroRecorrencias } from './FinanceiroRecorrencias';
 export { FinanceiroConciliacao } from './FinanceiroConciliacao';
 export { FinanceiroFluxoCaixa } from './FinanceiroFluxoCaixa';
 export { FinanceiroAlertas } from './FinanceiroAlertas';
+export { FinanceiroImportacaoBancaria } from './FinanceiroImportacaoBancaria';
+export { FinanceiroOrcamento } from './FinanceiroOrcamento';
