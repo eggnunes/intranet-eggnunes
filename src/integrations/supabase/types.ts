@@ -22,24 +22,44 @@ export type Database = {
           id: string
           perm_admin_requests: string
           perm_advbox: string
+          perm_agentes_ia: string | null
+          perm_aniversarios_clientes: string | null
           perm_announcements: string
+          perm_arquivos_teams: string | null
+          perm_assistente_ia: string | null
           perm_birthdays: string
+          perm_caixinha_desabafo: string | null
           perm_collection: string
+          perm_contratos: string | null
           perm_copa_cozinha: string
+          perm_crm: string | null
+          perm_decisoes: string | null
           perm_documents: string
           perm_events: string
           perm_financial: string
           perm_forum: string
+          perm_historico_pagamentos: string | null
           perm_home_office: string
+          perm_integracoes: string | null
+          perm_jurisprudencia: string | null
           perm_lead_tracking: string
+          perm_mensagens: string | null
           perm_onboarding: string
           perm_payroll: string | null
+          perm_processos: string | null
+          perm_publicacoes: string | null
           perm_recruitment: string
+          perm_rota_doc: string | null
+          perm_sala_reuniao: string | null
+          perm_setor_comercial: string | null
+          perm_sobre_escritorio: string | null
           perm_suggestions: string
+          perm_tarefas_advbox: string | null
           perm_task_rules: string
           perm_teams: string
           perm_totp: string
           perm_users: string
+          perm_utm_generator: string | null
           perm_vacation: string
           updated_at: string
         }
@@ -50,24 +70,44 @@ export type Database = {
           id?: string
           perm_admin_requests?: string
           perm_advbox?: string
+          perm_agentes_ia?: string | null
+          perm_aniversarios_clientes?: string | null
           perm_announcements?: string
+          perm_arquivos_teams?: string | null
+          perm_assistente_ia?: string | null
           perm_birthdays?: string
+          perm_caixinha_desabafo?: string | null
           perm_collection?: string
+          perm_contratos?: string | null
           perm_copa_cozinha?: string
+          perm_crm?: string | null
+          perm_decisoes?: string | null
           perm_documents?: string
           perm_events?: string
           perm_financial?: string
           perm_forum?: string
+          perm_historico_pagamentos?: string | null
           perm_home_office?: string
+          perm_integracoes?: string | null
+          perm_jurisprudencia?: string | null
           perm_lead_tracking?: string
+          perm_mensagens?: string | null
           perm_onboarding?: string
           perm_payroll?: string | null
+          perm_processos?: string | null
+          perm_publicacoes?: string | null
           perm_recruitment?: string
+          perm_rota_doc?: string | null
+          perm_sala_reuniao?: string | null
+          perm_setor_comercial?: string | null
+          perm_sobre_escritorio?: string | null
           perm_suggestions?: string
+          perm_tarefas_advbox?: string | null
           perm_task_rules?: string
           perm_teams?: string
           perm_totp?: string
           perm_users?: string
+          perm_utm_generator?: string | null
           perm_vacation?: string
           updated_at?: string
         }
@@ -78,24 +118,44 @@ export type Database = {
           id?: string
           perm_admin_requests?: string
           perm_advbox?: string
+          perm_agentes_ia?: string | null
+          perm_aniversarios_clientes?: string | null
           perm_announcements?: string
+          perm_arquivos_teams?: string | null
+          perm_assistente_ia?: string | null
           perm_birthdays?: string
+          perm_caixinha_desabafo?: string | null
           perm_collection?: string
+          perm_contratos?: string | null
           perm_copa_cozinha?: string
+          perm_crm?: string | null
+          perm_decisoes?: string | null
           perm_documents?: string
           perm_events?: string
           perm_financial?: string
           perm_forum?: string
+          perm_historico_pagamentos?: string | null
           perm_home_office?: string
+          perm_integracoes?: string | null
+          perm_jurisprudencia?: string | null
           perm_lead_tracking?: string
+          perm_mensagens?: string | null
           perm_onboarding?: string
           perm_payroll?: string | null
+          perm_processos?: string | null
+          perm_publicacoes?: string | null
           perm_recruitment?: string
+          perm_rota_doc?: string | null
+          perm_sala_reuniao?: string | null
+          perm_setor_comercial?: string | null
+          perm_sobre_escritorio?: string | null
           perm_suggestions?: string
+          perm_tarefas_advbox?: string | null
           perm_task_rules?: string
           perm_teams?: string
           perm_totp?: string
           perm_users?: string
+          perm_utm_generator?: string | null
           perm_vacation?: string
           updated_at?: string
         }
@@ -3953,24 +4013,44 @@ export type Database = {
           is_admin_group: boolean | null
           perm_admin_requests: string
           perm_advbox: string
+          perm_agentes_ia: string | null
+          perm_aniversarios_clientes: string | null
           perm_announcements: string
+          perm_arquivos_teams: string | null
+          perm_assistente_ia: string | null
           perm_birthdays: string
+          perm_caixinha_desabafo: string | null
           perm_collection: string
+          perm_contratos: string | null
           perm_copa_cozinha: string
+          perm_crm: string | null
+          perm_decisoes: string | null
           perm_documents: string
           perm_events: string
           perm_financial: string
           perm_forum: string
+          perm_historico_pagamentos: string | null
           perm_home_office: string
+          perm_integracoes: string | null
+          perm_jurisprudencia: string | null
           perm_lead_tracking: string
+          perm_mensagens: string | null
           perm_onboarding: string
           perm_payroll: string | null
+          perm_processos: string | null
+          perm_publicacoes: string | null
           perm_recruitment: string
+          perm_rota_doc: string | null
+          perm_sala_reuniao: string | null
+          perm_setor_comercial: string | null
+          perm_sobre_escritorio: string | null
           perm_suggestions: string
+          perm_tarefas_advbox: string | null
           perm_task_rules: string
           perm_teams: string
           perm_totp: string
           perm_users: string
+          perm_utm_generator: string | null
           perm_vacation: string
           position: string
           updated_at: string
@@ -3981,24 +4061,44 @@ export type Database = {
           is_admin_group?: boolean | null
           perm_admin_requests?: string
           perm_advbox?: string
+          perm_agentes_ia?: string | null
+          perm_aniversarios_clientes?: string | null
           perm_announcements?: string
+          perm_arquivos_teams?: string | null
+          perm_assistente_ia?: string | null
           perm_birthdays?: string
+          perm_caixinha_desabafo?: string | null
           perm_collection?: string
+          perm_contratos?: string | null
           perm_copa_cozinha?: string
+          perm_crm?: string | null
+          perm_decisoes?: string | null
           perm_documents?: string
           perm_events?: string
           perm_financial?: string
           perm_forum?: string
+          perm_historico_pagamentos?: string | null
           perm_home_office?: string
+          perm_integracoes?: string | null
+          perm_jurisprudencia?: string | null
           perm_lead_tracking?: string
+          perm_mensagens?: string | null
           perm_onboarding?: string
           perm_payroll?: string | null
+          perm_processos?: string | null
+          perm_publicacoes?: string | null
           perm_recruitment?: string
+          perm_rota_doc?: string | null
+          perm_sala_reuniao?: string | null
+          perm_setor_comercial?: string | null
+          perm_sobre_escritorio?: string | null
           perm_suggestions?: string
+          perm_tarefas_advbox?: string | null
           perm_task_rules?: string
           perm_teams?: string
           perm_totp?: string
           perm_users?: string
+          perm_utm_generator?: string | null
           perm_vacation?: string
           position: string
           updated_at?: string
@@ -4009,24 +4109,44 @@ export type Database = {
           is_admin_group?: boolean | null
           perm_admin_requests?: string
           perm_advbox?: string
+          perm_agentes_ia?: string | null
+          perm_aniversarios_clientes?: string | null
           perm_announcements?: string
+          perm_arquivos_teams?: string | null
+          perm_assistente_ia?: string | null
           perm_birthdays?: string
+          perm_caixinha_desabafo?: string | null
           perm_collection?: string
+          perm_contratos?: string | null
           perm_copa_cozinha?: string
+          perm_crm?: string | null
+          perm_decisoes?: string | null
           perm_documents?: string
           perm_events?: string
           perm_financial?: string
           perm_forum?: string
+          perm_historico_pagamentos?: string | null
           perm_home_office?: string
+          perm_integracoes?: string | null
+          perm_jurisprudencia?: string | null
           perm_lead_tracking?: string
+          perm_mensagens?: string | null
           perm_onboarding?: string
           perm_payroll?: string | null
+          perm_processos?: string | null
+          perm_publicacoes?: string | null
           perm_recruitment?: string
+          perm_rota_doc?: string | null
+          perm_sala_reuniao?: string | null
+          perm_setor_comercial?: string | null
+          perm_sobre_escritorio?: string | null
           perm_suggestions?: string
+          perm_tarefas_advbox?: string | null
           perm_task_rules?: string
           perm_teams?: string
           perm_totp?: string
           perm_users?: string
+          perm_utm_generator?: string | null
           perm_vacation?: string
           position?: string
           updated_at?: string
@@ -4087,15 +4207,25 @@ export type Database = {
           birth_date: string | null
           cargo_id: string | null
           contrato_associado_registrado: boolean | null
+          cpf: string | null
           created_at: string
           email: string
+          endereco_bairro: string | null
+          endereco_cep: string | null
+          endereco_cidade: string | null
+          endereco_complemento: string | null
+          endereco_estado: string | null
+          endereco_logradouro: string | null
+          endereco_numero: string | null
           full_name: string
           id: string
           is_active: boolean
           join_date: string | null
           oab_number: string | null
           oab_state: string | null
+          perfil_completo: boolean | null
           position: Database["public"]["Enums"]["position_type"] | null
+          telefone: string | null
           updated_at: string
         }
         Insert: {
@@ -4106,15 +4236,25 @@ export type Database = {
           birth_date?: string | null
           cargo_id?: string | null
           contrato_associado_registrado?: boolean | null
+          cpf?: string | null
           created_at?: string
           email: string
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_complemento?: string | null
+          endereco_estado?: string | null
+          endereco_logradouro?: string | null
+          endereco_numero?: string | null
           full_name: string
           id: string
           is_active?: boolean
           join_date?: string | null
           oab_number?: string | null
           oab_state?: string | null
+          perfil_completo?: boolean | null
           position?: Database["public"]["Enums"]["position_type"] | null
+          telefone?: string | null
           updated_at?: string
         }
         Update: {
@@ -4125,15 +4265,25 @@ export type Database = {
           birth_date?: string | null
           cargo_id?: string | null
           contrato_associado_registrado?: boolean | null
+          cpf?: string | null
           created_at?: string
           email?: string
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_cidade?: string | null
+          endereco_complemento?: string | null
+          endereco_estado?: string | null
+          endereco_logradouro?: string | null
+          endereco_numero?: string | null
           full_name?: string
           id?: string
           is_active?: boolean
           join_date?: string | null
           oab_number?: string | null
           oab_state?: string | null
+          perfil_completo?: boolean | null
           position?: Database["public"]["Enums"]["position_type"] | null
+          telefone?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -5146,6 +5296,39 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      system_notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          lida: boolean | null
+          mensagem: string
+          read_at: string | null
+          tipo: string
+          titulo: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          lida?: boolean | null
+          mensagem: string
+          read_at?: string | null
+          tipo: string
+          titulo: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          lida?: boolean | null
+          mensagem?: string
+          read_at?: string | null
+          tipo?: string
+          titulo?: string
           user_id?: string
         }
         Relationships: []

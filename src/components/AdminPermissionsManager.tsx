@@ -70,28 +70,98 @@ interface GroupPermission {
   perm_teams: string;
 }
 
-const PERMISSION_FEATURES = [
-  { key: 'financial', label: 'Relatórios Financeiros' },
-  { key: 'users', label: 'Gestão de Usuários' },
-  { key: 'announcements', label: 'Mural de Avisos' },
-  { key: 'suggestions', label: 'Sugestões' },
-  { key: 'forum', label: 'Fórum' },
-  { key: 'documents', label: 'Documentos Úteis' },
-  { key: 'onboarding', label: 'Onboarding' },
-  { key: 'events', label: 'Galeria de Eventos' },
-  { key: 'home_office', label: 'Home Office' },
-  { key: 'vacation', label: 'Férias' },
-  { key: 'birthdays', label: 'Aniversários' },
-  { key: 'copa_cozinha', label: 'Copa/Cozinha' },
-  { key: 'advbox', label: 'Advbox' },
-  { key: 'collection', label: 'Cobranças' },
-  { key: 'admin_requests', label: 'Solicitações Admin' },
-  { key: 'task_rules', label: 'Regras de Tarefas' },
-  { key: 'recruitment', label: 'Contratação' },
-  { key: 'lead_tracking', label: 'Tracking de Leads' },
-  { key: 'totp', label: 'Códigos TOTP' },
-  { key: 'teams', label: 'Microsoft Teams' },
+// Categorias de permissões para melhor organização visual
+const PERMISSION_CATEGORIES = [
+  {
+    category: 'Administrativo',
+    features: [
+      { key: 'users', label: 'Gestão de Usuários' },
+      { key: 'admin_requests', label: 'Solicitações Admin' },
+      { key: 'onboarding', label: 'Onboarding' },
+      { key: 'integracoes', label: 'Integrações' },
+      { key: 'payroll', label: 'Folha de Pagamento (RH)' },
+      { key: 'historico_pagamentos', label: 'Histórico de Pagamentos' },
+    ]
+  },
+  {
+    category: 'Financeiro',
+    features: [
+      { key: 'financial', label: 'Relatórios Financeiros' },
+      { key: 'collection', label: 'Cobranças' },
+    ]
+  },
+  {
+    category: 'Jurídico',
+    features: [
+      { key: 'advbox', label: 'Advbox Geral' },
+      { key: 'processos', label: 'Dashboard de Processos' },
+      { key: 'publicacoes', label: 'Publicações' },
+      { key: 'tarefas_advbox', label: 'Tarefas Advbox' },
+      { key: 'decisoes', label: 'Decisões Favoráveis' },
+      { key: 'contratos', label: 'Gerador de Contratos' },
+      { key: 'jurisprudencia', label: 'Pesquisa de Jurisprudência' },
+      { key: 'rota_doc', label: 'Rota Doc' },
+    ]
+  },
+  {
+    category: 'Comercial',
+    features: [
+      { key: 'crm', label: 'CRM' },
+      { key: 'lead_tracking', label: 'Tracking de Leads' },
+      { key: 'setor_comercial', label: 'Setor Comercial' },
+      { key: 'utm_generator', label: 'Gerador de UTM' },
+      { key: 'aniversarios_clientes', label: 'Aniversários de Clientes' },
+    ]
+  },
+  {
+    category: 'Inteligência Artificial',
+    features: [
+      { key: 'assistente_ia', label: 'Assistente IA' },
+      { key: 'agentes_ia', label: 'Agentes IA' },
+    ]
+  },
+  {
+    category: 'Comunicação',
+    features: [
+      { key: 'announcements', label: 'Mural de Avisos' },
+      { key: 'forum', label: 'Fórum' },
+      { key: 'suggestions', label: 'Sugestões' },
+      { key: 'mensagens', label: 'Mensagens/Chat' },
+      { key: 'caixinha_desabafo', label: 'Caixinha de Desabafo' },
+    ]
+  },
+  {
+    category: 'Equipe e RH',
+    features: [
+      { key: 'vacation', label: 'Férias' },
+      { key: 'home_office', label: 'Home Office' },
+      { key: 'birthdays', label: 'Aniversários da Equipe' },
+      { key: 'recruitment', label: 'Contratação' },
+      { key: 'task_rules', label: 'Regras de Tarefas' },
+    ]
+  },
+  {
+    category: 'Recursos e Espaços',
+    features: [
+      { key: 'documents', label: 'Documentos Úteis' },
+      { key: 'events', label: 'Galeria de Eventos' },
+      { key: 'copa_cozinha', label: 'Copa/Cozinha' },
+      { key: 'sala_reuniao', label: 'Sala de Reunião' },
+      { key: 'sobre_escritorio', label: 'Sobre o Escritório' },
+    ]
+  },
+  {
+    category: 'Ferramentas',
+    features: [
+      { key: 'totp', label: 'Códigos TOTP' },
+      { key: 'teams', label: 'Microsoft Teams' },
+      { key: 'arquivos_teams', label: 'Arquivos Teams' },
+    ]
+  },
 ];
+
+// Lista plana para compatibilidade
+const PERMISSION_FEATURES = PERMISSION_CATEGORIES.flatMap(cat => cat.features);
 
 const PERMISSION_LEVELS = [
   { value: 'none', label: 'Sem Acesso', icon: Ban, color: 'text-destructive' },
@@ -450,39 +520,46 @@ export const AdminPermissionsManager = () => {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {PERMISSION_FEATURES.map(feature => {
-                        const currentValue = editingGroupPermissions[group.position]?.[feature.key] || 'none';
+                    <div className="space-y-4">
+                      {PERMISSION_CATEGORIES.map(category => (
+                        <div key={category.category}>
+                          <h4 className="text-sm font-semibold text-muted-foreground mb-2">{category.category}</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {category.features.map(feature => {
+                              const currentValue = editingGroupPermissions[group.position]?.[feature.key] || 'none';
 
-                        return (
-                          <div key={feature.key} className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border">
-                            <div className="flex-1 min-w-0 mr-2">
-                              <p className="text-sm font-medium truncate">{feature.label}</p>
-                            </div>
-                            <Select
-                              value={currentValue}
-                              onValueChange={(value) => handleGroupPermissionChange(group.position, feature.key, value)}
-                            >
-                              <SelectTrigger className="w-[130px]">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {PERMISSION_LEVELS.map(level => {
-                                  const Icon = level.icon;
-                                  return (
-                                    <SelectItem key={level.value} value={level.value}>
-                                      <div className="flex items-center gap-2">
-                                        <Icon className={`h-4 w-4 ${level.color}`} />
-                                        <span>{level.label}</span>
-                                      </div>
-                                    </SelectItem>
-                                  );
-                                })}
-                              </SelectContent>
-                            </Select>
+                              return (
+                                <div key={feature.key} className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border">
+                                  <div className="flex-1 min-w-0 mr-2">
+                                    <p className="text-sm font-medium truncate">{feature.label}</p>
+                                  </div>
+                                  <Select
+                                    value={currentValue}
+                                    onValueChange={(value) => handleGroupPermissionChange(group.position, feature.key, value)}
+                                  >
+                                    <SelectTrigger className="w-[120px]">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {PERMISSION_LEVELS.map(level => {
+                                        const Icon = level.icon;
+                                        return (
+                                          <SelectItem key={level.value} value={level.value}>
+                                            <div className="flex items-center gap-2">
+                                              <Icon className={`h-4 w-4 ${level.color}`} />
+                                              <span>{level.label}</span>
+                                            </div>
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
+                        </div>
+                      ))}
                     </div>
                     <div className="flex justify-end mt-4">
                       <Button onClick={() => handleSaveGroup(group.position)} disabled={savingGroup === group.position}>
@@ -589,47 +666,54 @@ export const AdminPermissionsManager = () => {
                           </div>
                         </CardHeader>
                         <CardContent>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {PERMISSION_FEATURES.map(feature => {
-                              const effectiveValue = editingPermissions[userItem.id]?.[feature.key] ?? 
-                                (permissions[userItem.id] ? (permissions[userItem.id] as any)[`perm_${feature.key}`] : null);
-                              const groupValue = getGroupPermissionValue(groupKey, feature.key);
-                              const displayValue = effectiveValue ?? groupValue;
-                              const isOverridden = effectiveValue !== null && effectiveValue !== groupValue;
+                          <div className="space-y-4">
+                            {PERMISSION_CATEGORIES.map(category => (
+                              <div key={category.category}>
+                                <h4 className="text-sm font-semibold text-muted-foreground mb-2">{category.category}</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                  {category.features.map(feature => {
+                                    const effectiveValue = editingPermissions[userItem.id]?.[feature.key] ?? 
+                                      (permissions[userItem.id] ? (permissions[userItem.id] as any)[`perm_${feature.key}`] : null);
+                                    const groupValue = getGroupPermissionValue(groupKey, feature.key);
+                                    const displayValue = effectiveValue ?? groupValue;
+                                    const isOverridden = effectiveValue !== null && effectiveValue !== groupValue;
 
-                              return (
-                                <div 
-                                  key={feature.key} 
-                                  className={`flex items-center justify-between p-2 rounded-lg border ${isOverridden ? 'bg-primary/5 border-primary/30' : 'bg-muted/30'}`}
-                                >
-                                  <div className="flex-1 min-w-0 mr-2">
-                                    <p className="text-sm font-medium truncate">{feature.label}</p>
-                                    {!isOverridden && <p className="text-xs text-muted-foreground">Do grupo</p>}
-                                  </div>
-                                  <Select
-                                    value={displayValue}
-                                    onValueChange={(value) => handlePermissionChange(userItem.id, feature.key, value)}
-                                  >
-                                    <SelectTrigger className="w-[130px]">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {PERMISSION_LEVELS.map(level => {
-                                        const Icon = level.icon;
-                                        return (
-                                          <SelectItem key={level.value} value={level.value}>
-                                            <div className="flex items-center gap-2">
-                                              <Icon className={`h-4 w-4 ${level.color}`} />
-                                              <span>{level.label}</span>
-                                            </div>
-                                          </SelectItem>
-                                        );
-                                      })}
-                                    </SelectContent>
-                                  </Select>
+                                    return (
+                                      <div 
+                                        key={feature.key} 
+                                        className={`flex items-center justify-between p-2 rounded-lg border ${isOverridden ? 'bg-primary/5 border-primary/30' : 'bg-muted/30'}`}
+                                      >
+                                        <div className="flex-1 min-w-0 mr-2">
+                                          <p className="text-sm font-medium truncate">{feature.label}</p>
+                                          {!isOverridden && <p className="text-xs text-muted-foreground">Do grupo</p>}
+                                        </div>
+                                        <Select
+                                          value={displayValue}
+                                          onValueChange={(value) => handlePermissionChange(userItem.id, feature.key, value)}
+                                        >
+                                          <SelectTrigger className="w-[120px]">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {PERMISSION_LEVELS.map(level => {
+                                              const Icon = level.icon;
+                                              return (
+                                                <SelectItem key={level.value} value={level.value}>
+                                                  <div className="flex items-center gap-2">
+                                                    <Icon className={`h-4 w-4 ${level.color}`} />
+                                                    <span>{level.label}</span>
+                                                  </div>
+                                                </SelectItem>
+                                              );
+                                            })}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
-                              );
-                            })}
+                              </div>
+                            ))}
                           </div>
                           {editingPermissions[userItem.id] && (
                             <div className="flex justify-end mt-4">
