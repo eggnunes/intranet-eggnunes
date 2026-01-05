@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Edit, Trash2, ChevronDown, ChevronRight, Search, AlertTriangle, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, ChevronDown, ChevronRight, Search, AlertTriangle, Loader2, ArrowRightLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Categoria {
@@ -44,8 +44,10 @@ export function FinanceiroCategoriasAdmin() {
   const [showCategoriaDialog, setShowCategoriaDialog] = useState(false);
   const [showSubcategoriaDialog, setShowSubcategoriaDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [editingCategoria, setEditingCategoria] = useState<Categoria | null>(null);
   const [editingSubcategoria, setEditingSubcategoria] = useState<Subcategoria | null>(null);
+  const [movingSubcategoria, setMovingSubcategoria] = useState<Subcategoria | null>(null);
   const [deletingItem, setDeletingItem] = useState<{ type: 'categoria' | 'subcategoria'; item: Categoria | Subcategoria } | null>(null);
   const [deleteAction, setDeleteAction] = useState<'move' | 'inactivate'>('inactivate');
   const [moveToId, setMoveToId] = useState('');
@@ -336,6 +338,40 @@ export function FinanceiroCategoriasAdmin() {
     }
   };
 
+  const openMoveDialog = (subcategoria: Subcategoria) => {
+    setMovingSubcategoria(subcategoria);
+    setFormCategoriaId('');
+    setShowMoveDialog(true);
+  };
+
+  const handleMoveSubcategoria = async () => {
+    if (!movingSubcategoria || !formCategoriaId) {
+      toast.error('Selecione a categoria de destino');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from('fin_subcategorias')
+        .update({ categoria_id: formCategoriaId })
+        .eq('id', movingSubcategoria.id);
+
+      if (error) throw error;
+
+      const destCategoria = categorias.find(c => c.id === formCategoriaId);
+      toast.success(`Subcategoria movida para ${destCategoria?.nome || 'nova categoria'}`);
+      setShowMoveDialog(false);
+      setMovingSubcategoria(null);
+      fetchData();
+    } catch (error) {
+      console.error('Erro ao mover subcategoria:', error);
+      toast.error('Erro ao mover subcategoria');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -434,8 +470,11 @@ export function FinanceiroCategoriasAdmin() {
                                   <TableCell className="pl-12">{sub.nome}</TableCell>
                                   <TableCell>{sub.descricao || '-'}</TableCell>
                                   <TableCell className="text-right">{sub._count || 0} lançamentos</TableCell>
-                                  <TableCell className="w-[100px]">
+                                  <TableCell className="w-[130px]">
                                     <div className="flex justify-end gap-1">
+                                      <Button variant="ghost" size="icon" onClick={() => openMoveDialog(sub)} title="Mover para outra categoria">
+                                        <ArrowRightLeft className="h-4 w-4" />
+                                      </Button>
                                       <Button variant="ghost" size="icon" onClick={() => openSubcategoriaDialog(cat.id, sub)}>
                                         <Edit className="h-4 w-4" />
                                       </Button>
@@ -612,6 +651,53 @@ export function FinanceiroCategoriasAdmin() {
             >
               {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {deletingItem?.item._count ? (deleteAction === 'move' ? 'Mover e Excluir' : 'Inativar') : 'Excluir'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Mover Subcategoria */}
+      <Dialog open={showMoveDialog} onOpenChange={setShowMoveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5" />
+              Mover Subcategoria
+            </DialogTitle>
+            <DialogDescription>
+              Mover "{movingSubcategoria?.nome}" para outra categoria
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Categoria de Destino *</Label>
+              <Select value={formCategoriaId} onValueChange={setFormCategoriaId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categorias
+                    .filter(c => c.id !== movingSubcategoria?.categoria_id && c.ativa)
+                    .map(cat => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.cor }} />
+                          {cat.nome}
+                          <Badge variant="outline" className="ml-2 text-xs">
+                            {cat.tipo}
+                          </Badge>
+                        </div>
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowMoveDialog(false)}>Cancelar</Button>
+            <Button onClick={handleMoveSubcategoria} disabled={submitting || !formCategoriaId}>
+              {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Mover Subcategoria
             </Button>
           </DialogFooter>
         </DialogContent>
