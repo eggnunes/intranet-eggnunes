@@ -57,6 +57,7 @@ import DecisoesFavoraveis from "./pages/DecisoesFavoraveis";
 import SobreEscritorio from "./pages/SobreEscritorio";
 import Financeiro from "./pages/Financeiro";
 import FinanceiroAdmin from "./pages/FinanceiroAdmin";
+import GeradorQRCode from "./pages/GeradorQRCode";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient({
@@ -472,6 +473,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <FinanceiroAdmin />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/gerador-qrcode"
+              element={
+                <ProtectedRoute>
+                  <GeradorQRCode />
                 </ProtectedRoute>
               }
             />
