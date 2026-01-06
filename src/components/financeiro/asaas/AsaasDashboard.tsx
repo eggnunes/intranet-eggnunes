@@ -15,11 +15,13 @@ import {
   AlertCircle,
   TrendingUp,
   RefreshCw,
-  Wallet
+  Wallet,
+  Webhook
 } from 'lucide-react';
 import { AsaasCobrancas } from './AsaasCobrancas';
 import { AsaasClientes } from './AsaasClientes';
 import { AsaasNovaCobranca } from './AsaasNovaCobranca';
+import { AsaasWebhookConfig } from './AsaasWebhookConfig';
 
 interface Statistics {
   pending: { count: number };
@@ -160,6 +162,10 @@ export function AsaasDashboard() {
             <Users className="h-4 w-4 mr-2" />
             Clientes
           </TabsTrigger>
+          <TabsTrigger value="webhooks">
+            <Webhook className="h-4 w-4 mr-2" />
+            Webhooks
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="cobrancas" className="mt-4">
@@ -168,6 +174,10 @@ export function AsaasDashboard() {
 
         <TabsContent value="clientes" className="mt-4">
           <AsaasClientes />
+        </TabsContent>
+
+        <TabsContent value="webhooks" className="mt-4">
+          <AsaasWebhookConfig />
         </TabsContent>
       </Tabs>
 
