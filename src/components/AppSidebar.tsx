@@ -229,6 +229,7 @@ export function AppSidebar() {
       label: '💰 FINANCEIRO',
       items: [
         { icon: DollarSign, path: '/financeiro', label: 'Sistema Financeiro' },
+        { icon: DollarSign, path: '/asaas', label: 'Asaas' },
       ],
     },
     {

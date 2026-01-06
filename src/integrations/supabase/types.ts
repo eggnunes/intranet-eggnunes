@@ -531,6 +531,144 @@ export type Database = {
         }
         Relationships: []
       }
+      asaas_api_key_alerts: {
+        Row: {
+          api_key_id: string | null
+          api_key_name: string | null
+          created_at: string
+          event_type: string
+          expiration_date: string | null
+          id: string
+          is_read: boolean | null
+        }
+        Insert: {
+          api_key_id?: string | null
+          api_key_name?: string | null
+          created_at?: string
+          event_type: string
+          expiration_date?: string | null
+          id?: string
+          is_read?: boolean | null
+        }
+        Update: {
+          api_key_id?: string | null
+          api_key_name?: string | null
+          created_at?: string
+          event_type?: string
+          expiration_date?: string | null
+          id?: string
+          is_read?: boolean | null
+        }
+        Relationships: []
+      }
+      asaas_internal_transfers: {
+        Row: {
+          asaas_transfer_id: string
+          created_at: string
+          description: string | null
+          from_wallet_id: string | null
+          id: string
+          status: string | null
+          to_wallet_id: string | null
+          transfer_type: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          asaas_transfer_id: string
+          created_at?: string
+          description?: string | null
+          from_wallet_id?: string | null
+          id?: string
+          status?: string | null
+          to_wallet_id?: string | null
+          transfer_type: string
+          updated_at?: string
+          value: number
+        }
+        Update: {
+          asaas_transfer_id?: string
+          created_at?: string
+          description?: string | null
+          from_wallet_id?: string | null
+          id?: string
+          status?: string | null
+          to_wallet_id?: string | null
+          transfer_type?: string
+          updated_at?: string
+          value?: number
+        }
+        Relationships: []
+      }
+      asaas_invoices: {
+        Row: {
+          asaas_invoice_id: string
+          asaas_payment_id: string | null
+          authorized_date: string | null
+          canceled_date: string | null
+          created_at: string
+          customer_id: string | null
+          customer_name: string | null
+          error_message: string | null
+          external_reference: string | null
+          id: string
+          invoice_number: string | null
+          invoice_url: string | null
+          observations: string | null
+          pdf_url: string | null
+          scheduled_date: string | null
+          service_description: string | null
+          status: string | null
+          updated_at: string
+          value: number | null
+          xml_url: string | null
+        }
+        Insert: {
+          asaas_invoice_id: string
+          asaas_payment_id?: string | null
+          authorized_date?: string | null
+          canceled_date?: string | null
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          error_message?: string | null
+          external_reference?: string | null
+          id?: string
+          invoice_number?: string | null
+          invoice_url?: string | null
+          observations?: string | null
+          pdf_url?: string | null
+          scheduled_date?: string | null
+          service_description?: string | null
+          status?: string | null
+          updated_at?: string
+          value?: number | null
+          xml_url?: string | null
+        }
+        Update: {
+          asaas_invoice_id?: string
+          asaas_payment_id?: string | null
+          authorized_date?: string | null
+          canceled_date?: string | null
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          error_message?: string | null
+          external_reference?: string | null
+          id?: string
+          invoice_number?: string | null
+          invoice_url?: string | null
+          observations?: string | null
+          pdf_url?: string | null
+          scheduled_date?: string | null
+          service_description?: string | null
+          status?: string | null
+          updated_at?: string
+          value?: number | null
+          xml_url?: string | null
+        }
+        Relationships: []
+      }
       asaas_payment_links: {
         Row: {
           asaas_customer_id: string | null
@@ -599,6 +737,63 @@ export type Database = {
           },
         ]
       }
+      asaas_transfers: {
+        Row: {
+          asaas_transfer_id: string
+          bank_account_id: string | null
+          created_at: string
+          description: string | null
+          effective_date: string | null
+          failure_reason: string | null
+          id: string
+          net_value: number | null
+          operation_type: string | null
+          scheduled_date: string | null
+          status: string
+          transaction_receipt_url: string | null
+          transfer_fee: number | null
+          transfer_type: string | null
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          asaas_transfer_id: string
+          bank_account_id?: string | null
+          created_at?: string
+          description?: string | null
+          effective_date?: string | null
+          failure_reason?: string | null
+          id?: string
+          net_value?: number | null
+          operation_type?: string | null
+          scheduled_date?: string | null
+          status: string
+          transaction_receipt_url?: string | null
+          transfer_fee?: number | null
+          transfer_type?: string | null
+          updated_at?: string
+          value: number
+        }
+        Update: {
+          asaas_transfer_id?: string
+          bank_account_id?: string | null
+          created_at?: string
+          description?: string | null
+          effective_date?: string | null
+          failure_reason?: string | null
+          id?: string
+          net_value?: number | null
+          operation_type?: string | null
+          scheduled_date?: string | null
+          status?: string
+          transaction_receipt_url?: string | null
+          transfer_fee?: number | null
+          transfer_type?: string | null
+          updated_at?: string
+          value?: number
+        }
+        Relationships: []
+      }
       asaas_webhook_events: {
         Row: {
           created_at: string
@@ -608,6 +803,7 @@ export type Database = {
           event_type: string
           id: string
           installment_id: string | null
+          invoice_id: string | null
           payment_id: string | null
           processed: boolean | null
           processed_at: string | null
@@ -622,6 +818,7 @@ export type Database = {
           event_type: string
           id?: string
           installment_id?: string | null
+          invoice_id?: string | null
           payment_id?: string | null
           processed?: boolean | null
           processed_at?: string | null
@@ -636,6 +833,7 @@ export type Database = {
           event_type?: string
           id?: string
           installment_id?: string | null
+          invoice_id?: string | null
           payment_id?: string | null
           processed?: boolean | null
           processed_at?: string | null

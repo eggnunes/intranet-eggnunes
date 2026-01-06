@@ -93,16 +93,6 @@ const menuItems: MenuItem[] = [
     ]
   },
   {
-    id: 'asaas',
-    label: 'Asaas',
-    icon: Banknote,
-    items: [
-      { id: 'asaas-dashboard', label: 'Dashboard' },
-      { id: 'asaas-cobrancas', label: 'Cobranças' },
-      { id: 'asaas-clientes', label: 'Clientes' },
-    ]
-  },
-  {
     id: 'alertas',
     label: 'Alertas',
     icon: Bell,
