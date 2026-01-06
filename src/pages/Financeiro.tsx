@@ -21,6 +21,7 @@ import { FinanceiroAnaliseSetores } from '@/components/financeiro/FinanceiroAnal
 import { NovoLancamentoDialog } from '@/components/financeiro/NovoLancamentoDialog';
 import { useFinanceiroKeyboardShortcuts, KeyboardShortcutsLegend } from '@/components/financeiro/FinanceiroKeyboardShortcuts';
 import { RHCargos, RHPagamentos, RHDashboard, RHDocumentos, RHColaboradores, RHColaboradorDashboard } from '@/components/rh';
+import { AsaasDashboard, AsaasCobrancas, AsaasClientes } from '@/components/financeiro/asaas';
 import { useUserRole } from '@/hooks/useUserRole';
 
 export default function Financeiro() {
@@ -76,6 +77,13 @@ export default function Financeiro() {
         return <FinanceiroAlertas />;
       case 'relatorios':
         return <FinanceiroRelatorios />;
+      // Asaas
+      case 'asaas-dashboard':
+        return <AsaasDashboard />;
+      case 'asaas-cobrancas':
+        return <AsaasCobrancas onNovaCobranca={() => {}} />;
+      case 'asaas-clientes':
+        return <AsaasClientes />;
       // RH - Apenas admins
       case 'rh-dashboard':
         return (isAdmin || isSocio) ? <RHDashboard /> : null;
@@ -170,6 +178,11 @@ export default function Financeiro() {
               <optgroup label="Operações">
                 <option value="importacao">Importar Extrato</option>
                 <option value="conciliacao">Conciliação</option>
+              </optgroup>
+              <optgroup label="Asaas">
+                <option value="asaas-dashboard">Dashboard</option>
+                <option value="asaas-cobrancas">Cobranças</option>
+                <option value="asaas-clientes">Clientes</option>
               </optgroup>
               <option value="alertas">Alertas</option>
             </select>

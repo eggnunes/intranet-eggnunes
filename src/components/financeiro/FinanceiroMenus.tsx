@@ -26,7 +26,8 @@ import {
   Landmark,
   FileCheck,
   UserCheck,
-  Layers
+  Layers,
+  Banknote
 } from 'lucide-react';
 
 interface MenuItem {
@@ -89,6 +90,16 @@ const menuItems: MenuItem[] = [
     items: [
       { id: 'importacao', label: 'Importar Extrato' },
       { id: 'conciliacao', label: 'Conciliação' },
+    ]
+  },
+  {
+    id: 'asaas',
+    label: 'Asaas',
+    icon: Banknote,
+    items: [
+      { id: 'asaas-dashboard', label: 'Dashboard' },
+      { id: 'asaas-cobrancas', label: 'Cobranças' },
+      { id: 'asaas-clientes', label: 'Clientes' },
     ]
   },
   {
