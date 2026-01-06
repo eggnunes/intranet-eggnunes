@@ -140,14 +140,14 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
   };
 
   return (
-    <div className="w-full overflow-hidden">
-      <div 
-        className="flex gap-4 pb-6 overflow-x-auto scrollbar-visible"
-        style={{
-          scrollbarWidth: 'auto',
-          scrollbarColor: 'hsl(var(--border)) transparent'
-        }}
-      >
+    <div 
+      className="w-full overflow-x-scroll pb-4"
+      style={{
+        scrollbarWidth: 'auto',
+        scrollbarColor: 'hsl(var(--primary)) hsl(var(--muted))'
+      }}
+    >
+      <div className="flex gap-4 min-w-max">
         {STAGE_ORDER.map(stage => {
           const stageCandidates = getCandidatesByStage(stage);
           const isDragOver = dragOverStage === stage;
@@ -281,23 +281,24 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
         })}
       </div>
       
-      {/* Estilo CSS para garantir barra de rolagem visível */}
+      {/* Estilo CSS para barra de rolagem sempre visível */}
       <style>{`
-        .scrollbar-visible::-webkit-scrollbar {
-          height: 12px;
-          display: block;
+        div[class*="overflow-x-scroll"]::-webkit-scrollbar {
+          height: 14px;
+          display: block !important;
         }
-        .scrollbar-visible::-webkit-scrollbar-track {
+        div[class*="overflow-x-scroll"]::-webkit-scrollbar-track {
           background: hsl(var(--muted));
-          border-radius: 6px;
+          border-radius: 7px;
+          margin: 0 4px;
         }
-        .scrollbar-visible::-webkit-scrollbar-thumb {
-          background: hsl(var(--border));
-          border-radius: 6px;
-          border: 2px solid hsl(var(--muted));
+        div[class*="overflow-x-scroll"]::-webkit-scrollbar-thumb {
+          background: hsl(var(--primary));
+          border-radius: 7px;
+          border: 3px solid hsl(var(--muted));
         }
-        .scrollbar-visible::-webkit-scrollbar-thumb:hover {
-          background: hsl(var(--muted-foreground));
+        div[class*="overflow-x-scroll"]::-webkit-scrollbar-thumb:hover {
+          background: hsl(var(--primary) / 0.8);
         }
       `}</style>
     </div>
