@@ -531,6 +531,119 @@ export type Database = {
         }
         Relationships: []
       }
+      asaas_payment_links: {
+        Row: {
+          asaas_customer_id: string | null
+          asaas_installment_id: string | null
+          asaas_payment_id: string
+          bank_slip_url: string | null
+          billing_type: string | null
+          created_at: string
+          customer_name: string | null
+          due_date: string | null
+          id: string
+          invoice_url: string | null
+          lancamento_id: string | null
+          payment_date: string | null
+          pix_copy_paste: string | null
+          pix_qr_code: string | null
+          status: string | null
+          updated_at: string
+          value: number | null
+        }
+        Insert: {
+          asaas_customer_id?: string | null
+          asaas_installment_id?: string | null
+          asaas_payment_id: string
+          bank_slip_url?: string | null
+          billing_type?: string | null
+          created_at?: string
+          customer_name?: string | null
+          due_date?: string | null
+          id?: string
+          invoice_url?: string | null
+          lancamento_id?: string | null
+          payment_date?: string | null
+          pix_copy_paste?: string | null
+          pix_qr_code?: string | null
+          status?: string | null
+          updated_at?: string
+          value?: number | null
+        }
+        Update: {
+          asaas_customer_id?: string | null
+          asaas_installment_id?: string | null
+          asaas_payment_id?: string
+          bank_slip_url?: string | null
+          billing_type?: string | null
+          created_at?: string
+          customer_name?: string | null
+          due_date?: string | null
+          id?: string
+          invoice_url?: string | null
+          lancamento_id?: string | null
+          payment_date?: string | null
+          pix_copy_paste?: string | null
+          pix_qr_code?: string | null
+          status?: string | null
+          updated_at?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asaas_payment_links_lancamento_id_fkey"
+            columns: ["lancamento_id"]
+            isOneToOne: false
+            referencedRelation: "fin_lancamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asaas_webhook_events: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          error_message: string | null
+          event_data: Json
+          event_type: string
+          id: string
+          installment_id: string | null
+          payment_id: string | null
+          processed: boolean | null
+          processed_at: string | null
+          subscription_id: string | null
+          transfer_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          error_message?: string | null
+          event_data: Json
+          event_type: string
+          id?: string
+          installment_id?: string | null
+          payment_id?: string | null
+          processed?: boolean | null
+          processed_at?: string | null
+          subscription_id?: string | null
+          transfer_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          error_message?: string | null
+          event_data?: Json
+          event_type?: string
+          id?: string
+          installment_id?: string | null
+          payment_id?: string | null
+          processed?: boolean | null
+          processed_at?: string | null
+          subscription_id?: string | null
+          transfer_id?: string | null
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           acao: string
