@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { User, Mail, Phone, GripVertical, FileText, Eye, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -140,8 +140,8 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
   };
 
   return (
-    <div className="w-full overflow-x-auto pb-4">
-      <div className="flex gap-4 min-w-max">
+    <ScrollArea className="w-full whitespace-nowrap">
+      <div className="flex gap-4 min-w-max pb-4 pr-4">
         {STAGE_ORDER.map(stage => {
           const stageCandidates = getCandidatesByStage(stage);
           const isDragOver = dragOverStage === stage;
@@ -149,7 +149,7 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
           return (
             <div
               key={stage}
-              className={`w-72 flex flex-col rounded-lg border-2 transition-all ${
+              className={`w-72 flex-shrink-0 flex flex-col rounded-lg border-2 transition-all ${
                 isDragOver ? 'border-primary border-dashed' : 'border-border'
               } ${STAGE_BG_COLORS[stage]}`}
               onDragOver={(e) => handleDragOver(e, stage)}
@@ -274,6 +274,7 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
           );
         })}
       </div>
-    </div>
+      <ScrollBar orientation="horizontal" className="h-3" />
+    </ScrollArea>
   );
 }
