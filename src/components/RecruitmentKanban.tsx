@@ -140,8 +140,14 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
   };
 
   return (
-    <ScrollArea className="w-full whitespace-nowrap">
-      <div className="flex gap-4 min-w-max pb-4 pr-4">
+    <div className="w-full overflow-hidden">
+      <div 
+        className="flex gap-4 pb-6 overflow-x-auto scrollbar-visible"
+        style={{
+          scrollbarWidth: 'auto',
+          scrollbarColor: 'hsl(var(--border)) transparent'
+        }}
+      >
         {STAGE_ORDER.map(stage => {
           const stageCandidates = getCandidatesByStage(stage);
           const isDragOver = dragOverStage === stage;
@@ -274,7 +280,26 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
           );
         })}
       </div>
-      <ScrollBar orientation="horizontal" className="h-3" />
-    </ScrollArea>
+      
+      {/* Estilo CSS para garantir barra de rolagem visível */}
+      <style>{`
+        .scrollbar-visible::-webkit-scrollbar {
+          height: 12px;
+          display: block;
+        }
+        .scrollbar-visible::-webkit-scrollbar-track {
+          background: hsl(var(--muted));
+          border-radius: 6px;
+        }
+        .scrollbar-visible::-webkit-scrollbar-thumb {
+          background: hsl(var(--border));
+          border-radius: 6px;
+          border: 2px solid hsl(var(--muted));
+        }
+        .scrollbar-visible::-webkit-scrollbar-thumb:hover {
+          background: hsl(var(--muted-foreground));
+        }
+      `}</style>
+    </div>
   );
 }
