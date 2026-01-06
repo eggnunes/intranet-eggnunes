@@ -140,164 +140,203 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
   };
 
   return (
-    <div 
-      className="w-full overflow-x-scroll pb-4"
-      style={{
-        scrollbarWidth: 'auto',
-        scrollbarColor: 'hsl(var(--primary)) hsl(var(--muted))'
-      }}
-    >
-      <div className="flex gap-4 min-w-max">
-        {STAGE_ORDER.map(stage => {
-          const stageCandidates = getCandidatesByStage(stage);
-          const isDragOver = dragOverStage === stage;
-          
-          return (
-            <div
-              key={stage}
-              className={`w-72 flex-shrink-0 flex flex-col rounded-lg border-2 transition-all ${
-                isDragOver ? 'border-primary border-dashed' : 'border-border'
-              } ${STAGE_BG_COLORS[stage]}`}
-              onDragOver={(e) => handleDragOver(e, stage)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, stage)}
-            >
-              <div className={`p-3 rounded-t-md ${STAGE_COLORS[stage]}`}>
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-white text-sm truncate" title={STAGE_LABELS[stage]}>
-                    {STAGE_LABELS[stage]}
-                  </h3>
-                  <Badge variant="secondary" className="bg-white/20 text-white border-0">
-                    {stageCandidates.length}
-                  </Badge>
+    <div className="w-full">
+      {/* Kanban Container com scroll horizontal */}
+      <div 
+        id="recruitment-kanban-scroll"
+        className="relative overflow-x-auto pb-2"
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'hsl(var(--primary)) hsl(var(--muted))'
+        }}
+      >
+        <div className="flex gap-4 pb-2" style={{ minWidth: 'max-content' }}>
+          {STAGE_ORDER.map(stage => {
+            const stageCandidates = getCandidatesByStage(stage);
+            const isDragOver = dragOverStage === stage;
+            
+            return (
+              <div
+                key={stage}
+                className={`w-72 flex-shrink-0 flex flex-col rounded-lg border-2 transition-all ${
+                  isDragOver ? 'border-primary border-dashed' : 'border-border'
+                } ${STAGE_BG_COLORS[stage]}`}
+                onDragOver={(e) => handleDragOver(e, stage)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, stage)}
+              >
+                <div className={`p-3 rounded-t-md ${STAGE_COLORS[stage]}`}>
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-white text-sm truncate" title={STAGE_LABELS[stage]}>
+                      {STAGE_LABELS[stage]}
+                    </h3>
+                    <Badge variant="secondary" className="bg-white/20 text-white border-0">
+                      {stageCandidates.length}
+                    </Badge>
+                  </div>
                 </div>
-              </div>
-              
-              <ScrollArea className="flex-1 max-h-[500px]">
-                <div className="p-2 space-y-2">
-                  {stageCandidates.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm">
-                      Nenhum candidato
-                    </div>
-                  ) : (
-                    stageCandidates.map(candidate => (
-                      <Card
-                        key={candidate.id}
-                        className={`hover:shadow-md transition-shadow ${
-                          draggedCandidate?.id === candidate.id ? 'opacity-50' : ''
-                        }`}
-                        draggable={canEdit}
-                        onDragStart={(e) => handleDragStart(e, candidate)}
-                        onDragEnd={handleDragEnd}
-                      >
-                        <CardContent className="p-3">
-                          <div className="flex items-start gap-2">
-                            {canEdit && (
-                              <div className="flex-shrink-0 mt-0.5">
-                                {/* Desktop: drag handle */}
-                                <GripVertical className="h-4 w-4 text-muted-foreground hidden sm:block cursor-grab" />
-                                {/* Mobile: dropdown to move */}
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      className="h-6 w-6 sm:hidden"
-                                    >
-                                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="start" className="w-56">
-                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                                      Mover para:
-                                    </div>
-                                    {STAGE_ORDER.filter(s => s !== candidate.current_stage).map(targetStage => (
-                                      <DropdownMenuItem
-                                        key={targetStage}
-                                        onClick={() => handleMoveToStage(candidate, targetStage)}
+                
+                <ScrollArea className="flex-1 max-h-[500px]">
+                  <div className="p-2 space-y-2">
+                    {stageCandidates.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground text-sm">
+                        Nenhum candidato
+                      </div>
+                    ) : (
+                      stageCandidates.map(candidate => (
+                        <Card
+                          key={candidate.id}
+                          className={`hover:shadow-md transition-shadow ${
+                            draggedCandidate?.id === candidate.id ? 'opacity-50' : ''
+                          }`}
+                          draggable={canEdit}
+                          onDragStart={(e) => handleDragStart(e, candidate)}
+                          onDragEnd={handleDragEnd}
+                        >
+                          <CardContent className="p-3">
+                            <div className="flex items-start gap-2">
+                              {canEdit && (
+                                <div className="flex-shrink-0 mt-0.5">
+                                  {/* Desktop: drag handle */}
+                                  <GripVertical className="h-4 w-4 text-muted-foreground hidden sm:block cursor-grab" />
+                                  {/* Mobile: dropdown to move */}
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-6 w-6 sm:hidden"
                                       >
-                                        <div className={`w-2 h-2 rounded-full mr-2 ${STAGE_COLORS[targetStage].split(' ')[0]}`} />
-                                        {STAGE_LABELS[targetStage]}
-                                      </DropdownMenuItem>
-                                    ))}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between gap-2">
-                                <h4 className="font-medium text-sm truncate flex-1" title={candidate.full_name}>
-                                  {candidate.full_name}
-                                </h4>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-6 w-6 flex-shrink-0"
-                                  onClick={() => onViewCandidate(candidate)}
-                                >
-                                  <Eye className="h-3 w-3" />
-                                </Button>
-                              </div>
-                              
-                              {candidate.position_applied && (
-                                <p className="text-xs text-muted-foreground truncate" title={candidate.position_applied}>
-                                  {candidate.position_applied}
-                                </p>
+                                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="w-56">
+                                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                                        Mover para:
+                                      </div>
+                                      {STAGE_ORDER.filter(s => s !== candidate.current_stage).map(targetStage => (
+                                        <DropdownMenuItem
+                                          key={targetStage}
+                                          onClick={() => handleMoveToStage(candidate, targetStage)}
+                                        >
+                                          <div className={`w-2 h-2 rounded-full mr-2 ${STAGE_COLORS[targetStage].split(' ')[0]}`} />
+                                          {STAGE_LABELS[targetStage]}
+                                        </DropdownMenuItem>
+                                      ))}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
                               )}
-                              
-                              <div className="mt-2 space-y-1">
-                                {candidate.email && (
-                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <Mail className="h-3 w-3 flex-shrink-0" />
-                                    <span className="truncate" title={candidate.email}>{candidate.email}</span>
-                                  </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-2">
+                                  <h4 className="font-medium text-sm truncate flex-1" title={candidate.full_name}>
+                                    {candidate.full_name}
+                                  </h4>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-6 w-6 flex-shrink-0"
+                                    onClick={() => onViewCandidate(candidate)}
+                                  >
+                                    <Eye className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                                
+                                {candidate.position_applied && (
+                                  <p className="text-xs text-muted-foreground truncate" title={candidate.position_applied}>
+                                    {candidate.position_applied}
+                                  </p>
                                 )}
-                                {candidate.phone && (
-                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <Phone className="h-3 w-3 flex-shrink-0" />
-                                    <span>{candidate.phone}</span>
-                                  </div>
-                                )}
-                              </div>
-                              
-                              <div className="mt-2 flex items-center justify-between">
-                                <span className="text-xs text-muted-foreground">
-                                  {format(new Date(candidate.created_at), 'dd/MM/yy', { locale: ptBR })}
-                                </span>
-                                {candidate.resume_url && (
-                                  <FileText className="h-3 w-3 text-muted-foreground" />
-                                )}
+                                
+                                <div className="mt-2 space-y-1">
+                                  {candidate.email && (
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                      <Mail className="h-3 w-3 flex-shrink-0" />
+                                      <span className="truncate" title={candidate.email}>{candidate.email}</span>
+                                    </div>
+                                  )}
+                                  {candidate.phone && (
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                      <Phone className="h-3 w-3 flex-shrink-0" />
+                                      <span>{candidate.phone}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <div className="mt-2 flex items-center justify-between">
+                                  <span className="text-xs text-muted-foreground">
+                                    {format(new Date(candidate.created_at), 'dd/MM/yy', { locale: ptBR })}
+                                  </span>
+                                  {candidate.resume_url && (
+                                    <FileText className="h-3 w-3 text-muted-foreground" />
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
-            </div>
-          );
-        })}
+                          </CardContent>
+                        </Card>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            );
+          })}
+        </div>
       </div>
       
-      {/* Estilo CSS para barra de rolagem sempre visível */}
+      {/* Barra de rolagem customizada visual sempre visível */}
+      <div className="relative mt-2 h-4 bg-muted rounded-full mx-1">
+        <div 
+          className="absolute top-0 left-0 h-full bg-primary rounded-full cursor-pointer hover:bg-primary/80 transition-colors"
+          style={{ width: '30%', minWidth: '60px' }}
+          onMouseDown={(e) => {
+            const container = document.getElementById('recruitment-kanban-scroll');
+            if (!container) return;
+            
+            const track = e.currentTarget.parentElement;
+            if (!track) return;
+            
+            const startX = e.clientX;
+            const startLeft = e.currentTarget.offsetLeft;
+            const trackWidth = track.clientWidth;
+            const thumbWidth = e.currentTarget.clientWidth;
+            const maxScroll = container.scrollWidth - container.clientWidth;
+            
+            const onMouseMove = (moveEvent: MouseEvent) => {
+              const deltaX = moveEvent.clientX - startX;
+              const newLeft = Math.max(0, Math.min(startLeft + deltaX, trackWidth - thumbWidth));
+              const scrollPercent = newLeft / (trackWidth - thumbWidth);
+              container.scrollLeft = scrollPercent * maxScroll;
+            };
+            
+            const onMouseUp = () => {
+              document.removeEventListener('mousemove', onMouseMove);
+              document.removeEventListener('mouseup', onMouseUp);
+            };
+            
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+          }}
+        />
+      </div>
+      
+      {/* CSS para garantir scrollbar visível */}
       <style>{`
-        div[class*="overflow-x-scroll"]::-webkit-scrollbar {
-          height: 14px;
+        #recruitment-kanban-scroll::-webkit-scrollbar {
+          height: 12px;
           display: block !important;
         }
-        div[class*="overflow-x-scroll"]::-webkit-scrollbar-track {
+        #recruitment-kanban-scroll::-webkit-scrollbar-track {
           background: hsl(var(--muted));
-          border-radius: 7px;
-          margin: 0 4px;
+          border-radius: 6px;
         }
-        div[class*="overflow-x-scroll"]::-webkit-scrollbar-thumb {
+        #recruitment-kanban-scroll::-webkit-scrollbar-thumb {
           background: hsl(var(--primary));
-          border-radius: 7px;
-          border: 3px solid hsl(var(--muted));
+          border-radius: 6px;
+          border: 2px solid hsl(var(--muted));
         }
-        div[class*="overflow-x-scroll"]::-webkit-scrollbar-thumb:hover {
+        #recruitment-kanban-scroll::-webkit-scrollbar-thumb:hover {
           background: hsl(var(--primary) / 0.8);
         }
       `}</style>
