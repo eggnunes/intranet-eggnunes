@@ -7,6 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, addMonths } from 'date-fns';
@@ -16,13 +18,31 @@ import {
   FileText, 
   CreditCard,
   QrCode,
-  Plus
+  Plus,
+  Users,
+  Building2,
+  RefreshCw
 } from 'lucide-react';
 
 interface Customer {
   id: string;
   name: string;
   cpfCnpj: string;
+  source?: 'asaas' | 'advbox' | 'local';
+}
+
+interface AdvboxCustomer {
+  id: number;
+  name: string;
+  tax_id?: string;
+  cpf?: string;
+  cnpj?: string;
+}
+
+interface LocalCustomer {
+  id: string;
+  nome: string;
+  cpf_cnpj: string | null;
 }
 
 interface AsaasNovaCobrancaProps {
@@ -35,11 +55,19 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [searchingCustomer, setSearchingCustomer] = useState(false);
+  const [syncingCustomer, setSyncingCustomer] = useState(false);
   
   // Customer search
   const [customerSearch, setCustomerSearch] = useState('');
+  const [customerSource, setCustomerSource] = useState<'asaas' | 'advbox' | 'local'>('asaas');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  
+  // ADVBox e Local customers cache
+  const [advboxCustomers, setAdvboxCustomers] = useState<AdvboxCustomer[]>([]);
+  const [localCustomers, setLocalCustomers] = useState<LocalCustomer[]>([]);
+  const [loadingAdvbox, setLoadingAdvbox] = useState(false);
+  const [loadingLocal, setLoadingLocal] = useState(false);
   
   // Form data
   const [billingType, setBillingType] = useState<'BOLETO' | 'CREDIT_CARD' | 'PIX'>('BOLETO');
@@ -59,6 +87,7 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
     setCustomerSearch('');
     setCustomers([]);
     setSelectedCustomer(null);
+    setCustomerSource('asaas');
     setBillingType('BOLETO');
     setValue('');
     setDueDate(format(new Date(), 'yyyy-MM-dd'));
@@ -76,7 +105,65 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
     }
   }, [open]);
 
-  const searchCustomers = async () => {
+  // Carregar clientes do ADVBox
+  const loadAdvboxCustomers = async () => {
+    setLoadingAdvbox(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('advbox-integration', {
+        body: {}
+      });
+      
+      // Buscar customers endpoint
+      const customersRes = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/advbox-integration/customers?limit=200`,
+        {
+          headers: {
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          }
+        }
+      );
+      
+      if (customersRes.ok) {
+        const result = await customersRes.json();
+        setAdvboxCustomers(result.data || []);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar clientes ADVBox:', error);
+    } finally {
+      setLoadingAdvbox(false);
+    }
+  };
+
+  // Carregar clientes locais do sistema financeiro
+  const loadLocalCustomers = async () => {
+    setLoadingLocal(true);
+    try {
+      const { data, error } = await supabase
+        .from('fin_clientes')
+        .select('id, nome, cpf_cnpj')
+        .eq('ativo', true)
+        .order('nome');
+      
+      if (!error && data) {
+        setLocalCustomers(data);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar clientes locais:', error);
+    } finally {
+      setLoadingLocal(false);
+    }
+  };
+
+  // Carregar dados ao abrir o dialog
+  useEffect(() => {
+    if (open) {
+      loadAdvboxCustomers();
+      loadLocalCustomers();
+    }
+  }, [open]);
+
+  // Buscar clientes no Asaas
+  const searchAsaasCustomers = async () => {
     if (!customerSearch.trim()) return;
 
     setSearchingCustomer(true);
@@ -93,11 +180,102 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
       });
 
       if (error) throw error;
-      setCustomers(data.data || []);
+      const asaasCustomers = (data.data || []).map((c: any) => ({
+        ...c,
+        source: 'asaas' as const
+      }));
+      setCustomers(asaasCustomers);
     } catch (error: any) {
-      toast.error('Erro ao buscar clientes');
+      toast.error('Erro ao buscar clientes Asaas');
     } finally {
       setSearchingCustomer(false);
+    }
+  };
+
+  // Filtrar clientes baseado na fonte selecionada
+  const getFilteredCustomers = (): Customer[] => {
+    const search = customerSearch.toLowerCase();
+    
+    if (customerSource === 'asaas') {
+      return customers;
+    }
+    
+    if (customerSource === 'advbox') {
+      return advboxCustomers
+        .filter(c => c.name.toLowerCase().includes(search))
+        .slice(0, 20)
+        .map(c => ({
+          id: `advbox_${c.id}`,
+          name: c.name,
+          cpfCnpj: c.tax_id || c.cpf || c.cnpj || '',
+          source: 'advbox' as const
+        }));
+    }
+    
+    if (customerSource === 'local') {
+      return localCustomers
+        .filter(c => c.nome.toLowerCase().includes(search) || c.cpf_cnpj?.includes(search))
+        .slice(0, 20)
+        .map(c => ({
+          id: `local_${c.id}`,
+          name: c.nome,
+          cpfCnpj: c.cpf_cnpj || '',
+          source: 'local' as const
+        }));
+    }
+    
+    return [];
+  };
+
+  // Sincronizar cliente com Asaas (criar se não existir)
+  const syncCustomerToAsaas = async (customer: Customer): Promise<string | null> => {
+    if (customer.source === 'asaas') {
+      return customer.id;
+    }
+
+    if (!customer.cpfCnpj) {
+      toast.error('Cliente precisa ter CPF/CNPJ para criar cobrança');
+      return null;
+    }
+
+    setSyncingCustomer(true);
+    try {
+      // Primeiro, verificar se já existe no Asaas pelo CPF/CNPJ
+      const { data: searchResult } = await supabase.functions.invoke('asaas-integration', {
+        body: { 
+          action: 'list_customers', 
+          data: { cpfCnpj: customer.cpfCnpj.replace(/\D/g, '') }
+        }
+      });
+
+      if (searchResult?.data?.length > 0) {
+        return searchResult.data[0].id;
+      }
+
+      // Criar cliente no Asaas
+      const { data: createResult, error } = await supabase.functions.invoke('asaas-integration', {
+        body: { 
+          action: 'create_customer', 
+          data: {
+            name: customer.name,
+            cpfCnpj: customer.cpfCnpj.replace(/\D/g, ''),
+          }
+        }
+      });
+
+      if (error) throw error;
+      if (createResult?.errors) {
+        throw new Error(createResult.errors[0]?.description || 'Erro ao criar cliente no Asaas');
+      }
+
+      toast.success('Cliente sincronizado com Asaas!');
+      return createResult.id;
+    } catch (error: any) {
+      console.error('Erro ao sincronizar cliente:', error);
+      toast.error('Erro ao sincronizar cliente: ' + error.message);
+      return null;
+    } finally {
+      setSyncingCustomer(false);
     }
   };
 
@@ -121,8 +299,19 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
 
     setSaving(true);
     try {
+      // Se o cliente não é do Asaas, sincronizar primeiro
+      let asaasCustomerId = selectedCustomer.id;
+      if (selectedCustomer.source !== 'asaas') {
+        const syncedId = await syncCustomerToAsaas(selectedCustomer);
+        if (!syncedId) {
+          setSaving(false);
+          return;
+        }
+        asaasCustomerId = syncedId;
+      }
+
       const paymentData: Record<string, any> = {
-        customer: selectedCustomer.id,
+        customer: asaasCustomerId,
         billingType,
         dueDate,
         description,
@@ -229,25 +418,63 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
 
         {step === 1 && (
           <div className="space-y-4">
+            {/* Seletor de fonte de clientes */}
+            <div>
+              <Label className="mb-2 block">Buscar cliente em:</Label>
+              <Tabs value={customerSource} onValueChange={(v) => setCustomerSource(v as any)}>
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="asaas" className="text-xs">
+                    <CreditCard className="h-3 w-3 mr-1" />
+                    Asaas
+                  </TabsTrigger>
+                  <TabsTrigger value="advbox" className="text-xs">
+                    <Building2 className="h-3 w-3 mr-1" />
+                    ADVBox
+                  </TabsTrigger>
+                  <TabsTrigger value="local" className="text-xs">
+                    <Users className="h-3 w-3 mr-1" />
+                    Financeiro
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+
             <div className="flex gap-2">
               <Input
                 placeholder="Buscar por nome ou CPF/CNPJ..."
                 value={customerSearch}
                 onChange={(e) => setCustomerSearch(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && searchCustomers()}
+                onKeyDown={(e) => e.key === 'Enter' && customerSource === 'asaas' && searchAsaasCustomers()}
               />
-              <Button onClick={searchCustomers} disabled={searchingCustomer}>
-                {searchingCustomer ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Search className="h-4 w-4" />
-                )}
-              </Button>
+              {customerSource === 'asaas' && (
+                <Button onClick={searchAsaasCustomers} disabled={searchingCustomer}>
+                  {searchingCustomer ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
             </div>
 
-            {customers.length > 0 && (
+            {/* Loading indicators */}
+            {customerSource === 'advbox' && loadingAdvbox && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Carregando clientes do ADVBox...
+              </div>
+            )}
+            {customerSource === 'local' && loadingLocal && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Carregando clientes do sistema financeiro...
+              </div>
+            )}
+
+            {/* Lista de clientes */}
+            {getFilteredCustomers().length > 0 && (
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {customers.map((customer) => (
+                {getFilteredCustomers().map((customer) => (
                   <Card 
                     key={customer.id}
                     className={`cursor-pointer transition-colors hover:bg-accent ${
@@ -256,19 +483,34 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
                     onClick={() => setSelectedCustomer(customer)}
                   >
                     <CardContent className="p-3">
-                      <p className="font-medium">{customer.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatCpfCnpj(customer.cpfCnpj)}
-                      </p>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{customer.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {customer.cpfCnpj ? formatCpfCnpj(customer.cpfCnpj) : 'Sem CPF/CNPJ'}
+                          </p>
+                        </div>
+                        {customer.source && customer.source !== 'asaas' && (
+                          <Badge variant="outline" className="text-xs">
+                            {customer.source === 'advbox' ? 'ADVBox' : 'Financeiro'}
+                          </Badge>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
               </div>
             )}
 
-            {customerSearch && customers.length === 0 && !searchingCustomer && (
+            {customerSearch.length >= 2 && getFilteredCustomers().length === 0 && !searchingCustomer && !loadingAdvbox && !loadingLocal && (
               <p className="text-center text-muted-foreground py-4">
                 Nenhum cliente encontrado
+              </p>
+            )}
+
+            {customerSource !== 'asaas' && customerSearch.length < 2 && (
+              <p className="text-center text-muted-foreground py-4 text-sm">
+                Digite pelo menos 2 caracteres para buscar
               </p>
             )}
           </div>
@@ -279,9 +521,24 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
             {/* Cliente selecionado */}
             <Card className="bg-muted">
               <CardContent className="p-3">
-                <p className="text-sm text-muted-foreground">Cliente</p>
-                <p className="font-medium">{selectedCustomer.name}</p>
-                <p className="text-sm">{formatCpfCnpj(selectedCustomer.cpfCnpj)}</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Cliente</p>
+                    <p className="font-medium">{selectedCustomer.name}</p>
+                    <p className="text-sm">{selectedCustomer.cpfCnpj ? formatCpfCnpj(selectedCustomer.cpfCnpj) : 'Sem CPF/CNPJ'}</p>
+                  </div>
+                  {selectedCustomer.source && selectedCustomer.source !== 'asaas' && (
+                    <Badge variant="outline">
+                      {selectedCustomer.source === 'advbox' ? 'ADVBox' : 'Financeiro'}
+                    </Badge>
+                  )}
+                </div>
+                {selectedCustomer.source && selectedCustomer.source !== 'asaas' && (
+                  <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                    <RefreshCw className="h-3 w-3" />
+                    Cliente será sincronizado com Asaas automaticamente
+                  </p>
+                )}
               </CardContent>
             </Card>
 
@@ -455,9 +712,9 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
               <Button variant="outline" onClick={() => setStep(1)}>
                 Voltar
               </Button>
-              <Button onClick={handleSubmit} disabled={saving}>
-                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Criar Cobrança
+              <Button onClick={handleSubmit} disabled={saving || syncingCustomer}>
+                {(saving || syncingCustomer) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {syncingCustomer ? 'Sincronizando...' : saving ? 'Criando...' : 'Criar Cobrança'}
               </Button>
             </>
           )}

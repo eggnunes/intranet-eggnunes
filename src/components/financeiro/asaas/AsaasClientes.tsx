@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { 
@@ -15,7 +16,9 @@ import {
   Users,
   Edit,
   Phone,
-  Mail
+  Mail,
+  Download,
+  Building2
 } from 'lucide-react';
 
 interface Customer {
@@ -34,6 +37,16 @@ interface Customer {
   cityName?: string;
 }
 
+interface AdvboxCustomer {
+  id: number;
+  name: string;
+  tax_id?: string;
+  cpf?: string;
+  cnpj?: string;
+  email?: string;
+  phone?: string;
+}
+
 export function AsaasClientes() {
   const [loading, setLoading] = useState(true);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -41,6 +54,11 @@ export function AsaasClientes() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [advboxCustomers, setAdvboxCustomers] = useState<AdvboxCustomer[]>([]);
+  const [loadingAdvbox, setLoadingAdvbox] = useState(false);
+  const [advboxSearch, setAdvboxSearch] = useState('');
+  const [importingCustomer, setImportingCustomer] = useState<string | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -104,6 +122,92 @@ export function AsaasClientes() {
       setLoading(false);
     }
   };
+
+  // Carregar clientes do ADVBox para importação
+  const loadAdvboxCustomers = async () => {
+    setLoadingAdvbox(true);
+    try {
+      const session = await supabase.auth.getSession();
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/advbox-integration/customers?limit=200`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.data.session?.access_token}`,
+          }
+        }
+      );
+      
+      if (response.ok) {
+        const result = await response.json();
+        setAdvboxCustomers(result.data || []);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar clientes ADVBox:', error);
+      toast.error('Erro ao carregar clientes do ADVBox');
+    } finally {
+      setLoadingAdvbox(false);
+    }
+  };
+
+  const openImportDialog = () => {
+    setImportDialogOpen(true);
+    loadAdvboxCustomers();
+  };
+
+  const importFromAdvbox = async (advCustomer: AdvboxCustomer) => {
+    const cpfCnpj = advCustomer.tax_id || advCustomer.cpf || advCustomer.cnpj;
+    if (!cpfCnpj) {
+      toast.error('Cliente não possui CPF/CNPJ cadastrado no ADVBox');
+      return;
+    }
+
+    setImportingCustomer(advCustomer.id.toString());
+    try {
+      // Verificar se já existe no Asaas
+      const { data: searchResult } = await supabase.functions.invoke('asaas-integration', {
+        body: { 
+          action: 'list_customers', 
+          data: { cpfCnpj: cpfCnpj.replace(/\D/g, '') }
+        }
+      });
+
+      if (searchResult?.data?.length > 0) {
+        toast.info('Cliente já existe no Asaas');
+        setImportingCustomer(null);
+        return;
+      }
+
+      // Criar no Asaas
+      const { data, error } = await supabase.functions.invoke('asaas-integration', {
+        body: { 
+          action: 'create_customer', 
+          data: {
+            name: advCustomer.name,
+            cpfCnpj: cpfCnpj.replace(/\D/g, ''),
+            email: advCustomer.email,
+            phone: advCustomer.phone?.replace(/\D/g, ''),
+          }
+        }
+      });
+
+      if (error) throw error;
+      if (data?.errors) {
+        throw new Error(data.errors[0]?.description || 'Erro ao criar cliente');
+      }
+
+      toast.success('Cliente importado com sucesso!');
+      fetchCustomers();
+    } catch (error: any) {
+      console.error('Erro ao importar cliente:', error);
+      toast.error('Erro: ' + error.message);
+    } finally {
+      setImportingCustomer(null);
+    }
+  };
+
+  const filteredAdvboxCustomers = advboxCustomers.filter(c => 
+    c.name.toLowerCase().includes(advboxSearch.toLowerCase())
+  ).slice(0, 20);
 
   const openNewCustomer = () => {
     setEditingCustomer(null);
@@ -187,8 +291,11 @@ export function AsaasClientes() {
     <Card>
       <CardHeader>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <CardTitle>Clientes Asaas</CardTitle>
-          <div className="flex gap-2">
+          <div>
+            <CardTitle>Clientes Asaas</CardTitle>
+            <CardDescription>Gerencie clientes cadastrados no Asaas</CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
             <div className="relative flex gap-2">
               <Input
                 placeholder="Buscar por nome ou CPF/CNPJ..."
@@ -203,6 +310,10 @@ export function AsaasClientes() {
             </div>
             <Button variant="outline" size="icon" onClick={fetchCustomers}>
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button variant="outline" onClick={openImportDialog}>
+              <Download className="h-4 w-4 mr-2" />
+              Importar ADVBox
             </Button>
             <Button onClick={openNewCustomer}>
               <Plus className="h-4 w-4 mr-2" />
@@ -390,6 +501,79 @@ export function AsaasClientes() {
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {editingCustomer ? 'Atualizar' : 'Cadastrar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Importar do ADVBox */}
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Importar Clientes do ADVBox
+            </DialogTitle>
+            <DialogDescription>
+              Selecione clientes do ADVBox para importar para o Asaas
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <Input
+              placeholder="Buscar cliente..."
+              value={advboxSearch}
+              onChange={(e) => setAdvboxSearch(e.target.value)}
+            />
+
+            {loadingAdvbox ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : filteredAdvboxCustomers.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Nenhum cliente encontrado no ADVBox</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {filteredAdvboxCustomers.map((customer) => (
+                  <div 
+                    key={customer.id}
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent"
+                  >
+                    <div>
+                      <p className="font-medium">{customer.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {customer.tax_id || customer.cpf || customer.cnpj || 'Sem CPF/CNPJ'}
+                      </p>
+                      {customer.email && (
+                        <p className="text-xs text-muted-foreground">{customer.email}</p>
+                      )}
+                    </div>
+                    <Button 
+                      size="sm"
+                      onClick={() => importFromAdvbox(customer)}
+                      disabled={importingCustomer === customer.id.toString()}
+                    >
+                      {importingCustomer === customer.id.toString() ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Download className="h-4 w-4 mr-1" />
+                          Importar
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
+              Fechar
             </Button>
           </DialogFooter>
         </DialogContent>
