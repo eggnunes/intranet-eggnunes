@@ -17,13 +17,20 @@ import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 
+interface Cargo {
+  id: string;
+  nome: string;
+  valor_base: number;
+  tipo: 'clt' | 'advogado' | 'socio';
+}
+
 interface Colaborador {
   id: string;
   full_name: string;
   email: string;
   position: string;
   cargo_id: string | null;
-  rh_cargos?: { nome: string; valor_base: number } | null;
+  rh_cargos?: Cargo | null;
 }
 
 interface Rubrica {
@@ -32,6 +39,19 @@ interface Rubrica {
   tipo: 'vantagem' | 'desconto';
   ordem: number;
 }
+
+// IDs das rubricas específicas (baseado nos dados do banco)
+const RUBRICA_HONORARIOS_MENSAIS = 'e6a9b3ae-1faa-4575-ac6d-50e8ddba588d';
+const RUBRICA_ADIANTAMENTO = 'b22a1c45-292d-4f6a-b922-a3451c31d9d7';
+const RUBRICA_IRPF = '59a6de4c-cb74-4398-8692-b7ed6c979c58';
+const RUBRICA_INSS = '9d40ec99-9a94-415d-970c-65829872a52f';
+const RUBRICA_VALE_TRANSPORTE = '8ff27352-aaed-4541-bdba-708de3ad6512';
+
+// Rubricas permitidas para CLT (vantagens: Salário/Honorários, descontos: todos os 4)
+const CLT_DESCONTOS = [RUBRICA_ADIANTAMENTO, RUBRICA_IRPF, RUBRICA_INSS, RUBRICA_VALE_TRANSPORTE];
+
+// Rubricas permitidas para não-CLT (vantagens: Honorários, descontos: apenas Adiantamento)
+const NAO_CLT_DESCONTOS = [RUBRICA_ADIANTAMENTO];
 
 interface PagamentoItem {
   rubrica_id: string;
@@ -54,6 +74,7 @@ interface Pagamento {
 
 export function RHPagamentos() {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
+  const [cargos, setCargos] = useState<Cargo[]>([]);
   const [rubricas, setRubricas] = useState<Rubrica[]>([]);
   const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,6 +82,7 @@ export function RHPagamentos() {
   const [mesReferencia, setMesReferencia] = useState(format(new Date(), 'yyyy-MM'));
   const [filtroMes, setFiltroMes] = useState(format(new Date(), 'yyyy-MM'));
   const [selectedColaborador, setSelectedColaborador] = useState<string>('');
+  const [selectedCargo, setSelectedCargo] = useState<Cargo | null>(null);
   const [dataPagamento, setDataPagamento] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [itens, setItens] = useState<Record<string, PagamentoItem>>({});
   const [sugestoes, setSugestoes] = useState<Record<string, number>>({});
@@ -76,7 +98,7 @@ export function RHPagamentos() {
 
   const fetchData = async () => {
     try {
-      const [colabRes, rubRes] = await Promise.all([
+      const [colabRes, rubRes, cargosRes] = await Promise.all([
         supabase
           .from('profiles')
           .select('id, full_name, email, position, cargo_id')
@@ -87,12 +109,18 @@ export function RHPagamentos() {
           .from('rh_rubricas')
           .select('*')
           .eq('is_active', true)
-          .order('ordem')
+          .order('ordem'),
+        supabase
+          .from('rh_cargos')
+          .select('id, nome, valor_base, tipo')
+          .eq('is_active', true)
       ]);
 
       if (colabRes.error) throw colabRes.error;
       if (rubRes.error) throw rubRes.error;
+      if (cargosRes.error) throw cargosRes.error;
 
+      setCargos((cargosRes.data || []) as Cargo[]);
       setColaboradores((colabRes.data || []).map(c => ({ ...c, rh_cargos: null })) as Colaborador[]);
       setRubricas((rubRes.data || []).map(r => ({ ...r, tipo: r.tipo as 'vantagem' | 'desconto' })));
     } catch (error: any) {
@@ -136,7 +164,7 @@ export function RHPagamentos() {
     }
   };
 
-  const loadSugestoes = async (colaboradorId: string) => {
+  const loadSugestoes = async (colaboradorId: string, cargo: Cargo | null) => {
     try {
       const { data, error } = await supabase
         .from('rh_sugestoes_valores')
@@ -151,12 +179,19 @@ export function RHPagamentos() {
       });
       setSugestoes(sugestoesMap);
 
-      // Pré-preencher com sugestões
+      // Pré-preencher com sugestões e valor base do cargo
       const newItens: Record<string, PagamentoItem> = {};
       rubricas.forEach(r => {
+        let valorInicial = sugestoesMap[r.id] || 0;
+        
+        // Se for a rubrica de Honorários Mensais e não tiver sugestão, usar valor_base do cargo
+        if (r.id === RUBRICA_HONORARIOS_MENSAIS && !sugestoesMap[r.id] && cargo?.valor_base) {
+          valorInicial = cargo.valor_base;
+        }
+        
         newItens[r.id] = {
           rubrica_id: r.id,
-          valor: sugestoesMap[r.id] || 0,
+          valor: valorInicial,
           observacao: ''
         };
       });
@@ -168,7 +203,43 @@ export function RHPagamentos() {
 
   const handleColaboradorChange = (colaboradorId: string) => {
     setSelectedColaborador(colaboradorId);
-    loadSugestoes(colaboradorId);
+    
+    // Buscar cargo do colaborador
+    const colaborador = colaboradores.find(c => c.id === colaboradorId);
+    const cargo = colaborador?.cargo_id ? cargos.find(c => c.id === colaborador.cargo_id) || null : null;
+    setSelectedCargo(cargo);
+    
+    loadSugestoes(colaboradorId, cargo);
+  };
+
+  // Filtrar rubricas baseado no tipo de cargo
+  const getVantagensFiltradas = () => {
+    // CLT: mostrar "Salário" (usamos Honorários Mensais com label diferente)
+    // Não-CLT: mostrar "Honorários Mensais"
+    return rubricas.filter(r => r.tipo === 'vantagem');
+  };
+
+  const getDescontosFiltrados = () => {
+    if (!selectedCargo) {
+      // Se não tem cargo, mostrar apenas Adiantamento
+      return rubricas.filter(r => r.tipo === 'desconto' && NAO_CLT_DESCONTOS.includes(r.id));
+    }
+    
+    if (selectedCargo.tipo === 'clt') {
+      // CLT: todos os 4 descontos
+      return rubricas.filter(r => r.tipo === 'desconto' && CLT_DESCONTOS.includes(r.id));
+    } else {
+      // Advogados/Sócios: apenas Adiantamento
+      return rubricas.filter(r => r.tipo === 'desconto' && NAO_CLT_DESCONTOS.includes(r.id));
+    }
+  };
+
+  // Retorna o label correto para Honorários Mensais baseado no tipo de cargo
+  const getRubricaLabel = (rubrica: Rubrica) => {
+    if (rubrica.id === RUBRICA_HONORARIOS_MENSAIS && selectedCargo?.tipo === 'clt') {
+      return 'Salário';
+    }
+    return rubrica.nome;
   };
 
   const handleItemChange = (rubricaId: string, field: 'valor' | 'observacao', value: string) => {
@@ -276,6 +347,7 @@ export function RHPagamentos() {
 
   const resetForm = () => {
     setSelectedColaborador('');
+    setSelectedCargo(null);
     setItens({});
     setSugestoes({});
     setMesReferencia(format(new Date(), 'yyyy-MM'));
@@ -523,11 +595,20 @@ export function RHPagamentos() {
 
                     {/* Vantagens */}
                     <div>
-                      <h4 className="font-semibold text-green-600 mb-3">Vantagens</h4>
+                      <h4 className="font-semibold text-green-600 mb-3">
+                        Vantagens
+                        {selectedCargo && (
+                          <span className="text-xs font-normal text-muted-foreground ml-2">
+                            ({selectedCargo.nome} - {selectedCargo.tipo === 'clt' ? 'CLT' : selectedCargo.tipo === 'socio' ? 'Sócio' : 'Advogado'})
+                          </span>
+                        )}
+                      </h4>
                       <div className="grid grid-cols-2 gap-3">
-                        {rubricas.filter(r => r.tipo === 'vantagem').map(rubrica => (
+                        {getVantagensFiltradas().map(rubrica => (
                           <div key={rubrica.id} className="flex items-center gap-2">
-                            <Label className="w-40 text-sm truncate">{rubrica.nome}</Label>
+                            <Label className="w-40 text-sm truncate" title={getRubricaLabel(rubrica)}>
+                              {getRubricaLabel(rubrica)}
+                            </Label>
                             <Input
                               type="text"
                               placeholder="0,00"
@@ -551,7 +632,7 @@ export function RHPagamentos() {
                     <div>
                       <h4 className="font-semibold text-red-600 mb-3">Descontos</h4>
                       <div className="grid grid-cols-2 gap-3">
-                        {rubricas.filter(r => r.tipo === 'desconto').map(rubrica => (
+                        {getDescontosFiltrados().map(rubrica => (
                           <div key={rubrica.id} className="flex items-center gap-2">
                             <Label className="w-40 text-sm truncate">{rubrica.nome}</Label>
                             <Input
