@@ -6445,6 +6445,36 @@ export type Database = {
         }
         Relationships: []
       }
+      user_access_tracking: {
+        Row: {
+          access_count: number
+          created_at: string
+          id: string
+          last_accessed_at: string
+          page_name: string
+          page_path: string
+          user_id: string
+        }
+        Insert: {
+          access_count?: number
+          created_at?: string
+          id?: string
+          last_accessed_at?: string
+          page_name: string
+          page_path: string
+          user_id: string
+        }
+        Update: {
+          access_count?: number
+          created_at?: string
+          id?: string
+          last_accessed_at?: string
+          page_name?: string
+          page_path?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_notifications: {
         Row: {
           action_url: string | null
