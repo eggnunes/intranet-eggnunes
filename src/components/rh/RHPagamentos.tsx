@@ -484,7 +484,7 @@ export function RHPagamentos() {
                   <DialogTitle>Registrar Pagamento</DialogTitle>
                 </DialogHeader>
                 <ScrollArea className="max-h-[70vh] pr-4">
-                  <form onSubmit={handleSubmit} className="space-y-4">
+                  <form onSubmit={handleSubmit} className="space-y-4 pb-6">
                     <div className="grid grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label>Colaborador</Label>
