@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { User, Lock, Calendar, Upload, IdCard, History, Building, Bookmark, Download, Trash2, Search, Phone, MapPin, AlertTriangle, ArrowLeft, TrendingUp, DollarSign, Briefcase, FileText, FileSignature, CheckSquare, BarChart3 } from 'lucide-react';
+import { User, Lock, Calendar, Upload, IdCard, History, Building, Bookmark, Download, Trash2, Search, Phone, MapPin, AlertTriangle, ArrowLeft, TrendingUp, DollarSign, Briefcase, FileText, FileSignature, CheckSquare, BarChart3, Loader2 } from 'lucide-react';
 import { FeedbackBox } from '@/components/FeedbackBox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -22,6 +22,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { EmailNotificationSettings } from '@/components/EmailNotificationSettings';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { maskPhone, maskCPF, maskCEP, fetchAddressByCEP, unmask } from '@/lib/masks';
 
 const BRAZILIAN_STATES = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
@@ -158,6 +159,7 @@ export default function Profile() {
   const [viewingContratos, setViewingContratos] = useState<ContratoColaborador[]>([]);
   const [pagamentosGrafico, setPagamentosGrafico] = useState<PagamentoGrafico[]>([]);
   const [pontuacaoAdvbox, setPontuacaoAdvbox] = useState<PontuacaoAdvbox[]>([]);
+  const [loadingCep, setLoadingCep] = useState(false);
 
   // Fetch viewing profile if viewing another user
   useEffect(() => {
@@ -281,6 +283,47 @@ export default function Profile() {
       fetchPontuacaoAdvbox();
     }
   }, [currentProfile, isViewingOther]);
+
+  // Handlers para campos com máscara
+  const handleTelefoneChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setTelefone(maskPhone(e.target.value));
+  }, []);
+
+  const handleCpfChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setCpf(maskCPF(e.target.value));
+  }, []);
+
+  const handleCepChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const maskedValue = maskCEP(e.target.value);
+    setEnderecoCep(maskedValue);
+    
+    // Se o CEP está completo (8 dígitos), buscar endereço
+    const cleanCep = unmask(maskedValue);
+    if (cleanCep.length === 8) {
+      setLoadingCep(true);
+      const address = await fetchAddressByCEP(cleanCep);
+      if (address) {
+        setEnderecoLogradouro(address.logradouro || '');
+        setEnderecoBairro(address.bairro || '');
+        setEnderecoCidade(address.localidade || '');
+        setEnderecoEstado(address.uf || '');
+        if (address.complemento) {
+          setEnderecoComplemento(address.complemento);
+        }
+        toast({
+          title: 'Endereço encontrado',
+          description: `${address.logradouro}, ${address.bairro} - ${address.localidade}/${address.uf}`,
+        });
+      } else {
+        toast({
+          title: 'CEP não encontrado',
+          description: 'Verifique o CEP informado ou preencha o endereço manualmente.',
+          variant: 'destructive',
+        });
+      }
+      setLoadingCep(false);
+    }
+  }, []);
 
   const fetchPromocoes = async () => {
     if (!user) return;
@@ -1268,8 +1311,9 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                 <Input
                   id="telefone"
                   value={telefone}
-                  onChange={(e) => setTelefone(e.target.value)}
+                  onChange={handleTelefoneChange}
                   placeholder="(31) 99999-9999"
+                  maxLength={15}
                 />
               </div>
               <div className="space-y-2">
@@ -1277,8 +1321,9 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                 <Input
                   id="cpf"
                   value={cpf}
-                  onChange={(e) => setCpf(e.target.value)}
+                  onChange={handleCpfChange}
                   placeholder="000.000.000-00"
+                  maxLength={14}
                 />
               </div>
             </div>
@@ -1295,12 +1340,23 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="cep">CEP</Label>
-                <Input
-                  id="cep"
-                  value={enderecoCep}
-                  onChange={(e) => setEnderecoCep(e.target.value)}
-                  placeholder="30000-000"
-                />
+                <div className="relative">
+                  <Input
+                    id="cep"
+                    value={enderecoCep}
+                    onChange={handleCepChange}
+                    placeholder="30000-000"
+                    maxLength={9}
+                  />
+                  {loadingCep && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Digite o CEP para preencher o endereço automaticamente
+                </p>
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="logradouro">Logradouro</Label>
