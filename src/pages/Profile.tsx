@@ -23,6 +23,7 @@ import { EmailNotificationSettings } from '@/components/EmailNotificationSetting
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { maskPhone, maskCPF, maskCEP, fetchAddressByCEP, unmask } from '@/lib/masks';
+import { ColaboradorDocumentos } from '@/components/rh';
 
 const BRAZILIAN_STATES = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
@@ -1826,6 +1827,16 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
               </Table>
             </CardContent>
           </Card>
+        )}
+
+        {/* Documentos do Colaborador */}
+        {currentProfile && (canViewOther || !isViewingOther) && (
+          <ColaboradorDocumentos 
+            colaboradorId={currentProfile.id}
+            colaboradorNome={isViewingOther ? currentProfile.full_name : undefined}
+            readOnly={!canViewOther && isViewingOther}
+            compact={false}
+          />
         )}
 
         {/* Usage History */}
