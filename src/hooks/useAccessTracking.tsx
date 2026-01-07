@@ -70,30 +70,30 @@ export function useAccessTracking() {
 
       try {
         // Tentar buscar registro existente
-        const { data: existing } = await (supabase
-          .from('user_access_tracking' as any)
+        const { data: existing } = await supabase
+          .from('user_access_tracking')
           .select('id, access_count')
           .eq('user_id', user.id)
           .eq('page_path', path)
-          .single() as any);
+          .single();
 
         if (existing) {
-          await (supabase
-            .from('user_access_tracking' as any)
+          await supabase
+            .from('user_access_tracking')
             .update({
               access_count: existing.access_count + 1,
               last_accessed_at: new Date().toISOString()
             })
-            .eq('id', existing.id) as any);
+            .eq('id', existing.id);
         } else {
-          await (supabase
-            .from('user_access_tracking' as any)
+          await supabase
+            .from('user_access_tracking')
             .insert({
               user_id: user.id,
               page_path: path,
               page_name: pageName,
               access_count: 1
-            }) as any);
+            });
         }
       } catch (error) {
         // Silently fail - não é crítico
@@ -106,12 +106,12 @@ export function useAccessTracking() {
 }
 
 export async function getTopAccessedPages(userId: string, limit: number = 6): Promise<Array<{ page_path: string; page_name: string; access_count: number }>> {
-  const { data, error } = await (supabase
-    .from('user_access_tracking' as any)
+  const { data, error } = await supabase
+    .from('user_access_tracking')
     .select('page_path, page_name, access_count')
     .eq('user_id', userId)
     .order('access_count', { ascending: false })
-    .limit(limit) as any);
+    .limit(limit);
 
   if (error) {
     console.error('Erro ao buscar páginas mais acessadas:', error);
