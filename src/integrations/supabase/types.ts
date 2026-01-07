@@ -5442,6 +5442,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           nome: string
+          tipo: string | null
           updated_at: string
           valor_base: number
         }
@@ -5452,6 +5453,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           nome: string
+          tipo?: string | null
           updated_at?: string
           valor_base?: number
         }
@@ -5462,6 +5464,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           nome?: string
+          tipo?: string | null
           updated_at?: string
           valor_base?: number
         }
