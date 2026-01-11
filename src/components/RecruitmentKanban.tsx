@@ -140,17 +140,17 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full overflow-hidden">
       {/* Kanban Container com scroll horizontal */}
       <div 
         id="recruitment-kanban-scroll"
-        className="relative overflow-x-auto pb-2"
+        className="overflow-x-scroll pb-4 -mx-1 px-1"
         style={{
-          scrollbarWidth: 'thin',
-          scrollbarColor: 'hsl(var(--primary)) hsl(var(--muted))'
+          WebkitOverflowScrolling: 'touch',
+          scrollBehavior: 'smooth'
         }}
       >
-        <div className="flex gap-4 pb-2" style={{ minWidth: 'max-content' }}>
+        <div className="inline-flex gap-4 pb-2">
           {STAGE_ORDER.map(stage => {
             const stageCandidates = getCandidatesByStage(stage);
             const isDragOver = dragOverStage === stage;
@@ -285,59 +285,32 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
         </div>
       </div>
       
-      {/* Barra de rolagem customizada visual sempre visível */}
-      <div className="relative mt-2 h-4 bg-muted rounded-full mx-1">
-        <div 
-          className="absolute top-0 left-0 h-full bg-primary rounded-full cursor-pointer hover:bg-primary/80 transition-colors"
-          style={{ width: '30%', minWidth: '60px' }}
-          onMouseDown={(e) => {
-            const container = document.getElementById('recruitment-kanban-scroll');
-            if (!container) return;
-            
-            const track = e.currentTarget.parentElement;
-            if (!track) return;
-            
-            const startX = e.clientX;
-            const startLeft = e.currentTarget.offsetLeft;
-            const trackWidth = track.clientWidth;
-            const thumbWidth = e.currentTarget.clientWidth;
-            const maxScroll = container.scrollWidth - container.clientWidth;
-            
-            const onMouseMove = (moveEvent: MouseEvent) => {
-              const deltaX = moveEvent.clientX - startX;
-              const newLeft = Math.max(0, Math.min(startLeft + deltaX, trackWidth - thumbWidth));
-              const scrollPercent = newLeft / (trackWidth - thumbWidth);
-              container.scrollLeft = scrollPercent * maxScroll;
-            };
-            
-            const onMouseUp = () => {
-              document.removeEventListener('mousemove', onMouseMove);
-              document.removeEventListener('mouseup', onMouseUp);
-            };
-            
-            document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('mouseup', onMouseUp);
-          }}
-        />
-      </div>
-      
-      {/* CSS para garantir scrollbar visível */}
+      {/* CSS para scrollbar sempre visível */}
       <style>{`
+        #recruitment-kanban-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: hsl(var(--primary)) hsl(var(--muted));
+        }
         #recruitment-kanban-scroll::-webkit-scrollbar {
-          height: 12px;
+          height: 14px;
           display: block !important;
         }
         #recruitment-kanban-scroll::-webkit-scrollbar-track {
           background: hsl(var(--muted));
-          border-radius: 6px;
+          border-radius: 7px;
+          margin: 0 4px;
         }
         #recruitment-kanban-scroll::-webkit-scrollbar-thumb {
           background: hsl(var(--primary));
-          border-radius: 6px;
-          border: 2px solid hsl(var(--muted));
+          border-radius: 7px;
+          border: 3px solid hsl(var(--muted));
+          min-width: 40px;
         }
         #recruitment-kanban-scroll::-webkit-scrollbar-thumb:hover {
           background: hsl(var(--primary) / 0.8);
+        }
+        #recruitment-kanban-scroll::-webkit-scrollbar-thumb:active {
+          background: hsl(var(--primary) / 0.7);
         }
       `}</style>
     </div>
