@@ -155,8 +155,41 @@ Deno.serve(async (req) => {
         console.log('Fetching payments:', url);
         
         const response = await fetch(url, { method: 'GET', headers });
-        result = await response.json();
-        console.log('Payments result:', result);
+        const paymentsResult = await response.json();
+        console.log('Payments result:', paymentsResult);
+        
+        // Buscar nomes dos clientes para cada pagamento
+        if (paymentsResult.data && paymentsResult.data.length > 0) {
+          // Criar um cache de IDs de clientes únicos
+          const customerIds = [...new Set(paymentsResult.data.map((p: any) => p.customer))] as string[];
+          const customerNames: Record<string, string> = {};
+          
+          // Buscar informações de cada cliente
+          await Promise.all(
+            customerIds.map(async (customerId) => {
+              try {
+                const customerRes = await fetch(`${ASAAS_API_URL}/customers/${customerId}`, {
+                  method: 'GET',
+                  headers,
+                });
+                const customerData = await customerRes.json();
+                if (customerData.name) {
+                  customerNames[customerId] = customerData.name;
+                }
+              } catch (err) {
+                console.error(`Erro ao buscar cliente ${customerId}:`, err);
+              }
+            })
+          );
+          
+          // Adicionar nome do cliente em cada pagamento
+          paymentsResult.data = paymentsResult.data.map((payment: any) => ({
+            ...payment,
+            customerName: customerNames[payment.customer] || payment.customer,
+          }));
+        }
+        
+        result = paymentsResult;
         break;
       }
 

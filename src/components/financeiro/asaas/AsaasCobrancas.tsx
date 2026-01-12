@@ -27,6 +27,7 @@ import {
 interface Payment {
   id: string;
   customer: string;
+  customerName?: string;
   value: number;
   netValue: number;
   billingType: string;
@@ -246,8 +247,8 @@ export function AsaasCobrancas({ onNovaCobranca }: AsaasCobrancasProps) {
                   <TableRow key={payment.id}>
                     <TableCell>
                       <div>
-                        <p className="font-medium">{payment.description || 'Sem descrição'}</p>
-                        <p className="text-xs text-muted-foreground">{payment.id}</p>
+                        <p className="font-medium">{payment.customerName || payment.customer}</p>
+                        <p className="text-sm text-muted-foreground">{payment.description || 'Sem descrição'}</p>
                         {payment.installmentNumber && (
                           <Badge variant="outline" className="mt-1 text-xs">
                             Parcela {payment.installmentNumber}
