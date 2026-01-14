@@ -233,6 +233,149 @@ export function LeadFormsManager() {
   // Prevent multiple initializations
   if (window['leadForm_${formId}_initialized']) return;
   
+  // UTM Storage Key - persists UTMs across page navigation
+  var UTM_STORAGE_KEY = 'lead_form_utm_params';
+  var UTM_LANDING_KEY = 'lead_form_landing_page';
+  var UTM_REFERRER_KEY = 'lead_form_original_referrer';
+  
+  // Function to get and persist UTM params
+  function getUtmParams() {
+    var urlParams = new URLSearchParams(window.location.search);
+    var utmParams = {
+      utm_source: urlParams.get('utm_source'),
+      utm_medium: urlParams.get('utm_medium'),
+      utm_campaign: urlParams.get('utm_campaign'),
+      utm_content: urlParams.get('utm_content'),
+      utm_term: urlParams.get('utm_term')
+    };
+    
+    // Check if we have UTMs in the current URL
+    var hasUtmsInUrl = utmParams.utm_source || utmParams.utm_medium || utmParams.utm_campaign;
+    
+    if (hasUtmsInUrl) {
+      // Save UTMs to sessionStorage for persistence across page navigation
+      try {
+        sessionStorage.setItem(UTM_STORAGE_KEY, JSON.stringify(utmParams));
+        sessionStorage.setItem(UTM_LANDING_KEY, window.location.href);
+        if (document.referrer) {
+          sessionStorage.setItem(UTM_REFERRER_KEY, document.referrer);
+        }
+      } catch (e) {
+        console.log('UTM storage not available');
+      }
+      return utmParams;
+    }
+    
+    // Try to recover UTMs from sessionStorage
+    try {
+      var storedUtms = sessionStorage.getItem(UTM_STORAGE_KEY);
+      if (storedUtms) {
+        return JSON.parse(storedUtms);
+      }
+    } catch (e) {
+      console.log('Could not retrieve stored UTMs');
+    }
+    
+    // Try to extract UTMs from referrer URL (if user came from an ad)
+    if (document.referrer) {
+      try {
+        var referrerUrl = new URL(document.referrer);
+        var referrerParams = new URLSearchParams(referrerUrl.search);
+        var referrerUtms = {
+          utm_source: referrerParams.get('utm_source'),
+          utm_medium: referrerParams.get('utm_medium'),
+          utm_campaign: referrerParams.get('utm_campaign'),
+          utm_content: referrerParams.get('utm_content'),
+          utm_term: referrerParams.get('utm_term')
+        };
+        if (referrerUtms.utm_source || referrerUtms.utm_medium) {
+          return referrerUtms;
+        }
+      } catch (e) {
+        // Invalid referrer URL
+      }
+    }
+    
+    // Auto-detect source from referrer domain
+    var autoSource = null;
+    var autoMedium = null;
+    if (document.referrer) {
+      try {
+        var refHost = new URL(document.referrer).hostname.toLowerCase();
+        if (refHost.includes('google')) {
+          autoSource = 'google';
+          autoMedium = refHost.includes('ads') || refHost.includes('adwords') ? 'cpc' : 'organic';
+        } else if (refHost.includes('facebook') || refHost.includes('fb.com') || refHost.includes('instagram')) {
+          autoSource = 'facebook';
+          autoMedium = 'referral';
+        } else if (refHost.includes('bing')) {
+          autoSource = 'bing';
+          autoMedium = 'organic';
+        } else if (refHost.includes('yahoo')) {
+          autoSource = 'yahoo';
+          autoMedium = 'organic';
+        } else if (refHost.includes('linkedin')) {
+          autoSource = 'linkedin';
+          autoMedium = 'referral';
+        } else if (refHost.includes('twitter') || refHost.includes('x.com')) {
+          autoSource = 'twitter';
+          autoMedium = 'referral';
+        } else if (refHost.includes('youtube')) {
+          autoSource = 'youtube';
+          autoMedium = 'referral';
+        } else if (refHost.includes('tiktok')) {
+          autoSource = 'tiktok';
+          autoMedium = 'referral';
+        } else if (refHost && !refHost.includes(window.location.hostname)) {
+          autoSource = refHost.replace('www.', '');
+          autoMedium = 'referral';
+        }
+      } catch (e) {}
+    }
+    
+    // If no UTMs found anywhere but we detected a source
+    if (autoSource) {
+      return {
+        utm_source: autoSource,
+        utm_medium: autoMedium,
+        utm_campaign: null,
+        utm_content: null,
+        utm_term: null
+      };
+    }
+    
+    // Check if it's a direct access
+    if (!document.referrer || document.referrer.includes(window.location.hostname)) {
+      return {
+        utm_source: 'direct',
+        utm_medium: 'none',
+        utm_campaign: null,
+        utm_content: null,
+        utm_term: null
+      };
+    }
+    
+    return utmParams;
+  }
+  
+  // Get original landing page from storage or current URL
+  function getOriginalLandingPage() {
+    try {
+      var stored = sessionStorage.getItem(UTM_LANDING_KEY);
+      if (stored) return stored;
+    } catch (e) {}
+    return window.location.href;
+  }
+  
+  // Get original referrer from storage
+  function getOriginalReferrer() {
+    try {
+      var stored = sessionStorage.getItem(UTM_REFERRER_KEY);
+      if (stored) return stored;
+    } catch (e) {}
+    return document.referrer || null;
+  }
+  
   function initLeadForm() {
     var form = document.getElementById('lead-form-${form.id}');
     var submitBtn = document.getElementById('submit-btn-${form.id}');
@@ -249,8 +392,8 @@ export function LeadFormsManager() {
     form.dataset.initialized = 'true';
     window['leadForm_${formId}_initialized'] = true;
     
-    // Get UTM params from URL
-    var urlParams = new URLSearchParams(window.location.search);
+    // Get UTM params (with persistence and auto-detection)
+    var utmData = getUtmParams();
     
     // Create WhatsApp icon
     function createWhatsAppIcon() {
@@ -305,13 +448,13 @@ export function LeadFormsManager() {
         name: nameVal,
         email: emailVal || null,
         phone: phoneVal,
-        utm_source: urlParams.get('utm_source'),
-        utm_medium: urlParams.get('utm_medium'),
-        utm_campaign: urlParams.get('utm_campaign'),
-        utm_content: urlParams.get('utm_content'),
-        utm_term: urlParams.get('utm_term'),
-        landing_page: window.location.href,
-        referrer: document.referrer || null,
+        utm_source: utmData.utm_source,
+        utm_medium: utmData.utm_medium,
+        utm_campaign: utmData.utm_campaign,
+        utm_content: utmData.utm_content,
+        utm_term: utmData.utm_term,
+        landing_page: getOriginalLandingPage(),
+        referrer: getOriginalReferrer(),
         user_agent: navigator.userAgent,
         website_url: formDataObj.get('website_url') || ''
       };
