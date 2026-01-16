@@ -124,8 +124,146 @@ async function makeAdvboxRequest(
 // Nome da responsável padrão (coordenadora)
 const DEFAULT_RESPONSIBLE_NAME = 'Mariana';
 
+// Buscar utm_source do lead pelo email ou telefone do cliente
+async function getLeadMarketingSource(email?: string, phone?: string): Promise<string | null> {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.warn('Supabase não configurado para buscar origem do lead');
+    return null;
+  }
+  
+  if (!email && !phone) {
+    console.log('Nenhum email ou telefone fornecido para buscar lead');
+    return null;
+  }
+  
+  try {
+    console.log('Buscando origem do lead por email/telefone:', email, phone);
+    
+    // Limpar telefone para busca
+    const phoneClean = phone?.replace(/\D/g, '');
+    
+    // Buscar na tabela captured_leads
+    let query = `${SUPABASE_URL}/rest/v1/captured_leads?select=utm_source,utm_medium,email,phone&order=created_at.desc&limit=1`;
+    
+    // Construir filtro - buscar por email OU telefone
+    const filters: string[] = [];
+    if (email) {
+      filters.push(`email.ilike.*${email.toLowerCase()}*`);
+    }
+    if (phoneClean && phoneClean.length >= 10) {
+      // Buscar por telefone parcial (últimos 9 dígitos)
+      const phoneSuffix = phoneClean.slice(-9);
+      filters.push(`phone.ilike.*${phoneSuffix}*`);
+    }
+    
+    if (filters.length === 0) {
+      return null;
+    }
+    
+    // Usar OR para buscar por qualquer um dos campos
+    query += `&or=(${filters.join(',')})`;
+    
+    console.log('Query para buscar lead:', query);
+    
+    const response = await fetch(query, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY!,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      console.error('Erro ao buscar lead:', response.status);
+      return null;
+    }
+    
+    const leads = await response.json();
+    console.log('Leads encontrados:', leads?.length);
+    
+    if (leads && leads.length > 0) {
+      const lead = leads[0];
+      console.log('Lead encontrado:', { utm_source: lead.utm_source, utm_medium: lead.utm_medium });
+      return lead.utm_source || lead.utm_medium || null;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Erro ao buscar origem do lead:', error);
+    return null;
+  }
+}
+
+// Mapear utm_source para origem do Advbox
+function findOriginByMarketingSource(
+  origins: Array<{ id: string; name: string }>, 
+  utmSource: string
+): { id: string; name: string } | null {
+  const sourceLower = utmSource.toLowerCase().trim();
+  
+  console.log(`Buscando origem para utm_source: "${sourceLower}"`);
+  console.log('Origens disponíveis:', origins.map(o => o.name));
+  
+  // Mapeamento de utm_source para possíveis nomes de origem no Advbox
+  const sourceToOriginMappings: Record<string, string[]> = {
+    'facebook': ['facebook', 'fb', 'meta', 'face'],
+    'fb': ['facebook', 'fb', 'meta', 'face'],
+    'instagram': ['instagram', 'insta', 'ig', 'meta'],
+    'ig': ['instagram', 'insta', 'ig', 'meta'],
+    'google': ['google', 'google ads', 'adwords', 'gads'],
+    'google_ads': ['google', 'google ads', 'adwords', 'gads'],
+    'tiktok': ['tiktok', 'tik tok', 'tt'],
+    'youtube': ['youtube', 'yt'],
+    'linkedin': ['linkedin', 'linked'],
+    'twitter': ['twitter', 'x', 'tweet'],
+    'organic': ['orgânico', 'organico', 'organic', 'direto'],
+    'referral': ['indicação', 'indicacao', 'referral', 'parceiro'],
+    'email': ['email', 'e-mail', 'newsletter'],
+    'whatsapp': ['whatsapp', 'whats', 'wpp', 'zap'],
+    'site': ['site', 'website', 'web'],
+  };
+  
+  // Primeiro, tentar match direto com o nome da origem
+  for (const origin of origins) {
+    const originLower = origin.name.toLowerCase();
+    
+    // Match exato
+    if (originLower === sourceLower || originLower.includes(sourceLower)) {
+      console.log(`Match direto encontrado: "${origin.name}"`);
+      return origin;
+    }
+  }
+  
+  // Segundo, usar mapeamento de variações
+  const variations = sourceToOriginMappings[sourceLower] || [];
+  for (const variation of variations) {
+    for (const origin of origins) {
+      const originLower = origin.name.toLowerCase();
+      if (originLower.includes(variation) || variation.includes(originLower)) {
+        console.log(`Match por variação encontrado: "${origin.name}" (via "${variation}")`);
+        return origin;
+      }
+    }
+  }
+  
+  // Terceiro, buscar por palavras parciais do utm_source
+  const sourceWords = sourceLower.split(/[\s\-_]+/);
+  for (const word of sourceWords) {
+    if (word.length < 3) continue;
+    for (const origin of origins) {
+      if (origin.name.toLowerCase().includes(word)) {
+        console.log(`Match por palavra parcial: "${origin.name}" (via "${word}")`);
+        return origin;
+      }
+    }
+  }
+  
+  console.log('Nenhuma origem correspondente encontrada para:', sourceLower);
+  return null;
+}
+
 // Buscar configurações do Advbox (usuários e origens)
-async function getAdvboxSettings(productName?: string): Promise<AdvboxSettings> {
+async function getAdvboxSettings(clientEmail?: string, clientPhone?: string): Promise<AdvboxSettings> {
   try {
     console.log('Fetching Advbox settings...');
     const response = await makeAdvboxRequest('/settings');
@@ -184,21 +322,32 @@ async function getAdvboxSettings(productName?: string): Promise<AdvboxSettings> 
       }
     }
     
-    // Buscar origem correspondente ao produto
-    if (result.origins && result.origins.length > 0 && productName) {
-      const matchedOrigin = findMatchingOrigin(result.origins, productName);
+    // Buscar origem de marketing do lead (utm_source) pelo email/telefone do cliente
+    if (result.origins && result.origins.length > 0) {
+      let matchedOrigin: { id: string; name: string } | null = null;
       
-      if (matchedOrigin) {
-        result.defaultOriginId = matchedOrigin.id;
-        console.log(`Matched origin for "${productName}": ${result.defaultOriginId} (${matchedOrigin.name})`);
-      } else {
-        // Se não encontrar correspondência, usar a primeira origem
-        result.defaultOriginId = result.origins[0].id;
-        console.log(`No origin match for "${productName}", using first: ${result.defaultOriginId} (${result.origins[0].name})`);
+      // Primeiro, tentar buscar a origem de marketing do lead (utm_source)
+      if (clientEmail || clientPhone) {
+        const utmSource = await getLeadMarketingSource(clientEmail, clientPhone);
+        
+        if (utmSource) {
+          console.log(`Origem de marketing encontrada: "${utmSource}"`);
+          matchedOrigin = findOriginByMarketingSource(result.origins, utmSource);
+          
+          if (matchedOrigin) {
+            result.defaultOriginId = matchedOrigin.id;
+            console.log(`Origem mapeada para utm_source "${utmSource}": ${result.defaultOriginId} (${matchedOrigin.name})`);
+          }
+        } else {
+          console.log('Nenhuma origem de marketing (utm_source) encontrada para o lead');
+        }
       }
-    } else if (result.origins && result.origins.length > 0) {
-      result.defaultOriginId = result.origins[0].id;
-      console.log(`Default origin (no product): ${result.defaultOriginId} (${result.origins[0].name})`);
+      
+      // Se não encontrar correspondência, usar a primeira origem como fallback
+      if (!matchedOrigin) {
+        result.defaultOriginId = result.origins[0].id;
+        console.log(`Usando primeira origem como fallback: ${result.defaultOriginId} (${result.origins[0].name})`);
+      }
     }
     
     // Log settings para debug
@@ -582,9 +731,9 @@ Deno.serve(async (req) => {
       syncError = 'Token ADVBOX não configurado';
     } else {
       try {
-        // 0. Buscar configurações do Advbox (usuários e origens) - passando productName para mapear origem
-        console.log('Fetching Advbox settings for required fields with product:', contractData.productName);
-        const advboxSettings = await getAdvboxSettings(contractData.productName);
+        // 0. Buscar configurações do Advbox (usuários e origens) - passando email/telefone para buscar origem de marketing
+        console.log('Fetching Advbox settings with client email/phone:', contractData.client.email, contractData.client.telefone);
+        const advboxSettings = await getAdvboxSettings(contractData.client.email, contractData.client.telefone);
         
         if (!advboxSettings.defaultUserId) {
           console.warn('No default user found in Advbox settings');
