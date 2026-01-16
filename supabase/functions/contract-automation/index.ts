@@ -121,8 +121,11 @@ async function makeAdvboxRequest(
   }
 }
 
+// Nome da responsável padrão (coordenadora)
+const DEFAULT_RESPONSIBLE_NAME = 'Mariana';
+
 // Buscar configurações do Advbox (usuários e origens)
-async function getAdvboxSettings(): Promise<AdvboxSettings> {
+async function getAdvboxSettings(productName?: string): Promise<AdvboxSettings> {
   try {
     console.log('Fetching Advbox settings...');
     const response = await makeAdvboxRequest('/settings');
@@ -165,25 +168,103 @@ async function getAdvboxSettings(): Promise<AdvboxSettings> {
       console.log(`Found ${result.origins?.length} customer origins in account`);
     }
     
-    // Definir padrões
+    // Buscar Mariana como responsável padrão
     if (result.users && result.users.length > 0) {
-      result.defaultUserId = result.users[0].id;
-      console.log(`Default user: ${result.defaultUserId} (${result.users[0].name})`);
+      const mariana = result.users.find((u: { id: string; name: string }) => 
+        u.name?.toLowerCase().includes(DEFAULT_RESPONSIBLE_NAME.toLowerCase())
+      );
+      
+      if (mariana) {
+        result.defaultUserId = mariana.id;
+        console.log(`Default user (Mariana): ${result.defaultUserId} (${mariana.name})`);
+      } else {
+        // Se não encontrar Mariana, usar o primeiro usuário como fallback
+        result.defaultUserId = result.users[0].id;
+        console.log(`Mariana not found, using first user as fallback: ${result.defaultUserId} (${result.users[0].name})`);
+      }
     }
     
-    if (result.origins && result.origins.length > 0) {
+    // Buscar origem correspondente ao produto
+    if (result.origins && result.origins.length > 0 && productName) {
+      const matchedOrigin = findMatchingOrigin(result.origins, productName);
+      
+      if (matchedOrigin) {
+        result.defaultOriginId = matchedOrigin.id;
+        console.log(`Matched origin for "${productName}": ${result.defaultOriginId} (${matchedOrigin.name})`);
+      } else {
+        // Se não encontrar correspondência, usar a primeira origem
+        result.defaultOriginId = result.origins[0].id;
+        console.log(`No origin match for "${productName}", using first: ${result.defaultOriginId} (${result.origins[0].name})`);
+      }
+    } else if (result.origins && result.origins.length > 0) {
       result.defaultOriginId = result.origins[0].id;
-      console.log(`Default origin: ${result.defaultOriginId} (${result.origins[0].name})`);
+      console.log(`Default origin (no product): ${result.defaultOriginId} (${result.origins[0].name})`);
     }
     
     // Log settings para debug
-    console.log('Settings response sample:', JSON.stringify(settings).substring(0, 1000));
+    console.log('Users available:', JSON.stringify(result.users));
+    console.log('Origins available:', JSON.stringify(result.origins));
     
     return result;
   } catch (error) {
     console.error('Error fetching Advbox settings:', error);
     return { users: [], origins: [] };
   }
+}
+
+// Função para mapear productName para origem do Advbox
+function findMatchingOrigin(
+  origins: Array<{ id: string; name: string }>, 
+  productName: string
+): { id: string; name: string } | null {
+  const productLower = productName.toLowerCase();
+  
+  // Mapeamento de palavras-chave do produto para possíveis origens
+  const keywordMappings: Record<string, string[]> = {
+    'imobiliário': ['imobiliário', 'imobiliario', 'imóveis', 'imoveis', 'obra', 'construtora'],
+    'atraso': ['atraso', 'obra', 'construção', 'entrega'],
+    'rescisão': ['rescisão', 'rescisao', 'contrato', 'distrato'],
+    'férias': ['férias', 'ferias', 'prêmio', 'premio', 'trabalhista'],
+    'isenção': ['isenção', 'isencao', 'ir', 'imposto', 'tributário', 'tributario'],
+    'trabalhista': ['trabalhista', 'trabalho', 'clt', 'emprego'],
+    'previdenciário': ['previdenciário', 'previdenciario', 'inss', 'aposentadoria', 'benefício'],
+    'consumidor': ['consumidor', 'consumo', 'produto', 'serviço'],
+    'família': ['família', 'familia', 'divórcio', 'pensão', 'guarda'],
+  };
+  
+  // Primeiro, tentar match exato ou parcial com o nome da origem
+  for (const origin of origins) {
+    const originLower = origin.name.toLowerCase();
+    
+    // Match exato ou se o nome do produto contém o nome da origem
+    if (productLower.includes(originLower) || originLower.includes(productLower)) {
+      return origin;
+    }
+    
+    // Verificar se alguma palavra-chave do produto corresponde à origem
+    for (const [keyword, variations] of Object.entries(keywordMappings)) {
+      if (productLower.includes(keyword)) {
+        for (const variation of variations) {
+          if (originLower.includes(variation)) {
+            return origin;
+          }
+        }
+      }
+    }
+  }
+  
+  // Se não encontrar match, tentar por palavras individuais
+  const productWords = productLower.split(/[\s\-–]+/);
+  for (const origin of origins) {
+    const originLower = origin.name.toLowerCase();
+    for (const word of productWords) {
+      if (word.length > 3 && originLower.includes(word)) {
+        return origin;
+      }
+    }
+  }
+  
+  return null;
 }
 
 // Buscar cliente existente pelo CPF ou nome
@@ -501,9 +582,9 @@ Deno.serve(async (req) => {
       syncError = 'Token ADVBOX não configurado';
     } else {
       try {
-        // 0. Buscar configurações do Advbox (usuários e origens)
-        console.log('Fetching Advbox settings for required fields...');
-        const advboxSettings = await getAdvboxSettings();
+        // 0. Buscar configurações do Advbox (usuários e origens) - passando productName para mapear origem
+        console.log('Fetching Advbox settings for required fields with product:', contractData.productName);
+        const advboxSettings = await getAdvboxSettings(contractData.productName);
         
         if (!advboxSettings.defaultUserId) {
           console.warn('No default user found in Advbox settings');
