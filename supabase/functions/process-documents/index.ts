@@ -164,6 +164,15 @@ serve(async (req) => {
           continue;
         }
         
+        // Check for unsupported image formats
+        const unsupportedFormats = ['image/heic', 'image/heif', 'image/avif', 'image/tiff'];
+        if (unsupportedFormats.includes(file.type) || 
+            file.name.toLowerCase().endsWith('.heic') || 
+            file.name.toLowerCase().endsWith('.heif')) {
+          console.error(`Formato não suportado: ${file.name} (${file.type}). Arquivos HEIC devem ser convertidos no frontend.`);
+          continue;
+        }
+        
         // Decode base64 for images using fast method
         const imageBytes = base64ToUint8Array(file.data);
         
@@ -171,15 +180,20 @@ serve(async (req) => {
         try {
           if (file.type.includes('png')) {
             pdfImage = await pdfDoc.embedPng(imageBytes);
+          } else if (file.type.includes('gif')) {
+            // GIF não é suportado diretamente, tentar como JPEG
+            console.log(`GIF ${file.name} será tratado como JPEG`);
+            pdfImage = await pdfDoc.embedJpg(imageBytes);
           } else {
             pdfImage = await pdfDoc.embedJpg(imageBytes);
           }
         } catch (e) {
           console.error(`Erro ao processar imagem ${file.name}:`, e);
+          // Tentar como PNG se JPEG falhar
           try {
-            pdfImage = await pdfDoc.embedJpg(imageBytes);
+            pdfImage = await pdfDoc.embedPng(imageBytes);
           } catch (e2) {
-            console.error(`Falha ao processar ${file.name} como JPEG também`);
+            console.error(`Falha ao processar ${file.name} como PNG também`);
             continue;
           }
         }

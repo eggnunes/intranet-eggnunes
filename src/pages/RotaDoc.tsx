@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
+import heic2any from 'heic2any';
 
 interface ProcessedDocument {
   name: string;
@@ -35,6 +36,32 @@ export default function RotaDoc() {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Convert HEIC files to JPEG
+  const convertHeicToJpeg = async (file: File): Promise<File> => {
+    if (file.type === 'image/heic' || file.type === 'image/heif' || 
+        file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+      try {
+        console.log(`Convertendo ${file.name} de HEIC para JPEG...`);
+        const blob = await heic2any({
+          blob: file,
+          toType: 'image/jpeg',
+          quality: 0.92,
+        });
+        
+        // heic2any can return array of blobs for multi-image HEIC
+        const resultBlob = Array.isArray(blob) ? blob[0] : blob;
+        const newName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+        const convertedFile = new File([resultBlob], newName, { type: 'image/jpeg' });
+        console.log(`${file.name} convertido com sucesso para ${newName}`);
+        return convertedFile;
+      } catch (error) {
+        console.error(`Erro ao converter ${file.name}:`, error);
+        throw new Error(`Não foi possível converter ${file.name}. Por favor, converta para JPG manualmente.`);
+      }
+    }
+    return file;
+  };
+
   const handleProcess = async () => {
     if (files.length === 0) {
       toast({
@@ -51,8 +78,19 @@ export default function RotaDoc() {
     setProgress({ current: 0, total: files.length, startTime, estimatedTimeRemaining: 0 });
 
     try {
-      const filesData = await Promise.all(
+      // Convert HEIC files first
+      const convertedFiles = await Promise.all(
         files.map(async (file) => {
+          try {
+            return await convertHeicToJpeg(file);
+          } catch (error) {
+            throw error;
+          }
+        })
+      );
+
+      const filesData = await Promise.all(
+        convertedFiles.map(async (file) => {
           const base64 = await new Promise<string>((resolve) => {
             const reader = new FileReader();
             reader.onloadend = () => {
@@ -165,8 +203,8 @@ export default function RotaDoc() {
               <li><strong>Correção automática de orientação:</strong> Detecta e corrige páginas que estão de cabeça para baixo, rotacionadas ou invertidas</li>
               <li><strong>Identificação inteligente:</strong> Reconhece automaticamente tipos de documentos (relatórios médicos, procurações, etc.)</li>
               <li><strong>Organização por tipo:</strong> Agrupa documentos similares em PDFs separados ou mescla tudo em um único arquivo</li>
-              <li><strong>Suporte múltiplos formatos:</strong> Processa imagens (JPG, PNG) e PDFs com múltiplas páginas</li>
-              <li><strong>Extração de PDFs:</strong> Extrai páginas individuais de PDFs para análise e correção</li>
+              <li><strong>Suporte múltiplos formatos:</strong> Processa imagens (JPG, PNG, HEIC) e PDFs com múltiplas páginas</li>
+              <li><strong>Conversão automática:</strong> Arquivos HEIC (iPhone) são convertidos automaticamente para JPEG</li>
             </ul>
           </CardContent>
         </Card>
