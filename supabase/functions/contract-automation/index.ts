@@ -45,6 +45,13 @@ interface ContractData {
   qualification?: string;
 }
 
+interface AdvboxSettings {
+  defaultUserId?: string;
+  defaultOriginId?: string;
+  users?: Array<{ id: string; name: string }>;
+  origins?: Array<{ id: string; name: string }>;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -114,6 +121,71 @@ async function makeAdvboxRequest(
   }
 }
 
+// Buscar configurações do Advbox (usuários e origens)
+async function getAdvboxSettings(): Promise<AdvboxSettings> {
+  try {
+    console.log('Fetching Advbox settings...');
+    const response = await makeAdvboxRequest('/settings');
+    
+    const settings = response.data || response;
+    console.log('Settings keys:', Object.keys(settings));
+    
+    const result: AdvboxSettings = {
+      users: [],
+      origins: [],
+    };
+    
+    // Extrair usuários
+    if (settings.users && Array.isArray(settings.users)) {
+      result.users = settings.users.map((u: any) => ({
+        id: String(u.id || u.user_id || u.users_id),
+        name: u.name || u.full_name || u.nome || u.email,
+      })).filter((u: any) => u.id && u.id !== 'undefined');
+      console.log(`Found ${result.users?.length} users`);
+    } else if (settings.account?.users && Array.isArray(settings.account.users)) {
+      result.users = settings.account.users.map((u: any) => ({
+        id: String(u.id || u.user_id || u.users_id),
+        name: u.name || u.full_name || u.nome || u.email,
+      })).filter((u: any) => u.id && u.id !== 'undefined');
+      console.log(`Found ${result.users?.length} users in account`);
+    }
+    
+    // Extrair origens de clientes
+    if (settings.customers_origins && Array.isArray(settings.customers_origins)) {
+      result.origins = settings.customers_origins.map((o: any) => ({
+        id: String(o.id || o.customers_origins_id),
+        name: o.name || o.origin || o.origem,
+      })).filter((o: any) => o.id && o.id !== 'undefined');
+      console.log(`Found ${result.origins?.length} customer origins`);
+    } else if (settings.account?.customers_origins && Array.isArray(settings.account.customers_origins)) {
+      result.origins = settings.account.customers_origins.map((o: any) => ({
+        id: String(o.id || o.customers_origins_id),
+        name: o.name || o.origin || o.origem,
+      })).filter((o: any) => o.id && o.id !== 'undefined');
+      console.log(`Found ${result.origins?.length} customer origins in account`);
+    }
+    
+    // Definir padrões
+    if (result.users && result.users.length > 0) {
+      result.defaultUserId = result.users[0].id;
+      console.log(`Default user: ${result.defaultUserId} (${result.users[0].name})`);
+    }
+    
+    if (result.origins && result.origins.length > 0) {
+      result.defaultOriginId = result.origins[0].id;
+      console.log(`Default origin: ${result.defaultOriginId} (${result.origins[0].name})`);
+    }
+    
+    // Log settings para debug
+    console.log('Settings response sample:', JSON.stringify(settings).substring(0, 1000));
+    
+    return result;
+  } catch (error) {
+    console.error('Error fetching Advbox settings:', error);
+    return { users: [], origins: [] };
+  }
+}
+
 // Buscar cliente existente pelo CPF ou nome
 async function findExistingCustomer(cpf: string, name: string): Promise<any | null> {
   try {
@@ -154,8 +226,26 @@ async function findExistingCustomer(cpf: string, name: string): Promise<any | nu
   }
 }
 
+// Formatar endereço no formato esperado pelo Advbox: "Rua Nome, 123"
+function formatStreet(rua?: string, numero?: string): string {
+  if (!rua) return '';
+  
+  const ruaClean = rua.trim();
+  const numeroClean = numero?.trim() || 'S/N';
+  
+  // Verificar se já tem número no endereço
+  if (/,\s*\d+/.test(ruaClean) || /\s+\d+$/.test(ruaClean)) {
+    return ruaClean;
+  }
+  
+  return `${ruaClean}, ${numeroClean}`;
+}
+
 // Criar cliente no ADVBOX
-async function createCustomer(client: ClientData): Promise<{ id: string } | null> {
+async function createCustomer(
+  client: ClientData, 
+  settings: AdvboxSettings
+): Promise<{ id: string } | null> {
   try {
     console.log('Creating customer in ADVBOX:', client.nomeCompleto);
     
@@ -171,7 +261,12 @@ async function createCustomer(client: ClientData): Promise<{ id: string } | null
       }
     }
     
-    const customerData = {
+    // Formatar endereço com número
+    const formattedStreet = formatStreet(client.rua, client.numero);
+    console.log('Formatted street:', formattedStreet);
+    
+    // Montar payload com campos obrigatórios
+    const customerData: Record<string, any> = {
       name: client.nomeCompleto,
       cpf: client.cpf?.replace(/\D/g, ''),
       rg: client.documentoIdentidade,
@@ -182,13 +277,30 @@ async function createCustomer(client: ClientData): Promise<{ id: string } | null
       email: client.email,
       zip_code: client.cep?.replace(/\D/g, ''),
       city: client.cidade,
-      street: client.rua,
-      number: client.numero,
+      street: formattedStreet, // Endereço formatado com número
       complement: client.complemento,
       neighborhood: client.bairro,
       state: client.estado,
       type: 'person', // pessoa física
     };
+    
+    // Adicionar responsável (obrigatório)
+    if (settings.defaultUserId) {
+      customerData.users_id = settings.defaultUserId;
+      console.log('Setting users_id:', settings.defaultUserId);
+    } else {
+      console.warn('No default user found - this may cause API error');
+    }
+    
+    // Adicionar origem do cliente (obrigatório)
+    if (settings.defaultOriginId) {
+      customerData.customers_origins_id = settings.defaultOriginId;
+      console.log('Setting customers_origins_id:', settings.defaultOriginId);
+    } else {
+      console.warn('No default origin found - this may cause API error');
+    }
+    
+    console.log('Customer payload:', JSON.stringify(customerData));
     
     const response = await makeAdvboxRequest('/customers', 'POST', customerData);
     
@@ -205,19 +317,27 @@ async function createCustomer(client: ClientData): Promise<{ id: string } | null
 async function createLawsuit(
   customerId: string, 
   productName: string, 
-  objetoContrato?: string
+  objetoContrato?: string,
+  settings?: AdvboxSettings
 ): Promise<{ id: string } | null> {
   try {
     console.log('Creating lawsuit in ADVBOX for customer:', customerId);
     
-    const lawsuitData = {
+    const lawsuitData: Record<string, any> = {
       customer_id: customerId,
       title: productName,
       description: objetoContrato || `Contrato: ${productName}`,
       type: 'judicial', // Tipo padrão
       status: 'active',
-      // O número do processo será preenchido quando houver
     };
+    
+    // Adicionar responsável se disponível
+    if (settings?.defaultUserId) {
+      lawsuitData.users_id = settings.defaultUserId;
+      console.log('Setting lawsuit users_id:', settings.defaultUserId);
+    }
+    
+    console.log('Lawsuit payload:', JSON.stringify(lawsuitData));
     
     const response = await makeAdvboxRequest('/lawsuits', 'POST', lawsuitData);
     
@@ -381,6 +501,17 @@ Deno.serve(async (req) => {
       syncError = 'Token ADVBOX não configurado';
     } else {
       try {
+        // 0. Buscar configurações do Advbox (usuários e origens)
+        console.log('Fetching Advbox settings for required fields...');
+        const advboxSettings = await getAdvboxSettings();
+        
+        if (!advboxSettings.defaultUserId) {
+          console.warn('No default user found in Advbox settings');
+        }
+        if (!advboxSettings.defaultOriginId) {
+          console.warn('No default origin found in Advbox settings');
+        }
+        
         // 1. Verificar se cliente já existe no ADVBOX
         const existingCustomer = await findExistingCustomer(
           contractData.client.cpf, 
@@ -391,8 +522,9 @@ Deno.serve(async (req) => {
           advboxCustomerId = String(existingCustomer.id);
           console.log('Using existing customer:', advboxCustomerId);
         } else {
-          // 2. Criar cliente no ADVBOX
-          const newCustomer = await createCustomer(contractData.client);
+          // 2. Criar cliente no ADVBOX (com campos obrigatórios)
+          await sleep(1000); // Delay para evitar rate limit
+          const newCustomer = await createCustomer(contractData.client, advboxSettings);
           if (newCustomer) {
             advboxCustomerId = newCustomer.id;
             console.log('Created new customer:', advboxCustomerId);
@@ -407,7 +539,8 @@ Deno.serve(async (req) => {
             const lawsuit = await createLawsuit(
               advboxCustomerId, 
               contractData.productName,
-              contractData.objetoContrato
+              contractData.objetoContrato,
+              advboxSettings
             );
             
             if (lawsuit) {
