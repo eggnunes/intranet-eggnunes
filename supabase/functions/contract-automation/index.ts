@@ -271,46 +271,91 @@ function findOriginByMarketingSource(
 // Buscar configurações do Advbox (usuários e origens)
 // Prioridade para origem: 1) comoConheceu do formulário, 2) utm_source do lead
 async function getAdvboxSettings(clientEmail?: string, clientPhone?: string, comoConheceu?: string): Promise<AdvboxSettings> {
+  const result: AdvboxSettings = {
+    users: [],
+    origins: [],
+  };
+  
   try {
     console.log('Fetching Advbox settings...');
-    const response = await makeAdvboxRequest('/settings');
     
-    const settings = response.data || response;
-    console.log('Settings keys:', Object.keys(settings));
-    
-    const result: AdvboxSettings = {
-      users: [],
-      origins: [],
-    };
-    
-    // Extrair usuários
-    if (settings.users && Array.isArray(settings.users)) {
-      result.users = settings.users.map((u: any) => ({
-        id: String(u.id || u.user_id || u.users_id),
-        name: u.name || u.full_name || u.nome || u.email,
-      })).filter((u: any) => u.id && u.id !== 'undefined');
-      console.log(`Found ${result.users?.length} users`);
-    } else if (settings.account?.users && Array.isArray(settings.account.users)) {
-      result.users = settings.account.users.map((u: any) => ({
-        id: String(u.id || u.user_id || u.users_id),
-        name: u.name || u.full_name || u.nome || u.email,
-      })).filter((u: any) => u.id && u.id !== 'undefined');
-      console.log(`Found ${result.users?.length} users in account`);
+    // Tentar buscar settings primeiro
+    try {
+      const response = await makeAdvboxRequest('/settings');
+      const settings = response.data || response;
+      console.log('Settings keys:', Object.keys(settings));
+      
+      // Extrair usuários
+      if (settings.users && Array.isArray(settings.users)) {
+        result.users = settings.users.map((u: any) => ({
+          id: String(u.id || u.user_id || u.users_id),
+          name: u.name || u.full_name || u.nome || u.email,
+        })).filter((u: any) => u.id && u.id !== 'undefined');
+        console.log(`Found ${result.users?.length} users from settings`);
+      } else if (settings.account?.users && Array.isArray(settings.account.users)) {
+        result.users = settings.account.users.map((u: any) => ({
+          id: String(u.id || u.user_id || u.users_id),
+          name: u.name || u.full_name || u.nome || u.email,
+        })).filter((u: any) => u.id && u.id !== 'undefined');
+        console.log(`Found ${result.users?.length} users from account`);
+      }
+      
+      // Extrair origens de clientes
+      if (settings.customers_origins && Array.isArray(settings.customers_origins)) {
+        result.origins = settings.customers_origins.map((o: any) => ({
+          id: String(o.id || o.customers_origins_id),
+          name: o.name || o.origin || o.origem,
+        })).filter((o: any) => o.id && o.id !== 'undefined');
+        console.log(`Found ${result.origins?.length} customer origins from settings`);
+      } else if (settings.account?.customers_origins && Array.isArray(settings.account.customers_origins)) {
+        result.origins = settings.account.customers_origins.map((o: any) => ({
+          id: String(o.id || o.customers_origins_id),
+          name: o.name || o.origin || o.origem,
+        })).filter((o: any) => o.id && o.id !== 'undefined');
+        console.log(`Found ${result.origins?.length} customer origins from account`);
+      }
+    } catch (settingsError) {
+      console.warn('Error fetching /settings, will try direct endpoints:', settingsError);
     }
     
-    // Extrair origens de clientes
-    if (settings.customers_origins && Array.isArray(settings.customers_origins)) {
-      result.origins = settings.customers_origins.map((o: any) => ({
-        id: String(o.id || o.customers_origins_id),
-        name: o.name || o.origin || o.origem,
-      })).filter((o: any) => o.id && o.id !== 'undefined');
-      console.log(`Found ${result.origins?.length} customer origins`);
-    } else if (settings.account?.customers_origins && Array.isArray(settings.account.customers_origins)) {
-      result.origins = settings.account.customers_origins.map((o: any) => ({
-        id: String(o.id || o.customers_origins_id),
-        name: o.name || o.origin || o.origem,
-      })).filter((o: any) => o.id && o.id !== 'undefined');
-      console.log(`Found ${result.origins?.length} customer origins in account`);
+    // Se não conseguiu usuários, buscar diretamente
+    if (!result.users || result.users.length === 0) {
+      try {
+        console.log('Fetching users directly from /users endpoint...');
+        await sleep(1000);
+        const usersResponse = await makeAdvboxRequest('/users');
+        const usersData = usersResponse.data || usersResponse;
+        
+        if (Array.isArray(usersData)) {
+          result.users = usersData.map((u: any) => ({
+            id: String(u.id || u.user_id || u.users_id),
+            name: u.name || u.full_name || u.nome || u.email,
+          })).filter((u: any) => u.id && u.id !== 'undefined');
+          console.log(`Found ${result.users?.length} users from /users endpoint`);
+        }
+      } catch (usersError) {
+        console.error('Error fetching /users:', usersError);
+      }
+    }
+    
+    // Se não conseguiu origens, buscar diretamente
+    if (!result.origins || result.origins.length === 0) {
+      try {
+        console.log('Fetching origins directly from /customers_origins endpoint...');
+        await sleep(1000);
+        const originsResponse = await makeAdvboxRequest('/customers_origins');
+        const originsData = originsResponse.data || originsResponse;
+        
+        if (Array.isArray(originsData)) {
+          result.origins = originsData.map((o: any) => ({
+            id: String(o.id || o.customers_origins_id),
+            name: o.name || o.origin || o.origem,
+          })).filter((o: any) => o.id && o.id !== 'undefined');
+          console.log(`Found ${result.origins?.length} customer origins from /customers_origins endpoint`);
+        }
+      } catch (originsError) {
+        console.error('Error fetching /customers_origins:', originsError);
+      }
     }
     
     // Buscar Mariana como responsável padrão
@@ -327,6 +372,8 @@ async function getAdvboxSettings(clientEmail?: string, clientPhone?: string, com
         result.defaultUserId = result.users[0].id;
         console.log(`Mariana not found, using first user as fallback: ${result.defaultUserId} (${result.users[0].name})`);
       }
+    } else {
+      console.error('CRITICAL: No users found in Advbox! Cannot proceed with customer creation.');
     }
     
     // Buscar origem pelo campo "Como conheceu" do formulário OU pelo utm_source do lead
@@ -366,16 +413,20 @@ async function getAdvboxSettings(clientEmail?: string, clientPhone?: string, com
         result.defaultOriginId = result.origins[0].id;
         console.log(`Usando primeira origem como fallback: ${result.defaultOriginId} (${result.origins[0].name})`);
       }
+    } else {
+      console.error('CRITICAL: No customer origins found in Advbox! Cannot proceed with customer creation.');
     }
     
     // Log settings para debug
-    console.log('Users available:', JSON.stringify(result.users));
-    console.log('Origins available:', JSON.stringify(result.origins));
+    console.log('Final users available:', result.users?.length);
+    console.log('Final origins available:', result.origins?.length);
+    console.log('Default user ID:', result.defaultUserId);
+    console.log('Default origin ID:', result.defaultOriginId);
     
     return result;
   } catch (error) {
     console.error('Error fetching Advbox settings:', error);
-    return { users: [], origins: [] };
+    return result;
   }
 }
 
@@ -497,6 +548,14 @@ async function createCustomer(
   try {
     console.log('Creating customer in ADVBOX:', client.nomeCompleto);
     
+    // VALIDAÇÃO: Verificar se temos os campos obrigatórios
+    if (!settings.defaultUserId) {
+      throw new Error('Responsável (users_id) é obrigatório mas não foi encontrado nas configurações do Advbox');
+    }
+    if (!settings.defaultOriginId) {
+      throw new Error('Origem do cliente (customers_origins_id) é obrigatória mas não foi encontrada nas configurações do Advbox');
+    }
+    
     // Formatar data de nascimento
     let birthDate = null;
     if (client.dataNascimento) {
@@ -509,8 +568,12 @@ async function createCustomer(
       }
     }
     
-    // Formatar endereço com número
-    const formattedStreet = formatStreet(client.rua, client.numero);
+    // Formatar endereço com número - OBRIGATÓRIO pelo Advbox
+    let formattedStreet = formatStreet(client.rua, client.numero);
+    // Se não tiver endereço, colocar um placeholder
+    if (!formattedStreet || formattedStreet.trim() === '' || formattedStreet === ', S/N') {
+      formattedStreet = 'Endereço não informado, S/N';
+    }
     console.log('Formatted street:', formattedStreet);
     
     // Montar payload com campos obrigatórios
@@ -524,29 +587,15 @@ async function createCustomer(
       phone: client.telefone?.replace(/\D/g, ''),
       email: client.email,
       zip_code: client.cep?.replace(/\D/g, ''),
-      city: client.cidade,
+      city: client.cidade || 'Não informado',
       street: formattedStreet, // Endereço formatado com número
       complement: client.complemento,
-      neighborhood: client.bairro,
-      state: client.estado,
+      neighborhood: client.bairro || 'Não informado',
+      state: client.estado || 'MG',
       type: 'person', // pessoa física
+      users_id: settings.defaultUserId, // OBRIGATÓRIO
+      customers_origins_id: settings.defaultOriginId, // OBRIGATÓRIO
     };
-    
-    // Adicionar responsável (obrigatório)
-    if (settings.defaultUserId) {
-      customerData.users_id = settings.defaultUserId;
-      console.log('Setting users_id:', settings.defaultUserId);
-    } else {
-      console.warn('No default user found - this may cause API error');
-    }
-    
-    // Adicionar origem do cliente (obrigatório)
-    if (settings.defaultOriginId) {
-      customerData.customers_origins_id = settings.defaultOriginId;
-      console.log('Setting customers_origins_id:', settings.defaultOriginId);
-    } else {
-      console.warn('No default origin found - this may cause API error');
-    }
     
     console.log('Customer payload:', JSON.stringify(customerData));
     
@@ -555,7 +604,17 @@ async function createCustomer(
     console.log('Customer created successfully:', response);
     
     return { id: response.data?.id || response.id };
-  } catch (error) {
+  } catch (error: any) {
+    // Verificar se é erro de cliente duplicado
+    if (error?.message?.includes('duplicate') || error?.message?.includes('already exists')) {
+      console.log('Customer already exists, searching for existing customer...');
+      // Tentar buscar o cliente existente
+      const existing = await findExistingCustomer(client.cpf, client.nomeCompleto);
+      if (existing) {
+        console.log('Found existing customer:', existing.id);
+        return { id: String(existing.id) };
+      }
+    }
     console.error('Error creating customer in ADVBOX:', error);
     throw error;
   }
