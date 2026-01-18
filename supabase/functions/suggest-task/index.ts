@@ -51,14 +51,23 @@ Deno.serve(async (req) => {
 - perícia
 - outro`;
 
-    const systemPrompt = `Você é um assistente jurídico especializado em análise de publicações e andamentos processuais. Sua tarefa é analisar o conteúdo de uma publicação/movimentação processual e sugerir uma tarefa apropriada para o advogado responsável.
+    const systemPrompt = `Você é um assistente jurídico especializado em análise de publicações e andamentos processuais brasileiros. Sua tarefa é analisar o conteúdo ESPECÍFICO de uma publicação/movimentação processual e sugerir uma tarefa DIRETAMENTE RELACIONADA ao que está descrito.
 
-REGRAS:
-1. Analise o texto da publicação para identificar o tipo de movimentação (intimação, sentença, despacho, audiência, etc.)
-2. Identifique prazos mencionados no texto
-3. Sugira uma tarefa específica e acionável
-4. Se houver data de audiência ou prazo mencionado, extraia essa data
-5. Seja conciso e objetivo
+REGRAS CRÍTICAS:
+1. A tarefa sugerida DEVE ser uma ação DIRETA em resposta ao conteúdo da publicação/movimentação
+2. NÃO sugira tarefas genéricas - seja ESPECÍFICO para o caso
+3. Identifique o tipo de movimentação (intimação, sentença, despacho, audiência, recurso, citação, etc.)
+4. Sugira a PRÓXIMA AÇÃO PROCESSUAL que o advogado deve tomar
+
+EXEMPLOS DE SUGESTÕES CORRETAS:
+- Movimentação: "Designada audiência de instrução para 15/02/2024" → Tarefa: "Preparar documentos e testemunhas para audiência de instrução"
+- Movimentação: "Proferida sentença procedente" → Tarefa: "Analisar sentença e comunicar cliente sobre resultado favorável" ou "Verificar prazo para recurso"
+- Movimentação: "Intimação para manifestação sobre laudo pericial" → Tarefa: "Analisar laudo pericial e elaborar manifestação"
+- Movimentação: "Designado julgamento pelo colegiado" → Tarefa: "Preparar sustentação oral" ou "Verificar pauta de julgamento"
+- Movimentação: "Citação para contestar" → Tarefa: "Elaborar contestação"
+- Movimentação: "Sentença improcedente" → Tarefa: "Analisar cabimento de recurso de apelação"
+- Movimentação: "Despacho: Diga a parte autora" → Tarefa: "Elaborar petição de manifestação"
+- Movimentação: "Juntada de AR positivo" → Tarefa: "Verificar início do prazo processual"
 
 TIPOS DE TAREFA DISPONÍVEIS:
 ${taskTypesList}
@@ -67,12 +76,12 @@ Responda SEMPRE no formato JSON com a seguinte estrutura:
 {
   "suggestedTaskType": "nome do tipo de tarefa mais adequado",
   "suggestedTaskTypeId": "id do tipo se disponível, ou null",
-  "taskTitle": "título curto e descritivo para a tarefa",
-  "taskDescription": "descrição detalhada do que precisa ser feito",
+  "taskTitle": "título curto e descritivo ESPECÍFICO para esta movimentação",
+  "taskDescription": "descrição detalhada do que precisa ser feito EM RESPOSTA a esta publicação específica",
   "suggestedDeadline": "data do prazo se identificada no texto (formato YYYY-MM-DD) ou null",
   "isUrgent": true/false,
   "isImportant": true/false,
-  "reasoning": "breve explicação do porquê desta sugestão"
+  "reasoning": "explicação de POR QUE esta tarefa é necessária em resposta a esta movimentação"
 }`;
 
     const userPrompt = `Analise esta publicação/movimentação processual e sugira uma tarefa:

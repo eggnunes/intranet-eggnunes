@@ -55,6 +55,7 @@ interface Client {
   complemento: string;
   bairro: string;
   estado: string;
+  comoConheceu?: string;
 }
 
 interface ContractGeneratorProps {
@@ -1709,6 +1710,7 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
           temHonorariosExito: temHonorariosExito,
           descricaoExito: temHonorariosExito ? exitoOptions.map(o => o.descricao).filter(d => d).join('; ') : null,
           qualification: qualification,
+          comoConheceu: client.comoConheceu,
         };
         
         const { data: automationResult, error: automationError } = await supabase.functions.invoke('contract-automation', {

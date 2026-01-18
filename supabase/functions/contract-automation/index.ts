@@ -43,6 +43,7 @@ interface ContractData {
   temHonorariosExito?: boolean;
   descricaoExito?: string;
   qualification?: string;
+  comoConheceu?: string; // Campo "Como conheceu o escritório" preenchido pelo lead no formulário
 }
 
 interface AdvboxSettings {
@@ -204,13 +205,18 @@ function findOriginByMarketingSource(
   console.log(`Buscando origem para utm_source: "${sourceLower}"`);
   console.log('Origens disponíveis:', origins.map(o => o.name));
   
-  // Mapeamento de utm_source para possíveis nomes de origem no Advbox
+  // Mapeamento de origem (do formulário ou utm_source) para possíveis nomes de origem no Advbox
+  // Inclui as opções do formulário: Google, Instagram, Facebook, Grupos de Whatsapp, Indicação de terceiros
   const sourceToOriginMappings: Record<string, string[]> = {
-    'facebook': ['facebook', 'fb', 'meta', 'face'],
-    'fb': ['facebook', 'fb', 'meta', 'face'],
+    // Opções do formulário "Como conheceu o escritório?"
+    'google': ['google', 'google ads', 'adwords', 'gads', 'busca'],
     'instagram': ['instagram', 'insta', 'ig', 'meta'],
+    'facebook': ['facebook', 'fb', 'meta', 'face'],
+    'grupos de whatsapp': ['whatsapp', 'whats', 'wpp', 'zap', 'grupo', 'grupos'],
+    'indicação de terceiros': ['indicação', 'indicacao', 'referral', 'parceiro', 'terceiro', 'terceiros'],
+    // Variações de UTM
+    'fb': ['facebook', 'fb', 'meta', 'face'],
     'ig': ['instagram', 'insta', 'ig', 'meta'],
-    'google': ['google', 'google ads', 'adwords', 'gads'],
     'google_ads': ['google', 'google ads', 'adwords', 'gads'],
     'tiktok': ['tiktok', 'tik tok', 'tt'],
     'youtube': ['youtube', 'yt'],
@@ -263,7 +269,8 @@ function findOriginByMarketingSource(
 }
 
 // Buscar configurações do Advbox (usuários e origens)
-async function getAdvboxSettings(clientEmail?: string, clientPhone?: string): Promise<AdvboxSettings> {
+// Prioridade para origem: 1) comoConheceu do formulário, 2) utm_source do lead
+async function getAdvboxSettings(clientEmail?: string, clientPhone?: string, comoConheceu?: string): Promise<AdvboxSettings> {
   try {
     console.log('Fetching Advbox settings...');
     const response = await makeAdvboxRequest('/settings');
@@ -322,16 +329,27 @@ async function getAdvboxSettings(clientEmail?: string, clientPhone?: string): Pr
       }
     }
     
-    // Buscar origem de marketing do lead (utm_source) pelo email/telefone do cliente
+    // Buscar origem pelo campo "Como conheceu" do formulário OU pelo utm_source do lead
     if (result.origins && result.origins.length > 0) {
       let matchedOrigin: { id: string; name: string } | null = null;
       
-      // Primeiro, tentar buscar a origem de marketing do lead (utm_source)
-      if (clientEmail || clientPhone) {
+      // PRIORIDADE 1: Usar o campo "Como conheceu o escritório" preenchido pelo lead no formulário
+      if (comoConheceu) {
+        console.log(`Campo "Como conheceu" preenchido pelo lead: "${comoConheceu}"`);
+        matchedOrigin = findOriginByMarketingSource(result.origins, comoConheceu);
+        
+        if (matchedOrigin) {
+          result.defaultOriginId = matchedOrigin.id;
+          console.log(`Origem mapeada para "Como conheceu" "${comoConheceu}": ${result.defaultOriginId} (${matchedOrigin.name})`);
+        }
+      }
+      
+      // PRIORIDADE 2: Se não encontrou pelo "Como conheceu", buscar pelo utm_source do lead
+      if (!matchedOrigin && (clientEmail || clientPhone)) {
         const utmSource = await getLeadMarketingSource(clientEmail, clientPhone);
         
         if (utmSource) {
-          console.log(`Origem de marketing encontrada: "${utmSource}"`);
+          console.log(`Origem de marketing encontrada (fallback): "${utmSource}"`);
           matchedOrigin = findOriginByMarketingSource(result.origins, utmSource);
           
           if (matchedOrigin) {
@@ -343,7 +361,7 @@ async function getAdvboxSettings(clientEmail?: string, clientPhone?: string): Pr
         }
       }
       
-      // Se não encontrar correspondência, usar a primeira origem como fallback
+      // FALLBACK: Se não encontrar correspondência, usar a primeira origem
       if (!matchedOrigin) {
         result.defaultOriginId = result.origins[0].id;
         console.log(`Usando primeira origem como fallback: ${result.defaultOriginId} (${result.origins[0].name})`);
@@ -731,9 +749,10 @@ Deno.serve(async (req) => {
       syncError = 'Token ADVBOX não configurado';
     } else {
       try {
-        // 0. Buscar configurações do Advbox (usuários e origens) - passando email/telefone para buscar origem de marketing
-        console.log('Fetching Advbox settings with client email/phone:', contractData.client.email, contractData.client.telefone);
-        const advboxSettings = await getAdvboxSettings(contractData.client.email, contractData.client.telefone);
+        // 0. Buscar configurações do Advbox (usuários e origens)
+        // Prioridade: comoConheceu do formulário > utm_source do lead
+        console.log('Fetching Advbox settings with comoConheceu:', contractData.comoConheceu, 'and client email/phone:', contractData.client.email, contractData.client.telefone);
+        const advboxSettings = await getAdvboxSettings(contractData.client.email, contractData.client.telefone, contractData.comoConheceu);
         
         if (!advboxSettings.defaultUserId) {
           console.warn('No default user found in Advbox settings');
