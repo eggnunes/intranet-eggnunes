@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, FileText, DollarSign, Calendar, Users, Printer } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Plus, FileText, DollarSign, Calendar, Users, Printer, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
@@ -87,6 +88,7 @@ export function RHPagamentos() {
   const [itens, setItens] = useState<Record<string, PagamentoItem>>({});
   const [sugestoes, setSugestoes] = useState<Record<string, number>>({});
   const [selectedForBatch, setSelectedForBatch] = useState<string[]>([]);
+  const [adiantamentosPendentes, setAdiantamentosPendentes] = useState<any[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -201,7 +203,7 @@ export function RHPagamentos() {
     }
   };
 
-  const handleColaboradorChange = (colaboradorId: string) => {
+  const handleColaboradorChange = async (colaboradorId: string) => {
     setSelectedColaborador(colaboradorId);
     
     // Buscar cargo do colaborador
@@ -210,6 +212,22 @@ export function RHPagamentos() {
     setSelectedCargo(cargo);
     
     loadSugestoes(colaboradorId, cargo);
+
+    // Buscar adiantamentos pendentes
+    try {
+      const { data, error } = await supabase
+        .from('rh_adiantamentos')
+        .select('*')
+        .eq('colaborador_id', colaboradorId)
+        .eq('status', 'ativo')
+        .gt('saldo_restante', 0);
+
+      if (!error) {
+        setAdiantamentosPendentes(data || []);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar adiantamentos:', err);
+    }
   };
 
   // Filtrar rubricas baseado no tipo de cargo
@@ -590,6 +608,21 @@ export function RHPagamentos() {
                         />
                       </div>
                     </div>
+
+                    <Separator />
+
+                    {/* Alerta de Adiantamentos Pendentes */}
+                    {adiantamentosPendentes.length > 0 && (
+                      <Alert variant="destructive" className="border-amber-500 bg-amber-500/10">
+                        <AlertCircle className="h-4 w-4 text-amber-600" />
+                        <AlertTitle className="text-amber-600">Adiantamentos Pendentes</AlertTitle>
+                        <AlertDescription className="text-amber-700">
+                          Este colaborador possui {adiantamentosPendentes.length} adiantamento(s) pendente(s) 
+                          totalizando {adiantamentosPendentes.reduce((acc, a) => acc + a.saldo_restante, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}. 
+                          Lembre-se de incluir o desconto!
+                        </AlertDescription>
+                      </Alert>
+                    )}
 
                     <Separator />
 

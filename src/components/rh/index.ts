@@ -5,3 +5,4 @@ export { RHDocumentos } from './RHDocumentos';
 export { RHColaboradores } from './RHColaboradores';
 export { RHColaboradorDashboard } from './RHColaboradorDashboard';
 export { ColaboradorDocumentos } from './ColaboradorDocumentos';
+export { RHAdiantamentos } from './RHAdiantamentos';
