@@ -5434,6 +5434,125 @@ export type Database = {
           },
         ]
       }
+      rh_adiantamento_descontos: {
+        Row: {
+          adiantamento_id: string
+          created_at: string
+          data_desconto: string | null
+          id: string
+          mes_referencia: string
+          pagamento_id: string | null
+          parcela_numero: number
+          valor_descontado: number
+        }
+        Insert: {
+          adiantamento_id: string
+          created_at?: string
+          data_desconto?: string | null
+          id?: string
+          mes_referencia: string
+          pagamento_id?: string | null
+          parcela_numero: number
+          valor_descontado: number
+        }
+        Update: {
+          adiantamento_id?: string
+          created_at?: string
+          data_desconto?: string | null
+          id?: string
+          mes_referencia?: string
+          pagamento_id?: string | null
+          parcela_numero?: number
+          valor_descontado?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rh_adiantamento_descontos_adiantamento_id_fkey"
+            columns: ["adiantamento_id"]
+            isOneToOne: false
+            referencedRelation: "rh_adiantamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rh_adiantamento_descontos_pagamento_id_fkey"
+            columns: ["pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "rh_pagamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rh_adiantamentos: {
+        Row: {
+          colaborador_id: string
+          conta_pagamento_id: string | null
+          created_at: string
+          created_by: string
+          data_adiantamento: string
+          forma_desconto: string
+          id: string
+          lancamento_financeiro_id: string | null
+          mes_inicio_desconto: string | null
+          numero_parcelas: number | null
+          observacoes: string | null
+          saldo_restante: number
+          status: string
+          tipo_adiantamento: string
+          tipo_adiantamento_outro: string | null
+          updated_at: string
+          valor: number
+          valor_parcela: number | null
+        }
+        Insert: {
+          colaborador_id: string
+          conta_pagamento_id?: string | null
+          created_at?: string
+          created_by: string
+          data_adiantamento?: string
+          forma_desconto: string
+          id?: string
+          lancamento_financeiro_id?: string | null
+          mes_inicio_desconto?: string | null
+          numero_parcelas?: number | null
+          observacoes?: string | null
+          saldo_restante: number
+          status?: string
+          tipo_adiantamento: string
+          tipo_adiantamento_outro?: string | null
+          updated_at?: string
+          valor: number
+          valor_parcela?: number | null
+        }
+        Update: {
+          colaborador_id?: string
+          conta_pagamento_id?: string | null
+          created_at?: string
+          created_by?: string
+          data_adiantamento?: string
+          forma_desconto?: string
+          id?: string
+          lancamento_financeiro_id?: string | null
+          mes_inicio_desconto?: string | null
+          numero_parcelas?: number | null
+          observacoes?: string | null
+          saldo_restante?: number
+          status?: string
+          tipo_adiantamento?: string
+          tipo_adiantamento_outro?: string | null
+          updated_at?: string
+          valor?: number
+          valor_parcela?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rh_adiantamentos_conta_pagamento_id_fkey"
+            columns: ["conta_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "fin_contas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rh_cargos: {
         Row: {
           created_at: string
@@ -6690,6 +6809,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_adiantamentos_pendentes: {
+        Args: { p_colaborador_id: string }
+        Returns: {
+          data_adiantamento: string
+          id: string
+          mes_inicio_desconto: string
+          saldo_restante: number
+          tipo_adiantamento: string
+          valor_original: number
+        }[]
+      }
       get_admin_permission: {
         Args: { _feature: string; _user_id: string }
         Returns: string
