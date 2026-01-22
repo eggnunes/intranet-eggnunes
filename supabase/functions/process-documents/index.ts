@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { decode as base64Decode, encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 import { PDFDocument, degrees } from "npm:pdf-lib@1.17.1";
 
 const corsHeaders = {
@@ -59,26 +60,15 @@ const DOCUMENT_TYPE_NAMES: Record<string, string> = {
   'documento': 'Documento',
 };
 
-// Fast base64 decode using Uint8Array
+// Base64 helpers (stdlib) - evita conversões custosas em CPU
 function base64ToUint8Array(base64: string): Uint8Array {
-  const binaryString = atob(base64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
+  return base64Decode(base64);
 }
 
-// Fast base64 encode from Uint8Array using chunks
 function uint8ArrayToBase64(bytes: Uint8Array): string {
-  const chunkSize = 32768;
-  let result = '';
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-    result += String.fromCharCode.apply(null, chunk as unknown as number[]);
-  }
-  return btoa(result);
+  // Garante ArrayBuffer (evita union com SharedArrayBuffer nos types)
+  const copy = new Uint8Array(bytes);
+  return base64Encode(copy.buffer);
 }
 
 serve(async (req) => {
