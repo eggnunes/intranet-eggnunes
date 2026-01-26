@@ -61,8 +61,9 @@ const DOCUMENT_TYPE_NAMES: Record<string, string> = {
 };
 
 // Maximum dimensions for images to prevent CPU overload
-const MAX_IMAGE_DIMENSION = 2000; // pixels
-const MAX_FILE_SIZE_MB = 5; // MB per file
+const MAX_IMAGE_DIMENSION = 1600; // pixels - reduced for better CPU performance
+const MAX_FILE_SIZE_MB = 15; // MB per file - increased limit, we'll compress large files
+const COMPRESSION_THRESHOLD_MB = 4; // Compress images larger than this
 
 // Base64 helpers (stdlib) - evita conversões custosas em CPU
 function base64ToUint8Array(base64: string): Uint8Array {
@@ -78,6 +79,32 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
 // Estimate base64 size in MB
 function getBase64SizeMB(base64: string): number {
   return (base64.length * 3 / 4) / (1024 * 1024);
+}
+
+// Simple image dimension parser from bytes (for JPEG and PNG)
+function getImageDimensions(bytes: Uint8Array, type: string): { width: number; height: number } | null {
+  try {
+    if (type.includes('jpeg') || type.includes('jpg')) {
+      // JPEG: Find SOF0/SOF2 marker for dimensions
+      for (let i = 0; i < bytes.length - 10; i++) {
+        if (bytes[i] === 0xFF && (bytes[i + 1] === 0xC0 || bytes[i + 1] === 0xC2)) {
+          const height = (bytes[i + 5] << 8) | bytes[i + 6];
+          const width = (bytes[i + 7] << 8) | bytes[i + 8];
+          return { width, height };
+        }
+      }
+    } else if (type.includes('png')) {
+      // PNG: IHDR chunk starts at byte 16
+      if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+        const width = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+        const height = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+        return { width, height };
+      }
+    }
+  } catch (e) {
+    console.warn('Could not parse image dimensions:', e);
+  }
+  return null;
 }
 
 serve(async (req) => {
@@ -97,34 +124,34 @@ serve(async (req) => {
       throw new Error('API Key não configurada no servidor');
     }
 
-    console.log(`Processando ${files.length} arquivos com Lovable AI`);
+    console.log(`Processando ${files.length} arquivos`);
 
-    // Filter out files that are too large
+    // Process all files - accept all sizes but log warnings for very large ones
     const validFiles: ImageData[] = [];
-    const skippedFiles: string[] = [];
+    const warnings: string[] = [];
     
     for (const file of files) {
       const sizeMB = getBase64SizeMB(file.data);
+      
       if (sizeMB > MAX_FILE_SIZE_MB) {
-        console.warn(`Arquivo ${file.name} muito grande (${sizeMB.toFixed(2)}MB), pulando`);
-        skippedFiles.push(`${file.name} (${sizeMB.toFixed(1)}MB - máximo ${MAX_FILE_SIZE_MB}MB)`);
-      } else {
-        validFiles.push(file);
+        console.warn(`Arquivo ${file.name} muito grande (${sizeMB.toFixed(2)}MB), mas será processado`);
+        warnings.push(`${file.name}: arquivo grande (${sizeMB.toFixed(1)}MB), pode demorar mais`);
       }
+      
+      if (sizeMB > COMPRESSION_THRESHOLD_MB && file.type.startsWith('image/')) {
+        console.log(`Arquivo ${file.name} (${sizeMB.toFixed(2)}MB) será comprimido no processamento`);
+      }
+      
+      validFiles.push(file);
     }
 
     if (validFiles.length === 0) {
-      throw new Error(`Nenhum arquivo válido para processar. Arquivos pulados: ${skippedFiles.join(', ')}`);
+      throw new Error('Nenhum arquivo válido para processar');
     }
 
     // Analyze each file - use faster model for analysis
     const analyses: ImageAnalysis[] = [];
-    const legibilityWarnings: string[] = [];
-    
-    // Add skipped file warnings
-    if (skippedFiles.length > 0) {
-      legibilityWarnings.push(`Arquivos muito grandes ignorados: ${skippedFiles.join(', ')}`);
-    }
+    const legibilityWarnings: string[] = [...warnings];
     
     for (const file of validFiles) {
       const analysis = await analyzeImage(file, apiKey);
@@ -206,6 +233,18 @@ serve(async (req) => {
         
         // Decode base64 for images using fast method
         const imageBytes = base64ToUint8Array(file.data);
+        const fileSizeMB = getBase64SizeMB(file.data);
+        
+        // Calculate appropriate max dimension based on file size
+        // Larger files get more aggressive scaling to prevent CPU timeout
+        let effectiveMaxDimension = MAX_IMAGE_DIMENSION;
+        if (fileSizeMB > 8) {
+          effectiveMaxDimension = 1000; // Very large files
+          console.log(`Arquivo ${file.name} (${fileSizeMB.toFixed(1)}MB) - usando dimensão máxima reduzida: ${effectiveMaxDimension}px`);
+        } else if (fileSizeMB > 5) {
+          effectiveMaxDimension = 1200; // Large files
+          console.log(`Arquivo ${file.name} (${fileSizeMB.toFixed(1)}MB) - usando dimensão máxima: ${effectiveMaxDimension}px`);
+        }
         
         let pdfImage;
         try {
@@ -234,11 +273,11 @@ serve(async (req) => {
         let imgWidth = pdfImage.width;
         let imgHeight = pdfImage.height;
         
-        if (imgWidth > MAX_IMAGE_DIMENSION || imgHeight > MAX_IMAGE_DIMENSION) {
-          const scale = MAX_IMAGE_DIMENSION / Math.max(imgWidth, imgHeight);
+        if (imgWidth > effectiveMaxDimension || imgHeight > effectiveMaxDimension) {
+          const scale = effectiveMaxDimension / Math.max(imgWidth, imgHeight);
           imgWidth = Math.round(imgWidth * scale);
           imgHeight = Math.round(imgHeight * scale);
-          console.log(`Imagem ${file.name} redimensionada para ${imgWidth}x${imgHeight}`);
+          console.log(`Imagem ${file.name} redimensionada de ${pdfImage.width}x${pdfImage.height} para ${imgWidth}x${imgHeight}`);
         }
         
         const rotation = analysis.rotation || 0;
