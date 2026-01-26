@@ -141,39 +141,26 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
 
   return (
     <div 
-      className="relative"
+      id="recruitment-kanban-scroll"
+      className="pb-6 -mx-4 sm:-mx-6 lg:-mx-8"
       style={{
-        marginLeft: 'calc(-50vw + 50%)',
-        marginRight: 'calc(-50vw + 50%)',
-        width: '100vw',
-        maxWidth: '100vw',
+        overflowX: 'auto',
+        overflowY: 'visible',
+        WebkitOverflowScrolling: 'touch',
       }}
     >
-      {/* Kanban Container com scroll horizontal */}
       <div 
-        id="recruitment-kanban-scroll"
-        className="pb-6"
+        className="inline-flex gap-4 py-2"
         style={{
-          overflowX: 'auto',
-          overflowY: 'visible',
-          WebkitOverflowScrolling: 'touch',
           paddingLeft: '16px',
           paddingRight: '16px',
         }}
       >
-        <div 
-          className="flex gap-4 py-2"
-          style={{ 
-            width: 'max-content',
-            paddingRight: '16px',
-            minWidth: '100%',
-          }}
-        >
-          {STAGE_ORDER.map(stage => {
-            const stageCandidates = getCandidatesByStage(stage);
-            const isDragOver = dragOverStage === stage;
-            
-            return (
+        {STAGE_ORDER.map(stage => {
+          const stageCandidates = getCandidatesByStage(stage);
+          const isDragOver = dragOverStage === stage;
+          
+          return (
               <div
                 key={stage}
                 className={`w-72 flex-shrink-0 flex flex-col rounded-lg border-2 transition-all ${
@@ -301,36 +288,35 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
             );
           })}
         </div>
-      </div>
       
-      {/* CSS para scrollbar sempre visível e funcional */}
-      <style>{`
-        #recruitment-kanban-scroll {
-          scrollbar-width: auto;
-          scrollbar-color: hsl(var(--primary)) hsl(var(--muted));
-        }
-        #recruitment-kanban-scroll::-webkit-scrollbar {
-          height: 16px;
-          display: block !important;
-        }
-        #recruitment-kanban-scroll::-webkit-scrollbar-track {
-          background: hsl(var(--muted));
-          border-radius: 8px;
-        }
-        #recruitment-kanban-scroll::-webkit-scrollbar-thumb {
-          background: hsl(var(--primary));
-          border-radius: 8px;
-          border: 3px solid hsl(var(--muted));
-          cursor: grab;
-        }
-        #recruitment-kanban-scroll::-webkit-scrollbar-thumb:hover {
-          background: hsl(var(--primary) / 0.8);
-        }
-        #recruitment-kanban-scroll::-webkit-scrollbar-thumb:active {
-          cursor: grabbing;
-          background: hsl(var(--primary) / 0.7);
-        }
-      `}</style>
-    </div>
-  );
-}
+        {/* CSS para scrollbar sempre visível e funcional */}
+        <style>{`
+          #recruitment-kanban-scroll {
+            scrollbar-width: auto;
+            scrollbar-color: hsl(var(--primary)) hsl(var(--muted));
+          }
+          #recruitment-kanban-scroll::-webkit-scrollbar {
+            height: 16px;
+            display: block !important;
+          }
+          #recruitment-kanban-scroll::-webkit-scrollbar-track {
+            background: hsl(var(--muted));
+            border-radius: 8px;
+          }
+          #recruitment-kanban-scroll::-webkit-scrollbar-thumb {
+            background: hsl(var(--primary));
+            border-radius: 8px;
+            border: 3px solid hsl(var(--muted));
+            cursor: grab;
+          }
+          #recruitment-kanban-scroll::-webkit-scrollbar-thumb:hover {
+            background: hsl(var(--primary) / 0.8);
+          }
+          #recruitment-kanban-scroll::-webkit-scrollbar-thumb:active {
+            cursor: grabbing;
+            background: hsl(var(--primary) / 0.7);
+          }
+        `}</style>
+      </div>
+    );
+  }
