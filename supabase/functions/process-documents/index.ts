@@ -60,11 +60,10 @@ const DOCUMENT_TYPE_NAMES: Record<string, string> = {
   'documento': 'Documento',
 };
 
-// Maximum dimensions for images to prevent memory overload
-const MAX_IMAGE_DIMENSION = 800; // pixels - aggressive reduction to prevent memory issues
-const MAX_FILE_SIZE_MB = 10; // MB per file
-const COMPRESSION_THRESHOLD_MB = 2; // Compress images larger than this
-const MAX_FILES_PER_BATCH = 2; // Process files in small batches to manage memory
+// Maximum dimensions for images - now handled on client-side, these are fallbacks
+const MAX_IMAGE_DIMENSION = 1500; // pixels - relaxed since client pre-processes
+const MAX_FILE_SIZE_MB = 20; // MB per file - increased limit
+const COMPRESSION_THRESHOLD_MB = 5; // Compress images larger than this
 
 // Base64 helpers (stdlib) - evita conversões custosas em CPU
 function base64ToUint8Array(base64: string): Uint8Array {
@@ -125,21 +124,16 @@ serve(async (req) => {
       throw new Error('Nenhum arquivo válido para processar. Verifique se os arquivos não excedem 10MB.');
     }
 
-    // Skip AI analysis for large batches to save memory - use simple defaults
+    // Always use simple analysis to save memory and CPU
     const analyses: ImageAnalysis[] = [];
     const legibilityWarnings: string[] = [...warnings];
-    const skipAIAnalysis = validFiles.length > 2 || validFiles.some(f => getBase64SizeMB(f.data) > 3);
     
-    if (skipAIAnalysis) {
-      console.log('Usando análise simplificada para economizar memória');
-    }
+    console.log('Usando análise simplificada para performance');
     
     for (const file of validFiles) {
-      const analysis = skipAIAnalysis 
-        ? getDefaultAnalysis(file.name)
-        : await analyzeImage(file, apiKey);
+      const analysis = getDefaultAnalysis(file.name);
       analyses.push(analysis);
-      console.log(`Arquivo ${file.name} analisado:`, {
+      console.log(`Arquivo ${file.name} preparado:`, {
         type: analysis.documentType,
         rotation: analysis.rotation,
         suggestedName: analysis.suggestedName,
@@ -210,9 +204,9 @@ serve(async (req) => {
         const imageBytes = base64ToUint8Array(file.data);
         const fileSizeMB = getBase64SizeMB(file.data);
         
-        // Very aggressive scaling for all images to prevent memory issues
-        const effectiveMaxDimension = fileSizeMB > 3 ? 600 : MAX_IMAGE_DIMENSION;
-        console.log(`Arquivo ${file.name} (${fileSizeMB.toFixed(1)}MB) - dimensão máxima: ${effectiveMaxDimension}px`);
+        // Use relaxed dimensions since client pre-processes
+        const effectiveMaxDimension = MAX_IMAGE_DIMENSION;
+        console.log(`Arquivo ${file.name} (${fileSizeMB.toFixed(1)}MB)`);
         
         let pdfImage;
         try {
