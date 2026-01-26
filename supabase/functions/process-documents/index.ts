@@ -60,10 +60,11 @@ const DOCUMENT_TYPE_NAMES: Record<string, string> = {
   'documento': 'Documento',
 };
 
-// Maximum dimensions for images to prevent CPU overload
-const MAX_IMAGE_DIMENSION = 1600; // pixels - reduced for better CPU performance
-const MAX_FILE_SIZE_MB = 15; // MB per file - increased limit, we'll compress large files
-const COMPRESSION_THRESHOLD_MB = 4; // Compress images larger than this
+// Maximum dimensions for images to prevent memory overload
+const MAX_IMAGE_DIMENSION = 800; // pixels - aggressive reduction to prevent memory issues
+const MAX_FILE_SIZE_MB = 10; // MB per file
+const COMPRESSION_THRESHOLD_MB = 2; // Compress images larger than this
+const MAX_FILES_PER_BATCH = 2; // Process files in small batches to manage memory
 
 // Base64 helpers (stdlib) - evita conversões custosas em CPU
 function base64ToUint8Array(base64: string): Uint8Array {
@@ -71,40 +72,14 @@ function base64ToUint8Array(base64: string): Uint8Array {
 }
 
 function uint8ArrayToBase64(bytes: Uint8Array): string {
-  // Process in chunks to avoid memory issues with large files
-  const copy = new Uint8Array(bytes);
-  return base64Encode(copy.buffer);
+  // Create a proper ArrayBuffer copy for encoding
+  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  return base64Encode(buffer as ArrayBuffer);
 }
 
 // Estimate base64 size in MB
 function getBase64SizeMB(base64: string): number {
   return (base64.length * 3 / 4) / (1024 * 1024);
-}
-
-// Simple image dimension parser from bytes (for JPEG and PNG)
-function getImageDimensions(bytes: Uint8Array, type: string): { width: number; height: number } | null {
-  try {
-    if (type.includes('jpeg') || type.includes('jpg')) {
-      // JPEG: Find SOF0/SOF2 marker for dimensions
-      for (let i = 0; i < bytes.length - 10; i++) {
-        if (bytes[i] === 0xFF && (bytes[i + 1] === 0xC0 || bytes[i + 1] === 0xC2)) {
-          const height = (bytes[i + 5] << 8) | bytes[i + 6];
-          const width = (bytes[i + 7] << 8) | bytes[i + 8];
-          return { width, height };
-        }
-      }
-    } else if (type.includes('png')) {
-      // PNG: IHDR chunk starts at byte 16
-      if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
-        const width = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
-        const height = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
-        return { width, height };
-      }
-    }
-  } catch (e) {
-    console.warn('Could not parse image dimensions:', e);
-  }
-  return null;
 }
 
 serve(async (req) => {
@@ -126,7 +101,7 @@ serve(async (req) => {
 
     console.log(`Processando ${files.length} arquivos`);
 
-    // Process all files - accept all sizes but log warnings for very large ones
+    // Process all files - reject files that are too large
     const validFiles: ImageData[] = [];
     const warnings: string[] = [];
     
@@ -134,46 +109,46 @@ serve(async (req) => {
       const sizeMB = getBase64SizeMB(file.data);
       
       if (sizeMB > MAX_FILE_SIZE_MB) {
-        console.warn(`Arquivo ${file.name} muito grande (${sizeMB.toFixed(2)}MB), mas será processado`);
-        warnings.push(`${file.name}: arquivo grande (${sizeMB.toFixed(1)}MB), pode demorar mais`);
+        console.warn(`Arquivo ${file.name} muito grande (${sizeMB.toFixed(2)}MB), rejeitado`);
+        warnings.push(`${file.name}: arquivo muito grande (${sizeMB.toFixed(1)}MB), máximo ${MAX_FILE_SIZE_MB}MB`);
+        continue; // Skip this file
       }
       
       if (sizeMB > COMPRESSION_THRESHOLD_MB && file.type.startsWith('image/')) {
-        console.log(`Arquivo ${file.name} (${sizeMB.toFixed(2)}MB) será comprimido no processamento`);
+        console.log(`Arquivo ${file.name} (${sizeMB.toFixed(2)}MB) será comprimido`);
       }
       
       validFiles.push(file);
     }
 
     if (validFiles.length === 0) {
-      throw new Error('Nenhum arquivo válido para processar');
+      throw new Error('Nenhum arquivo válido para processar. Verifique se os arquivos não excedem 10MB.');
     }
 
-    // Analyze each file - use faster model for analysis
+    // Skip AI analysis for large batches to save memory - use simple defaults
     const analyses: ImageAnalysis[] = [];
     const legibilityWarnings: string[] = [...warnings];
+    const skipAIAnalysis = validFiles.length > 2 || validFiles.some(f => getBase64SizeMB(f.data) > 3);
+    
+    if (skipAIAnalysis) {
+      console.log('Usando análise simplificada para economizar memória');
+    }
     
     for (const file of validFiles) {
-      const analysis = await analyzeImage(file, apiKey);
+      const analysis = skipAIAnalysis 
+        ? getDefaultAnalysis(file.name)
+        : await analyzeImage(file, apiKey);
       analyses.push(analysis);
       console.log(`Arquivo ${file.name} analisado:`, {
         type: analysis.documentType,
         rotation: analysis.rotation,
-        legible: analysis.isLegible,
         suggestedName: analysis.suggestedName,
       });
-      
-      // Collect legibility warnings
-      if (!analysis.isLegible || analysis.legibilityScore < 0.7) {
-        legibilityWarnings.push(`${file.name}: ${analysis.warnings.join(', ')}`);
-      }
     }
 
-    // Group documents by type or merge all
-    const groupedDocs = mergeAll 
-      ? [{ type: 'documento_completo', files: validFiles, analyses }]
-      : groupDocumentsByType(validFiles, analyses);
-    console.log(`Agrupados em ${groupedDocs.length} documentos`);
+    // Always merge all to reduce memory usage from multiple PDFs
+    const groupedDocs = [{ type: 'documento', files: validFiles, analyses }];
+    console.log(`Processando como documento único para otimizar memória`);
 
     // Generate PDFs
     const documents = [];
@@ -226,50 +201,38 @@ serve(async (req) => {
         if (unsupportedFormats.includes(file.type) || 
             file.name.toLowerCase().endsWith('.heic') || 
             file.name.toLowerCase().endsWith('.heif')) {
-          console.error(`Formato não suportado: ${file.name} (${file.type}). Arquivos HEIC devem ser convertidos no frontend.`);
+          console.error(`Formato não suportado: ${file.name} (${file.type})`);
           legibilityWarnings.push(`${file.name}: Formato HEIC não suportado, converta para JPG`);
           continue;
         }
         
-        // Decode base64 for images using fast method
+        // Decode base64 for images
         const imageBytes = base64ToUint8Array(file.data);
         const fileSizeMB = getBase64SizeMB(file.data);
         
-        // Calculate appropriate max dimension based on file size
-        // Larger files get more aggressive scaling to prevent CPU timeout
-        let effectiveMaxDimension = MAX_IMAGE_DIMENSION;
-        if (fileSizeMB > 8) {
-          effectiveMaxDimension = 1000; // Very large files
-          console.log(`Arquivo ${file.name} (${fileSizeMB.toFixed(1)}MB) - usando dimensão máxima reduzida: ${effectiveMaxDimension}px`);
-        } else if (fileSizeMB > 5) {
-          effectiveMaxDimension = 1200; // Large files
-          console.log(`Arquivo ${file.name} (${fileSizeMB.toFixed(1)}MB) - usando dimensão máxima: ${effectiveMaxDimension}px`);
-        }
+        // Very aggressive scaling for all images to prevent memory issues
+        const effectiveMaxDimension = fileSizeMB > 3 ? 600 : MAX_IMAGE_DIMENSION;
+        console.log(`Arquivo ${file.name} (${fileSizeMB.toFixed(1)}MB) - dimensão máxima: ${effectiveMaxDimension}px`);
         
         let pdfImage;
         try {
           if (file.type.includes('png')) {
             pdfImage = await pdfDoc.embedPng(imageBytes);
-          } else if (file.type.includes('gif')) {
-            // GIF não é suportado diretamente, tentar como JPEG
-            console.log(`GIF ${file.name} será tratado como JPEG`);
-            pdfImage = await pdfDoc.embedJpg(imageBytes);
           } else {
             pdfImage = await pdfDoc.embedJpg(imageBytes);
           }
         } catch (e) {
           console.error(`Erro ao processar imagem ${file.name}:`, e);
-          // Tentar como PNG se JPEG falhar
           try {
             pdfImage = await pdfDoc.embedPng(imageBytes);
           } catch (e2) {
-            console.error(`Falha ao processar ${file.name} como PNG também`);
-            legibilityWarnings.push(`${file.name}: Não foi possível processar a imagem`);
+            console.error(`Falha ao processar ${file.name}`);
+            legibilityWarnings.push(`${file.name}: Não foi possível processar`);
             continue;
           }
         }
         
-        // Scale down large images to prevent CPU overload
+        // Scale down images aggressively
         let imgWidth = pdfImage.width;
         let imgHeight = pdfImage.height;
         
@@ -277,7 +240,7 @@ serve(async (req) => {
           const scale = effectiveMaxDimension / Math.max(imgWidth, imgHeight);
           imgWidth = Math.round(imgWidth * scale);
           imgHeight = Math.round(imgHeight * scale);
-          console.log(`Imagem ${file.name} redimensionada de ${pdfImage.width}x${pdfImage.height} para ${imgWidth}x${imgHeight}`);
+          console.log(`Imagem ${file.name} redimensionada para ${imgWidth}x${imgHeight}`);
         }
         
         const rotation = analysis.rotation || 0;
@@ -374,54 +337,46 @@ serve(async (req) => {
   }
 });
 
+// Get default analysis without AI to save memory
+function getDefaultAnalysis(fileName: string): ImageAnalysis {
+  return {
+    rotation: 0,
+    documentType: 'documento',
+    confidence: 0.8,
+    text: '',
+    isLegible: true,
+    legibilityScore: 1.0,
+    suggestedName: 'Documento',
+    warnings: [],
+  };
+}
+
 async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnalysis> {
   const isImage = image.type.startsWith('image/');
   const isPDF = image.type === 'application/pdf';
   
   if (!isImage && !isPDF) {
-    console.log(`Arquivo ${image.name} não é imagem nem PDF (${image.type}), usando valores padrão`);
-    return {
-      rotation: 0,
-      documentType: 'documento',
-      confidence: 0.5,
-      text: '',
-      isLegible: true,
-      legibilityScore: 1.0,
-      suggestedName: 'Documento',
-      warnings: [],
-    };
+    return getDefaultAnalysis(image.name);
   }
 
   if (isImage) {
     const supportedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!supportedTypes.includes(image.type)) {
-      console.log(`Tipo de imagem ${image.type} não suportado, usando valores padrão`);
-      return {
-        rotation: 0,
-        documentType: 'documento',
-        confidence: 0.5,
-        text: '',
-        isLegible: true,
-        legibilityScore: 1.0,
-        suggestedName: 'Documento',
-        warnings: [],
-      };
+      return getDefaultAnalysis(image.name);
     }
   }
 
-  // For PDFs, skip AI analysis to save time/CPU
+  // For PDFs, skip AI analysis
   if (isPDF) {
-    console.log(`PDF ${image.name}: usando análise simplificada para economizar CPU`);
-    return {
-      rotation: 0,
-      documentType: 'documento',
-      confidence: 0.8,
-      text: '',
-      isLegible: true,
-      legibilityScore: 1.0,
-      suggestedName: 'Documento',
-      warnings: [],
-    };
+    console.log(`PDF ${image.name}: análise simplificada`);
+    return getDefaultAnalysis(image.name);
+  }
+  
+  // For large images, skip AI to save memory
+  const sizeMB = getBase64SizeMB(image.data);
+  if (sizeMB > 2) {
+    console.log(`Imagem ${image.name} grande (${sizeMB.toFixed(1)}MB): análise simplificada`);
+    return getDefaultAnalysis(image.name);
   }
 
   // Use the fastest model for document analysis
