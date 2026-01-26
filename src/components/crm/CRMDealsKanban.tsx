@@ -1004,16 +1004,19 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
         >
           <div 
             id="crm-kanban-scroll"
-            className="px-4 md:px-8 pb-6"
+            className="pb-6"
             style={{
               overflowX: 'auto',
               overflowY: 'visible',
               WebkitOverflowScrolling: 'touch',
+              paddingLeft: '16px',
+              paddingRight: '16px',
             }}
           >
             <div 
               className="flex gap-5 py-2"
-              style={{ 
+              style={{
+                paddingRight: '16px',
                 width: 'max-content',
                 minWidth: '100%',
               }}
