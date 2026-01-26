@@ -992,7 +992,14 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="w-full overflow-x-auto pb-4">
+        <div 
+          id="crm-kanban-scroll"
+          className="w-full overflow-x-scroll pb-4"
+          style={{
+            WebkitOverflowScrolling: 'touch',
+            scrollBehavior: 'smooth'
+          }}
+        >
           <div className="flex gap-5 min-w-max px-1 py-1">
             {stages.map((stage, index) => {
               const stageDeals = getStageDeals(stage.id);
@@ -1027,6 +1034,35 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
             })}
           </div>
         </div>
+        
+        {/* CSS para scrollbar sempre visível */}
+        <style>{`
+          #crm-kanban-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: hsl(var(--primary)) hsl(var(--muted));
+          }
+          #crm-kanban-scroll::-webkit-scrollbar {
+            height: 14px;
+            display: block !important;
+          }
+          #crm-kanban-scroll::-webkit-scrollbar-track {
+            background: hsl(var(--muted));
+            border-radius: 7px;
+            margin: 0 4px;
+          }
+          #crm-kanban-scroll::-webkit-scrollbar-thumb {
+            background: hsl(var(--primary));
+            border-radius: 7px;
+            border: 3px solid hsl(var(--muted));
+            min-width: 40px;
+          }
+          #crm-kanban-scroll::-webkit-scrollbar-thumb:hover {
+            background: hsl(var(--primary) / 0.8);
+          }
+          #crm-kanban-scroll::-webkit-scrollbar-thumb:active {
+            background: hsl(var(--primary) / 0.7);
+          }
+        `}</style>
 
         {/* Drag Overlay */}
         <DragOverlay>
