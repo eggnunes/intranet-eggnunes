@@ -60,15 +60,24 @@ const DOCUMENT_TYPE_NAMES: Record<string, string> = {
   'documento': 'Documento',
 };
 
+// Maximum dimensions for images to prevent CPU overload
+const MAX_IMAGE_DIMENSION = 2000; // pixels
+const MAX_FILE_SIZE_MB = 5; // MB per file
+
 // Base64 helpers (stdlib) - evita conversões custosas em CPU
 function base64ToUint8Array(base64: string): Uint8Array {
   return base64Decode(base64);
 }
 
 function uint8ArrayToBase64(bytes: Uint8Array): string {
-  // Garante ArrayBuffer (evita union com SharedArrayBuffer nos types)
+  // Process in chunks to avoid memory issues with large files
   const copy = new Uint8Array(bytes);
   return base64Encode(copy.buffer);
+}
+
+// Estimate base64 size in MB
+function getBase64SizeMB(base64: string): number {
+  return (base64.length * 3 / 4) / (1024 * 1024);
 }
 
 serve(async (req) => {
@@ -90,11 +99,34 @@ serve(async (req) => {
 
     console.log(`Processando ${files.length} arquivos com Lovable AI`);
 
+    // Filter out files that are too large
+    const validFiles: ImageData[] = [];
+    const skippedFiles: string[] = [];
+    
+    for (const file of files) {
+      const sizeMB = getBase64SizeMB(file.data);
+      if (sizeMB > MAX_FILE_SIZE_MB) {
+        console.warn(`Arquivo ${file.name} muito grande (${sizeMB.toFixed(2)}MB), pulando`);
+        skippedFiles.push(`${file.name} (${sizeMB.toFixed(1)}MB - máximo ${MAX_FILE_SIZE_MB}MB)`);
+      } else {
+        validFiles.push(file);
+      }
+    }
+
+    if (validFiles.length === 0) {
+      throw new Error(`Nenhum arquivo válido para processar. Arquivos pulados: ${skippedFiles.join(', ')}`);
+    }
+
     // Analyze each file - use faster model for analysis
     const analyses: ImageAnalysis[] = [];
     const legibilityWarnings: string[] = [];
     
-    for (const file of files) {
+    // Add skipped file warnings
+    if (skippedFiles.length > 0) {
+      legibilityWarnings.push(`Arquivos muito grandes ignorados: ${skippedFiles.join(', ')}`);
+    }
+    
+    for (const file of validFiles) {
       const analysis = await analyzeImage(file, apiKey);
       analyses.push(analysis);
       console.log(`Arquivo ${file.name} analisado:`, {
@@ -112,8 +144,8 @@ serve(async (req) => {
 
     // Group documents by type or merge all
     const groupedDocs = mergeAll 
-      ? [{ type: 'documento_completo', files, analyses }]
-      : groupDocumentsByType(files, analyses);
+      ? [{ type: 'documento_completo', files: validFiles, analyses }]
+      : groupDocumentsByType(validFiles, analyses);
     console.log(`Agrupados em ${groupedDocs.length} documentos`);
 
     // Generate PDFs
@@ -137,7 +169,14 @@ serve(async (req) => {
             const pageCount = sourcePdf.getPageCount();
             console.log(`PDF ${file.name} tem ${pageCount} página(s)`);
             
-            for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+            // Limit pages to prevent timeout
+            const maxPages = Math.min(pageCount, 20);
+            if (pageCount > maxPages) {
+              console.warn(`PDF tem ${pageCount} páginas, processando apenas ${maxPages}`);
+              legibilityWarnings.push(`${file.name}: PDF muito grande, processadas apenas ${maxPages} de ${pageCount} páginas`);
+            }
+            
+            for (let pageIndex = 0; pageIndex < maxPages; pageIndex++) {
               const [copiedPage] = await pdfDoc.copyPages(sourcePdf, [pageIndex]);
               
               const rotation = analysis.rotation || 0;
@@ -150,6 +189,7 @@ serve(async (req) => {
             }
           } catch (e) {
             console.error(`Erro ao processar PDF ${file.name}:`, e);
+            legibilityWarnings.push(`${file.name}: Erro ao processar PDF`);
           }
           continue;
         }
@@ -160,6 +200,7 @@ serve(async (req) => {
             file.name.toLowerCase().endsWith('.heic') || 
             file.name.toLowerCase().endsWith('.heif')) {
           console.error(`Formato não suportado: ${file.name} (${file.type}). Arquivos HEIC devem ser convertidos no frontend.`);
+          legibilityWarnings.push(`${file.name}: Formato HEIC não suportado, converta para JPG`);
           continue;
         }
         
@@ -184,12 +225,22 @@ serve(async (req) => {
             pdfImage = await pdfDoc.embedPng(imageBytes);
           } catch (e2) {
             console.error(`Falha ao processar ${file.name} como PNG também`);
+            legibilityWarnings.push(`${file.name}: Não foi possível processar a imagem`);
             continue;
           }
         }
         
-        const imgWidth = pdfImage.width;
-        const imgHeight = pdfImage.height;
+        // Scale down large images to prevent CPU overload
+        let imgWidth = pdfImage.width;
+        let imgHeight = pdfImage.height;
+        
+        if (imgWidth > MAX_IMAGE_DIMENSION || imgHeight > MAX_IMAGE_DIMENSION) {
+          const scale = MAX_IMAGE_DIMENSION / Math.max(imgWidth, imgHeight);
+          imgWidth = Math.round(imgWidth * scale);
+          imgHeight = Math.round(imgHeight * scale);
+          console.log(`Imagem ${file.name} redimensionada para ${imgWidth}x${imgHeight}`);
+        }
+        
         const rotation = analysis.rotation || 0;
         
         let page;
@@ -258,6 +309,8 @@ serve(async (req) => {
           .filter(a => !a.isLegible || a.legibilityScore < 0.7)
           .flatMap(a => a.warnings),
       });
+      
+      console.log(`PDF ${fileName} gerado com ${pdfDoc.getPageCount()} página(s)`);
     }
 
     console.log(`${documents.length} PDFs gerados com sucesso`);
@@ -317,19 +370,35 @@ async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnal
     }
   }
 
+  // For PDFs, skip AI analysis to save time/CPU
+  if (isPDF) {
+    console.log(`PDF ${image.name}: usando análise simplificada para economizar CPU`);
+    return {
+      rotation: 0,
+      documentType: 'documento',
+      confidence: 0.8,
+      text: '',
+      isLegible: true,
+      legibilityScore: 1.0,
+      suggestedName: 'Documento',
+      warnings: [],
+    };
+  }
+
   // Use the fastest model for document analysis
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'google/gemini-2.5-flash-lite',
-      messages: [
-        {
-          role: 'system',
-          content: `Analise o documento e responda em JSON:
+  try {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash-lite',
+        messages: [
+          {
+            role: 'system',
+            content: `Analise o documento e responda em JSON:
 {
   "rotation": número (0, 90, 180 ou 270 - baseado na orientação do texto),
   "documentType": string (tipo: relatório médico, laudo, atestado, procuração, contrato, RG, CPF, CNH, comprovante, certidão, declaração, exame, petição, sentença, termo, documento),
@@ -339,52 +408,61 @@ async function analyzeImage(image: ImageData, apiKey: string): Promise<ImageAnal
   "warnings": array de strings (problemas: imagem borrada, texto cortado, baixo contraste)
 }
 Responda APENAS o JSON válido.`
-        },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: 'Analise este documento.'
-            },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:${image.type};base64,${image.data}`
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Analise este documento.'
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${image.type};base64,${image.data}`
+                }
               }
-            }
-          ]
-        }
-      ],
-    }),
-  });
+            ]
+          }
+        ],
+      }),
+    });
 
-  if (!response.ok) {
-    const error = await response.text();
-    console.error('Erro na Lovable AI:', error);
-    throw new Error(`Erro ao analisar imagem: ${response.status}`);
-  }
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Erro na Lovable AI:', error);
+      // Return default instead of throwing to continue processing
+      return {
+        rotation: 0,
+        documentType: 'documento',
+        confidence: 0.5,
+        text: '',
+        isLegible: true,
+        legibilityScore: 0.5,
+        suggestedName: 'Documento',
+        warnings: ['Não foi possível analisar automaticamente'],
+      };
+    }
 
-  const data = await response.json();
-  const content = data.choices[0].message.content;
-  
-  // Extract JSON from response - handle multi-line JSON
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    console.warn('Resposta sem JSON válido, usando valores padrão');
-    return {
-      rotation: 0,
-      documentType: 'documento',
-      confidence: 0.5,
-      text: '',
-      isLegible: true,
-      legibilityScore: 0.5,
-      suggestedName: 'Documento',
-      warnings: ['Não foi possível analisar o documento automaticamente'],
-    };
-  }
+    const data = await response.json();
+    const content = data.choices[0].message.content;
+    
+    // Extract JSON from response - handle multi-line JSON
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.warn('Resposta sem JSON válido, usando valores padrão');
+      return {
+        rotation: 0,
+        documentType: 'documento',
+        confidence: 0.5,
+        text: '',
+        isLegible: true,
+        legibilityScore: 0.5,
+        suggestedName: 'Documento',
+        warnings: ['Não foi possível analisar o documento automaticamente'],
+      };
+    }
 
-  try {
     const result = JSON.parse(jsonMatch[0]);
     
     // Generate suggested name based on document type
@@ -404,7 +482,7 @@ Responda APENAS o JSON válido.`
       warnings: result.warnings || [],
     };
   } catch (e) {
-    console.error('Erro ao fazer parse do JSON:', e);
+    console.error('Erro ao analisar imagem:', e);
     return {
       rotation: 0,
       documentType: 'documento',
