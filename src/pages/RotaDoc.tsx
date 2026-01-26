@@ -62,6 +62,53 @@ export default function RotaDoc() {
     return file;
   };
 
+  // Resize image on client-side before sending to avoid server memory issues
+  const resizeImage = (file: File, maxDimension: number = 1200): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      // PDFs don't need resizing
+      if (file.type === 'application/pdf') {
+        resolve(file);
+        return;
+      }
+      
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      img.onload = () => {
+        let { width, height } = img;
+        
+        // Only resize if larger than max dimension
+        if (width > maxDimension || height > maxDimension) {
+          const scale = maxDimension / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+          console.log(`Redimensionando ${file.name} para ${width}x${height}`);
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const resizedFile = new File([blob], file.name, { type: 'image/jpeg' });
+              resolve(resizedFile);
+            } else {
+              resolve(file); // Fallback to original
+            }
+          },
+          'image/jpeg',
+          0.85 // Quality
+        );
+      };
+      
+      img.onerror = () => resolve(file); // Fallback to original on error
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleProcess = async () => {
     if (files.length === 0) {
       toast({
@@ -89,8 +136,13 @@ export default function RotaDoc() {
         })
       );
 
+      // Resize images on client-side before sending
+      const resizedFiles = await Promise.all(
+        convertedFiles.map(file => resizeImage(file, 1200))
+      );
+
       const filesData = await Promise.all(
-        convertedFiles.map(async (file) => {
+        resizedFiles.map(async (file) => {
           const base64 = await new Promise<string>((resolve) => {
             const reader = new FileReader();
             reader.onloadend = () => {
@@ -108,20 +160,50 @@ export default function RotaDoc() {
         })
       );
 
-      const { data, error } = await supabase.functions.invoke('process-documents', {
-        body: {
-          files: filesData,
-          mergeAll,
-        },
-      });
-
-      if (error) throw error;
-
-      setProcessedDocuments(data.documents || []);
+      // Process files in batches of 2 to avoid memory issues
+      const BATCH_SIZE = 2;
+      const allDocuments: ProcessedDocument[] = [];
+      const allWarnings: string[] = [];
       
-      // Set legibility warnings if any
-      if (data.legibilityWarnings && data.legibilityWarnings.length > 0) {
-        setLegibilityWarnings(data.legibilityWarnings);
+      for (let i = 0; i < filesData.length; i += BATCH_SIZE) {
+        const batch = filesData.slice(i, i + BATCH_SIZE);
+        console.log(`Processando lote ${Math.floor(i / BATCH_SIZE) + 1} de ${Math.ceil(filesData.length / BATCH_SIZE)}`);
+        
+        setProgress(prev => ({
+          ...prev,
+          current: i,
+          estimatedTimeRemaining: Math.round(((Date.now() - startTime) / (i + 1)) * (filesData.length - i - 1) / 1000)
+        }));
+        
+        const { data, error } = await supabase.functions.invoke('process-documents', {
+          body: {
+            files: batch,
+            mergeAll: true, // Always merge within batch
+          },
+        });
+
+        if (error) {
+          console.error('Erro no lote:', error);
+          allWarnings.push(`Lote ${Math.floor(i / BATCH_SIZE) + 1}: ${error.message || 'Erro no processamento'}`);
+          continue; // Continue with next batch instead of failing completely
+        }
+
+        if (data?.documents) {
+          allDocuments.push(...data.documents);
+        }
+        if (data?.legibilityWarnings) {
+          allWarnings.push(...data.legibilityWarnings);
+        }
+      }
+
+      if (allDocuments.length === 0) {
+        throw new Error('Nenhum documento foi processado com sucesso');
+      }
+
+      setProcessedDocuments(allDocuments);
+      
+      if (allWarnings.length > 0) {
+        setLegibilityWarnings(allWarnings);
       }
       
       const processingTime = Math.round((Date.now() - startTime) / 1000);
@@ -133,7 +215,7 @@ export default function RotaDoc() {
         action: 'Processamento de documentos concluído',
         metadata: {
           fileCount: files.length,
-          documentCount: data.documents?.length || 0,
+          documentCount: allDocuments.length,
           processingTime,
           mergeAll,
         },
@@ -141,7 +223,7 @@ export default function RotaDoc() {
 
       toast({
         title: 'Processamento concluído',
-        description: `${data.documents?.length || 0} documento(s) gerado(s) com sucesso!`,
+        description: `${allDocuments.length} documento(s) gerado(s) com sucesso!`,
       });
     } catch (error: any) {
       console.error('Erro ao processar documentos:', error);
