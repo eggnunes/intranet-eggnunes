@@ -99,7 +99,7 @@ async function sendWhatsAppMessage(phone: string, customerName: string) {
   console.log(`Using Account ID: ${CHATGURU_ACCOUNT_ID}`);
   console.log(`Using Phone ID: ${CHATGURU_PHONE_ID}`);
   
-  const DIALOG_ID = '679a5d753968d5272a54d203';
+  const DIALOG_ID = '6977a8b42fc8f7656b256f9b';
   
   // Primeiro, tentar dialog_execute (para chats existentes)
   console.log('Attempting dialog_execute for existing chat...');
