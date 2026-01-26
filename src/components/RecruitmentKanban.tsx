@@ -140,18 +140,32 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
   };
 
   return (
-    <div className="w-full overflow-hidden -mx-4 px-4">
+    <div 
+      className="relative"
+      style={{
+        marginLeft: 'calc(-50vw + 50%)',
+        marginRight: 'calc(-50vw + 50%)',
+        width: '100vw',
+        maxWidth: '100vw',
+      }}
+    >
       {/* Kanban Container com scroll horizontal */}
       <div 
         id="recruitment-kanban-scroll"
-        className="pb-6"
+        className="px-4 md:px-8 pb-6"
         style={{
-          overflowX: 'scroll',
+          overflowX: 'auto',
           overflowY: 'visible',
           WebkitOverflowScrolling: 'touch',
         }}
       >
-        <div className="inline-flex gap-4 py-2" style={{ minWidth: 'max-content' }}>
+        <div 
+          className="flex gap-4 py-2"
+          style={{ 
+            width: 'max-content',
+            minWidth: '100%',
+          }}
+        >
           {STAGE_ORDER.map(stage => {
             const stageCandidates = getCandidatesByStage(stage);
             const isDragOver = dragOverStage === stage;
