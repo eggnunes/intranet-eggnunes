@@ -101,12 +101,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Also listen for visibility change to handle when user comes back to tab
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        // Check if too much time has passed while tab was hidden
+        // Only check inactivity - don't trigger any state updates that could cause re-renders
+        // This prevents the page from refreshing when switching tabs
         if (checkInactivityOnLoad()) {
           signOut();
-        } else {
-          resetInactivityTimer();
         }
+        // Note: We intentionally DON'T call resetInactivityTimer() here
+        // to avoid triggering re-renders that could cause form data loss
+        // The timer will be reset on the next user interaction anyway
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
