@@ -994,13 +994,14 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
       >
         <div 
           id="crm-kanban-scroll"
-          className="w-full overflow-x-scroll pb-4"
+          className="w-full pb-6 -mx-4 px-4"
           style={{
+            overflowX: 'scroll',
+            overflowY: 'visible',
             WebkitOverflowScrolling: 'touch',
-            scrollBehavior: 'smooth'
           }}
         >
-          <div className="flex gap-5 min-w-max px-1 py-1">
+          <div className="inline-flex gap-5 py-1" style={{ minWidth: 'max-content' }}>
             {stages.map((stage, index) => {
               const stageDeals = getStageDeals(stage.id);
               const stageValue = getStageValue(stage.id);
@@ -1035,31 +1036,31 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
           </div>
         </div>
         
-        {/* CSS para scrollbar sempre visível */}
+        {/* CSS para scrollbar sempre visível e funcional */}
         <style>{`
           #crm-kanban-scroll {
-            scrollbar-width: thin;
+            scrollbar-width: auto;
             scrollbar-color: hsl(var(--primary)) hsl(var(--muted));
           }
           #crm-kanban-scroll::-webkit-scrollbar {
-            height: 14px;
+            height: 16px;
             display: block !important;
           }
           #crm-kanban-scroll::-webkit-scrollbar-track {
             background: hsl(var(--muted));
-            border-radius: 7px;
-            margin: 0 4px;
+            border-radius: 8px;
           }
           #crm-kanban-scroll::-webkit-scrollbar-thumb {
             background: hsl(var(--primary));
-            border-radius: 7px;
+            border-radius: 8px;
             border: 3px solid hsl(var(--muted));
-            min-width: 40px;
+            cursor: grab;
           }
           #crm-kanban-scroll::-webkit-scrollbar-thumb:hover {
             background: hsl(var(--primary) / 0.8);
           }
           #crm-kanban-scroll::-webkit-scrollbar-thumb:active {
+            cursor: grabbing;
             background: hsl(var(--primary) / 0.7);
           }
         `}</style>

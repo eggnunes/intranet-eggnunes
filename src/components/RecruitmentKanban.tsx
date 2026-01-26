@@ -140,17 +140,18 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
   };
 
   return (
-    <div className="w-full overflow-hidden">
+    <div className="w-full overflow-hidden -mx-4 px-4">
       {/* Kanban Container com scroll horizontal */}
       <div 
         id="recruitment-kanban-scroll"
-        className="overflow-x-scroll pb-4 -mx-1 px-1"
+        className="pb-6"
         style={{
+          overflowX: 'scroll',
+          overflowY: 'visible',
           WebkitOverflowScrolling: 'touch',
-          scrollBehavior: 'smooth'
         }}
       >
-        <div className="inline-flex gap-4 pb-2">
+        <div className="inline-flex gap-4 py-2" style={{ minWidth: 'max-content' }}>
           {STAGE_ORDER.map(stage => {
             const stageCandidates = getCandidatesByStage(stage);
             const isDragOver = dragOverStage === stage;
@@ -285,31 +286,31 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
         </div>
       </div>
       
-      {/* CSS para scrollbar sempre visível */}
+      {/* CSS para scrollbar sempre visível e funcional */}
       <style>{`
         #recruitment-kanban-scroll {
-          scrollbar-width: thin;
+          scrollbar-width: auto;
           scrollbar-color: hsl(var(--primary)) hsl(var(--muted));
         }
         #recruitment-kanban-scroll::-webkit-scrollbar {
-          height: 14px;
+          height: 16px;
           display: block !important;
         }
         #recruitment-kanban-scroll::-webkit-scrollbar-track {
           background: hsl(var(--muted));
-          border-radius: 7px;
-          margin: 0 4px;
+          border-radius: 8px;
         }
         #recruitment-kanban-scroll::-webkit-scrollbar-thumb {
           background: hsl(var(--primary));
-          border-radius: 7px;
+          border-radius: 8px;
           border: 3px solid hsl(var(--muted));
-          min-width: 40px;
+          cursor: grab;
         }
         #recruitment-kanban-scroll::-webkit-scrollbar-thumb:hover {
           background: hsl(var(--primary) / 0.8);
         }
         #recruitment-kanban-scroll::-webkit-scrollbar-thumb:active {
+          cursor: grabbing;
           background: hsl(var(--primary) / 0.7);
         }
       `}</style>
