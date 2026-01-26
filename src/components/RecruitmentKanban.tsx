@@ -152,17 +152,20 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
       {/* Kanban Container com scroll horizontal */}
       <div 
         id="recruitment-kanban-scroll"
-        className="px-4 md:px-8 pb-6"
+        className="pb-6"
         style={{
           overflowX: 'auto',
           overflowY: 'visible',
           WebkitOverflowScrolling: 'touch',
+          paddingLeft: '16px',
+          paddingRight: '16px',
         }}
       >
         <div 
           className="flex gap-4 py-2"
           style={{ 
             width: 'max-content',
+            paddingRight: '16px',
             minWidth: '100%',
           }}
         >
