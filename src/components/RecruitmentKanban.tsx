@@ -142,18 +142,23 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
   return (
     <div 
       id="recruitment-kanban-scroll"
-      className="pb-6 -mx-4 sm:-mx-6 lg:-mx-8"
+      className="pb-6"
       style={{
-        overflowX: 'auto',
+        overflowX: 'scroll',
         overflowY: 'visible',
         WebkitOverflowScrolling: 'touch',
+        marginLeft: '-1rem',
+        marginRight: '-1rem',
+        paddingLeft: '1rem',
+        paddingRight: '1rem',
       }}
     >
       <div 
-        className="inline-flex gap-4 py-2"
+        className="flex gap-4 py-2"
         style={{
-          paddingLeft: '16px',
-          paddingRight: '16px',
+          width: 'max-content',
+          minWidth: '100%',
+          paddingRight: '1rem',
         }}
       >
         {STAGE_ORDER.map(stage => {
@@ -292,29 +297,26 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
         {/* CSS para scrollbar sempre visível e funcional */}
         <style>{`
           #recruitment-kanban-scroll {
-            scrollbar-width: auto;
+            scrollbar-width: auto !important;
             scrollbar-color: hsl(var(--primary)) hsl(var(--muted));
           }
           #recruitment-kanban-scroll::-webkit-scrollbar {
-            height: 16px;
+            height: 14px !important;
             display: block !important;
           }
           #recruitment-kanban-scroll::-webkit-scrollbar-track {
             background: hsl(var(--muted));
             border-radius: 8px;
+            margin: 0 1rem;
           }
           #recruitment-kanban-scroll::-webkit-scrollbar-thumb {
             background: hsl(var(--primary));
             border-radius: 8px;
             border: 3px solid hsl(var(--muted));
-            cursor: grab;
+            min-width: 60px;
           }
           #recruitment-kanban-scroll::-webkit-scrollbar-thumb:hover {
             background: hsl(var(--primary) / 0.8);
-          }
-          #recruitment-kanban-scroll::-webkit-scrollbar-thumb:active {
-            cursor: grabbing;
-            background: hsl(var(--primary) / 0.7);
           }
         `}</style>
       </div>
