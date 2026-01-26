@@ -992,47 +992,64 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
+        {/* Container externo que quebra o fluxo normal para permitir scroll total */}
         <div 
-          id="crm-kanban-scroll"
-          className="w-full pb-6 -mx-4 px-4"
+          className="relative"
           style={{
-            overflowX: 'scroll',
-            overflowY: 'visible',
-            WebkitOverflowScrolling: 'touch',
+            marginLeft: 'calc(-50vw + 50%)',
+            marginRight: 'calc(-50vw + 50%)',
+            width: '100vw',
+            maxWidth: '100vw',
           }}
         >
-          <div className="inline-flex gap-5 py-1" style={{ minWidth: 'max-content' }}>
-            {stages.map((stage, index) => {
-              const stageDeals = getStageDeals(stage.id);
-              const stageValue = getStageValue(stage.id);
+          <div 
+            id="crm-kanban-scroll"
+            className="px-4 md:px-8 pb-6"
+            style={{
+              overflowX: 'auto',
+              overflowY: 'visible',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
+            <div 
+              className="flex gap-5 py-2"
+              style={{ 
+                width: 'max-content',
+                minWidth: '100%',
+              }}
+            >
+              {stages.map((stage, index) => {
+                const stageDeals = getStageDeals(stage.id);
+                const stageValue = getStageValue(stage.id);
 
-              return (
-                <DroppableColumn
-                  key={stage.id}
-                  stage={stage}
-                  index={index}
-                  stageDeals={stageDeals}
-                  stageValue={stageValue}
-                  getStageHeaderColor={getStageHeaderColor}
-                  getStageColumnColor={getStageColumnColor}
-                  formatCurrency={formatCurrency}
-                >
-                  {stageDeals.map((deal) => (
-                    <DraggableDealCard
-                      key={deal.id}
-                      deal={deal}
-                      stage={stage}
-                      stages={stages}
-                      onMove={handleMoveToStage}
-                      onView={handleViewDeal}
-                      movingDeal={movingDeal}
-                      formatCurrency={formatCurrency}
-                      profiles={profiles}
-                    />
-                  ))}
-                </DroppableColumn>
-              );
-            })}
+                return (
+                  <DroppableColumn
+                    key={stage.id}
+                    stage={stage}
+                    index={index}
+                    stageDeals={stageDeals}
+                    stageValue={stageValue}
+                    getStageHeaderColor={getStageHeaderColor}
+                    getStageColumnColor={getStageColumnColor}
+                    formatCurrency={formatCurrency}
+                  >
+                    {stageDeals.map((deal) => (
+                      <DraggableDealCard
+                        key={deal.id}
+                        deal={deal}
+                        stage={stage}
+                        stages={stages}
+                        onMove={handleMoveToStage}
+                        onView={handleViewDeal}
+                        movingDeal={movingDeal}
+                        formatCurrency={formatCurrency}
+                        profiles={profiles}
+                      />
+                    ))}
+                  </DroppableColumn>
+                );
+              })}
+            </div>
           </div>
         </div>
         
