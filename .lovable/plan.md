@@ -1,173 +1,146 @@
 
-# Plano de Correção Definitiva do Scroll Horizontal no Kanban
+# Plano de Correção: Sistema de Parceiros
 
-## Diagnóstico do Problema
+## 1. Problema Identificado: Erro ao Salvar Parceiro
 
-Identifiquei que o problema de rolagem horizontal no Kanban (CRM e Recrutamento) é causado por uma cadeia de containeres CSS que estão restringindo incorretamente o scroll:
+**Causa Raiz**: As politicas de segurança (RLS) da tabela `parceiros` apenas permitem que **administradores** criem, editem ou excluam parceiros. Usuarios comuns so podem visualizar.
+
+Politica atual:
+- SELECT: Usuarios aprovados podem ver
+- ALL (INSERT/UPDATE/DELETE): Somente admins
+
+**Solucao**: Criar uma nova politica RLS que permita que qualquer usuario aprovado possa criar parceiros (INSERT), mantendo as restricoes de UPDATE/DELETE apenas para admins e comercial.
+
+---
+
+## 2. Mascara no Telefone
+
+**Situacao**: O campo de telefone no cadastro de parceiros nao tem mascara de formatacao.
+
+**Solucao**: Utilizar a funcao `maskPhone` ja existente em `src/lib/masks.ts` para aplicar a mascara (XX) XXXXX-XXXX automaticamente.
+
+---
+
+## 3. Sistema de Indicacoes e Pagamentos
+
+**Situacao Atual**: O sistema ja existe com os seguintes campos:
+- Nome do cliente
+- Percentual de comissao
+- Valor total da causa
+- Valor da comissao (calculado)
+- Status (ativa, fechada, cancelada)
+- Descricao do caso
+- Area de atuacao
+
+E o sistema de pagamentos permite:
+- Pagamentos parcelados
+- Vincular a indicacoes
+- Tipo (a receber ou a pagar)
+- Forma de pagamento
+
+**Melhorias Propostas**: O sistema atual ja atende a maior parte das necessidades. As melhorias serao:
+- Melhorar a visualizacao das indicacoes na tela de detalhes
+- Adicionar mais campos se necessario
+
+---
+
+## Alteracoes Tecnicas
+
+### Arquivo 1: Migracao de Banco de Dados
+
+Criar nova politica RLS para permitir que usuarios aprovados cadastrem parceiros:
+
+```sql
+-- Permitir que usuarios aprovados possam cadastrar parceiros
+CREATE POLICY "Usuarios aprovados podem criar parceiros"
+ON public.parceiros FOR INSERT
+TO public
+WITH CHECK (is_approved(auth.uid()));
+
+-- Permitir que usuarios aprovados criem indicacoes
+CREATE POLICY "Usuarios aprovados podem criar indicacoes"
+ON public.parceiros_indicacoes FOR INSERT
+TO public
+WITH CHECK (is_approved(auth.uid()));
+
+-- Permitir que usuarios aprovados criem pagamentos
+CREATE POLICY "Usuarios aprovados podem criar pagamentos"
+ON public.parceiros_pagamentos FOR INSERT
+TO public
+WITH CHECK (is_approved(auth.uid()));
+
+-- Permitir vinculacao de areas
+CREATE POLICY "Usuarios aprovados podem vincular areas"
+ON public.parceiros_areas FOR INSERT
+TO public
+WITH CHECK (is_approved(auth.uid()));
+```
+
+### Arquivo 2: src/components/parceiros/ParceiroDialog.tsx
+
+Adicionar mascara no campo telefone:
+
+```typescript
+import { maskPhone } from '@/lib/masks';
+
+// No input de telefone:
+<Input
+  id="telefone"
+  value={formData.telefone}
+  onChange={(e) => setFormData({ ...formData, telefone: maskPhone(e.target.value) })}
+  placeholder="(XX) XXXXX-XXXX"
+  maxLength={15}
+/>
+```
+
+### Arquivo 3: src/components/parceiros/IndicacaoDialog.tsx
+
+Adicionar mascara de moeda no campo valor e melhorar UX:
+
+```typescript
+// Formatar valores monetarios de forma mais amigavel
+// Adicionar campo de observacoes
+// Melhorar feedback visual do calculo de comissao
+```
+
+---
+
+## Resumo das Mudancas
+
+| Componente | Alteracao |
+|------------|-----------|
+| Banco de Dados | Novas politicas RLS para INSERT |
+| ParceiroDialog.tsx | Mascara de telefone |
+| IndicacaoDialog.tsx | Melhorias visuais e UX |
+
+---
+
+## Fluxo Apos Implementacao
 
 ```text
-Layout (SidebarInset)
-  └── main (overflow-auto, flex-1, padding)
-        └── CRMDashboard
-              └── TabsContent
-                    └── Kanban Container (overflow-x: scroll)
-                          └── Flex Container (width: max-content)
-                                └── Colunas (w-80, flex-shrink-0)
+Usuario abre tela de Parceiros
+      |
+      v
+Clica em "Novo Parceiro"
+      |
+      v
+Preenche dados (telefone com mascara automatica)
+      |
+      v
+Salva --> Politica RLS permite INSERT
+      |
+      v
+Parceiro cadastrado com sucesso
+      |
+      v
+Pode adicionar indicacoes e pagamentos
 ```
 
-**Causas Raiz:**
-1. O elemento `main` tem `overflow-auto` que compete com o scroll do Kanban
-2. A técnica de margem negativa (`margin: -1rem`) não está expandindo corretamente a área de scroll
-3. O container interno usa `width: max-content` mas o container pai não tem largura suficiente
-
 ---
 
-## Solução Proposta
+## Beneficios
 
-### Estratégia: Scroll Container Isolado
-
-A solução envolve criar um container de scroll completamente isolado que:
-- Ignora as restrições de padding do container pai
-- Usa `100vw` calculado para garantir largura total
-- Mantém scrollbar sempre visível e funcional
-
-### Arquivos a Modificar
-
-1. **src/components/crm/CRMDealsKanban.tsx**
-2. **src/components/RecruitmentKanban.tsx**
-
----
-
-## Alterações Técnicas
-
-### Para ambos os arquivos (CRMDealsKanban.tsx e RecruitmentKanban.tsx):
-
-1. **Wrapper Externo com Position Relative**
-   - Criar um wrapper com `position: relative` e `width: 100%`
-   - Isso estabelece o contexto para o scroll container
-
-2. **Container de Scroll Refeito**
-   ```jsx
-   <div style={{
-     display: 'block',
-     overflowX: 'auto',
-     overflowY: 'visible',
-     width: '100%',
-     maxWidth: '100%',
-   }}>
-   ```
-
-3. **Container Flex Interno Corrigido**
-   ```jsx
-   <div style={{
-     display: 'inline-flex',
-     gap: '20px',
-     padding: '8px 0',
-     paddingRight: '16px', // Espaço no final
-   }}>
-   ```
-
-4. **Colunas com Largura Fixa Garantida**
-   - Manter `width: 320px` (ou `w-80` equivalente)
-   - Manter `flex-shrink: 0` para não comprimir
-
-5. **CSS Customizado para Scrollbar**
-   ```css
-   #kanban-scroll-container {
-     scrollbar-width: thin;
-     scrollbar-color: hsl(var(--primary)) hsl(var(--muted));
-   }
-   #kanban-scroll-container::-webkit-scrollbar {
-     height: 12px;
-   }
-   #kanban-scroll-container::-webkit-scrollbar-track {
-     background: hsl(var(--muted));
-     border-radius: 6px;
-   }
-   #kanban-scroll-container::-webkit-scrollbar-thumb {
-     background: hsl(var(--primary));
-     border-radius: 6px;
-   }
-   ```
-
----
-
-## Código Específico
-
-### CRMDealsKanban.tsx (linhas 995-1050 aproximadamente)
-
-**Antes:**
-```jsx
-<div 
-  id="crm-kanban-scroll"
-  className="pb-6"
-  style={{
-    overflowX: 'scroll',
-    overflowY: 'visible',
-    WebkitOverflowScrolling: 'touch',
-    marginLeft: '-1rem',
-    marginRight: '-1rem',
-    paddingLeft: '1rem',
-    paddingRight: '1rem',
-  }}
->
-  <div 
-    className="flex gap-5 py-2"
-    style={{
-      width: 'max-content',
-      minWidth: '100%',
-      paddingRight: '1rem',
-    }}
-  >
-```
-
-**Depois:**
-```jsx
-<div 
-  id="crm-kanban-scroll"
-  style={{
-    display: 'block',
-    width: '100%',
-    overflowX: 'auto',
-    overflowY: 'visible',
-    WebkitOverflowScrolling: 'touch',
-    paddingBottom: '1.5rem',
-  }}
->
-  <div 
-    style={{
-      display: 'inline-flex',
-      gap: '20px',
-      paddingTop: '8px',
-      paddingBottom: '8px',
-    }}
-  >
-```
-
-### RecruitmentKanban.tsx (linhas 142-165 aproximadamente)
-
-Aplicar a mesma estrutura do CRMDealsKanban.
-
----
-
-## Por que Esta Solução Funciona
-
-1. **`display: inline-flex`** - O container interno ocupa apenas o espaço necessário para seus filhos, permitindo que o scroll funcione corretamente
-
-2. **Remoção das margens negativas** - A técnica de margem negativa estava causando conflitos com o cálculo de largura
-
-3. **`overflowX: auto`** - Mostra a scrollbar apenas quando necessário, mas garante que ela apareça
-
-4. **Largura fixa nas colunas** - Cada coluna tem `320px` fixos com `flex-shrink: 0`, garantindo que não sejam comprimidas
-
----
-
-## Resultado Esperado
-
-Após as alterações:
-- Scrollbar horizontal sempre visível quando houver mais colunas do que cabem na tela
-- Primeira coluna visível sem cortes ao rolar para o início
-- Última coluna visível sem cortes ao rolar para o final
-- Funcionamento idêntico em desktop e mobile
-- Drag-and-drop continua funcionando normalmente
-
+1. **Correcao do erro**: Usuarios aprovados poderao cadastrar parceiros
+2. **Padronizacao**: Telefone sempre formatado corretamente
+3. **Melhor UX**: Feedback visual durante o preenchimento
+4. **Integracao financeira**: Sistema ja integrado com financeiro via triggers
