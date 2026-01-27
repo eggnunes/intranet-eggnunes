@@ -5,9 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { addMonths, format } from 'date-fns';
 
 interface AreaAtuacao {
   id: string;
@@ -46,9 +48,17 @@ export function IndicacaoDialog({ open, onOpenChange, parceiroId, parceiroTipo, 
     descricao_caso: '',
     area_atuacao_id: '',
     percentual_comissao: '0',
-    valor_total_causa: '',
-    status: 'ativa'
+    valor_honorarios: '',
+    status: 'ativa',
+    forma_pagamento: 'avista',
+    numero_parcelas: '1',
+    pago_no_ato: false
   });
+
+  const valorHonorarios = parseFloat(formData.valor_honorarios) || 0;
+  const percentualComissao = parseFloat(formData.percentual_comissao) || 0;
+  const valorComissao = valorHonorarios * percentualComissao / 100;
+  const valorLiquidoEscritorio = valorHonorarios - valorComissao;
 
   useEffect(() => {
     if (open) {
@@ -60,11 +70,13 @@ export function IndicacaoDialog({ open, onOpenChange, parceiroId, parceiroTipo, 
           descricao_caso: indicacao.descricao_caso || '',
           area_atuacao_id: '',
           percentual_comissao: String(indicacao.percentual_comissao),
-          valor_total_causa: indicacao.valor_total_causa ? String(indicacao.valor_total_causa) : '',
-          status: indicacao.status
+          valor_honorarios: indicacao.valor_total_causa ? String(indicacao.valor_total_causa) : '',
+          status: indicacao.status,
+          forma_pagamento: 'avista',
+          numero_parcelas: '1',
+          pago_no_ato: false
         });
       } else {
-        // Definir tipo padrão baseado no tipo do parceiro
         const tipoDefault = parceiroTipo === 'indicamos' ? 'enviada' : 
                            parceiroTipo === 'nos_indicam' ? 'recebida' : 'enviada';
         setFormData({
@@ -73,8 +85,11 @@ export function IndicacaoDialog({ open, onOpenChange, parceiroId, parceiroTipo, 
           descricao_caso: '',
           area_atuacao_id: '',
           percentual_comissao: '0',
-          valor_total_causa: '',
-          status: 'ativa'
+          valor_honorarios: '',
+          status: 'ativa',
+          forma_pagamento: 'avista',
+          numero_parcelas: '1',
+          pago_no_ato: false
         });
       }
     }
@@ -94,6 +109,70 @@ export function IndicacaoDialog({ open, onOpenChange, parceiroId, parceiroTipo, 
     setAreas(data || []);
   };
 
+  const criarLancamentosFinanceiros = async (indicacaoId: string, parceiroNome: string) => {
+    if (valorLiquidoEscritorio <= 0) return;
+
+    try {
+      // Buscar categoria de receita padrão
+      let { data: categoria } = await supabase
+        .from('fin_categorias')
+        .select('id')
+        .eq('tipo', 'receita')
+        .eq('ativa', true)
+        .limit(1)
+        .single();
+
+      if (!categoria) {
+        const { data: novaCat } = await supabase
+          .from('fin_categorias')
+          .insert({ nome: 'Honorários de Parceiros', tipo: 'receita', grupo: 'Receitas', cor: '#22c55e', ativa: true })
+          .select('id')
+          .single();
+        categoria = novaCat;
+      }
+
+      // Buscar conta padrão
+      const { data: conta } = await supabase
+        .from('fin_contas')
+        .select('id')
+        .eq('ativa', true)
+        .limit(1)
+        .single();
+
+      const numParcelas = formData.forma_pagamento === 'parcelado' ? parseInt(formData.numero_parcelas) || 1 : 1;
+      const valorParcela = valorLiquidoEscritorio / numParcelas;
+      const hoje = new Date();
+
+      const lancamentos = [];
+      for (let i = 0; i < numParcelas; i++) {
+        const dataVencimento = addMonths(hoje, i);
+        const isPago = formData.forma_pagamento === 'avista' && formData.pago_no_ato && i === 0;
+        
+        lancamentos.push({
+          tipo: 'receita',
+          categoria_id: categoria?.id,
+          conta_origem_id: conta?.id,
+          valor: valorParcela,
+          descricao: `Honorários - ${formData.nome_cliente} (Parceiro: ${parceiroNome})${numParcelas > 1 ? ` - Parcela ${i + 1}/${numParcelas}` : ''}`,
+          data_vencimento: format(dataVencimento, 'yyyy-MM-dd'),
+          data_pagamento: isPago ? format(hoje, 'yyyy-MM-dd') : null,
+          origem: 'cliente',
+          status: isPago ? 'pago' : 'pendente',
+          observacao: `Indicação ID: ${indicacaoId}`,
+          created_by: user?.id
+        });
+      }
+
+      const { error } = await supabase.from('fin_lancamentos').insert(lancamentos);
+      if (error) throw error;
+
+      toast.success(`${numParcelas} lançamento(s) financeiro(s) criado(s)!`);
+    } catch (error) {
+      console.error('Erro ao criar lançamentos:', error);
+      toast.error('Indicação salva, mas houve erro ao criar lançamentos financeiros');
+    }
+  };
+
   const handleSave = async () => {
     if (!formData.nome_cliente.trim()) {
       toast.error('Nome do cliente é obrigatório');
@@ -102,22 +181,25 @@ export function IndicacaoDialog({ open, onOpenChange, parceiroId, parceiroTipo, 
 
     setLoading(true);
     try {
-      const valorTotal = formData.valor_total_causa ? parseFloat(formData.valor_total_causa) : null;
-      const percentual = parseFloat(formData.percentual_comissao) || 0;
-      const valorComissao = valorTotal ? (valorTotal * percentual / 100) : null;
-
       const payload = {
         parceiro_id: parceiroId,
         tipo_indicacao: formData.tipo_indicacao,
         nome_cliente: formData.nome_cliente,
         descricao_caso: formData.descricao_caso || null,
         area_atuacao_id: formData.area_atuacao_id || null,
-        percentual_comissao: percentual,
-        valor_total_causa: valorTotal,
-        valor_comissao: valorComissao,
+        percentual_comissao: percentualComissao,
+        valor_total_causa: valorHonorarios || null,
+        valor_comissao: valorComissao || null,
         status: formData.status,
         created_by: user?.id
       };
+
+      // Buscar nome do parceiro
+      const { data: parceiro } = await supabase
+        .from('parceiros')
+        .select('nome_completo')
+        .eq('id', parceiroId)
+        .single();
 
       if (indicacao) {
         const { error } = await supabase
@@ -128,12 +210,19 @@ export function IndicacaoDialog({ open, onOpenChange, parceiroId, parceiroTipo, 
         if (error) throw error;
         toast.success('Indicação atualizada com sucesso!');
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('parceiros_indicacoes')
-          .insert(payload);
+          .insert(payload)
+          .select('id')
+          .single();
 
         if (error) throw error;
         toast.success('Indicação cadastrada com sucesso!');
+
+        // Criar lançamentos financeiros automaticamente
+        if (data && valorLiquidoEscritorio > 0) {
+          await criarLancamentosFinanceiros(data.id, parceiro?.nome_completo || 'Parceiro');
+        }
       }
 
       onOpenChange(false);
@@ -146,9 +235,12 @@ export function IndicacaoDialog({ open, onOpenChange, parceiroId, parceiroTipo, 
     }
   };
 
+  const formatCurrency = (value: number) => 
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{indicacao ? 'Editar Indicação' : 'Nova Indicação'}</DialogTitle>
           <DialogDescription>
@@ -206,12 +298,12 @@ export function IndicacaoDialog({ open, onOpenChange, parceiroId, parceiroTipo, 
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="valor">Valor Total da Causa (R$)</Label>
+              <Label htmlFor="valor">Valor dos Honorários (R$)</Label>
               <Input
                 id="valor"
                 type="number"
-                value={formData.valor_total_causa}
-                onChange={(e) => setFormData({ ...formData, valor_total_causa: e.target.value })}
+                value={formData.valor_honorarios}
+                onChange={(e) => setFormData({ ...formData, valor_honorarios: e.target.value })}
                 placeholder="0,00"
               />
             </div>
@@ -229,14 +321,61 @@ export function IndicacaoDialog({ open, onOpenChange, parceiroId, parceiroTipo, 
             </div>
           </div>
 
-          {formData.valor_total_causa && parseFloat(formData.percentual_comissao) > 0 && (
-            <div className="p-3 bg-muted rounded-md">
+          {valorHonorarios > 0 && (
+            <div className="p-3 bg-muted rounded-md space-y-1">
               <p className="text-sm text-muted-foreground">
-                Valor da Comissão: <strong className="text-foreground">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-                    .format(parseFloat(formData.valor_total_causa) * parseFloat(formData.percentual_comissao) / 100)}
-                </strong>
+                Valor da Comissão: <strong className="text-foreground">{formatCurrency(valorComissao)}</strong>
               </p>
+              <p className="text-sm text-muted-foreground">
+                Valor Líquido Escritório: <strong className="text-primary">{formatCurrency(valorLiquidoEscritorio)}</strong>
+              </p>
+            </div>
+          )}
+
+          <div>
+            <Label>Forma de Pagamento</Label>
+            <Select 
+              value={formData.forma_pagamento} 
+              onValueChange={(v) => setFormData({ ...formData, forma_pagamento: v, pago_no_ato: false })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="avista">À Vista</SelectItem>
+                <SelectItem value="parcelado">Parcelado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {formData.forma_pagamento === 'avista' && (
+            <div className="flex items-center justify-between p-3 bg-muted rounded-md">
+              <Label htmlFor="pago_ato" className="cursor-pointer">Pago no ato?</Label>
+              <Switch
+                id="pago_ato"
+                checked={formData.pago_no_ato}
+                onCheckedChange={(checked) => setFormData({ ...formData, pago_no_ato: checked })}
+              />
+            </div>
+          )}
+
+          {formData.forma_pagamento === 'parcelado' && (
+            <div>
+              <Label htmlFor="parcelas">Número de Parcelas</Label>
+              <Input
+                id="parcelas"
+                type="number"
+                min="2"
+                max="48"
+                value={formData.numero_parcelas}
+                onChange={(e) => setFormData({ ...formData, numero_parcelas: e.target.value })}
+                placeholder="2"
+              />
+              {parseInt(formData.numero_parcelas) > 1 && valorLiquidoEscritorio > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {formData.numero_parcelas}x de {formatCurrency(valorLiquidoEscritorio / parseInt(formData.numero_parcelas))}
+                </p>
+              )}
             </div>
           )}
 

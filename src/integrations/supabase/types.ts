@@ -4560,15 +4560,19 @@ export type Database = {
           created_by: string | null
           data_indicacao: string
           descricao_caso: string | null
+          forma_pagamento: string | null
           id: string
           nome_cliente: string
+          numero_parcelas: number | null
           observacoes: string | null
+          pago_no_ato: boolean | null
           parceiro_id: string
           percentual_comissao: number | null
           status: string | null
           tipo_indicacao: string
           updated_at: string
           valor_comissao: number | null
+          valor_liquido_escritorio: number | null
           valor_total_causa: number | null
         }
         Insert: {
@@ -4577,15 +4581,19 @@ export type Database = {
           created_by?: string | null
           data_indicacao?: string
           descricao_caso?: string | null
+          forma_pagamento?: string | null
           id?: string
           nome_cliente: string
+          numero_parcelas?: number | null
           observacoes?: string | null
+          pago_no_ato?: boolean | null
           parceiro_id: string
           percentual_comissao?: number | null
           status?: string | null
           tipo_indicacao: string
           updated_at?: string
           valor_comissao?: number | null
+          valor_liquido_escritorio?: number | null
           valor_total_causa?: number | null
         }
         Update: {
@@ -4594,15 +4602,19 @@ export type Database = {
           created_by?: string | null
           data_indicacao?: string
           descricao_caso?: string | null
+          forma_pagamento?: string | null
           id?: string
           nome_cliente?: string
+          numero_parcelas?: number | null
           observacoes?: string | null
+          pago_no_ato?: boolean | null
           parceiro_id?: string
           percentual_comissao?: number | null
           status?: string | null
           tipo_indicacao?: string
           updated_at?: string
           valor_comissao?: number | null
+          valor_liquido_escritorio?: number | null
           valor_total_causa?: number | null
         }
         Relationships: [
