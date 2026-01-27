@@ -992,26 +992,25 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        {/* Container do Kanban com scroll horizontal */}
+        {/* Container do Kanban com scroll horizontal isolado */}
         <div 
           id="crm-kanban-scroll"
-          className="pb-6"
           style={{
-            overflowX: 'scroll',
+            display: 'block',
+            width: '100%',
+            overflowX: 'auto',
             overflowY: 'visible',
             WebkitOverflowScrolling: 'touch',
-            marginLeft: '-1rem',
-            marginRight: '-1rem',
-            paddingLeft: '1rem',
-            paddingRight: '1rem',
+            paddingBottom: '1.5rem',
           }}
         >
           <div 
-            className="flex gap-5 py-2"
             style={{
-              width: 'max-content',
-              minWidth: '100%',
-              paddingRight: '1rem',
+              display: 'inline-flex',
+              gap: '20px',
+              paddingTop: '8px',
+              paddingBottom: '8px',
+              paddingRight: '24px',
             }}
           >
             {stages.map((stage, index) => {
@@ -1048,26 +1047,24 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
           </div>
         </div>
         
-        {/* CSS para scrollbar sempre visível e funcional */}
+        {/* CSS para scrollbar sempre visível */}
         <style>{`
           #crm-kanban-scroll {
-            scrollbar-width: auto !important;
+            scrollbar-width: thin;
             scrollbar-color: hsl(var(--primary)) hsl(var(--muted));
           }
           #crm-kanban-scroll::-webkit-scrollbar {
-            height: 14px !important;
-            display: block !important;
+            height: 12px;
+            display: block;
           }
           #crm-kanban-scroll::-webkit-scrollbar-track {
             background: hsl(var(--muted));
-            border-radius: 8px;
-            margin: 0 1rem;
+            border-radius: 6px;
           }
           #crm-kanban-scroll::-webkit-scrollbar-thumb {
             background: hsl(var(--primary));
-            border-radius: 8px;
-            border: 3px solid hsl(var(--muted));
-            min-width: 60px;
+            border-radius: 6px;
+            min-width: 40px;
           }
           #crm-kanban-scroll::-webkit-scrollbar-thumb:hover {
             background: hsl(var(--primary) / 0.8);
