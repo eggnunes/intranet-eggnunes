@@ -20,6 +20,7 @@ import { FinanceiroAnaliseClientes } from '@/components/financeiro/FinanceiroAna
 import { FinanceiroAnaliseSetores } from '@/components/financeiro/FinanceiroAnaliseSetores';
 import { NovoLancamentoDialog } from '@/components/financeiro/NovoLancamentoDialog';
 import { useFinanceiroKeyboardShortcuts, KeyboardShortcutsLegend } from '@/components/financeiro/FinanceiroKeyboardShortcuts';
+import { AdvboxFinancialSync } from '@/components/financeiro/AdvboxFinancialSync';
 import { RHCargos, RHPagamentos, RHDashboard, RHDocumentos, RHColaboradores, RHColaboradorDashboard, RHAdiantamentos } from '@/components/rh';
 import { useUserRole } from '@/hooks/useUserRole';
 
@@ -70,6 +71,8 @@ export default function Financeiro() {
         return <FinanceiroImportacaoBancaria />;
       case 'conciliacao':
         return <FinanceiroConciliacao />;
+      case 'sync-advbox':
+        return <AdvboxFinancialSync />;
       case 'reembolsos':
         return <FinanceiroReembolsos />;
       case 'alertas':
@@ -172,6 +175,7 @@ export default function Financeiro() {
               <optgroup label="Operações">
                 <option value="importacao">Importar Extrato</option>
                 <option value="conciliacao">Conciliação</option>
+                <option value="sync-advbox">Sincronizar ADVBox</option>
               </optgroup>
               <option value="alertas">Alertas</option>
             </select>

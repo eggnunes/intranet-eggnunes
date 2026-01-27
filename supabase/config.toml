@@ -89,3 +89,30 @@ verify_jwt = true
 
 [functions.asaas-webhook]
 verify_jwt = false
+
+[functions.sync-advbox-financial]
+verify_jwt = false
+
+[functions.sync-advbox-status]
+verify_jwt = false
+
+[functions.contract-automation]
+verify_jwt = true
+
+[functions.auto-crop-document]
+verify_jwt = true
+
+[functions.auto-lead-scoring]
+verify_jwt = true
+
+[functions.backup-financial-data]
+verify_jwt = true
+
+[functions.check-financial-goals]
+verify_jwt = true
+
+[functions.process-financial-recurrences]
+verify_jwt = true
+
+[functions.send-financial-summary]
+verify_jwt = true

@@ -239,6 +239,41 @@ export type Database = {
         }
         Relationships: []
       }
+      advbox_financial_sync: {
+        Row: {
+          advbox_data: Json
+          advbox_transaction_id: string
+          id: string
+          lancamento_id: string | null
+          last_updated: string
+          synced_at: string
+        }
+        Insert: {
+          advbox_data: Json
+          advbox_transaction_id: string
+          id?: string
+          lancamento_id?: string | null
+          last_updated?: string
+          synced_at?: string
+        }
+        Update: {
+          advbox_data?: Json
+          advbox_transaction_id?: string
+          id?: string
+          lancamento_id?: string | null
+          last_updated?: string
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "advbox_financial_sync_lancamento_id_fkey"
+            columns: ["lancamento_id"]
+            isOneToOne: false
+            referencedRelation: "fin_lancamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       advbox_report_schedules: {
         Row: {
           created_at: string | null
@@ -3116,6 +3151,7 @@ export type Database = {
       fin_lancamentos: {
         Row: {
           a_reembolsar: boolean | null
+          advbox_transaction_id: string | null
           anexo_url: string | null
           categoria_id: string | null
           centro_custo_id: string | null
@@ -3159,6 +3195,7 @@ export type Database = {
         }
         Insert: {
           a_reembolsar?: boolean | null
+          advbox_transaction_id?: string | null
           anexo_url?: string | null
           categoria_id?: string | null
           centro_custo_id?: string | null
@@ -3202,6 +3239,7 @@ export type Database = {
         }
         Update: {
           a_reembolsar?: boolean | null
+          advbox_transaction_id?: string | null
           anexo_url?: string | null
           categoria_id?: string | null
           centro_custo_id?: string | null
