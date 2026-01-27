@@ -27,3 +27,4 @@ export { RateioLancamentoDialog } from './RateioLancamento';
 export { RelatorioSaudeFinanceira, RelatorioMargemCliente, RelatorioConformidade } from './RelatoriosAvancados';
 export { AlertasAnomalias } from './AlertasAnomalias';
 export { useFinanceiroKeyboardShortcuts, KeyboardShortcutsLegend } from './FinanceiroKeyboardShortcuts';
+export { AdvboxFinancialSync } from './AdvboxFinancialSync';

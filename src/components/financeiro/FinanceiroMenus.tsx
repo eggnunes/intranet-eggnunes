@@ -90,6 +90,7 @@ const menuItems: MenuItem[] = [
     items: [
       { id: 'importacao', label: 'Importar Extrato' },
       { id: 'conciliacao', label: 'Conciliação' },
+      { id: 'sync-advbox', label: 'Sincronizar ADVBox' },
     ]
   },
   {
