@@ -145,6 +145,8 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
       style={{
         display: 'block',
         width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
         overflowX: 'auto',
         overflowY: 'visible',
         WebkitOverflowScrolling: 'touch',
@@ -158,6 +160,7 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
           paddingTop: '8px',
           paddingBottom: '8px',
           paddingRight: '24px',
+          minWidth: 'max-content',
         }}
       >
         {STAGE_ORDER.map(stage => {
