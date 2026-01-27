@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
-import { format, getMonth, getDate } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { TaskNotifications } from '@/components/TaskNotifications';
 import { BirthdayMessageFailuresAlert } from '@/components/BirthdayMessageFailuresAlert';
@@ -68,7 +68,7 @@ export default function Dashboard() {
   };
 
   const fetchMonthBirthdays = async () => {
-    const currentMonth = getMonth(new Date());
+    const currentMonth = new Date().getMonth(); // 0-indexed
     
     const { data, error } = await supabase
       .from('profiles')
@@ -79,15 +79,18 @@ export default function Dashboard() {
     if (!error && data) {
       const filtered = data.filter((p) => {
         if (p.birth_date) {
-          return getMonth(new Date(p.birth_date)) === currentMonth;
+          // Parse date string manually to avoid timezone issues
+          const [year, month] = p.birth_date.split('-').map(Number);
+          return (month - 1) === currentMonth; // month is 1-indexed in string
         }
         return false;
       });
 
       // Ordenar por dia do mês
       filtered.sort((a, b) => {
-        const dayA = getDate(new Date(a.birth_date!));
-        const dayB = getDate(new Date(b.birth_date!));
+        // Extract day directly from string to avoid timezone issues
+        const dayA = parseInt(a.birth_date!.split('-')[2], 10);
+        const dayB = parseInt(b.birth_date!.split('-')[2], 10);
         return dayA - dayB;
       });
 
@@ -497,7 +500,11 @@ export default function Dashboard() {
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-lg truncate">{person.full_name}</p>
                         <p className="text-sm text-pink-700 font-medium">
-                          {format(new Date(person.birth_date), "dd 'de' MMMM", { locale: ptBR })}
+                          {(() => {
+                            const [year, month, day] = person.birth_date.split('-').map(Number);
+                            const date = new Date(year, month - 1, day, 12, 0, 0);
+                            return format(date, "dd 'de' MMMM", { locale: ptBR });
+                          })()}
                         </p>
                         {person.position && (
                           <Badge variant="outline" className="mt-2 text-xs border-pink-400 text-pink-700">
