@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Star } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { maskPhone } from '@/lib/masks';
 
 interface Parceiro {
   id: string;
@@ -235,8 +236,9 @@ export function ParceiroDialog({ open, onOpenChange, parceiro, onSuccess }: Parc
                 <Input
                   id="telefone"
                   value={formData.telefone}
-                  onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, telefone: maskPhone(e.target.value) })}
                   placeholder="(XX) XXXXX-XXXX"
+                  maxLength={15}
                 />
               </div>
               
