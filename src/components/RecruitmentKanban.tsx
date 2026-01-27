@@ -142,25 +142,27 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
   return (
     <div 
       id="recruitment-kanban-scroll"
+      className="kanban-scroll-container"
       style={{
-        display: 'block',
-        width: '100%',
-        maxWidth: '100%',
-        minWidth: 0,
-        overflowX: 'auto',
+        width: 'calc(100% + 2rem)',
+        marginLeft: '-1rem',
+        marginRight: '-1rem',
+        paddingLeft: '1rem',
+        paddingRight: '1rem',
+        overflowX: 'scroll',
         overflowY: 'visible',
         WebkitOverflowScrolling: 'touch',
-        paddingBottom: '1.5rem',
+        paddingBottom: '1rem',
       }}
     >
       <div 
         style={{
-          display: 'inline-flex',
+          display: 'flex',
           gap: '16px',
           paddingTop: '8px',
           paddingBottom: '8px',
-          paddingRight: '24px',
-          minWidth: 'max-content',
+          width: 'fit-content',
+          minWidth: '100%',
         }}
       >
         {STAGE_ORDER.map(stage => {
@@ -298,24 +300,24 @@ export function RecruitmentKanban({ candidates, onStageChange, onViewCandidate, 
       
       {/* CSS para scrollbar sempre visível */}
       <style>{`
-        #recruitment-kanban-scroll {
-          scrollbar-width: thin;
+        .kanban-scroll-container {
+          scrollbar-width: auto !important;
           scrollbar-color: hsl(var(--primary)) hsl(var(--muted));
         }
-        #recruitment-kanban-scroll::-webkit-scrollbar {
-          height: 12px;
-          display: block;
+        .kanban-scroll-container::-webkit-scrollbar {
+          height: 14px !important;
+          display: block !important;
         }
-        #recruitment-kanban-scroll::-webkit-scrollbar-track {
+        .kanban-scroll-container::-webkit-scrollbar-track {
           background: hsl(var(--muted));
-          border-radius: 6px;
+          border-radius: 7px;
         }
-        #recruitment-kanban-scroll::-webkit-scrollbar-thumb {
+        .kanban-scroll-container::-webkit-scrollbar-thumb {
           background: hsl(var(--primary));
-          border-radius: 6px;
-          min-width: 40px;
+          border-radius: 7px;
+          border: 2px solid hsl(var(--muted));
         }
-        #recruitment-kanban-scroll::-webkit-scrollbar-thumb:hover {
+        .kanban-scroll-container::-webkit-scrollbar-thumb:hover {
           background: hsl(var(--primary) / 0.8);
         }
       `}</style>
