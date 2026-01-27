@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Cake, User } from 'lucide-react';
-import { format, getMonth, getDate, parse } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 
@@ -39,11 +39,13 @@ export default function Aniversarios() {
     if (!error && data) {
       const grouped = data.reduce((acc: BirthdaysByMonth, profile) => {
         if (profile.birth_date) {
-          const month = getMonth(parse(profile.birth_date, 'yyyy-MM-dd', new Date()));
-          if (!acc[month]) {
-            acc[month] = [];
+          // Parse date parts manually to avoid timezone issues
+          const [year, month, day] = profile.birth_date.split('-').map(Number);
+          const monthIndex = month - 1; // getMonth returns 0-indexed
+          if (!acc[monthIndex]) {
+            acc[monthIndex] = [];
           }
-          acc[month].push(profile);
+          acc[monthIndex].push(profile);
         }
         return acc;
       }, {});
@@ -52,8 +54,9 @@ export default function Aniversarios() {
       Object.keys(grouped).forEach((monthKey) => {
         const month = parseInt(monthKey);
         grouped[month].sort((a, b) => {
-          const dayA = getDate(parse(a.birth_date!, 'yyyy-MM-dd', new Date()));
-          const dayB = getDate(parse(b.birth_date!, 'yyyy-MM-dd', new Date()));
+          // Extract day directly from string to avoid timezone issues
+          const dayA = parseInt(a.birth_date!.split('-')[2], 10);
+          const dayB = parseInt(b.birth_date!.split('-')[2], 10);
           return dayA - dayB;
         });
       });
@@ -142,7 +145,12 @@ export default function Aniversarios() {
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold truncate">{profile.full_name}</p>
                             <p className="text-sm text-muted-foreground">
-                              {profile.birth_date && format(parse(profile.birth_date, 'yyyy-MM-dd', new Date()), "dd 'de' MMMM", { locale: ptBR })}
+                              {profile.birth_date && (() => {
+                                const [year, month, day] = profile.birth_date.split('-').map(Number);
+                                // Create date at noon to avoid any timezone edge cases
+                                const date = new Date(year, month - 1, day, 12, 0, 0);
+                                return format(date, "dd 'de' MMMM", { locale: ptBR });
+                              })()}
                             </p>
                             {profile.position && (
                               <Badge variant="outline" className="mt-1 text-xs">
