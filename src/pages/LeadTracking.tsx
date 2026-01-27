@@ -1,11 +1,12 @@
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Link2, BarChart3, FileText, Target, ShieldAlert, Package } from 'lucide-react';
+import { Link2, BarChart3, FileText, Target, ShieldAlert, Package, GitCompare } from 'lucide-react';
 import { UTMGenerator } from '@/components/UTMGenerator';
 import { LeadFormsManager } from '@/components/LeadFormsManager';
 import { LeadsDashboard } from '@/components/LeadsDashboard';
 import { LandingPageProductMappings } from '@/components/LandingPageProductMappings';
+import { LeadCampaignComparison } from '@/components/LeadCampaignComparison';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 
 export default function LeadTracking() {
@@ -58,7 +59,7 @@ export default function LeadTracking() {
         </div>
 
         <Tabs defaultValue="utm" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
             <TabsTrigger value="utm" className="flex items-center gap-2">
               <Link2 className="h-4 w-4" />
               <span className="hidden sm:inline">Gerador UTM</span>
@@ -79,6 +80,11 @@ export default function LeadTracking() {
               <span className="hidden sm:inline">Leads</span>
               <span className="sm:hidden">Leads</span>
             </TabsTrigger>
+            <TabsTrigger value="compare" className="flex items-center gap-2">
+              <GitCompare className="h-4 w-4" />
+              <span className="hidden sm:inline">Comparar</span>
+              <span className="sm:hidden">Comp</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="utm">
@@ -95,6 +101,10 @@ export default function LeadTracking() {
 
           <TabsContent value="leads">
             <LeadsDashboard />
+          </TabsContent>
+
+          <TabsContent value="compare">
+            <LeadCampaignComparison />
           </TabsContent>
         </Tabs>
       </div>
