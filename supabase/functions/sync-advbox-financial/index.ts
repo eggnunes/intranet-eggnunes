@@ -122,7 +122,8 @@ async function processTransactionsBatch(
   transactions: AdvboxTransaction[],
   categoriaMap: Map<string, { id: string; tipo: string }>,
   categorias: Categoria[] | null,
-  contaPadraoId: string | null
+  contaPadraoId: string | null,
+  systemUserId: string
 ): Promise<{ created: number; updated: number; skipped: number }> {
   let created = 0;
   let updated = 0;
@@ -176,6 +177,13 @@ async function processTransactionsBatch(
       categoriaId = defaultCat?.id || null;
     }
 
+    // Ensure we have required fields
+    if (!contaPadraoId) {
+      console.error('No default account found, skipping transaction');
+      skipped++;
+      continue;
+    }
+
     const lancamentoData = {
       tipo,
       categoria_id: categoriaId,
@@ -186,7 +194,7 @@ async function processTransactionsBatch(
       data_vencimento: tx.date_due?.split('T')[0] || null,
       data_pagamento: tx.date_payment?.split('T')[0] || null,
       status: tx.paid || tx.status === 'paid' ? 'pago' : 'pendente',
-      origem: 'cliente',
+      origem: 'advbox',
       observacoes: [
         tx.customer_name ? `Cliente: ${tx.customer_name}` : null,
         tx.lawsuit_title ? `Processo: ${tx.lawsuit_title}` : null,
@@ -194,6 +202,7 @@ async function processTransactionsBatch(
         `Importado do ADVBox em ${new Date().toLocaleString('pt-BR')}`
       ].filter(Boolean).join('\n'),
       advbox_transaction_id: advboxId,
+      created_by: systemUserId,
     };
 
     const { error: insertError } = await supabase
@@ -205,6 +214,7 @@ async function processTransactionsBatch(
         skipped++;
       } else {
         console.error(`Insert error for ${advboxId}:`, insertError.message);
+        skipped++;
       }
     } else {
       created++;
@@ -366,6 +376,32 @@ serve(async (req) => {
       .limit(1);
 
     const contaPadraoId = (contas as Array<{ id: string; nome: string }> | null)?.[0]?.id || null;
+    
+    // Get a system user for created_by field (first admin user found)
+    const { data: systemUserData } = await supabase
+      .from('admin_permissions')
+      .select('admin_user_id')
+      .eq('perm_financial', 'edit')
+      .limit(1);
+    
+    const systemUserId = (systemUserData as Array<{ admin_user_id: string }> | null)?.[0]?.admin_user_id;
+    
+    if (!systemUserId) {
+      console.error('No system user found for created_by field');
+      return new Response(
+        JSON.stringify({ success: false, message: 'Nenhum usuário administrador encontrado para atribuir os lançamentos' }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!contaPadraoId) {
+      console.error('No default account found');
+      return new Response(
+        JSON.stringify({ success: false, message: 'Nenhuma conta bancária ativa encontrada' }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
     const categoriaMap = new Map<string, { id: string; tipo: string }>();
     categorias?.forEach(c => {
       categoriaMap.set(c.nome.toLowerCase(), { id: c.id, tipo: c.tipo });
@@ -430,7 +466,8 @@ serve(async (req) => {
           items,
           categoriaMap,
           categorias,
-          contaPadraoId
+          contaPadraoId,
+          systemUserId
         );
 
         totalCreated += created;
