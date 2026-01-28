@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,63 +16,65 @@ import {
   Clock, 
   Database,
   ArrowDownCircle,
-  ArrowUpCircle,
-  Info
+  Info,
+  Loader2,
+  Play,
+  Square
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-interface SyncResult {
-  success: boolean;
-  total: number;
-  created: number;
-  updated: number;
-  skipped: number;
-  errors: number;
-  errorDetails?: string[];
-  period: { start: string; end: string };
-}
-
-interface SyncHistory {
+interface SyncStatus {
   id: string;
-  created_at: string;
-  dados_novos: {
-    total: number;
-    created: number;
-    updated: number;
-    skipped: number;
-    errors: number;
-    period: { start: string; end: string };
-  };
+  sync_type: string;
+  status: string;
+  last_offset: number;
+  total_processed: number;
+  total_created: number;
+  total_updated: number;
+  total_skipped: number;
+  months: number;
+  start_date: string | null;
+  end_date: string | null;
+  started_at: string | null;
+  last_run_at: string | null;
+  completed_at: string | null;
+  error_message: string | null;
 }
 
 export function AdvboxFinancialSync() {
   const [syncing, setSyncing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [months, setMonths] = useState('12');
-  const [forceUpdate, setForceUpdate] = useState(false);
-  const [lastSync, setLastSync] = useState<SyncHistory | null>(null);
-  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+  const [months, setMonths] = useState('60');
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [stats, setStats] = useState<{
     totalLocal: number;
-    totalAdvbox: number;
     lastUpdated: string | null;
-  }>({ totalLocal: 0, totalAdvbox: 0, lastUpdated: null });
+  }>({ totalLocal: 0, lastUpdated: null });
 
-  useEffect(() => {
-    fetchStats();
-    fetchLastSync();
+  const fetchSyncStatus = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from('advbox_sync_status')
+        .select('*')
+        .eq('sync_type', 'financial')
+        .single();
+
+      if (data) {
+        setSyncStatus(data as SyncStatus);
+        setSyncing(data.status === 'running');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar status:', error);
+    }
   }, []);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
-      // Count local advbox-synced lancamentos
       const { count: localCount } = await supabase
         .from('fin_lancamentos')
         .select('*', { count: 'exact', head: true })
         .not('advbox_transaction_id', 'is', null);
 
-      // Get last sync timestamp
       const { data: lastSyncData } = await supabase
         .from('advbox_financial_sync')
         .select('last_updated')
@@ -83,49 +84,42 @@ export function AdvboxFinancialSync() {
 
       setStats({
         totalLocal: localCount || 0,
-        totalAdvbox: 0,
         lastUpdated: lastSyncData?.last_updated || null,
       });
     } catch (error) {
       console.error('Erro ao buscar estatísticas:', error);
     }
-  };
+  }, []);
 
-  const fetchLastSync = async () => {
-    try {
-      const { data } = await supabase
-        .from('audit_log')
-        .select('id, created_at, dados_novos')
-        .eq('acao', 'sync_advbox')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+  useEffect(() => {
+    fetchStats();
+    fetchSyncStatus();
+  }, [fetchStats, fetchSyncStatus]);
 
-      if (data) {
-        setLastSync(data as SyncHistory);
-      }
-    } catch (error) {
-      console.error('Erro ao buscar última sincronização:', error);
-    }
-  };
+  // Poll for status updates while syncing
+  useEffect(() => {
+    if (!syncing) return;
 
-  const handleSync = async () => {
+    const interval = setInterval(() => {
+      fetchSyncStatus();
+      fetchStats();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [syncing, fetchSyncStatus, fetchStats]);
+
+  const handleStartSync = async () => {
     setSyncing(true);
-    setProgress(10);
-    setSyncResult(null);
 
     try {
-      setProgress(20);
-      toast.info('Iniciando sincronização com ADVBox...');
+      toast.info('Iniciando sincronização automática com ADVBox...');
 
       const { data, error } = await supabase.functions.invoke('sync-advbox-financial', {
         body: { 
           months: parseInt(months),
-          force_update: forceUpdate
+          force_restart: true
         }
       });
-
-      setProgress(90);
 
       if (error) {
         throw new Error(error.message);
@@ -135,21 +129,72 @@ export function AdvboxFinancialSync() {
         throw new Error(data.message || data.error || 'Erro desconhecido');
       }
 
-      setSyncResult(data);
-      setProgress(100);
+      if (data.status === 'completed') {
+        toast.success(`Sincronização concluída! ${data.total_created} novos registros.`);
+        setSyncing(false);
+      } else if (data.status === 'running') {
+        toast.success('Sincronização iniciada! O processo continuará automaticamente em segundo plano.');
+      }
 
-      toast.success(`Sincronização concluída! ${data.created} novos, ${data.updated} atualizados.`);
-      
-      // Refresh stats
+      fetchSyncStatus();
       fetchStats();
-      fetchLastSync();
 
     } catch (error) {
       console.error('Erro na sincronização:', error);
       toast.error(error instanceof Error ? error.message : 'Erro ao sincronizar');
-    } finally {
       setSyncing(false);
-      setTimeout(() => setProgress(0), 2000);
+    }
+  };
+
+  const handleStopSync = async () => {
+    try {
+      await supabase
+        .from('advbox_sync_status')
+        .update({ status: 'idle' })
+        .eq('sync_type', 'financial');
+      
+      toast.info('Sincronização pausada.');
+      setSyncing(false);
+      fetchSyncStatus();
+    } catch (error) {
+      console.error('Erro ao parar sincronização:', error);
+    }
+  };
+
+  const getProgressPercent = () => {
+    if (!syncStatus || syncStatus.status !== 'running') return 0;
+    // Estimate based on typical transaction counts
+    const estimatedTotal = 10000; // rough estimate
+    return Math.min(95, (syncStatus.total_processed / estimatedTotal) * 100);
+  };
+
+  const getStatusBadge = () => {
+    if (!syncStatus) return <Badge variant="outline">Não iniciado</Badge>;
+    
+    switch (syncStatus.status) {
+      case 'running':
+        return (
+          <Badge variant="secondary" className="animate-pulse gap-1">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Sincronizando ({syncStatus.total_processed} processados)
+          </Badge>
+        );
+      case 'completed':
+        return (
+          <Badge variant="default" className="bg-green-500 gap-1">
+            <CheckCircle2 className="h-3 w-3" />
+            Concluído
+          </Badge>
+        );
+      case 'error':
+        return (
+          <Badge variant="destructive" className="gap-1">
+            <AlertCircle className="h-3 w-3" />
+            Erro
+          </Badge>
+        );
+      default:
+        return <Badge variant="outline">Aguardando</Badge>;
     }
   };
 
@@ -163,12 +208,10 @@ export function AdvboxFinancialSync() {
               Sincronização ADVBox
             </CardTitle>
             <CardDescription>
-              Importe lançamentos financeiros do ADVBox para o sistema local
+              Importe lançamentos financeiros do ADVBox automaticamente
             </CardDescription>
           </div>
-          <Badge variant="outline" className="gap-1">
-            {stats.totalLocal} lançamentos sincronizados
-          </Badge>
+          {getStatusBadge()}
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -186,7 +229,7 @@ export function AdvboxFinancialSync() {
           <div className="rounded-lg border p-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Clock className="h-4 w-4" />
-              Última Sincronização
+              Última Atualização
             </div>
             <div className="text-lg font-semibold mt-1">
               {stats.lastUpdated 
@@ -198,156 +241,138 @@ export function AdvboxFinancialSync() {
 
           <div className="rounded-lg border p-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Info className="h-4 w-4" />
-              Status
+              <ArrowDownCircle className="h-4 w-4" />
+              Novos Registros
             </div>
-            <div className="mt-1">
-              {syncing ? (
-                <Badge variant="secondary" className="animate-pulse">
-                  <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                  Sincronizando...
-                </Badge>
-              ) : stats.totalLocal > 0 ? (
-                <Badge variant="default" className="bg-green-500">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  Sincronizado
-                </Badge>
-              ) : (
-                <Badge variant="outline">
-                  Aguardando
-                </Badge>
-              )}
+            <div className="text-2xl font-bold mt-1 text-green-600">
+              {syncStatus?.total_created || 0}
             </div>
+            <div className="text-xs text-muted-foreground">nesta sincronização</div>
           </div>
         </div>
 
-        {/* Sync Options */}
-        <div className="rounded-lg border p-4 space-y-4">
-          <h4 className="font-medium">Opções de Sincronização</h4>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Período</Label>
-              <Select value={months} onValueChange={setMonths}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o período" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">Último mês</SelectItem>
-                  <SelectItem value="3">Últimos 3 meses</SelectItem>
-                  <SelectItem value="6">Últimos 6 meses</SelectItem>
-                  <SelectItem value="12">Último ano</SelectItem>
-                  <SelectItem value="24">Últimos 2 anos</SelectItem>
-                  <SelectItem value="60">Últimos 5 anos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center space-x-2 pt-6">
-              <Switch 
-                id="force-update" 
-                checked={forceUpdate}
-                onCheckedChange={setForceUpdate}
-              />
-              <Label htmlFor="force-update" className="text-sm">
-                Forçar atualização de registros existentes
-              </Label>
-            </div>
-          </div>
-
-          <Button 
-            onClick={handleSync} 
-            disabled={syncing}
-            className="w-full"
-            size="lg"
-          >
-            {syncing ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Sincronizando...
-              </>
-            ) : (
-              <>
-                <Download className="h-4 w-4 mr-2" />
-                Sincronizar Agora
-              </>
-            )}
-          </Button>
-
-          {syncing && progress > 0 && (
-            <Progress value={progress} className="h-2" />
-          )}
-        </div>
-
-        {/* Last Sync Result */}
-        {syncResult && (
-          <Alert variant={syncResult.errors > 0 ? "destructive" : "default"}>
-            {syncResult.errors > 0 ? (
-              <AlertCircle className="h-4 w-4" />
-            ) : (
-              <CheckCircle2 className="h-4 w-4" />
-            )}
-            <AlertTitle>
-              Sincronização {syncResult.success ? 'concluída' : 'com problemas'}
-            </AlertTitle>
-            <AlertDescription>
-              <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-                <div className="flex items-center gap-1">
-                  <ArrowDownCircle className="h-4 w-4 text-green-500" />
-                  <span><strong>{syncResult.created}</strong> novos</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <RefreshCw className="h-4 w-4 text-blue-500" />
-                  <span><strong>{syncResult.updated}</strong> atualizados</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Clock className="h-4 w-4 text-gray-500" />
-                  <span><strong>{syncResult.skipped}</strong> ignorados</span>
-                </div>
-                {syncResult.errors > 0 && (
-                  <div className="flex items-center gap-1">
-                    <AlertCircle className="h-4 w-4 text-red-500" />
-                    <span><strong>{syncResult.errors}</strong> erros</span>
-                  </div>
-                )}
+        {/* Progress Section */}
+        {syncStatus?.status === 'running' && (
+          <div className="rounded-lg border p-4 bg-blue-50 dark:bg-blue-950/20 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                <span className="font-medium">Sincronização em andamento</span>
               </div>
-              {syncResult.errorDetails && syncResult.errorDetails.length > 0 && (
-                <div className="mt-2 text-xs text-muted-foreground">
-                  <p className="font-medium">Primeiros erros:</p>
-                  <ul className="list-disc list-inside">
-                    {syncResult.errorDetails.slice(0, 3).map((err, i) => (
-                      <li key={i}>{err}</li>
-                    ))}
-                  </ul>
-                </div>
+              <span className="text-sm text-muted-foreground">
+                {syncStatus.total_processed} registros processados
+              </span>
+            </div>
+            <Progress value={getProgressPercent()} className="h-2" />
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Criados:</span>{' '}
+                <span className="font-medium text-green-600">{syncStatus.total_created}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Atualizados:</span>{' '}
+                <span className="font-medium text-blue-600">{syncStatus.total_updated}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Ignorados:</span>{' '}
+                <span className="font-medium">{syncStatus.total_skipped}</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              A sincronização continua automaticamente a cada 2 minutos até ser concluída.
+            </p>
+          </div>
+        )}
+
+        {/* Error Alert */}
+        {syncStatus?.status === 'error' && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Erro na Sincronização</AlertTitle>
+            <AlertDescription>
+              {syncStatus.error_message || 'Ocorreu um erro durante a sincronização.'}
+              <br />
+              <span className="text-sm">
+                Processados até o momento: {syncStatus.total_processed} ({syncStatus.total_created} criados)
+              </span>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Completed Alert */}
+        {syncStatus?.status === 'completed' && (
+          <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <AlertTitle className="text-green-800 dark:text-green-200">Sincronização Concluída!</AlertTitle>
+            <AlertDescription className="text-green-700 dark:text-green-300">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+                <div>Total: <strong>{syncStatus.total_processed}</strong></div>
+                <div>Criados: <strong className="text-green-600">{syncStatus.total_created}</strong></div>
+                <div>Atualizados: <strong className="text-blue-600">{syncStatus.total_updated}</strong></div>
+                <div>Ignorados: <strong>{syncStatus.total_skipped}</strong></div>
+              </div>
+              {syncStatus.completed_at && (
+                <p className="mt-2 text-sm">
+                  Concluído em: {format(new Date(syncStatus.completed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                </p>
               )}
             </AlertDescription>
           </Alert>
         )}
 
-        {/* Last Sync History */}
-        {lastSync && !syncResult && (
-          <div className="rounded-lg border p-4 bg-muted/30">
-            <h4 className="font-medium text-sm mb-2">Última sincronização</h4>
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p>Data: {format(new Date(lastSync.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
-              {lastSync.dados_novos && (
-                <p>
-                  Resultado: {lastSync.dados_novos.created} criados, {lastSync.dados_novos.updated} atualizados, {lastSync.dados_novos.skipped} ignorados
-                </p>
-              )}
-            </div>
+        {/* Sync Options */}
+        <div className="rounded-lg border p-4 space-y-4">
+          <h4 className="font-medium">Opções de Sincronização</h4>
+          
+          <div className="space-y-2">
+            <Label>Período</Label>
+            <Select value={months} onValueChange={setMonths} disabled={syncing}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Último mês</SelectItem>
+                <SelectItem value="3">Últimos 3 meses</SelectItem>
+                <SelectItem value="6">Últimos 6 meses</SelectItem>
+                <SelectItem value="12">Último ano</SelectItem>
+                <SelectItem value="24">Últimos 2 anos</SelectItem>
+                <SelectItem value="60">Últimos 5 anos</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        )}
+
+          <div className="flex gap-2">
+            {syncing ? (
+              <Button 
+                onClick={handleStopSync} 
+                variant="destructive"
+                className="flex-1"
+                size="lg"
+              >
+                <Square className="h-4 w-4 mr-2" />
+                Parar Sincronização
+              </Button>
+            ) : (
+              <Button 
+                onClick={handleStartSync} 
+                className="flex-1"
+                size="lg"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                {syncStatus?.status === 'completed' ? 'Sincronizar Novamente' : 'Iniciar Sincronização'}
+              </Button>
+            )}
+          </div>
+        </div>
 
         {/* Info */}
         <Alert>
           <Info className="h-4 w-4" />
-          <AlertTitle>Como funciona</AlertTitle>
+          <AlertTitle>Sincronização Automática</AlertTitle>
           <AlertDescription className="text-sm">
-            A sincronização busca todas as transações do ADVBox no período selecionado e as importa para o sistema financeiro local. 
-            Transações já importadas são ignoradas (a menos que você force a atualização). 
-            Os dados são salvos localmente para carregamento rápido e acesso offline.
+            Ao iniciar a sincronização, o sistema busca automaticamente todos os lançamentos do ADVBox no período selecionado.
+            O processo continua em segundo plano a cada 2 minutos até que todos os registros sejam importados.
+            Você pode acompanhar o progresso nesta tela ou sair e voltar mais tarde.
           </AlertDescription>
         </Alert>
       </CardContent>
