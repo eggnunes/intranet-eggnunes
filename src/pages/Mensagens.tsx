@@ -100,7 +100,8 @@ const Mensagens = () => {
     sendMessage,
     createConversation,
     deleteConversation,
-    editMessage
+    editMessage,
+    deleteMessage
   } = useMessaging();
 
   const [newMessage, setNewMessage] = useState('');
@@ -117,6 +118,7 @@ const Mensagens = () => {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
   const [deleteConversationId, setDeleteConversationId] = useState<string | null>(null);
+  const [deleteMessageId, setDeleteMessageId] = useState<string | null>(null);
   const [isSocio, setIsSocio] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [showAIGenerator, setShowAIGenerator] = useState(false);
@@ -493,12 +495,29 @@ const Mensagens = () => {
 
   const cancelRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      setIsRecording(false);
+      // Clear audio chunks FIRST to prevent onstop from processing them
       audioChunksRef.current = [];
+      
+      // Remove the onstop handler to prevent it from being called
+      mediaRecorderRef.current.onstop = null;
+      
+      // Stop the MediaRecorder if it's recording
+      if (mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
+      
+      // Stop all audio tracks
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      
+      setIsRecording(false);
+      setRecordingTime(0);
+      
       if (recordingIntervalRef.current) {
         clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = null;
       }
+      
+      toast.info('Gravação cancelada');
     }
   };
 
@@ -645,12 +664,29 @@ const Mensagens = () => {
 
   const cancelRecordingForAI = () => {
     if (aiMediaRecorderRef.current && isRecordingForAI) {
-      aiMediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      setIsRecordingForAI(false);
+      // Clear audio chunks FIRST to prevent onstop from processing them
       aiAudioChunksRef.current = [];
+      
+      // Remove the onstop handler to prevent it from being called
+      aiMediaRecorderRef.current.onstop = null;
+      
+      // Stop the MediaRecorder if it's recording
+      if (aiMediaRecorderRef.current.state === 'recording') {
+        aiMediaRecorderRef.current.stop();
+      }
+      
+      // Stop all audio tracks
+      aiMediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      
+      setIsRecordingForAI(false);
+      setRecordingTimeAI(0);
+      
       if (aiRecordingIntervalRef.current) {
         clearInterval(aiRecordingIntervalRef.current);
+        aiRecordingIntervalRef.current = null;
       }
+      
+      toast.info('Gravação cancelada');
     }
   };
 
@@ -1233,6 +1269,17 @@ const Mensagens = () => {
                                     <Pencil className="h-3 w-3" />
                                   </Button>
                                 )}
+                                {isSocio && !isEditing && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 text-destructive hover:text-destructive"
+                                    onClick={() => setDeleteMessageId(msg.id)}
+                                    title="Excluir mensagem"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                )}
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -1778,6 +1825,32 @@ const Mensagens = () => {
             <AlertDialogAction
               className="bg-destructive hover:bg-destructive/90"
               onClick={handleDeleteConversation}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Message Dialog */}
+      <AlertDialog open={!!deleteMessageId} onOpenChange={() => setDeleteMessageId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Mensagem</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta mensagem? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={async () => {
+                if (deleteMessageId) {
+                  await deleteMessage(deleteMessageId);
+                  setDeleteMessageId(null);
+                }
+              }}
             >
               Excluir
             </AlertDialogAction>

@@ -52,28 +52,52 @@ async function fetchTransactionsBatch(
 ): Promise<{ items: AdvboxTransaction[]; hasMore: boolean }> {
   const endpoint = `${ADVBOX_API_BASE}/transactions?limit=${limit}&offset=${offset}&date_due_start=${startDate}&date_due_end=${endDate}`;
   
-  const response = await fetch(endpoint, {
-    headers: {
-      'Authorization': `Bearer ${advboxToken}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    if (response.status === 429) {
-      await sleep(5000);
-      return fetchTransactionsBatch(advboxToken, startDate, endDate, offset, limit);
-    }
-    throw new Error(`Erro na API ADVBox: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const items = data.data || [];
+  console.log(`Fetching ADVBox transactions: offset=${offset}, limit=${limit}, startDate=${startDate}, endDate=${endDate}`);
   
-  return {
-    items,
-    hasMore: items.length >= limit
-  };
+  try {
+    const response = await fetch(endpoint, {
+      headers: {
+        'Authorization': `Bearer ${advboxToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    console.log(`ADVBox API response status: ${response.status}`);
+
+    if (!response.ok) {
+      const responseText = await response.text();
+      console.error(`ADVBox API error: status=${response.status}, body=${responseText}`);
+      
+      if (response.status === 429) {
+        console.log('Rate limited, waiting 5 seconds before retry...');
+        await sleep(5000);
+        return fetchTransactionsBatch(advboxToken, startDate, endDate, offset, limit);
+      }
+      
+      if (response.status === 401) {
+        throw new Error(`Token ADVBOX inválido ou expirado. Status: ${response.status}`);
+      }
+      
+      if (response.status === 404) {
+        throw new Error(`Endpoint de transações não encontrado. Verifique a URL da API: ${endpoint}`);
+      }
+      
+      throw new Error(`Erro na API ADVBox: ${response.status} - ${responseText}`);
+    }
+
+    const data = await response.json();
+    const items = data.data || data || [];
+    
+    console.log(`Fetched ${Array.isArray(items) ? items.length : 0} transactions`);
+    
+    return {
+      items: Array.isArray(items) ? items : [],
+      hasMore: Array.isArray(items) && items.length >= limit
+    };
+  } catch (error) {
+    console.error('Error fetching ADVBox transactions:', error);
+    throw error;
+  }
 }
 
 async function processTransactionsBatch(
@@ -398,8 +422,15 @@ serve(async (req) => {
   } catch (error: unknown) {
     console.error("Erro na sincronização:", error);
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    console.error("Stack trace:", errorStack);
+    
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
+      JSON.stringify({ 
+        success: false, 
+        error: errorMessage,
+        details: errorStack
+      }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
