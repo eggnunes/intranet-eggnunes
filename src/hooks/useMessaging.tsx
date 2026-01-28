@@ -371,6 +371,30 @@ export const useMessaging = () => {
     }
   };
 
+  // Delete a message (for admins/sócios)
+  const deleteMessage = async (messageId: string) => {
+    if (!user) return false;
+
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('id', messageId);
+
+      if (error) throw error;
+
+      // Update local state
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+
+      toast.success('Mensagem excluída');
+      return true;
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      toast.error('Erro ao excluir mensagem');
+      return false;
+    }
+  };
+
   // Subscribe to realtime updates
   useEffect(() => {
     if (!user) return;
@@ -440,6 +464,7 @@ export const useMessaging = () => {
     fetchConversations,
     fetchMessages,
     deleteConversation,
-    editMessage
+    editMessage,
+    deleteMessage
   };
 };
