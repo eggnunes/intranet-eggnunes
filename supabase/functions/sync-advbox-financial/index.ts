@@ -377,14 +377,14 @@ serve(async (req) => {
 
     const contaPadraoId = (contas as Array<{ id: string; nome: string }> | null)?.[0]?.id || null;
     
-    // Get a system user for created_by field (first admin user found)
+    // Get a system user for created_by field (first admin user found from user_roles table)
     const { data: systemUserData } = await supabase
-      .from('admin_permissions')
-      .select('admin_user_id')
-      .eq('perm_financial', 'edit')
+      .from('user_roles')
+      .select('user_id')
+      .eq('role', 'admin')
       .limit(1);
     
-    const systemUserId = (systemUserData as Array<{ admin_user_id: string }> | null)?.[0]?.admin_user_id;
+    const systemUserId = (systemUserData as Array<{ user_id: string }> | null)?.[0]?.user_id;
     
     if (!systemUserId) {
       console.error('No system user found for created_by field');
