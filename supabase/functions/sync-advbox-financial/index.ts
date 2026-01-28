@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const ADVBOX_API_BASE = 'https://app.advbox.com.br/api/v1';
-const MAX_EXECUTION_TIME = 55000; // 55 seconds - leave margin before Edge Function timeout (60s)
+const MAX_EXECUTION_TIME = 50000; // 50 seconds - leave margin before Edge Function timeout
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -44,8 +44,23 @@ interface Categoria {
   tipo: string;
 }
 
+interface SyncStatus {
+  id: string;
+  status: string;
+  last_offset: number;
+  total_processed: number;
+  total_created: number;
+  total_updated: number;
+  total_skipped: number;
+  months: number;
+  start_date: string | null;
+  end_date: string | null;
+  error_message: string | null;
+  last_run_at: string | null;
+  completed_at: string | null;
+}
+
 function getValidTransactionId(tx: AdvboxTransaction): string | null {
-  // Try multiple fields that could contain a valid ID
   if (tx.id !== undefined && tx.id !== null && String(tx.id).trim() !== '' && String(tx.id) !== 'undefined') {
     return String(tx.id);
   }
@@ -66,54 +81,40 @@ async function fetchTransactionsBatch(
   
   console.log(`Fetching: offset=${offset}, limit=${limit}`);
   
-  try {
-    const response = await fetch(endpoint, {
-      headers: {
-        'Authorization': `Bearer ${advboxToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+  const response = await fetch(endpoint, {
+    headers: {
+      'Authorization': `Bearer ${advboxToken}`,
+      'Content-Type': 'application/json',
+    },
+  });
 
-    if (!response.ok) {
-      const responseText = await response.text();
-      console.error(`ADVBox API error: status=${response.status}`);
-      
-      if (response.status === 429) {
-        console.log('Rate limited, waiting 5 seconds...');
-        await sleep(5000);
-        return fetchTransactionsBatch(advboxToken, startDate, endDate, offset, limit);
-      }
-      
-      if (response.status === 401) {
-        throw new Error(`Token ADVBOX inválido ou expirado`);
-      }
-      
-      throw new Error(`Erro na API ADVBox: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const items = data.data || data || [];
-    
-    // Filter out items without valid IDs
-    const validItems = (Array.isArray(items) ? items : []).filter(
-      (tx: AdvboxTransaction) => getValidTransactionId(tx) !== null
-    );
-    
-    const skippedCount = (Array.isArray(items) ? items.length : 0) - validItems.length;
-    if (skippedCount > 0) {
-      console.log(`Skipped ${skippedCount} transactions without valid ID`);
+  if (!response.ok) {
+    if (response.status === 429) {
+      console.log('Rate limited, waiting 5 seconds...');
+      await sleep(5000);
+      return fetchTransactionsBatch(advboxToken, startDate, endDate, offset, limit);
     }
     
-    console.log(`Fetched ${validItems.length} valid transactions`);
+    if (response.status === 401) {
+      throw new Error(`Token ADVBOX inválido ou expirado`);
+    }
     
-    return {
-      items: validItems,
-      hasMore: Array.isArray(items) && items.length >= limit
-    };
-  } catch (error) {
-    console.error('Error fetching:', error);
-    throw error;
+    throw new Error(`Erro na API ADVBox: ${response.status}`);
   }
+
+  const data = await response.json();
+  const items = data.data || data || [];
+  
+  const validItems = (Array.isArray(items) ? items : []).filter(
+    (tx: AdvboxTransaction) => getValidTransactionId(tx) !== null
+  );
+  
+  console.log(`Fetched ${validItems.length} valid transactions (offset ${offset})`);
+  
+  return {
+    items: validItems,
+    hasMore: Array.isArray(items) && items.length >= limit
+  };
 }
 
 async function processTransactionsBatch(
@@ -121,22 +122,18 @@ async function processTransactionsBatch(
   transactions: AdvboxTransaction[],
   categoriaMap: Map<string, { id: string; tipo: string }>,
   categorias: Categoria[] | null,
-  contaPadraoId: string | null,
-  userId: string,
-  forceUpdate: boolean
-): Promise<{ created: number; updated: number; skipped: number; errors: string[] }> {
+  contaPadraoId: string | null
+): Promise<{ created: number; updated: number; skipped: number }> {
   let created = 0;
   let updated = 0;
   let skipped = 0;
-  const errors: string[] = [];
 
-  // Get all valid advbox IDs
   const advboxIds = transactions
     .map(tx => getValidTransactionId(tx))
     .filter((id): id is string => id !== null);
   
   if (advboxIds.length === 0) {
-    return { created: 0, updated: 0, skipped: 0, errors: [] };
+    return { created: 0, updated: 0, skipped: 0 };
   }
 
   const { data: existingRecords } = await supabase
@@ -148,139 +145,83 @@ async function processTransactionsBatch(
     ((existingRecords as ExistingRecord[] | null) || []).map(r => [r.advbox_transaction_id, r])
   );
 
-  // Prepare records for upsert
-  const toUpsert: Record<string, unknown>[] = [];
-  const syncRecords: Record<string, unknown>[] = [];
-
   for (const tx of transactions) {
-    try {
-      const advboxId = getValidTransactionId(tx);
-      if (!advboxId) {
+    const advboxId = getValidTransactionId(tx);
+    if (!advboxId) {
+      skipped++;
+      continue;
+    }
+
+    const existing = existingMap.get(advboxId);
+    if (existing) {
+      skipped++;
+      continue;
+    }
+
+    const amount = Number(tx.amount) || 0;
+    const tipo = amount >= 0 ? 'receita' : 'despesa';
+    
+    let categoriaId: string | null = null;
+    if (tx.category) {
+      const cat = categoriaMap.get(tx.category.toLowerCase());
+      if (cat) {
+        categoriaId = cat.id;
+      }
+    }
+
+    if (!categoriaId) {
+      const defaultCat = tipo === 'receita' 
+        ? categorias?.find(c => c.tipo === 'receita')
+        : categorias?.find(c => c.tipo === 'despesa');
+      categoriaId = defaultCat?.id || null;
+    }
+
+    const lancamentoData = {
+      tipo,
+      categoria_id: categoriaId,
+      conta_origem_id: contaPadraoId,
+      valor: Math.abs(amount),
+      descricao: tx.name || tx.description || tx.identification || `ADVBox #${advboxId}`,
+      data_lancamento: tx.date_due?.split('T')[0] || new Date().toISOString().split('T')[0],
+      data_vencimento: tx.date_due?.split('T')[0] || null,
+      data_pagamento: tx.date_payment?.split('T')[0] || null,
+      status: tx.paid || tx.status === 'paid' ? 'pago' : 'pendente',
+      origem: 'cliente',
+      observacoes: [
+        tx.customer_name ? `Cliente: ${tx.customer_name}` : null,
+        tx.lawsuit_title ? `Processo: ${tx.lawsuit_title}` : null,
+        tx.notes ? `Notas: ${tx.notes}` : null,
+        `Importado do ADVBox em ${new Date().toLocaleString('pt-BR')}`
+      ].filter(Boolean).join('\n'),
+      advbox_transaction_id: advboxId,
+    };
+
+    const { error: insertError } = await supabase
+      .from('fin_lancamentos')
+      .insert(lancamentoData as never);
+    
+    if (insertError) {
+      if (insertError.code === '23505') {
         skipped++;
-        continue;
-      }
-
-      const existing = existingMap.get(advboxId);
-
-      if (existing && !forceUpdate) {
-        skipped++;
-        continue;
-      }
-
-      const amount = Number(tx.amount) || 0;
-      const tipo = amount >= 0 ? 'receita' : 'despesa';
-      
-      let categoriaId: string | null = null;
-      if (tx.category) {
-        const cat = categoriaMap.get(tx.category.toLowerCase());
-        if (cat) {
-          categoriaId = cat.id;
-        }
-      }
-
-      if (!categoriaId) {
-        const defaultCat = tipo === 'receita' 
-          ? categorias?.find(c => c.tipo === 'receita')
-          : categorias?.find(c => c.tipo === 'despesa');
-        categoriaId = defaultCat?.id || null;
-      }
-
-      const lancamentoData: Record<string, unknown> = {
-        tipo,
-        categoria_id: categoriaId,
-        conta_origem_id: contaPadraoId,
-        valor: Math.abs(amount),
-        descricao: tx.name || tx.description || tx.identification || `ADVBox #${advboxId}`,
-        data_lancamento: tx.date_due?.split('T')[0] || new Date().toISOString().split('T')[0],
-        data_vencimento: tx.date_due?.split('T')[0] || null,
-        data_pagamento: tx.date_payment?.split('T')[0] || null,
-        status: tx.paid || tx.status === 'paid' ? 'pago' : 'pendente',
-        origem: 'cliente',
-        observacoes: [
-          tx.customer_name ? `Cliente: ${tx.customer_name}` : null,
-          tx.lawsuit_title ? `Processo: ${tx.lawsuit_title}` : null,
-          tx.notes ? `Notas: ${tx.notes}` : null,
-          `Importado do ADVBox em ${new Date().toLocaleString('pt-BR')}`
-        ].filter(Boolean).join('\n'),
-        advbox_transaction_id: advboxId,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (existing) {
-        // Update existing record
-        lancamentoData.updated_by = userId;
-        lancamentoData.id = existing.id;
-        toUpsert.push(lancamentoData);
-        updated++;
       } else {
-        // New record
-        lancamentoData.created_by = userId;
-        toUpsert.push(lancamentoData);
-        created++;
+        console.error(`Insert error for ${advboxId}:`, insertError.message);
       }
-
-      syncRecords.push({
-        advbox_transaction_id: advboxId,
-        advbox_data: tx,
-        last_updated: new Date().toISOString(),
-      });
-
-    } catch (err) {
-      console.error(`Error processing tx:`, err);
-      errors.push(`${err instanceof Error ? err.message : 'Erro'}`);
+    } else {
+      created++;
     }
   }
 
-  // Process one by one to avoid batch errors
-  for (const record of toUpsert) {
-    try {
-      const advboxId = record.advbox_transaction_id as string;
-      const existing = existingMap.get(advboxId);
-      
-      if (existing) {
-        const { error: updateError } = await supabase
-          .from('fin_lancamentos')
-          .update(record as never)
-          .eq('id', existing.id);
-        
-        if (updateError) {
-          console.error(`Update error for ${advboxId}:`, updateError.message);
-        }
-      } else {
-        // Try insert, if fails due to duplicate, try update
-        const { error: insertError } = await supabase
-          .from('fin_lancamentos')
-          .insert(record as never);
-        
-        if (insertError) {
-          if (insertError.code === '23505') {
-            // Duplicate - try to update instead
-            const { error: updateError } = await supabase
-              .from('fin_lancamentos')
-              .update(record as never)
-              .eq('advbox_transaction_id', advboxId);
-            
-            if (updateError) {
-              console.error(`Update after dup for ${advboxId}:`, updateError.message);
-            }
-          } else {
-            console.error(`Insert error for ${advboxId}:`, insertError.message);
-          }
-        }
-      }
-    } catch (err) {
-      console.error(`Record processing error:`, err);
-    }
-  }
+  return { created, updated, skipped };
+}
 
-  // Upsert sync records
-  if (syncRecords.length > 0) {
-    await supabase
-      .from('advbox_financial_sync')
-      .upsert(syncRecords as never[], { onConflict: 'advbox_transaction_id' });
-  }
-
-  return { created, updated, skipped, errors };
+async function updateSyncStatus(
+  supabase: SupabaseClient,
+  updates: Partial<SyncStatus>
+) {
+  await supabase
+    .from('advbox_sync_status')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('sync_type', 'financial');
 }
 
 serve(async (req) => {
@@ -296,34 +237,28 @@ serve(async (req) => {
     const advboxToken = Deno.env.get("ADVBOX_API_TOKEN");
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Check for authorization - allow both authenticated users and cron jobs
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, message: "Não autorizado" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    let userId: string | null = null;
     
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, message: "Usuário não autenticado" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    if (authHeader && authHeader !== 'Bearer YOUR_ANON_KEY') {
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user } } = await supabase.auth.getUser(token);
+      userId = user?.id || null;
+      
+      if (userId) {
+        const { data: permission } = await supabase.rpc('get_admin_permission', {
+          _user_id: userId,
+          _feature: 'financial'
+        });
 
-    const { data: permission } = await supabase.rpc('get_admin_permission', {
-      _user_id: user.id,
-      _feature: 'financial'
-    });
-
-    if (permission !== 'edit') {
-      return new Response(
-        JSON.stringify({ success: false, message: "Permissão negada" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+        if (permission !== 'edit') {
+          return new Response(
+            JSON.stringify({ success: false, message: "Permissão negada" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
     }
 
     if (!advboxToken) {
@@ -333,17 +268,88 @@ serve(async (req) => {
       );
     }
 
+    // Get or create sync status
+    const { data: syncStatusData } = await supabase
+      .from('advbox_sync_status')
+      .select('*')
+      .eq('sync_type', 'financial')
+      .single();
+
+    let syncStatus = syncStatusData as SyncStatus | null;
+
+    // Parse request body
     const body = await req.json().catch(() => ({}));
-    const months = body.months || 12;
-    const forceUpdate = body.force_update || false;
+    const requestedMonths = body.months || 60; // Default to 5 years
+    const forceRestart = body.force_restart || false;
+    const isAutoMode = body.auto_mode || false;
 
-    console.log(`Syncing ${months} months...`);
+    // If force restart or first run, reset everything
+    if (forceRestart || !syncStatus || syncStatus.status === 'idle') {
+      const now = new Date();
+      const startDate = new Date(now);
+      startDate.setMonth(startDate.getMonth() - requestedMonths);
+      
+      await supabase
+        .from('advbox_sync_status')
+        .upsert({
+          sync_type: 'financial',
+          status: 'running',
+          last_offset: 0,
+          total_processed: 0,
+          total_created: 0,
+          total_updated: 0,
+          total_skipped: 0,
+          months: requestedMonths,
+          start_date: startDate.toISOString().split('T')[0],
+          end_date: now.toISOString().split('T')[0],
+          started_at: new Date().toISOString(),
+          last_run_at: new Date().toISOString(),
+          completed_at: null,
+          error_message: null,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'sync_type' });
 
-    const now = new Date();
-    const startDate = new Date(now);
-    startDate.setMonth(startDate.getMonth() - months);
-    const startDateStr = startDate.toISOString().split('T')[0];
-    const endDateStr = now.toISOString().split('T')[0];
+      syncStatus = {
+        id: syncStatus?.id || '',
+        status: 'running',
+        last_offset: 0,
+        total_processed: 0,
+        total_created: 0,
+        total_updated: 0,
+        total_skipped: 0,
+        months: requestedMonths,
+        start_date: startDate.toISOString().split('T')[0],
+        end_date: now.toISOString().split('T')[0],
+        error_message: null,
+        last_run_at: new Date().toISOString(),
+        completed_at: null
+      };
+    } else if (syncStatus.status === 'completed') {
+      // Already completed, nothing to do unless force restart
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Sincronização já foi concluída',
+          total_processed: syncStatus.total_processed,
+          total_created: syncStatus.total_created,
+          status: 'completed'
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    } else if (syncStatus.status === 'running' && !isAutoMode) {
+      // Continue from where we left off
+      await updateSyncStatus(supabase, { last_run_at: new Date().toISOString() });
+    }
+
+    const startDateStr = syncStatus!.start_date!;
+    const endDateStr = syncStatus!.end_date!;
+    let offset = syncStatus!.last_offset;
+    let totalProcessed = syncStatus!.total_processed;
+    let totalCreated = syncStatus!.total_created;
+    let totalUpdated = syncStatus!.total_updated;
+    let totalSkipped = syncStatus!.total_skipped;
+
+    console.log(`Continuing sync from offset ${offset}, period: ${startDateStr} to ${endDateStr}`);
 
     // Get categories and accounts
     const { data: categoriasData } = await supabase
@@ -365,35 +371,44 @@ serve(async (req) => {
       categoriaMap.set(c.nome.toLowerCase(), { id: c.id, tipo: c.tipo });
     });
 
-    // Process in batches with time limit
-    let offset = 0;
-    let totalProcessed = 0;
-    let totalCreated = 0;
-    let totalUpdated = 0;
-    let totalSkipped = 0;
-    const allErrors: string[] = [];
+    // Process batches until timeout or completion
+    const fetchLimit = 100;
     let hasMore = true;
-    const fetchLimit = 50; // Smaller batches
-    const maxIterations = 500;
-    let iterations = 0;
-    let lastOffset = 0;
-    let timedOut = false;
+    let batchCount = 0;
 
-    console.log(`Processing from ${startDateStr} to ${endDateStr}`);
+    while (hasMore) {
+      // Check timeout
+      if (Date.now() - startTime > MAX_EXECUTION_TIME) {
+        console.log(`Timeout reached after ${batchCount} batches, saving progress at offset ${offset}`);
+        
+        await updateSyncStatus(supabase, {
+          status: 'running',
+          last_offset: offset,
+          total_processed: totalProcessed,
+          total_created: totalCreated,
+          total_updated: totalUpdated,
+          total_skipped: totalSkipped,
+          last_run_at: new Date().toISOString()
+        });
 
-    while (hasMore && iterations < maxIterations) {
-      // Check if we're approaching timeout
-      const elapsedTime = Date.now() - startTime;
-      if (elapsedTime > MAX_EXECUTION_TIME) {
-        console.log(`Approaching timeout after ${iterations} batches, saving progress...`);
-        timedOut = true;
-        break;
+        return new Response(
+          JSON.stringify({
+            success: true,
+            status: 'running',
+            message: `Sincronização em andamento: ${totalProcessed} registros processados, ${totalCreated} criados. Continuará automaticamente...`,
+            total_processed: totalProcessed,
+            total_created: totalCreated,
+            total_updated: totalUpdated,
+            total_skipped: totalSkipped,
+            current_offset: offset,
+            batches_this_run: batchCount
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
-      iterations++;
-      
-      if (offset > 0) {
-        await sleep(800); // Reduced delay
+      if (batchCount > 0) {
+        await sleep(500); // Small delay between batches
       }
 
       try {
@@ -410,75 +425,102 @@ serve(async (req) => {
           break;
         }
 
-        const { created, updated, skipped, errors } = await processTransactionsBatch(
+        const { created, updated, skipped } = await processTransactionsBatch(
           supabase,
           items,
           categoriaMap,
           categorias,
-          contaPadraoId,
-          user.id,
-          forceUpdate
+          contaPadraoId
         );
 
         totalCreated += created;
         totalUpdated += updated;
         totalSkipped += skipped;
         totalProcessed += items.length;
-        allErrors.push(...errors);
-
-        console.log(`Batch ${iterations}: ${items.length} tx (${created}c, ${updated}u, ${skipped}s)`);
-
-        lastOffset = offset;
         offset += fetchLimit;
         hasMore = more;
+        batchCount++;
+
+        console.log(`Batch ${batchCount}: ${items.length} items (${created}c, ${skipped}s), total: ${totalProcessed}`);
+
+        // Update progress every 5 batches
+        if (batchCount % 5 === 0) {
+          await updateSyncStatus(supabase, {
+            last_offset: offset,
+            total_processed: totalProcessed,
+            total_created: totalCreated,
+            total_updated: totalUpdated,
+            total_skipped: totalSkipped
+          });
+        }
+
       } catch (batchError) {
-        console.error(`Batch ${iterations} error:`, batchError);
-        allErrors.push(`Batch ${iterations}: ${batchError instanceof Error ? batchError.message : 'Error'}`);
-        // Continue with next batch
-        offset += fetchLimit;
+        console.error(`Batch error:`, batchError);
+        
+        await updateSyncStatus(supabase, {
+          status: 'error',
+          error_message: batchError instanceof Error ? batchError.message : 'Erro desconhecido',
+          last_offset: offset,
+          total_processed: totalProcessed,
+          total_created: totalCreated,
+          total_updated: totalUpdated,
+          total_skipped: totalSkipped
+        });
+
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: batchError instanceof Error ? batchError.message : 'Erro',
+            total_processed: totalProcessed,
+            total_created: totalCreated,
+            current_offset: offset
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
     }
 
-    // Log sync action
-    await supabase
-      .from('audit_log')
-      .insert({
-        tabela: 'fin_lancamentos',
-        acao: 'sync_advbox',
-        descricao: `Sincronização ADVBox: ${totalCreated} criados, ${totalUpdated} atualizados, ${totalSkipped} ignorados${timedOut ? ' (parcial - timeout)' : ''}`,
-        usuario_id: user.id,
-        dados_novos: {
-          total: totalProcessed,
-          created: totalCreated,
-          updated: totalUpdated,
-          skipped: totalSkipped,
-          errors: allErrors.length,
-          period: { start: startDateStr, end: endDateStr },
-          batches: iterations,
-          lastOffset,
-          timedOut
-        }
-      } as never);
+    // Sync completed!
+    await updateSyncStatus(supabase, {
+      status: 'completed',
+      last_offset: offset,
+      total_processed: totalProcessed,
+      total_created: totalCreated,
+      total_updated: totalUpdated,
+      total_skipped: totalSkipped,
+      completed_at: new Date().toISOString()
+    });
 
-    const message = timedOut 
-      ? `Sincronização parcial: ${totalCreated} criados, ${totalUpdated} atualizados. Execute novamente para continuar.`
-      : `Sincronização concluída: ${totalCreated} criados, ${totalUpdated} atualizados, ${totalSkipped} ignorados`;
+    // Log completion
+    if (userId) {
+      await supabase
+        .from('audit_log')
+        .insert({
+          tabela: 'fin_lancamentos',
+          acao: 'sync_advbox_complete',
+          descricao: `Sincronização ADVBox completa: ${totalCreated} criados, ${totalSkipped} ignorados`,
+          usuario_id: userId,
+          dados_novos: {
+            total: totalProcessed,
+            created: totalCreated,
+            updated: totalUpdated,
+            skipped: totalSkipped,
+            period: { start: startDateStr, end: endDateStr }
+          }
+        } as never);
+    }
 
-    console.log(message);
+    console.log(`Sync completed: ${totalCreated} created, ${totalSkipped} skipped`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        total: totalProcessed,
-        created: totalCreated,
-        updated: totalUpdated,
-        skipped: totalSkipped,
-        errors: allErrors.length,
-        errorDetails: allErrors.slice(0, 5),
-        period: { start: startDateStr, end: endDateStr },
-        batches: iterations,
-        partial: timedOut,
-        message
+        status: 'completed',
+        message: `Sincronização concluída: ${totalCreated} registros criados, ${totalSkipped} já existentes`,
+        total_processed: totalProcessed,
+        total_created: totalCreated,
+        total_updated: totalUpdated,
+        total_skipped: totalSkipped
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

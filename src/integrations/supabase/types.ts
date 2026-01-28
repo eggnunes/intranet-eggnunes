@@ -349,6 +349,66 @@ export type Database = {
         }
         Relationships: []
       }
+      advbox_sync_status: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          end_date: string | null
+          error_message: string | null
+          id: string
+          last_offset: number | null
+          last_run_at: string | null
+          months: number | null
+          start_date: string | null
+          started_at: string | null
+          status: string
+          sync_type: string
+          total_created: number | null
+          total_processed: number | null
+          total_skipped: number | null
+          total_updated: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          end_date?: string | null
+          error_message?: string | null
+          id?: string
+          last_offset?: number | null
+          last_run_at?: string | null
+          months?: number | null
+          start_date?: string | null
+          started_at?: string | null
+          status?: string
+          sync_type?: string
+          total_created?: number | null
+          total_processed?: number | null
+          total_skipped?: number | null
+          total_updated?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          end_date?: string | null
+          error_message?: string | null
+          id?: string
+          last_offset?: number | null
+          last_run_at?: string | null
+          months?: number | null
+          start_date?: string | null
+          started_at?: string | null
+          status?: string
+          sync_type?: string
+          total_created?: number | null
+          total_processed?: number | null
+          total_skipped?: number | null
+          total_updated?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       ai_agent_favorites: {
         Row: {
           agent_url: string
