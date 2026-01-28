@@ -7,13 +7,14 @@ const corsHeaders = {
 };
 
 const ADVBOX_API_BASE = 'https://app.advbox.com.br/api/v1';
+const MAX_EXECUTION_TIME = 55000; // 55 seconds - leave margin before Edge Function timeout (60s)
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 interface AdvboxTransaction {
-  id: number | string;
+  id?: number | string;
   name?: string;
   description?: string;
   identification?: string;
@@ -43,6 +44,17 @@ interface Categoria {
   tipo: string;
 }
 
+function getValidTransactionId(tx: AdvboxTransaction): string | null {
+  // Try multiple fields that could contain a valid ID
+  if (tx.id !== undefined && tx.id !== null && String(tx.id).trim() !== '' && String(tx.id) !== 'undefined') {
+    return String(tx.id);
+  }
+  if (tx.identification && String(tx.identification).trim() !== '') {
+    return String(tx.identification);
+  }
+  return null;
+}
+
 async function fetchTransactionsBatch(
   advboxToken: string, 
   startDate: string, 
@@ -52,7 +64,7 @@ async function fetchTransactionsBatch(
 ): Promise<{ items: AdvboxTransaction[]; hasMore: boolean }> {
   const endpoint = `${ADVBOX_API_BASE}/transactions?limit=${limit}&offset=${offset}&date_due_start=${startDate}&date_due_end=${endDate}`;
   
-  console.log(`Fetching ADVBox transactions: offset=${offset}, limit=${limit}, startDate=${startDate}, endDate=${endDate}`);
+  console.log(`Fetching: offset=${offset}, limit=${limit}`);
   
   try {
     const response = await fetch(endpoint, {
@@ -62,40 +74,44 @@ async function fetchTransactionsBatch(
       },
     });
 
-    console.log(`ADVBox API response status: ${response.status}`);
-
     if (!response.ok) {
       const responseText = await response.text();
-      console.error(`ADVBox API error: status=${response.status}, body=${responseText}`);
+      console.error(`ADVBox API error: status=${response.status}`);
       
       if (response.status === 429) {
-        console.log('Rate limited, waiting 5 seconds before retry...');
+        console.log('Rate limited, waiting 5 seconds...');
         await sleep(5000);
         return fetchTransactionsBatch(advboxToken, startDate, endDate, offset, limit);
       }
       
       if (response.status === 401) {
-        throw new Error(`Token ADVBOX inválido ou expirado. Status: ${response.status}`);
+        throw new Error(`Token ADVBOX inválido ou expirado`);
       }
       
-      if (response.status === 404) {
-        throw new Error(`Endpoint de transações não encontrado. Verifique a URL da API: ${endpoint}`);
-      }
-      
-      throw new Error(`Erro na API ADVBox: ${response.status} - ${responseText}`);
+      throw new Error(`Erro na API ADVBox: ${response.status}`);
     }
 
     const data = await response.json();
     const items = data.data || data || [];
     
-    console.log(`Fetched ${Array.isArray(items) ? items.length : 0} transactions`);
+    // Filter out items without valid IDs
+    const validItems = (Array.isArray(items) ? items : []).filter(
+      (tx: AdvboxTransaction) => getValidTransactionId(tx) !== null
+    );
+    
+    const skippedCount = (Array.isArray(items) ? items.length : 0) - validItems.length;
+    if (skippedCount > 0) {
+      console.log(`Skipped ${skippedCount} transactions without valid ID`);
+    }
+    
+    console.log(`Fetched ${validItems.length} valid transactions`);
     
     return {
-      items: Array.isArray(items) ? items : [],
+      items: validItems,
       hasMore: Array.isArray(items) && items.length >= limit
     };
   } catch (error) {
-    console.error('Error fetching ADVBox transactions:', error);
+    console.error('Error fetching:', error);
     throw error;
   }
 }
@@ -114,9 +130,15 @@ async function processTransactionsBatch(
   let skipped = 0;
   const errors: string[] = [];
 
-  // Get all advbox IDs to check existing in batch
-  const advboxIds = transactions.map(tx => String(tx.id));
+  // Get all valid advbox IDs
+  const advboxIds = transactions
+    .map(tx => getValidTransactionId(tx))
+    .filter((id): id is string => id !== null);
   
+  if (advboxIds.length === 0) {
+    return { created: 0, updated: 0, skipped: 0, errors: [] };
+  }
+
   const { data: existingRecords } = await supabase
     .from('fin_lancamentos')
     .select('id, advbox_transaction_id, updated_at')
@@ -126,14 +148,18 @@ async function processTransactionsBatch(
     ((existingRecords as ExistingRecord[] | null) || []).map(r => [r.advbox_transaction_id, r])
   );
 
-  // Prepare batch operations
-  const toInsert: Record<string, unknown>[] = [];
-  const toUpdate: Array<{ id: string; data: Record<string, unknown> }> = [];
+  // Prepare records for upsert
+  const toUpsert: Record<string, unknown>[] = [];
   const syncRecords: Record<string, unknown>[] = [];
 
   for (const tx of transactions) {
     try {
-      const advboxId = String(tx.id);
+      const advboxId = getValidTransactionId(tx);
+      if (!advboxId) {
+        skipped++;
+        continue;
+      }
+
       const existing = existingMap.get(advboxId);
 
       if (existing && !forceUpdate) {
@@ -177,23 +203,19 @@ async function processTransactionsBatch(
           `Importado do ADVBox em ${new Date().toLocaleString('pt-BR')}`
         ].filter(Boolean).join('\n'),
         advbox_transaction_id: advboxId,
+        updated_at: new Date().toISOString(),
       };
 
       if (existing) {
-        toUpdate.push({
-          id: existing.id,
-          data: {
-            ...lancamentoData,
-            updated_by: userId,
-            updated_at: new Date().toISOString(),
-          }
-        });
+        // Update existing record
+        lancamentoData.updated_by = userId;
+        lancamentoData.id = existing.id;
+        toUpsert.push(lancamentoData);
         updated++;
       } else {
-        toInsert.push({
-          ...lancamentoData,
-          created_by: userId,
-        });
+        // New record
+        lancamentoData.created_by = userId;
+        toUpsert.push(lancamentoData);
         created++;
       }
 
@@ -204,38 +226,54 @@ async function processTransactionsBatch(
       });
 
     } catch (err) {
-      console.error(`Erro ao preparar transação ${tx.id}:`, err);
-      errors.push(`ID ${tx.id}: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
+      console.error(`Error processing tx:`, err);
+      errors.push(`${err instanceof Error ? err.message : 'Erro'}`);
     }
   }
 
-  // Execute batch insert
-  if (toInsert.length > 0) {
-    const { error: insertError } = await supabase
-      .from('fin_lancamentos')
-      .insert(toInsert as never[]);
-    
-    if (insertError) {
-      console.error('Erro no batch insert:', insertError);
-      errors.push(`Batch insert error: ${insertError.message}`);
-      created = 0;
+  // Process one by one to avoid batch errors
+  for (const record of toUpsert) {
+    try {
+      const advboxId = record.advbox_transaction_id as string;
+      const existing = existingMap.get(advboxId);
+      
+      if (existing) {
+        const { error: updateError } = await supabase
+          .from('fin_lancamentos')
+          .update(record as never)
+          .eq('id', existing.id);
+        
+        if (updateError) {
+          console.error(`Update error for ${advboxId}:`, updateError.message);
+        }
+      } else {
+        // Try insert, if fails due to duplicate, try update
+        const { error: insertError } = await supabase
+          .from('fin_lancamentos')
+          .insert(record as never);
+        
+        if (insertError) {
+          if (insertError.code === '23505') {
+            // Duplicate - try to update instead
+            const { error: updateError } = await supabase
+              .from('fin_lancamentos')
+              .update(record as never)
+              .eq('advbox_transaction_id', advboxId);
+            
+            if (updateError) {
+              console.error(`Update after dup for ${advboxId}:`, updateError.message);
+            }
+          } else {
+            console.error(`Insert error for ${advboxId}:`, insertError.message);
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`Record processing error:`, err);
     }
   }
 
-  // Execute updates
-  for (const item of toUpdate) {
-    const { error: updateError } = await supabase
-      .from('fin_lancamentos')
-      .update(item.data as never)
-      .eq('id', item.id);
-    
-    if (updateError) {
-      console.error(`Erro ao atualizar ${item.id}:`, updateError);
-      errors.push(`Update ${item.id}: ${updateError.message}`);
-    }
-  }
-
-  // Batch upsert sync records
+  // Upsert sync records
   if (syncRecords.length > 0) {
     await supabase
       .from('advbox_financial_sync')
@@ -249,6 +287,8 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const startTime = Date.now();
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -297,7 +337,7 @@ serve(async (req) => {
     const months = body.months || 12;
     const forceUpdate = body.force_update || false;
 
-    console.log(`Sincronizando transações financeiras do ADVBOX (últimos ${months} meses)...`);
+    console.log(`Syncing ${months} months...`);
 
     const now = new Date();
     const startDate = new Date(now);
@@ -305,7 +345,7 @@ serve(async (req) => {
     const startDateStr = startDate.toISOString().split('T')[0];
     const endDateStr = now.toISOString().split('T')[0];
 
-    // Get categories and accounts upfront
+    // Get categories and accounts
     const { data: categoriasData } = await supabase
       .from('fin_categorias')
       .select('id, nome, tipo')
@@ -325,7 +365,7 @@ serve(async (req) => {
       categoriaMap.set(c.nome.toLowerCase(), { id: c.id, tipo: c.tipo });
     });
 
-    // Process in streaming batches
+    // Process in batches with time limit
     let offset = 0;
     let totalProcessed = 0;
     let totalCreated = 0;
@@ -333,54 +373,70 @@ serve(async (req) => {
     let totalSkipped = 0;
     const allErrors: string[] = [];
     let hasMore = true;
-    const fetchLimit = 100;
-    const maxIterations = 200;
+    const fetchLimit = 50; // Smaller batches
+    const maxIterations = 500;
     let iterations = 0;
+    let lastOffset = 0;
+    let timedOut = false;
 
-    console.log(`Processando transações de ${startDateStr} até ${endDateStr} em lotes...`);
+    console.log(`Processing from ${startDateStr} to ${endDateStr}`);
 
     while (hasMore && iterations < maxIterations) {
-      iterations++;
-      
-      if (offset > 0) {
-        await sleep(1200);
-      }
-
-      console.log(`Buscando lote ${iterations} (offset ${offset})...`);
-      
-      const { items, hasMore: more } = await fetchTransactionsBatch(
-        advboxToken, 
-        startDateStr, 
-        endDateStr, 
-        offset, 
-        fetchLimit
-      );
-
-      if (items.length === 0) {
-        hasMore = false;
+      // Check if we're approaching timeout
+      const elapsedTime = Date.now() - startTime;
+      if (elapsedTime > MAX_EXECUTION_TIME) {
+        console.log(`Approaching timeout after ${iterations} batches, saving progress...`);
+        timedOut = true;
         break;
       }
 
-      const { created, updated, skipped, errors } = await processTransactionsBatch(
-        supabase,
-        items,
-        categoriaMap,
-        categorias,
-        contaPadraoId,
-        user.id,
-        forceUpdate
-      );
+      iterations++;
+      
+      if (offset > 0) {
+        await sleep(800); // Reduced delay
+      }
 
-      totalCreated += created;
-      totalUpdated += updated;
-      totalSkipped += skipped;
-      totalProcessed += items.length;
-      allErrors.push(...errors);
+      try {
+        const { items, hasMore: more } = await fetchTransactionsBatch(
+          advboxToken, 
+          startDateStr, 
+          endDateStr, 
+          offset, 
+          fetchLimit
+        );
 
-      console.log(`Lote ${iterations}: ${items.length} transações (${created} criadas, ${updated} atualizadas, ${skipped} ignoradas)`);
+        if (items.length === 0) {
+          hasMore = false;
+          break;
+        }
 
-      offset += fetchLimit;
-      hasMore = more;
+        const { created, updated, skipped, errors } = await processTransactionsBatch(
+          supabase,
+          items,
+          categoriaMap,
+          categorias,
+          contaPadraoId,
+          user.id,
+          forceUpdate
+        );
+
+        totalCreated += created;
+        totalUpdated += updated;
+        totalSkipped += skipped;
+        totalProcessed += items.length;
+        allErrors.push(...errors);
+
+        console.log(`Batch ${iterations}: ${items.length} tx (${created}c, ${updated}u, ${skipped}s)`);
+
+        lastOffset = offset;
+        offset += fetchLimit;
+        hasMore = more;
+      } catch (batchError) {
+        console.error(`Batch ${iterations} error:`, batchError);
+        allErrors.push(`Batch ${iterations}: ${batchError instanceof Error ? batchError.message : 'Error'}`);
+        // Continue with next batch
+        offset += fetchLimit;
+      }
     }
 
     // Log sync action
@@ -389,7 +445,7 @@ serve(async (req) => {
       .insert({
         tabela: 'fin_lancamentos',
         acao: 'sync_advbox',
-        descricao: `Sincronização ADVBox: ${totalCreated} criados, ${totalUpdated} atualizados, ${totalSkipped} ignorados`,
+        descricao: `Sincronização ADVBox: ${totalCreated} criados, ${totalUpdated} atualizados, ${totalSkipped} ignorados${timedOut ? ' (parcial - timeout)' : ''}`,
         usuario_id: user.id,
         dados_novos: {
           total: totalProcessed,
@@ -398,11 +454,17 @@ serve(async (req) => {
           skipped: totalSkipped,
           errors: allErrors.length,
           period: { start: startDateStr, end: endDateStr },
-          batches: iterations
+          batches: iterations,
+          lastOffset,
+          timedOut
         }
       } as never);
 
-    console.log(`Sincronização concluída: ${totalCreated} criados, ${totalUpdated} atualizados, ${totalSkipped} ignorados`);
+    const message = timedOut 
+      ? `Sincronização parcial: ${totalCreated} criados, ${totalUpdated} atualizados. Execute novamente para continuar.`
+      : `Sincronização concluída: ${totalCreated} criados, ${totalUpdated} atualizados, ${totalSkipped} ignorados`;
+
+    console.log(message);
 
     return new Response(
       JSON.stringify({
@@ -412,24 +474,24 @@ serve(async (req) => {
         updated: totalUpdated,
         skipped: totalSkipped,
         errors: allErrors.length,
-        errorDetails: allErrors.slice(0, 10),
+        errorDetails: allErrors.slice(0, 5),
         period: { start: startDateStr, end: endDateStr },
-        batches: iterations
+        batches: iterations,
+        partial: timedOut,
+        message
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (error: unknown) {
-    console.error("Erro na sincronização:", error);
+    console.error("Sync error:", error);
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    console.error("Stack trace:", errorStack);
     
     return new Response(
       JSON.stringify({ 
         success: false, 
         error: errorMessage,
-        details: errorStack
+        message: `Erro: ${errorMessage}`
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
