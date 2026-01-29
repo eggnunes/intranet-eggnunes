@@ -408,10 +408,24 @@ async function getAdvboxSettings(clientEmail?: string, clientPhone?: string, com
         }
       }
       
-      // FALLBACK: Se não encontrar correspondência, usar a primeira origem
+      // FALLBACK: Se não encontrar correspondência, buscar "não informado" como origem padrão
       if (!matchedOrigin) {
-        result.defaultOriginId = result.origins[0].id;
-        console.log(`Usando primeira origem como fallback: ${result.defaultOriginId} (${result.origins[0].name})`);
+        // Buscar especificamente a origem "não informado"
+        const naoInformadoOrigin = result.origins.find((o: { id: string; name: string }) => 
+          o.name.toLowerCase().includes('não informado') || 
+          o.name.toLowerCase().includes('nao informado') ||
+          o.name.toLowerCase() === 'não informado' ||
+          o.name.toLowerCase() === 'nao informado'
+        );
+        
+        if (naoInformadoOrigin) {
+          result.defaultOriginId = naoInformadoOrigin.id;
+          console.log(`Usando origem "Não Informado" como fallback: ${result.defaultOriginId} (${naoInformadoOrigin.name})`);
+        } else {
+          // Se "não informado" não existir, usar a primeira origem
+          result.defaultOriginId = result.origins[0].id;
+          console.log(`Origem "Não Informado" não encontrada, usando primeira origem como fallback: ${result.defaultOriginId} (${result.origins[0].name})`);
+        }
       }
     } else {
       console.error('CRITICAL: No customer origins found in Advbox! Cannot proceed with customer creation.');
