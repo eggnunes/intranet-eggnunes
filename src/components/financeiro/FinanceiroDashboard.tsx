@@ -117,28 +117,61 @@ export function FinanceiroDashboard() {
       // Buscar saldo real do Asaas via API
       try {
         console.log('Buscando saldo do Asaas...');
+        
+        // Tentar via supabase.functions.invoke (funciona se logado)
+        let asaasBalance: number | null = null;
+        
         const { data: asaasData, error: asaasError } = await supabase.functions.invoke('asaas-integration', {
           body: { action: 'get_balance' }
         });
         
-        console.log('Resposta Asaas:', { asaasData, asaasError });
+        console.log('Resposta Asaas:', asaasData, 'Erro:', asaasError);
         
-        if (!asaasError && asaasData) {
-          const asaasBalance = Number(asaasData.balance) || 0;
+        if (!asaasError && asaasData && asaasData.balance !== undefined) {
+          asaasBalance = Number(asaasData.balance) || 0;
+        } else {
+          // Fallback: tentar com fetch direto usando anon key
+          try {
+            const response = await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/asaas-integration`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                  'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+                },
+                body: JSON.stringify({ action: 'get_balance' })
+              }
+            );
+            
+            if (response.ok) {
+              const fallbackData = await response.json();
+              if (fallbackData && fallbackData.balance !== undefined) {
+                asaasBalance = Number(fallbackData.balance) || 0;
+              }
+            }
+          } catch (fallbackErr) {
+            console.error('Fallback Asaas também falhou:', fallbackErr);
+          }
+        }
+        
+        if (asaasBalance !== null) {
           console.log('Saldo Asaas encontrado:', asaasBalance);
           
           // Atualizar saldo da conta Asaas
+          let asaasAtualizado = false;
           contasSaldo = contasSaldo.map(conta => {
             if (conta.isAsaas || conta.nome.toLowerCase().includes('asaas')) {
               console.log(`Atualizando saldo da conta "${conta.nome}" para:`, asaasBalance);
-              return { ...conta, saldo: asaasBalance };
+              asaasAtualizado = true;
+              return { ...conta, saldo: asaasBalance! };
             }
             return conta;
           });
           
-          // Se não encontrou nenhuma conta Asaas, adicionar uma
-          const hasAsaas = contasSaldo.some(c => c.isAsaas || c.nome.toLowerCase().includes('asaas'));
-          if (!hasAsaas && asaasBalance > 0) {
+          // Se não encontrou nenhuma conta Asaas mas temos saldo, adicionar uma virtual
+          if (!asaasAtualizado && asaasBalance > 0) {
             contasSaldo.push({
               nome: 'Asaas',
               saldo: asaasBalance,

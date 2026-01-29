@@ -40,6 +40,7 @@ interface Lancamento {
   status: string;
   origem: string | null;
   a_reembolsar: boolean;
+  cliente_nome: string | null;
   categoria: { nome: string; cor: string } | null;
   conta_origem: { nome: string } | null;
   cliente: { nome: string } | null;
@@ -107,6 +108,7 @@ export function FinanceiroLancamentos({ onNovoLancamento }: FinanceiroLancamento
           status,
           origem,
           a_reembolsar,
+          cliente_nome,
           categoria:fin_categorias(nome, cor),
           conta_origem:fin_contas!fin_lancamentos_conta_origem_id_fkey(nome),
           cliente:fin_clientes(nome)
@@ -405,6 +407,7 @@ export function FinanceiroLancamentos({ onNovoLancamento }: FinanceiroLancamento
                   <TableHead>Data</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Categoria</TableHead>
+                  <TableHead>Cliente</TableHead>
                   <TableHead>Descrição</TableHead>
                   <TableHead>Conta</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
@@ -415,7 +418,7 @@ export function FinanceiroLancamentos({ onNovoLancamento }: FinanceiroLancamento
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
+                    <TableCell colSpan={10} className="text-center py-8">
                       <div className="flex items-center justify-center gap-2">
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
                         Carregando...
@@ -424,7 +427,7 @@ export function FinanceiroLancamentos({ onNovoLancamento }: FinanceiroLancamento
                   </TableRow>
                 ) : lancamentos.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                       Nenhum lançamento encontrado
                     </TableCell>
                   </TableRow>
@@ -446,6 +449,7 @@ export function FinanceiroLancamentos({ onNovoLancamento }: FinanceiroLancamento
                         )}
                       </TableCell>
                       <TableCell>
+                        {l.data_lancamento ? format(new Date(l.data_lancamento), 'dd/MM/yyyy') : '-'}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -468,6 +472,11 @@ export function FinanceiroLancamentos({ onNovoLancamento }: FinanceiroLancamento
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="max-w-[150px] truncate" title={l.cliente?.nome || l.cliente_nome || '-'}>
+                          {l.cliente?.nome || l.cliente_nome || '-'}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="max-w-[200px] truncate" title={l.descricao}>
