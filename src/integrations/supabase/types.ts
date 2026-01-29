@@ -3216,6 +3216,7 @@ export type Database = {
           categoria_id: string | null
           centro_custo_id: string | null
           cliente_id: string | null
+          cliente_nome: string | null
           conciliacao_id: string | null
           conciliado: boolean | null
           conciliado_em: string | null
@@ -3260,6 +3261,7 @@ export type Database = {
           categoria_id?: string | null
           centro_custo_id?: string | null
           cliente_id?: string | null
+          cliente_nome?: string | null
           conciliacao_id?: string | null
           conciliado?: boolean | null
           conciliado_em?: string | null
@@ -3304,6 +3306,7 @@ export type Database = {
           categoria_id?: string | null
           centro_custo_id?: string | null
           cliente_id?: string | null
+          cliente_nome?: string | null
           conciliacao_id?: string | null
           conciliado?: boolean | null
           conciliado_em?: string | null

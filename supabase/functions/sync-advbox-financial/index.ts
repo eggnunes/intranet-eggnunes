@@ -234,27 +234,36 @@ async function processTransactionsBatch(
       tipoFinal = 'despesa';
     }
 
+    // Campo description do ADVBox tem a descrição real do lançamento
+    // Campo name do ADVBox tem o nome do cliente/pessoa
+    const descricaoReal = tx.description && tx.description.trim() !== '' 
+      ? tx.description 
+      : tx.category || `ADVBox #${advboxId}`;
+    
+    const nomeCliente = tx.name || tx.customer_name || null;
+
     const lancamentoData = {
       tipo: tipoFinal,
       categoria_id: categoriaId,
       conta_origem_id: contaOrigemId, // Can be null if ADVBox doesn't provide bank_account
       valor: Math.abs(amount),
-      descricao: tx.name || tx.description || tx.identification || `ADVBox #${advboxId}`,
+      descricao: descricaoReal,
       data_lancamento: tx.date_due?.split('T')[0] || new Date().toISOString().split('T')[0],
       data_vencimento: tx.date_due?.split('T')[0] || null,
       data_pagamento: tx.date_payment?.split('T')[0] || null,
       status: isPaid ? 'pago' : 'pendente',
       origem: 'advbox',
       observacoes: [
-        tx.customer_name ? `Cliente: ${tx.customer_name}` : null,
         tx.lawsuit_title ? `Processo: ${tx.lawsuit_title}` : null,
         tx.bank_account ? `Conta ADVBox: ${tx.bank_account}` : null,
         tx.notes ? `Notas: ${tx.notes}` : null,
         tx.category ? `Categoria ADVBox: ${tx.category}` : null,
+        tx.identification ? `Identificação: ${tx.identification}` : null,
         `Importado do ADVBox em ${new Date().toLocaleString('pt-BR')}`
       ].filter(Boolean).join('\n'),
       advbox_transaction_id: advboxId,
       created_by: systemUserId,
+      cliente_nome: nomeCliente, // Armazenar nome do cliente em campo separado
     };
 
     const { data: insertedData, error: insertError } = await supabase
