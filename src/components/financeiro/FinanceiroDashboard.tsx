@@ -116,20 +116,39 @@ export function FinanceiroDashboard() {
 
       // Buscar saldo real do Asaas via API
       try {
+        console.log('Buscando saldo do Asaas...');
         const { data: asaasData, error: asaasError } = await supabase.functions.invoke('asaas-integration', {
           body: { action: 'get_balance' }
         });
         
-        if (!asaasError && asaasData?.balance !== undefined) {
+        console.log('Resposta Asaas:', { asaasData, asaasError });
+        
+        if (!asaasError && asaasData) {
+          const asaasBalance = Number(asaasData.balance) || 0;
+          console.log('Saldo Asaas encontrado:', asaasBalance);
+          
+          // Atualizar saldo da conta Asaas
           contasSaldo = contasSaldo.map(conta => {
-            if (conta.isAsaas) {
-              return { ...conta, saldo: Number(asaasData.balance) || 0 };
+            if (conta.isAsaas || conta.nome.toLowerCase().includes('asaas')) {
+              console.log(`Atualizando saldo da conta "${conta.nome}" para:`, asaasBalance);
+              return { ...conta, saldo: asaasBalance };
             }
             return conta;
           });
+          
+          // Se não encontrou nenhuma conta Asaas, adicionar uma
+          const hasAsaas = contasSaldo.some(c => c.isAsaas || c.nome.toLowerCase().includes('asaas'));
+          if (!hasAsaas && asaasBalance > 0) {
+            contasSaldo.push({
+              nome: 'Asaas',
+              saldo: asaasBalance,
+              cor: '#9D5CFF',
+              isAsaas: true
+            });
+          }
         }
       } catch (asaasErr) {
-        console.log('Não foi possível obter saldo do Asaas:', asaasErr);
+        console.error('Erro ao obter saldo do Asaas:', asaasErr);
       }
 
       // Despesas a reembolsar
