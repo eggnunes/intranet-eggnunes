@@ -18,7 +18,8 @@ import {
   Percent,
   ArrowUp,
   ArrowDown,
-  Minus
+  Minus,
+  CreditCard
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -52,6 +53,7 @@ interface DashboardData {
     tendenciaReceitas: 'up' | 'down' | 'stable';
     tendenciaDespesas: 'up' | 'down' | 'stable';
   };
+  asaasBalance: number | null;
 }
 
 export function FinanceiroExecutivoDashboard() {
@@ -81,7 +83,8 @@ export function FinanceiroExecutivoDashboard() {
       mediaDespesas3m: 0,
       tendenciaReceitas: 'stable',
       tendenciaDespesas: 'stable'
-    }
+    },
+    asaasBalance: null
   });
 
   const fetchData = async () => {
@@ -276,6 +279,19 @@ export function FinanceiroExecutivoDashboard() {
         ultimoMes.despesas > mediaDespesas3m * 1.05 ? 'up' :
         ultimoMes.despesas < mediaDespesas3m * 0.95 ? 'down' : 'stable';
 
+      // Fetch Asaas balance
+      let asaasBalance: number | null = null;
+      try {
+        const { data: asaasData, error: asaasError } = await supabase.functions.invoke('asaas-integration', {
+          body: { action: 'get_balance' }
+        });
+        if (!asaasError && asaasData?.balance !== undefined) {
+          asaasBalance = asaasData.balance;
+        }
+      } catch (asaasErr) {
+        console.log('Asaas balance not available:', asaasErr);
+      }
+
       setData({
         totalReceitas,
         totalDespesas,
@@ -300,7 +316,8 @@ export function FinanceiroExecutivoDashboard() {
           mediaDespesas3m,
           tendenciaReceitas,
           tendenciaDespesas
-        }
+        },
+        asaasBalance
       });
     } catch (error) {
       console.error('Erro ao carregar dashboard:', error);
@@ -447,7 +464,7 @@ export function FinanceiroExecutivoDashboard() {
       </div>
 
       {/* Tendências e Saldo Total */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Tendência de Receitas</CardTitle>
@@ -490,6 +507,25 @@ export function FinanceiroExecutivoDashboard() {
                   {formatCurrency(data.contasSaldo.reduce((acc, c) => acc + c.saldo, 0))}
                 </p>
                 <p className="text-xs text-muted-foreground">{data.contasSaldo.length} conta(s) ativa(s)</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-blue-500" />
+              Saldo Asaas
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-3">
+              <div>
+                <p className="text-lg font-bold text-blue-600">
+                  {data.asaasBalance !== null ? formatCurrency(data.asaasBalance) : 'Indisponível'}
+                </p>
+                <p className="text-xs text-muted-foreground">Conta Asaas integrada</p>
               </div>
             </div>
           </CardContent>
