@@ -3220,7 +3220,7 @@ export type Database = {
           conciliado: boolean | null
           conciliado_em: string | null
           conta_destino_id: string | null
-          conta_origem_id: string
+          conta_origem_id: string | null
           created_at: string | null
           created_by: string
           data_lancamento: string
@@ -3264,7 +3264,7 @@ export type Database = {
           conciliado?: boolean | null
           conciliado_em?: string | null
           conta_destino_id?: string | null
-          conta_origem_id: string
+          conta_origem_id?: string | null
           created_at?: string | null
           created_by: string
           data_lancamento?: string
@@ -3308,7 +3308,7 @@ export type Database = {
           conciliado?: boolean | null
           conciliado_em?: string | null
           conta_destino_id?: string | null
-          conta_origem_id?: string
+          conta_origem_id?: string | null
           created_at?: string | null
           created_by?: string
           data_lancamento?: string

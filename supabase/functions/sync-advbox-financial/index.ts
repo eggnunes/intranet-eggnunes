@@ -29,6 +29,7 @@ interface AdvboxTransaction {
   lawsuit_id?: number;
   lawsuit_title?: string;
   bank_account?: string;
+  bank_account_id?: number | string;
   notes?: string;
 }
 
@@ -42,6 +43,11 @@ interface Categoria {
   id: string;
   nome: string;
   tipo: string;
+}
+
+interface ContaBancaria {
+  id: string;
+  nome: string;
 }
 
 interface SyncStatus {
@@ -122,7 +128,7 @@ async function processTransactionsBatch(
   transactions: AdvboxTransaction[],
   categoriaMap: Map<string, { id: string; tipo: string }>,
   categorias: Categoria[] | null,
-  contaPadraoId: string | null,
+  contasMap: Map<string, string>,
   systemUserId: string
 ): Promise<{ created: number; updated: number; skipped: number }> {
   let created = 0;
@@ -137,6 +143,7 @@ async function processTransactionsBatch(
     return { created: 0, updated: 0, skipped: 0 };
   }
 
+  // Check existing records in fin_lancamentos
   const { data: existingRecords } = await supabase
     .from('fin_lancamentos')
     .select('id, advbox_transaction_id, updated_at')
@@ -146,6 +153,16 @@ async function processTransactionsBatch(
     ((existingRecords as ExistingRecord[] | null) || []).map(r => [r.advbox_transaction_id, r])
   );
 
+  // Also check existing in advbox_financial_sync
+  const { data: existingSyncRecords } = await supabase
+    .from('advbox_financial_sync')
+    .select('advbox_transaction_id')
+    .in('advbox_transaction_id', advboxIds);
+
+  const existingSyncSet = new Set<string>(
+    ((existingSyncRecords as Array<{ advbox_transaction_id: string }> | null) || []).map(r => r.advbox_transaction_id)
+  );
+
   for (const tx of transactions) {
     const advboxId = getValidTransactionId(tx);
     if (!advboxId) {
@@ -153,8 +170,18 @@ async function processTransactionsBatch(
       continue;
     }
 
+    // Check if already exists in fin_lancamentos
     const existing = existingMap.get(advboxId);
     if (existing) {
+      // Still save to advbox_financial_sync if not there yet (for backup)
+      if (!existingSyncSet.has(advboxId)) {
+        await supabase.from('advbox_financial_sync').upsert({
+          advbox_transaction_id: advboxId,
+          advbox_data: tx,
+          lancamento_id: existing.id,
+          last_updated: new Date().toISOString()
+        }, { onConflict: 'advbox_transaction_id' });
+      }
       skipped++;
       continue;
     }
@@ -162,6 +189,7 @@ async function processTransactionsBatch(
     const amount = Number(tx.amount) || 0;
     const tipo = amount >= 0 ? 'receita' : 'despesa';
     
+    // Find category
     let categoriaId: string | null = null;
     if (tx.category) {
       const cat = categoriaMap.get(tx.category.toLowerCase());
@@ -177,12 +205,22 @@ async function processTransactionsBatch(
       categoriaId = defaultCat?.id || null;
     }
 
-    // Ensure we have required fields
-    if (!contaPadraoId) {
-      console.error('No default account found, skipping transaction');
-      skipped++;
-      continue;
+    // Find bank account - ONLY if ADVBox provides bank_account info
+    let contaOrigemId: string | null = null;
+    if (tx.bank_account && tx.bank_account.trim() !== '') {
+      // Try to match by name (case insensitive)
+      const bankAccountLower = tx.bank_account.toLowerCase().trim();
+      for (const [nome, id] of contasMap.entries()) {
+        if (nome.toLowerCase().includes(bankAccountLower) || bankAccountLower.includes(nome.toLowerCase())) {
+          contaOrigemId = id;
+          break;
+        }
+      }
+      if (!contaOrigemId) {
+        console.log(`Conta bancária do ADVBox não mapeada: "${tx.bank_account}"`);
+      }
     }
+    // If ADVBox doesn't provide bank_account, contaOrigemId stays null
 
     // Determine status based on date_payment (if has payment date, it's paid)
     const isPaid = !!(tx.date_payment && tx.date_payment.trim() !== '');
@@ -199,7 +237,7 @@ async function processTransactionsBatch(
     const lancamentoData = {
       tipo: tipoFinal,
       categoria_id: categoriaId,
-      conta_origem_id: contaPadraoId,
+      conta_origem_id: contaOrigemId, // Can be null if ADVBox doesn't provide bank_account
       valor: Math.abs(amount),
       descricao: tx.name || tx.description || tx.identification || `ADVBox #${advboxId}`,
       data_lancamento: tx.date_due?.split('T')[0] || new Date().toISOString().split('T')[0],
@@ -210,6 +248,7 @@ async function processTransactionsBatch(
       observacoes: [
         tx.customer_name ? `Cliente: ${tx.customer_name}` : null,
         tx.lawsuit_title ? `Processo: ${tx.lawsuit_title}` : null,
+        tx.bank_account ? `Conta ADVBox: ${tx.bank_account}` : null,
         tx.notes ? `Notas: ${tx.notes}` : null,
         tx.category ? `Categoria ADVBox: ${tx.category}` : null,
         `Importado do ADVBox em ${new Date().toLocaleString('pt-BR')}`
@@ -218,9 +257,11 @@ async function processTransactionsBatch(
       created_by: systemUserId,
     };
 
-    const { error: insertError } = await supabase
+    const { data: insertedData, error: insertError } = await supabase
       .from('fin_lancamentos')
-      .insert(lancamentoData as never);
+      .insert(lancamentoData as never)
+      .select('id')
+      .single();
     
     if (insertError) {
       if (insertError.code === '23505') {
@@ -230,6 +271,14 @@ async function processTransactionsBatch(
         skipped++;
       }
     } else {
+      // Save full ADVBox data to advbox_financial_sync for backup
+      await supabase.from('advbox_financial_sync').upsert({
+        advbox_transaction_id: advboxId,
+        advbox_data: tx,
+        lancamento_id: insertedData?.id || null,
+        last_updated: new Date().toISOString()
+      }, { onConflict: 'advbox_transaction_id' });
+      
       created++;
     }
   }
@@ -382,13 +431,19 @@ serve(async (req) => {
 
     const categorias = categoriasData as Categoria[] | null;
 
+    // Get all active accounts to map bank_account from ADVBox
     const { data: contas } = await supabase
       .from('fin_contas')
       .select('id, nome')
-      .eq('ativa', true)
-      .limit(1);
+      .eq('ativa', true);
 
-    const contaPadraoId = (contas as Array<{ id: string; nome: string }> | null)?.[0]?.id || null;
+    // Build a map of account names to IDs for matching
+    const contasMap = new Map<string, string>();
+    (contas as ContaBancaria[] | null)?.forEach(c => {
+      contasMap.set(c.nome.toLowerCase(), c.id);
+    });
+    
+    console.log(`Loaded ${contasMap.size} active bank accounts for mapping`);
     
     // Get a system user for created_by field (first admin user found from user_roles table)
     const { data: systemUserData } = await supabase
@@ -403,14 +458,6 @@ serve(async (req) => {
       console.error('No system user found for created_by field');
       return new Response(
         JSON.stringify({ success: false, message: 'Nenhum usuário administrador encontrado para atribuir os lançamentos' }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (!contaPadraoId) {
-      console.error('No default account found');
-      return new Response(
-        JSON.stringify({ success: false, message: 'Nenhuma conta bancária ativa encontrada' }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -479,7 +526,7 @@ serve(async (req) => {
           items,
           categoriaMap,
           categorias,
-          contaPadraoId,
+          contasMap,
           systemUserId
         );
 
