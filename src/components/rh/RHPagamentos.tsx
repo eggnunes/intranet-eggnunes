@@ -11,7 +11,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Plus, FileText, DollarSign, Calendar, Users, Printer, AlertCircle } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import { Plus, FileText, DollarSign, Calendar, Users, Printer, AlertCircle, PieChart, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
@@ -60,6 +62,13 @@ interface PagamentoItem {
   observacao: string;
 }
 
+interface RateioItem {
+  id: string;
+  categoriaId: string;
+  percentual: number;
+  valor: number;
+}
+
 interface Pagamento {
   id: string;
   colaborador_id: string;
@@ -89,6 +98,13 @@ export function RHPagamentos() {
   const [sugestoes, setSugestoes] = useState<Record<string, number>>({});
   const [selectedForBatch, setSelectedForBatch] = useState<string[]>([]);
   const [adiantamentosPendentes, setAdiantamentosPendentes] = useState<any[]>([]);
+  const [descricaoGeral, setDescricaoGeral] = useState('');
+  const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<{ id: string; nome: string }[]>([]);
+  const [rateios, setRateios] = useState<RateioItem[]>([]);
+  const [usarRateio, setUsarRateio] = useState(false);
+  const [contaId, setContaId] = useState('');
+  const [contas, setContas] = useState<{ id: string; nome: string }[]>([]);
+  const [categorias, setCategorias] = useState<{ id: string; nome: string }[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -100,7 +116,7 @@ export function RHPagamentos() {
 
   const fetchData = async () => {
     try {
-      const [colabRes, rubRes, cargosRes] = await Promise.all([
+      const [colabRes, rubRes, cargosRes, contasRes, catRes] = await Promise.all([
         supabase
           .from('profiles')
           .select('id, full_name, email, position, cargo_id')
@@ -115,8 +131,28 @@ export function RHPagamentos() {
         supabase
           .from('rh_cargos')
           .select('id, nome, valor_base, tipo')
-          .eq('is_active', true)
+          .eq('is_active', true),
+        supabase
+          .from('fin_contas')
+          .select('id, nome')
+          .eq('ativa', true),
+        supabase
+          .from('fin_categorias')
+          .select('id, nome')
+          .eq('ativa', true)
+          .eq('tipo', 'despesa')
+          .order('nome')
       ]);
+
+      if (colabRes.error) throw colabRes.error;
+      if (rubRes.error) throw rubRes.error;
+      if (cargosRes.error) throw cargosRes.error;
+
+      setCargos((cargosRes.data || []) as Cargo[]);
+      setColaboradores((colabRes.data || []).map(c => ({ ...c, rh_cargos: null })) as Colaborador[]);
+      setRubricas((rubRes.data || []).map(r => ({ ...r, tipo: r.tipo as 'vantagem' | 'desconto' })));
+      setContas(contasRes.data || []);
+      setCategorias(catRes.data || []);
 
       if (colabRes.error) throw colabRes.error;
       if (rubRes.error) throw rubRes.error;
@@ -297,6 +333,7 @@ export function RHPagamentos() {
     }
 
     const totais = calcularTotais();
+    const colaborador = colaboradores.find(c => c.id === selectedColaborador);
 
     try {
       const { data: user } = await supabase.auth.getUser();
@@ -312,6 +349,7 @@ export function RHPagamentos() {
           total_descontos: totais.descontos,
           total_liquido: totais.liquido,
           status: 'processado',
+          observacoes: descricaoGeral || null,
           created_by: user.user?.id
         })
         .select()
@@ -335,6 +373,45 @@ export function RHPagamentos() {
           .insert(itensToInsert);
 
         if (itensError) throw itensError;
+      }
+
+      // Lançar no financeiro com rateio (se configurado)
+      if (totais.liquido > 0 && contaId) {
+        if (usarRateio && rateios.length > 0) {
+          // Criar lançamentos separados por categoria (rateio)
+          for (const rateio of rateios) {
+            if (rateio.valor > 0 && rateio.categoriaId) {
+              const categoriaRateio = categorias.find(c => c.id === rateio.categoriaId);
+              await supabase
+                .from('fin_lancamentos')
+                .insert({
+                  tipo: 'despesa',
+                  categoria_id: rateio.categoriaId,
+                  conta_origem_id: contaId,
+                  valor: rateio.valor,
+                  descricao: `${descricaoGeral || 'Pagamento'} - ${colaborador?.full_name} (${categoriaRateio?.nome || 'Rateio'})`,
+                  data_lancamento: dataPagamento,
+                  origem: 'escritorio',
+                  status: 'pago',
+                  created_by: user.user?.id
+                });
+            }
+          }
+        } else {
+          // Lançamento único (sem rateio)
+          await supabase
+            .from('fin_lancamentos')
+            .insert({
+              tipo: 'despesa',
+              conta_origem_id: contaId,
+              valor: totais.liquido,
+              descricao: `${descricaoGeral || 'Pagamento'} - ${colaborador?.full_name}`,
+              data_lancamento: dataPagamento,
+              origem: 'escritorio',
+              status: 'pago',
+              created_by: user.user?.id
+            });
+        }
       }
 
       // Salvar sugestões para próximo mês
@@ -370,6 +447,10 @@ export function RHPagamentos() {
     setSugestoes({});
     setMesReferencia(format(new Date(), 'yyyy-MM'));
     setDataPagamento(format(new Date(), 'yyyy-MM-dd'));
+    setDescricaoGeral('');
+    setRateios([]);
+    setUsarRateio(false);
+    setContaId('');
   };
 
   const gerarRecibo = async (pagamento: Pagamento) => {
@@ -678,6 +759,184 @@ export function RHPagamentos() {
                           </div>
                         ))}
                       </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Descrição Geral */}
+                    <div className="space-y-2">
+                      <Label>Descrição do Pagamento</Label>
+                      <Textarea
+                        placeholder="Descrição ou observações sobre o pagamento (ex: Reembolso de despesas, bonificação, etc.)"
+                        value={descricaoGeral}
+                        onChange={(e) => setDescricaoGeral(e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+
+                    <Separator />
+
+                    {/* Lançamento Financeiro */}
+                    <div className="space-y-4 p-4 border rounded-lg">
+                      <h4 className="font-semibold flex items-center gap-2">
+                        <DollarSign className="h-4 w-4" />
+                        Lançar no Financeiro
+                      </h4>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Conta de Saída</Label>
+                          <Select value={contaId} onValueChange={setContaId}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione a conta..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {contas.map(c => (
+                                <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            Deixe vazio para não lançar no financeiro
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between p-4 border rounded-lg">
+                          <div>
+                            <Label>Usar Rateio?</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Dividir por categorias
+                            </p>
+                          </div>
+                          <Switch 
+                            checked={usarRateio} 
+                            onCheckedChange={(checked) => {
+                              setUsarRateio(checked);
+                              if (checked && rateios.length === 0) {
+                                setRateios([{
+                                  id: crypto.randomUUID(),
+                                  categoriaId: '',
+                                  percentual: 100,
+                                  valor: totais.liquido
+                                }]);
+                              }
+                            }} 
+                            disabled={!contaId}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Rateio */}
+                      {usarRateio && contaId && (
+                        <div className="space-y-3 mt-4">
+                          <div className="flex items-center justify-between">
+                            <Label className="flex items-center gap-2">
+                              <PieChart className="h-4 w-4" />
+                              Rateio por Categoria
+                            </Label>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setRateios([...rateios, {
+                                id: crypto.randomUUID(),
+                                categoriaId: '',
+                                percentual: 0,
+                                valor: 0
+                              }])}
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              Adicionar
+                            </Button>
+                          </div>
+
+                          {rateios.map((rateio, index) => (
+                            <div key={rateio.id} className="grid grid-cols-12 gap-2 items-center">
+                              <div className="col-span-5">
+                                <Select 
+                                  value={rateio.categoriaId} 
+                                  onValueChange={(v) => {
+                                    setRateios(rateios.map(r => 
+                                      r.id === rateio.id ? { ...r, categoriaId: v } : r
+                                    ));
+                                  }}
+                                >
+                                  <SelectTrigger className="h-9">
+                                    <SelectValue placeholder="Categoria" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {categorias.map(c => (
+                                      <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="col-span-2">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="%"
+                                  className="h-9"
+                                  value={rateio.percentual || ''}
+                                  onChange={(e) => {
+                                    const pct = parseFloat(e.target.value) || 0;
+                                    setRateios(rateios.map(r => 
+                                      r.id === rateio.id 
+                                        ? { ...r, percentual: pct, valor: (totais.liquido * pct) / 100 } 
+                                        : r
+                                    ));
+                                  }}
+                                />
+                              </div>
+                              <div className="col-span-3">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="Valor"
+                                  className="h-9"
+                                  value={rateio.valor?.toFixed(2) || ''}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    setRateios(rateios.map(r => 
+                                      r.id === rateio.id 
+                                        ? { ...r, valor: val, percentual: totais.liquido > 0 ? (val / totais.liquido) * 100 : 0 } 
+                                        : r
+                                    ));
+                                  }}
+                                />
+                              </div>
+                              <div className="col-span-2 flex justify-center">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-9 w-9"
+                                  onClick={() => {
+                                    if (rateios.length > 1) {
+                                      setRateios(rateios.filter(r => r.id !== rateio.id));
+                                    }
+                                  }}
+                                  disabled={rateios.length <= 1}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+
+                          <div className="flex justify-between text-sm mt-2">
+                            <span className="text-muted-foreground">Total alocado:</span>
+                            <span className={
+                              Math.abs(rateios.reduce((acc, r) => acc + r.percentual, 0) - 100) < 0.1
+                                ? 'text-green-600 font-medium'
+                                : 'text-destructive font-medium'
+                            }>
+                              {rateios.reduce((acc, r) => acc + r.percentual, 0).toFixed(1)}%
+                              {' '}({formatCurrency(rateios.reduce((acc, r) => acc + r.valor, 0))})
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <Separator />

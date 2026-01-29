@@ -17,8 +17,10 @@ import {
   Users,
   Loader2,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
+  PieChart
 } from 'lucide-react';
+import { RateioLancamentoDialog } from './RateioLancamento';
 import { toast } from 'sonner';
 
 interface NovoLancamentoDialogProps {
@@ -87,6 +89,10 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
   const [produtoRdStation, setProdutoRdStation] = useState('');
   const [parcelado, setParcelado] = useState(false);
   const [numeroParcelas, setNumeroParcelas] = useState('2');
+  const [rateioOpen, setRateioOpen] = useState(false);
+  const [rateios, setRateios] = useState<{ id: string; categoriaId: string; setorId: string; centroCustoId: string; percentual: number; valor: number }[]>([]);
+  const [usarRateio, setUsarRateio] = useState(false);
+
   useEffect(() => {
     if (open) {
       fetchDados();
@@ -112,6 +118,8 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
     setProdutoRdStation('');
     setParcelado(false);
     setNumeroParcelas('2');
+    setRateios([]);
+    setUsarRateio(false);
   };
 
   const fetchDados = async () => {
@@ -257,8 +265,38 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
         if (erroParcelas) throw erroParcelas;
 
         toast.success(`${totalParcelas} parcelas criadas com sucesso!`);
+      } else if (usarRateio && rateios.length > 0) {
+        // Lançamentos com rateio (múltiplas categorias)
+        for (const rateio of rateios) {
+          if (rateio.valor > 0) {
+            const lancamentoRateio = {
+              tipo,
+              categoria_id: rateio.categoriaId || null,
+              subcategoria_id: subcategoriaId || null,
+              conta_origem_id: contaOrigemId,
+              conta_destino_id: tipo === 'transferencia' ? contaDestinoId : null,
+              cliente_id: origem === 'cliente' ? clienteId : null,
+              setor_id: rateio.setorId || (origem === 'escritorio' ? setorId || null : null),
+              valor: rateio.valor,
+              descricao: `${descricao.trim()} (Rateio ${rateio.percentual.toFixed(1)}%)`,
+              data_lancamento: dataLancamento,
+              origem: tipo === 'despesa' ? origem : null,
+              a_reembolsar: origem === 'cliente' ? aReembolsar : false,
+              status,
+              produto_rd_station: tipo === 'receita' ? produtoRdStation || null : null,
+              created_by: user?.id
+            };
+
+            const { error } = await supabase
+              .from('fin_lancamentos')
+              .insert(lancamentoRateio);
+
+            if (error) throw error;
+          }
+        }
+        toast.success(`${rateios.length} lançamentos criados com rateio!`);
       } else {
-        // Lançamento único (sem parcelamento)
+        // Lançamento único (sem parcelamento nem rateio)
         const lancamento = {
           tipo,
           categoria_id: categoriaId || null,
@@ -297,6 +335,8 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
         setProdutoRdStation('');
         setParcelado(false);
         setNumeroParcelas('2');
+        setRateios([]);
+        setUsarRateio(false);
         toast.info('Pronto para novo lançamento');
       } else {
         onSuccess();
@@ -596,7 +636,7 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
                   </div>
                 )}
 
-                {/* Parcelamento */}
+                {/* Parcelamento ou Rateio */}
                 {tipo !== 'transferencia' && (
                   <div className="space-y-4 p-4 border rounded-lg">
                     <div className="flex items-center justify-between">
@@ -606,7 +646,14 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
                           Dividir em múltiplas parcelas mensais
                         </p>
                       </div>
-                      <Switch checked={parcelado} onCheckedChange={setParcelado} />
+                      <Switch 
+                        checked={parcelado} 
+                        onCheckedChange={(v) => {
+                          setParcelado(v);
+                          if (v) setUsarRateio(false);
+                        }}
+                        disabled={usarRateio}
+                      />
                     </div>
                     
                     {parcelado && (
@@ -631,6 +678,38 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
                           </div>
                         </div>
                       </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <div>
+                        <Label className="flex items-center gap-2">
+                          <PieChart className="h-4 w-4" />
+                          Usar Rateio?
+                        </Label>
+                        <p className="text-sm text-muted-foreground">
+                          Dividir por múltiplas categorias
+                        </p>
+                      </div>
+                      <Switch 
+                        checked={usarRateio} 
+                        onCheckedChange={(v) => {
+                          setUsarRateio(v);
+                          if (v) setParcelado(false);
+                        }}
+                        disabled={parcelado}
+                      />
+                    </div>
+
+                    {usarRateio && (
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        className="w-full"
+                        onClick={() => setRateioOpen(true)}
+                      >
+                        <PieChart className="h-4 w-4 mr-2" />
+                        Configurar Rateio {rateios.length > 0 && `(${rateios.length} itens)`}
+                      </Button>
                     )}
                   </div>
                 )}
@@ -672,6 +751,17 @@ export function NovoLancamentoDialog({ open, onOpenChange, onSuccess }: NovoLanc
           </div>
         )}
       </DialogContent>
+
+      {/* Rateio Dialog */}
+      <RateioLancamentoDialog
+        open={rateioOpen}
+        onOpenChange={setRateioOpen}
+        valorTotal={parseFloat(valor) || 0}
+        onConfirm={(rateioItens) => {
+          setRateios(rateioItens);
+          setRateioOpen(false);
+        }}
+      />
     </Dialog>
   );
 }

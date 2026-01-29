@@ -196,11 +196,12 @@ export function FinanceiroExecutivoDashboard() {
         ? ((lucroMesAtual - lucroMesAnterior) / Math.abs(lucroMesAnterior)) * 100 
         : 0;
 
-      // Saldo por conta
-      const contasSaldo = contas?.map(c => ({
+      // Saldo por conta - preparar lista inicial
+      let contasSaldo = contas?.map(c => ({
         nome: c.nome,
         saldo: Number(c.saldo_atual) || 0,
-        cor: c.cor || '#3B82F6'
+        cor: c.cor || '#3B82F6',
+        isAsaas: c.nome?.toLowerCase().includes('asaas') || c.tipo === 'pagamentos'
       })) || [];
 
       // Despesas a reembolsar
@@ -279,17 +280,73 @@ export function FinanceiroExecutivoDashboard() {
         ultimoMes.despesas > mediaDespesas3m * 1.05 ? 'up' :
         ultimoMes.despesas < mediaDespesas3m * 0.95 ? 'down' : 'stable';
 
-      // Fetch Asaas balance
+      // Fetch Asaas balance and update contasSaldo
       let asaasBalance: number | null = null;
       try {
+        console.log('Buscando saldo do Asaas (Executivo Dashboard)...');
+        
+        // Tentar via supabase.functions.invoke
         const { data: asaasData, error: asaasError } = await supabase.functions.invoke('asaas-integration', {
           body: { action: 'get_balance' }
         });
+        
+        console.log('Resposta Asaas (Executivo):', asaasData, 'Erro:', asaasError);
+        
         if (!asaasError && asaasData?.balance !== undefined) {
-          asaasBalance = asaasData.balance;
+          asaasBalance = Number(asaasData.balance) || 0;
+        } else {
+          // Fallback: tentar com fetch direto usando anon key
+          try {
+            const response = await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/asaas-integration`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                  'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+                },
+                body: JSON.stringify({ action: 'get_balance' })
+              }
+            );
+            
+            if (response.ok) {
+              const fallbackData = await response.json();
+              if (fallbackData && fallbackData.balance !== undefined) {
+                asaasBalance = Number(fallbackData.balance) || 0;
+              }
+            }
+          } catch (fallbackErr) {
+            console.error('Fallback Asaas também falhou:', fallbackErr);
+          }
+        }
+        
+        // Atualizar saldo da conta Asaas na lista
+        if (asaasBalance !== null) {
+          console.log('Saldo Asaas encontrado (Executivo):', asaasBalance);
+          
+          let asaasAtualizado = false;
+          contasSaldo = contasSaldo.map(conta => {
+            if (conta.isAsaas || conta.nome.toLowerCase().includes('asaas')) {
+              console.log(`Atualizando saldo da conta "${conta.nome}" para:`, asaasBalance);
+              asaasAtualizado = true;
+              return { ...conta, saldo: asaasBalance! };
+            }
+            return conta;
+          });
+          
+          // Se não encontrou nenhuma conta Asaas mas temos saldo, adicionar uma virtual
+          if (!asaasAtualizado && asaasBalance > 0) {
+            contasSaldo.push({
+              nome: 'Asaas',
+              saldo: asaasBalance,
+              cor: '#9D5CFF',
+              isAsaas: true
+            });
+          }
         }
       } catch (asaasErr) {
-        console.log('Asaas balance not available:', asaasErr);
+        console.error('Erro ao obter saldo do Asaas:', asaasErr);
       }
 
       setData({
