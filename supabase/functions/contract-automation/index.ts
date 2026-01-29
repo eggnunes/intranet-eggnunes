@@ -376,12 +376,12 @@ async function getAdvboxSettings(clientEmail?: string, clientPhone?: string, com
       console.error('CRITICAL: No users found in Advbox! Cannot proceed with customer creation.');
     }
     
-    // Buscar origem pelo campo "Como conheceu" do formulário OU pelo utm_source do lead
+    // Buscar origem pelo campo "Como conheceu" do formulário OU pelo utm_source do tracking de leads
     if (result.origins && result.origins.length > 0) {
       let matchedOrigin: { id: string; name: string } | null = null;
       
       // PRIORIDADE 1: Usar o campo "Como conheceu o escritório" preenchido pelo lead no formulário
-      if (comoConheceu) {
+      if (comoConheceu && comoConheceu.trim() !== '') {
         console.log(`Campo "Como conheceu" preenchido pelo lead: "${comoConheceu}"`);
         matchedOrigin = findOriginByMarketingSource(result.origins, comoConheceu);
         
@@ -391,24 +391,26 @@ async function getAdvboxSettings(clientEmail?: string, clientPhone?: string, com
         }
       }
       
-      // PRIORIDADE 2: Se não encontrou pelo "Como conheceu", buscar pelo utm_source do lead
+      // PRIORIDADE 2: Se "Como conheceu" está VAZIO, buscar origem na tabela de tracking de leads (captured_leads)
+      // Isso busca pelo email/telefone do cliente na tabela captured_leads para encontrar o utm_source
       if (!matchedOrigin && (clientEmail || clientPhone)) {
+        console.log('Campo "Como conheceu" vazio. Buscando origem na tabela de tracking de leads...');
         const utmSource = await getLeadMarketingSource(clientEmail, clientPhone);
         
         if (utmSource) {
-          console.log(`Origem de marketing encontrada (fallback): "${utmSource}"`);
+          console.log(`Origem encontrada no tracking de leads: "${utmSource}"`);
           matchedOrigin = findOriginByMarketingSource(result.origins, utmSource);
           
           if (matchedOrigin) {
             result.defaultOriginId = matchedOrigin.id;
-            console.log(`Origem mapeada para utm_source "${utmSource}": ${result.defaultOriginId} (${matchedOrigin.name})`);
+            console.log(`Origem mapeada do tracking para: ${result.defaultOriginId} (${matchedOrigin.name})`);
           }
         } else {
-          console.log('Nenhuma origem de marketing (utm_source) encontrada para o lead');
+          console.log('Lead não encontrado na tabela de tracking (captured_leads)');
         }
       }
       
-      // FALLBACK: Se não encontrar correspondência, buscar "não informado" como origem padrão
+      // FALLBACK: Se não encontrar correspondência em nenhum lugar, usar "Não Informado"
       if (!matchedOrigin) {
         // Buscar especificamente a origem "não informado"
         const naoInformadoOrigin = result.origins.find((o: { id: string; name: string }) => 
