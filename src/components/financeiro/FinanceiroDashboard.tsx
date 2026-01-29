@@ -22,7 +22,7 @@ interface DashboardData {
   totalReceitas: number;
   totalDespesas: number;
   saldo: number;
-  contasSaldo: { nome: string; saldo: number; cor: string }[];
+  contasSaldo: { nome: string; saldo: number; cor: string; isAsaas?: boolean }[];
   despesasReembolsar: number;
   receitasPorCategoria: { nome: string; valor: number; cor: string }[];
   despesasPorCategoria: { nome: string; valor: number; cor: string }[];
@@ -106,12 +106,31 @@ export function FinanceiroDashboard() {
 
       const saldo = totalReceitas - totalDespesas;
 
-      // Saldo por conta
-      const contasSaldo = contas?.map(c => ({
+      // Saldo por conta - preparar lista inicial
+      let contasSaldo = contas?.map(c => ({
         nome: c.nome,
         saldo: Number(c.saldo_atual) || 0,
-        cor: c.cor || '#3B82F6'
+        cor: c.cor || '#3B82F6',
+        isAsaas: c.nome?.toLowerCase().includes('asaas') || c.tipo === 'pagamentos'
       })) || [];
+
+      // Buscar saldo real do Asaas via API
+      try {
+        const { data: asaasData, error: asaasError } = await supabase.functions.invoke('asaas-integration', {
+          body: { action: 'get_balance' }
+        });
+        
+        if (!asaasError && asaasData?.balance !== undefined) {
+          contasSaldo = contasSaldo.map(conta => {
+            if (conta.isAsaas) {
+              return { ...conta, saldo: Number(asaasData.balance) || 0 };
+            }
+            return conta;
+          });
+        }
+      } catch (asaasErr) {
+        console.log('Não foi possível obter saldo do Asaas:', asaasErr);
+      }
 
       // Despesas a reembolsar
       const despesasReembolsar = reembolsos?.reduce((acc, r) => acc + Number(r.valor), 0) || 0;

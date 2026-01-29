@@ -266,7 +266,7 @@ export function AdvboxFinancialSync() {
             <Progress value={getProgressPercent()} className="h-2" />
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div>
-                <span className="text-muted-foreground">Criados:</span>{' '}
+                <span className="text-muted-foreground">Novos:</span>{' '}
                 <span className="font-medium text-green-600">{syncStatus.total_created}</span>
               </div>
               <div>
@@ -274,8 +274,8 @@ export function AdvboxFinancialSync() {
                 <span className="font-medium text-blue-600">{syncStatus.total_updated}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Ignorados:</span>{' '}
-                <span className="font-medium">{syncStatus.total_skipped}</span>
+                <span className="text-muted-foreground">Já existentes:</span>{' '}
+                <span className="font-medium text-muted-foreground">{syncStatus.total_skipped}</span>
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -306,11 +306,14 @@ export function AdvboxFinancialSync() {
             <AlertTitle className="text-green-800 dark:text-green-200">Sincronização Concluída!</AlertTitle>
             <AlertDescription className="text-green-700 dark:text-green-300">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
-                <div>Total: <strong>{syncStatus.total_processed}</strong></div>
-                <div>Criados: <strong className="text-green-600">{syncStatus.total_created}</strong></div>
+                <div>Total verificados: <strong>{syncStatus.total_processed}</strong></div>
+                <div>Novos importados: <strong className="text-green-600">{syncStatus.total_created}</strong></div>
                 <div>Atualizados: <strong className="text-blue-600">{syncStatus.total_updated}</strong></div>
-                <div>Ignorados: <strong>{syncStatus.total_skipped}</strong></div>
+                <div>Já existentes: <strong className="text-muted-foreground">{syncStatus.total_skipped}</strong></div>
               </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                * "Já existentes" são registros que já haviam sido importados anteriormente.
+              </p>
               {syncStatus.completed_at && (
                 <p className="mt-2 text-sm">
                   Concluído em: {format(new Date(syncStatus.completed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
