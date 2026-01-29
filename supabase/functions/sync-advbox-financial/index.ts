@@ -184,8 +184,20 @@ async function processTransactionsBatch(
       continue;
     }
 
+    // Determine status based on date_payment (if has payment date, it's paid)
+    const isPaid = !!(tx.date_payment && tx.date_payment.trim() !== '');
+    
+    // Determine tipo based on category name or amount
+    let tipoFinal = tipo;
+    const categoryLower = (tx.category || '').toLowerCase();
+    if (categoryLower.includes('receita') || categoryLower.includes('honorário') || categoryLower.includes('honorario')) {
+      tipoFinal = 'receita';
+    } else if (categoryLower.includes('gasto') || categoryLower.includes('despesa') || categoryLower.includes('repasse')) {
+      tipoFinal = 'despesa';
+    }
+
     const lancamentoData = {
-      tipo,
+      tipo: tipoFinal,
       categoria_id: categoriaId,
       conta_origem_id: contaPadraoId,
       valor: Math.abs(amount),
@@ -193,12 +205,13 @@ async function processTransactionsBatch(
       data_lancamento: tx.date_due?.split('T')[0] || new Date().toISOString().split('T')[0],
       data_vencimento: tx.date_due?.split('T')[0] || null,
       data_pagamento: tx.date_payment?.split('T')[0] || null,
-      status: tx.paid || tx.status === 'paid' ? 'pago' : 'pendente',
+      status: isPaid ? 'pago' : 'pendente',
       origem: 'advbox',
       observacoes: [
         tx.customer_name ? `Cliente: ${tx.customer_name}` : null,
         tx.lawsuit_title ? `Processo: ${tx.lawsuit_title}` : null,
         tx.notes ? `Notas: ${tx.notes}` : null,
+        tx.category ? `Categoria ADVBox: ${tx.category}` : null,
         `Importado do ADVBox em ${new Date().toLocaleString('pt-BR')}`
       ].filter(Boolean).join('\n'),
       advbox_transaction_id: advboxId,
