@@ -1,146 +1,143 @@
 
-# Plano de Correção: Sistema de Parceiros
+# Plano: Correção da Sincronização ADVBox e Implementação de Rateio em Pagamentos
 
-## 1. Problema Identificado: Erro ao Salvar Parceiro
+## Resumo dos Problemas Identificados
 
-**Causa Raiz**: As politicas de segurança (RLS) da tabela `parceiros` apenas permitem que **administradores** criem, editem ou excluam parceiros. Usuarios comuns so podem visualizar.
+### 1. Dados Financeiros Incorretos do ADVBox
+**Problema Crítico**: A sincronização está classificando TODAS as transações como "despesa" quando deveriam ser classificadas corretamente como "receita" ou "despesa" baseado na categoria do ADVBox.
 
-Politica atual:
-- SELECT: Usuarios aprovados podem ver
-- ALL (INSERT/UPDATE/DELETE): Somente admins
+**Causa Raiz Descoberta**:
+- O ADVBox usa o campo `debit_bank` para TODAS as transações (tanto receitas quanto despesas)
+- O campo `credit_bank` está sempre nulo nos dados analisados
+- A lógica atual no código tenta determinar o tipo baseado apenas no valor (positivo/negativo), mas todos os valores são positivos
+- A classificação correta deve ser feita baseada no **nome da categoria** do ADVBox:
+  - **RECEITAS**: Categorias que contêm "HONORÁRIOS", "RECEITA", "REEMBOLSO DE CUSTO POR CLIENTES"
+  - **DESPESAS**: Categorias que contêm "GASTOS", "CUSTAS", "TAXAS", "REPASSES", "INVESTIMENTOS"
 
-**Solucao**: Criar uma nova politica RLS que permita que qualquer usuario aprovado possa criar parceiros (INSERT), mantendo as restricoes de UPDATE/DELETE apenas para admins e comercial.
+**Evidência**: Analisando os dados no banco:
+- Categoria "HONORÁRIOS INICIAIS" com debit_bank "BANCO ITAÚ" = **RECEITA** (168 registros, R$ 353.182,13)
+- Categoria "REPASSES" com debit_bank "BANCO ITAÚ" = **DESPESA** (101 registros, R$ 2.059.251,73)
 
----
+**Dados Atuais (Janeiro/2026)**: Apenas 17 registros importados com status "pago":
+- 14 receitas = R$ 38.245,22
+- 2 despesas = R$ 51,87
 
-## 2. Mascara no Telefone
+**Realidade Esperada**: Centenas de registros no mês atual, com valores muito maiores
 
-**Situacao**: O campo de telefone no cadastro de parceiros nao tem mascara de formatacao.
+### 2. Rateio em Pagamentos de Colaboradores
+**Status Atual**: O componente `RHPagamentos.tsx` JÁ TEM a funcionalidade de rateio implementada (linhas 378-415 e 804-920):
+- Campo "Descrição do Pagamento" ✅
+- Toggle "Usar Rateio?" ✅
+- Interface para adicionar múltiplas categorias ✅
 
-**Solucao**: Utilizar a funcao `maskPhone` ja existente em `src/lib/masks.ts` para aplicar a mascara (XX) XXXXX-XXXX automaticamente.
+**Verificação Necessária**: A funcionalidade está presente, mas preciso verificar se está funcionando corretamente na prática.
 
----
-
-## 3. Sistema de Indicacoes e Pagamentos
-
-**Situacao Atual**: O sistema ja existe com os seguintes campos:
-- Nome do cliente
-- Percentual de comissao
-- Valor total da causa
-- Valor da comissao (calculado)
-- Status (ativa, fechada, cancelada)
-- Descricao do caso
-- Area de atuacao
-
-E o sistema de pagamentos permite:
-- Pagamentos parcelados
-- Vincular a indicacoes
-- Tipo (a receber ou a pagar)
-- Forma de pagamento
-
-**Melhorias Propostas**: O sistema atual ja atende a maior parte das necessidades. As melhorias serao:
-- Melhorar a visualizacao das indicacoes na tela de detalhes
-- Adicionar mais campos se necessario
+### 3. Saldo do Asaas Zerado nos Relatórios
+**Status**: O `FinanceiroDashboard.tsx` já implementa a busca do saldo do Asaas (linhas 118-185), porém pode haver falha na identificação da conta.
 
 ---
 
-## Alteracoes Tecnicas
+## Plano de Implementação
 
-### Arquivo 1: Migracao de Banco de Dados
+### Etapa 1: Corrigir Classificação de Receita/Despesa no ADVBox Sync
 
-Criar nova politica RLS para permitir que usuarios aprovados cadastrem parceiros:
+**Arquivo**: `supabase/functions/sync-advbox-financial/index.ts`
 
-```sql
--- Permitir que usuarios aprovados possam cadastrar parceiros
-CREATE POLICY "Usuarios aprovados podem criar parceiros"
-ON public.parceiros FOR INSERT
-TO public
-WITH CHECK (is_approved(auth.uid()));
-
--- Permitir que usuarios aprovados criem indicacoes
-CREATE POLICY "Usuarios aprovados podem criar indicacoes"
-ON public.parceiros_indicacoes FOR INSERT
-TO public
-WITH CHECK (is_approved(auth.uid()));
-
--- Permitir que usuarios aprovados criem pagamentos
-CREATE POLICY "Usuarios aprovados podem criar pagamentos"
-ON public.parceiros_pagamentos FOR INSERT
-TO public
-WITH CHECK (is_approved(auth.uid()));
-
--- Permitir vinculacao de areas
-CREATE POLICY "Usuarios aprovados podem vincular areas"
-ON public.parceiros_areas FOR INSERT
-TO public
-WITH CHECK (is_approved(auth.uid()));
-```
-
-### Arquivo 2: src/components/parceiros/ParceiroDialog.tsx
-
-Adicionar mascara no campo telefone:
-
-```typescript
-import { maskPhone } from '@/lib/masks';
-
-// No input de telefone:
-<Input
-  id="telefone"
-  value={formData.telefone}
-  onChange={(e) => setFormData({ ...formData, telefone: maskPhone(e.target.value) })}
-  placeholder="(XX) XXXXX-XXXX"
-  maxLength={15}
-/>
-```
-
-### Arquivo 3: src/components/parceiros/IndicacaoDialog.tsx
-
-Adicionar mascara de moeda no campo valor e melhorar UX:
-
-```typescript
-// Formatar valores monetarios de forma mais amigavel
-// Adicionar campo de observacoes
-// Melhorar feedback visual do calculo de comissao
-```
-
----
-
-## Resumo das Mudancas
-
-| Componente | Alteracao |
-|------------|-----------|
-| Banco de Dados | Novas politicas RLS para INSERT |
-| ParceiroDialog.tsx | Mascara de telefone |
-| IndicacaoDialog.tsx | Melhorias visuais e UX |
-
----
-
-## Fluxo Apos Implementacao
+**Mudanças**:
+1. Refatorar a função `processTransactionsBatch` para classificar transações corretamente baseado na categoria:
 
 ```text
-Usuario abre tela de Parceiros
-      |
-      v
-Clica em "Novo Parceiro"
-      |
-      v
-Preenche dados (telefone com mascara automatica)
-      |
-      v
-Salva --> Politica RLS permite INSERT
-      |
-      v
-Parceiro cadastrado com sucesso
-      |
-      v
-Pode adicionar indicacoes e pagamentos
+CATEGORIAS DE RECEITA (contêm):
+- "HONORÁRIOS" (INICIAIS, FINAIS, SUCUMBÊNCIA, CONSULTORIAS, etc.)
+- "RECEITA OPERACIONAL"
+- "REEMBOLSO DE CUSTO POR CLIENTES"
+
+CATEGORIAS DE DESPESA (contêm):
+- "GASTOS" (COM CLIENTES, COM ESCRITÓRIO, etc.)
+- "CUSTAS"
+- "TAXAS"
+- "REPASSES"
+- "INVESTIMENTOS"
+- "GUIA DE CUSTAS PAGAS"
 ```
+
+2. Remover a lógica atual que baseia o tipo no sinal do valor (todas são positivas)
+
+### Etapa 2: Reprocessar Sincronização
+
+**Ações**:
+1. Limpar os registros existentes com origem "advbox" (já implementado via SQL)
+2. Resetar o status da sincronização
+3. Reprocessar todos os dados com a nova lógica de classificação
+
+### Etapa 3: Verificar e Corrigir Saldo do Asaas
+
+**Arquivo**: `src/components/financeiro/FinanceiroExecutivoDashboard.tsx`
+
+**Ação**: Garantir que a conta Asaas seja identificada corretamente e o saldo seja atualizado via API em tempo real.
+
+### Etapa 4: Validar Rateio em RHPagamentos
+
+**Verificação**: O código já existe mas precisa confirmar que:
+- A categoria é associada corretamente ao lançamento financeiro
+- Múltiplos lançamentos são criados quando rateio está habilitado
 
 ---
 
-## Beneficios
+## Detalhes Técnicos
 
-1. **Correcao do erro**: Usuarios aprovados poderao cadastrar parceiros
-2. **Padronizacao**: Telefone sempre formatado corretamente
-3. **Melhor UX**: Feedback visual durante o preenchimento
-4. **Integracao financeira**: Sistema ja integrado com financeiro via triggers
+### Modificação Principal: sync-advbox-financial/index.ts
+
+A função `processTransactionsBatch` será modificada da seguinte forma:
+
+```typescript
+// Nova função para determinar tipo baseado na categoria
+function determineTransactionType(category: string): 'receita' | 'despesa' {
+  const categoryLower = category.toLowerCase();
+  
+  // Padrões de RECEITA
+  const revenuePatterns = [
+    'honorários',
+    'honorarios',
+    'receita operacional',
+    'receita',
+    'reembolso de custo por clientes'
+  ];
+  
+  // Padrões de DESPESA
+  const expensePatterns = [
+    'gastos',
+    'custas',
+    'taxas',
+    'repasses',
+    'investimentos',
+    'guia de custas pagas',
+    'despesas'
+  ];
+  
+  for (const pattern of revenuePatterns) {
+    if (categoryLower.includes(pattern)) return 'receita';
+  }
+  
+  for (const pattern of expensePatterns) {
+    if (categoryLower.includes(pattern)) return 'despesa';
+  }
+  
+  // Fallback: se não identificar, assumir despesa (mais conservador)
+  return 'despesa';
+}
+```
+
+### Resultado Esperado
+
+Após as correções:
+- Janeiro/2026 mostrará centenas de registros de receita (honorários de clientes)
+- As despesas refletirão corretamente gastos, custas, taxas e repasses
+- A margem de lucro será calculada corretamente
+- O saldo do Asaas será exibido em tempo real nos relatórios
+
+### Arquivos a Modificar
+
+1. `supabase/functions/sync-advbox-financial/index.ts` - Lógica de classificação
+2. Migration SQL para limpar e reprocessar dados
+3. Verificação do `FinanceiroExecutivoDashboard.tsx` para saldo Asaas
