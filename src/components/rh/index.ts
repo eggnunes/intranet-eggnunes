@@ -5,4 +5,5 @@ export { RHDocumentos } from './RHDocumentos';
 export { RHColaboradores } from './RHColaboradores';
 export { RHColaboradorDashboard } from './RHColaboradorDashboard';
 export { ColaboradorDocumentos } from './ColaboradorDocumentos';
+export { ColaboradorDocumentosMedicos } from './ColaboradorDocumentosMedicos';
 export { RHAdiantamentos } from './RHAdiantamentos';

@@ -5753,6 +5753,53 @@ export type Database = {
           },
         ]
       }
+      rh_documentos_medicos: {
+        Row: {
+          arquivo_url: string
+          colaborador_id: string
+          created_at: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          tamanho_bytes: number | null
+          tipo_arquivo: string | null
+          updated_at: string | null
+          uploaded_by: string | null
+        }
+        Insert: {
+          arquivo_url: string
+          colaborador_id: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          tamanho_bytes?: number | null
+          tipo_arquivo?: string | null
+          updated_at?: string | null
+          uploaded_by?: string | null
+        }
+        Update: {
+          arquivo_url?: string
+          colaborador_id?: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          tamanho_bytes?: number | null
+          tipo_arquivo?: string | null
+          updated_at?: string | null
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rh_documentos_medicos_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rh_historico_salario: {
         Row: {
           colaborador_id: string
@@ -6951,6 +6998,7 @@ export type Database = {
         Returns: boolean
       }
       is_rafael: { Args: { _user_id: string }; Returns: boolean }
+      is_socio: { Args: { user_id: string }; Returns: boolean }
       is_socio_or_rafael: { Args: { _user_id: string }; Returns: boolean }
       log_integration_sync: {
         Args: {
