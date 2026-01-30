@@ -66,14 +66,45 @@ interface SyncStatus {
   completed_at: string | null;
 }
 
+/**
+ * Gera um ID único para a transação do ADVBox.
+ * 
+ * PROBLEMA ANTERIOR: A API do ADVBox não retorna um ID único por transação.
+ * O campo `id` vem undefined e o campo `identification` é o CPF do cliente.
+ * Isso fazia com que múltiplas transações do mesmo cliente fossem tratadas 
+ * como duplicatas e ignoradas.
+ * 
+ * SOLUÇÃO: Criar um ID composto usando múltiplos campos que juntos identificam
+ * uma transação única: CPF + data_vencimento + valor + categoria + descrição
+ */
 function getValidTransactionId(tx: AdvboxTransaction): string | null {
-  if (tx.id !== undefined && tx.id !== null && String(tx.id).trim() !== '' && String(tx.id) !== 'undefined') {
+  // Se a API fornecer um ID numérico único, usar ele
+  if (tx.id !== undefined && tx.id !== null && typeof tx.id === 'number' && tx.id > 0) {
     return String(tx.id);
   }
-  if (tx.identification && String(tx.identification).trim() !== '') {
-    return String(tx.identification);
+  
+  // Caso contrário, criar um ID composto único
+  // Combinar: identification (CPF) + date_due + amount + category + description (primeiros 50 chars)
+  const identification = tx.identification || tx.name || 'unknown';
+  const dateDue = tx.date_due || 'nodate';
+  const amount = tx.amount !== undefined ? String(tx.amount) : '0';
+  const category = tx.category || 'nocategory';
+  const description = (tx.description || '').substring(0, 50).trim() || 'nodesc';
+  const lawsuitId = tx.lawsuit_id ? String(tx.lawsuit_id) : '';
+  
+  // Criar um hash simples combinando esses campos
+  const compositeKey = `${identification}|${dateDue}|${amount}|${category}|${description}|${lawsuitId}`;
+  
+  // Gerar um hash mais curto para o ID
+  let hash = 0;
+  for (let i = 0; i < compositeKey.length; i++) {
+    const char = compositeKey.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
   }
-  return null;
+  
+  // Retornar o ID composto como string
+  return `adv_${Math.abs(hash).toString(36)}_${identification.replace(/[^a-zA-Z0-9]/g, '').substring(0, 10)}`;
 }
 
 /**
