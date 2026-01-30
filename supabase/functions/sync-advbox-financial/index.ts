@@ -76,6 +76,73 @@ function getValidTransactionId(tx: AdvboxTransaction): string | null {
   return null;
 }
 
+/**
+ * Determina o tipo de transação (receita/despesa) baseado no NOME DA CATEGORIA do ADVBox.
+ * 
+ * IMPORTANTE: O ADVBox usa `debit_bank` para TODAS as transações (receitas e despesas).
+ * A única forma correta de classificar é analisar o nome da categoria.
+ */
+function determineTransactionType(categoryName: string): 'receita' | 'despesa' {
+  const categoryLower = (categoryName || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  
+  // Padrões de RECEITA (ordem importa - mais específicos primeiro)
+  const revenuePatterns = [
+    'honorarios iniciais',
+    'honorarios finais',
+    'honorarios sucumbencia',
+    'honorarios consultorias',
+    'honorarios extrajudiciais',
+    'honorarios de sucumbencia',
+    'honorario',       // Genérico para pegar variações
+    'receita operacional',
+    'receita',
+    'reembolso de custo por clientes',
+    'reembolso de custos por clientes',
+    'reembolso cliente'
+  ];
+  
+  // Padrões de DESPESA (ordem importa)
+  const expensePatterns = [
+    'gastos com clientes',
+    'gastos com escritorio',
+    'gastos escritorio',
+    'gastos',
+    'custas processuais',
+    'custas judiciais',
+    'custas',
+    'taxas processuais',
+    'taxas judiciais',
+    'taxas',
+    'repasses a terceiros',
+    'repasses',
+    'investimentos',
+    'guia de custas pagas',
+    'guia de custas',
+    'despesas operacionais',
+    'despesas',
+    'pagamentos',
+    'adiantamentos'
+  ];
+  
+  // Verificar receitas primeiro
+  for (const pattern of revenuePatterns) {
+    if (categoryLower.includes(pattern)) {
+      return 'receita';
+    }
+  }
+  
+  // Verificar despesas
+  for (const pattern of expensePatterns) {
+    if (categoryLower.includes(pattern)) {
+      return 'despesa';
+    }
+  }
+  
+  // Fallback conservador: se não identificar, assumir despesa
+  console.log(`Categoria não mapeada: "${categoryName}" - assumindo despesa`);
+  return 'despesa';
+}
+
 async function fetchTransactionsBatch(
   advboxToken: string, 
   startDate: string, 
@@ -187,7 +254,10 @@ async function processTransactionsBatch(
     }
 
     const amount = Number(tx.amount) || 0;
-    const tipo = amount >= 0 ? 'receita' : 'despesa';
+    
+    // CORREÇÃO CRÍTICA: Determinar tipo baseado no NOME DA CATEGORIA, não no valor
+    // O ADVBox envia valores sempre positivos e usa debit_bank para tudo
+    const tipoFinal = determineTransactionType(tx.category || '');
     
     // Find category
     let categoriaId: string | null = null;
@@ -199,7 +269,8 @@ async function processTransactionsBatch(
     }
 
     if (!categoriaId) {
-      const defaultCat = tipo === 'receita' 
+      // Usar tipoFinal (baseado na categoria) para selecionar categoria padrão
+      const defaultCat = tipoFinal === 'receita' 
         ? categorias?.find(c => c.tipo === 'receita')
         : categorias?.find(c => c.tipo === 'despesa');
       categoriaId = defaultCat?.id || null;
@@ -224,15 +295,6 @@ async function processTransactionsBatch(
 
     // Determine status based on date_payment (if has payment date, it's paid)
     const isPaid = !!(tx.date_payment && tx.date_payment.trim() !== '');
-    
-    // Determine tipo based on category name or amount
-    let tipoFinal = tipo;
-    const categoryLower = (tx.category || '').toLowerCase();
-    if (categoryLower.includes('receita') || categoryLower.includes('honorário') || categoryLower.includes('honorario')) {
-      tipoFinal = 'receita';
-    } else if (categoryLower.includes('gasto') || categoryLower.includes('despesa') || categoryLower.includes('repasse')) {
-      tipoFinal = 'despesa';
-    }
 
     // Campo description do ADVBox tem a descrição real do lançamento
     // Campo name do ADVBox tem o nome do cliente/pessoa
@@ -259,6 +321,7 @@ async function processTransactionsBatch(
         tx.notes ? `Notas: ${tx.notes}` : null,
         tx.category ? `Categoria ADVBox: ${tx.category}` : null,
         tx.identification ? `Identificação: ${tx.identification}` : null,
+        `Tipo determinado: ${tipoFinal} (baseado na categoria)`,
         `Importado do ADVBox em ${new Date().toLocaleString('pt-BR')}`
       ].filter(Boolean).join('\n'),
       advbox_transaction_id: advboxId,
