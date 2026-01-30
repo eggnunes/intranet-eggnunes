@@ -82,24 +82,30 @@ export function formatCurrency(value: number): string {
  * Retorna string formatada: 1.234,56
  */
 export function maskCurrency(value: string): string {
-  // Remove tudo exceto números, vírgula e ponto
-  let cleaned = value.replace(/[^\d,.-]/g, '');
+  // Remove tudo exceto números e vírgula
+  let cleaned = value.replace(/[^\d,]/g, '');
   
-  // Se começar com vírgula ou ponto, adiciona 0 na frente
-  if (cleaned.startsWith(',') || cleaned.startsWith('.')) {
-    cleaned = '0' + cleaned;
+  // Se vazio, retorna vazio
+  if (!cleaned) return '';
+  
+  // Verifica se tem vírgula (separador decimal)
+  const hasComma = cleaned.includes(',');
+  
+  if (!hasComma) {
+    // Sem vírgula: apenas números inteiros
+    // Remove zeros à esquerda (exceto se for só "0")
+    cleaned = cleaned.replace(/^0+(?=\d)/, '');
+    // Formata com separador de milhares
+    return cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   }
   
-  // Substitui ponto por vírgula para padronizar entrada
-  // Mas mantém apenas a última vírgula/ponto como decimal
-  const parts = cleaned.split(/[,.]/).filter(p => p !== '');
+  // Com vírgula: separa parte inteira e decimal
+  const parts = cleaned.split(',');
+  let integers = parts[0] || '0';
+  let decimals = parts.slice(1).join(''); // Junta caso tenha mais de uma vírgula
   
-  if (parts.length === 0) return '';
-  if (parts.length === 1) return parts[0];
-  
-  // Última parte são os decimais, resto é a parte inteira
-  const decimals = parts.pop() || '';
-  const integers = parts.join('');
+  // Remove zeros à esquerda da parte inteira (exceto se for só "0")
+  integers = integers.replace(/^0+(?=\d)/, '') || '0';
   
   // Formata a parte inteira com separador de milhares (ponto)
   const formattedIntegers = integers.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -107,7 +113,7 @@ export function maskCurrency(value: string): string {
   // Limita decimais a 2 dígitos
   const formattedDecimals = decimals.slice(0, 2);
   
-  return formattedDecimals ? `${formattedIntegers},${formattedDecimals}` : formattedIntegers;
+  return `${formattedIntegers},${formattedDecimals}`;
 }
 
 /**
