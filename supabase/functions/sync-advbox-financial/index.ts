@@ -108,48 +108,129 @@ function getValidTransactionId(tx: AdvboxTransaction): string | null {
 }
 
 /**
+ * Verifica se a transação é uma transferência interna (não deve ser contada como receita/despesa)
+ * Transferências entre contas são movimentações internas que não afetam o resultado.
+ */
+function isInternalTransfer(categoryName: string): boolean {
+  const categoryLower = (categoryName || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  
+  const transferPatterns = [
+    'transferencia entre contas',
+    'transferencia interna',
+    'movimentacao interna',
+    'aplicacoes financeiras',
+    'aplicacao financeira',
+    'resgate aplicacao'
+  ];
+  
+  for (const pattern of transferPatterns) {
+    if (categoryLower.includes(pattern)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
  * Determina o tipo de transação (receita/despesa) baseado no NOME DA CATEGORIA do ADVBox.
  * 
  * IMPORTANTE: O ADVBox usa `debit_bank` para TODAS as transações (receitas e despesas).
  * A única forma correta de classificar é analisar o nome da categoria.
+ * 
+ * CORREÇÃO: Adicionados mais padrões para capturar corretamente honorários e outras receitas
  */
 function determineTransactionType(categoryName: string): 'receita' | 'despesa' {
   const categoryLower = (categoryName || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   
   // Padrões de RECEITA (ordem importa - mais específicos primeiro)
   const revenuePatterns = [
+    // Honorários específicos
     'honorarios iniciais',
     'honorarios finais',
+    'honorarios de sucumbencia',
     'honorarios sucumbencia',
     'honorarios consultorias',
     'honorarios extrajudiciais',
-    'honorarios de sucumbencia',
-    'honorario',       // Genérico para pegar variações
+    'honorarios mensais',
+    'honorarios de parceiros',
+    'honorarios / indicacao',
+    'honorarios de clientes',
+    'honorarios de exito',
+    'honorarios exito',
+    'honorario',  // Genérico para pegar variações
+    // Receitas operacionais
+    'receita operacional bruta',
     'receita operacional',
     'receita',
+    // Reembolsos de clientes
     'reembolso de custo por clientes',
     'reembolso de custos por clientes',
-    'reembolso cliente'
+    'reembolso cliente',
+    'reembolso de custos',
+    // Alvarás (recebimentos de processos)
+    'alvaras'
   ];
   
   // Padrões de DESPESA (ordem importa)
   const expensePatterns = [
+    // Gastos gerais
     'gastos com clientes',
+    'gastos com o escritorio',
     'gastos com escritorio',
     'gastos escritorio',
     'gastos',
+    // Custas e taxas
     'custas processuais',
     'custas judiciais',
+    'guia de custas pagas',
+    'guia de custas',
     'custas',
     'taxas processuais',
     'taxas judiciais',
+    'taxas bancarias',
     'taxas',
+    // Repasses (pagamentos a terceiros)
     'repasses a terceiros',
     'repasses',
+    // Folha de pagamento
+    'salarios',
+    'salario',
+    'ferias',
+    'fgts',
+    'inss',
+    'vale alimentacao',
+    'vale transporte',
+    'vale refeicao',
+    '13º salario',
+    '13o salario',
+    // Distribuição de lucros (saídas)
+    'distribuicao de lucros',
+    'distribuicao do lucro',
+    'distribuicao',
+    // Operacional
+    'aluguel',
+    'condominio',
+    'energia eletrica',
+    'contador',
+    'anuidade oab',
+    'marketing',
+    'anuncios',
+    'propaganda',
+    'simples nacional',
+    'tributos',
+    'impostos',
+    'iptu',
+    'hotel',
+    'materiais',
+    'confraternizacoes',
+    'informatica',
+    // Genéricos
     'investimentos',
-    'guia de custas pagas',
-    'guia de custas',
     'despesas operacionais',
+    'despesas financeiras',
+    'despesas tributarias',
+    'despesas bancarias',
     'despesas',
     'pagamentos',
     'adiantamentos'
@@ -268,6 +349,22 @@ async function processTransactionsBatch(
       continue;
     }
 
+    // NOVO: Ignorar transferências entre contas (não afetam resultado financeiro)
+    if (isInternalTransfer(tx.category || '')) {
+      console.log(`Ignorando transferência interna: ${tx.category} - ${tx.description}`);
+      // Ainda salvar na tabela de sync para auditoria, mas não criar lançamento
+      if (!existingSyncSet.has(advboxId)) {
+        await supabase.from('advbox_financial_sync').upsert({
+          advbox_transaction_id: advboxId,
+          advbox_data: { ...tx, _ignored: true, _reason: 'transferencia_interna' },
+          lancamento_id: null,
+          last_updated: new Date().toISOString()
+        }, { onConflict: 'advbox_transaction_id' });
+      }
+      skipped++;
+      continue;
+    }
+
     // Check if already exists in fin_lancamentos
     const existing = existingMap.get(advboxId);
     if (existing) {
@@ -290,17 +387,67 @@ async function processTransactionsBatch(
     // O ADVBox envia valores sempre positivos e usa debit_bank para tudo
     const tipoFinal = determineTransactionType(tx.category || '');
     
-    // Find category
+    // Find category - melhorar mapeamento
     let categoriaId: string | null = null;
-    if (tx.category) {
-      const cat = categoriaMap.get(tx.category.toLowerCase());
-      if (cat) {
-        categoriaId = cat.id;
+    const categoryAdvbox = (tx.category || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    
+    // Mapeamento inteligente de categorias do ADVBox para categorias locais
+    const categoryMapping: Record<string, string> = {
+      // Receitas - mapear para categorias de receita específicas
+      'honorarios iniciais': 'Honorários Iniciais',
+      'honorarios finais': 'Honorários de Êxito',
+      'honorarios de sucumbencia': 'Honorários de Sucumbência',
+      'honorarios sucumbencia': 'Honorários de Sucumbência',
+      'honorarios de parceiros': 'Honorários de Parceiros',
+      'honorarios consultorias': 'Honorários Mensais',
+      'honorarios / indicacao': 'Honorários de Parceiros',
+      'honorarios de exito': 'Honorários de Êxito',
+      'honorarios exito': 'Honorários de Êxito',
+      'reembolso de custo por clientes': 'Reembolso de Despesas',
+      'reembolso de custos por clientes': 'Reembolso de Despesas',
+      'alvaras': 'Honorários de Precatórios',
+      // Despesas - mapear para categorias de despesa específicas  
+      'salarios': 'Pessoal e Folha de Pagamento',
+      'ferias': 'Pessoal e Folha de Pagamento',
+      'fgts': 'Pessoal e Folha de Pagamento',
+      'inss': 'Pessoal e Folha de Pagamento',
+      'vale alimentacao': 'Pessoal e Folha de Pagamento',
+      'vale transporte': 'Pessoal e Folha de Pagamento',
+      'distribuicao': 'Pessoal e Folha de Pagamento',
+      'repasses': 'Gastos com Clientes',
+      'gastos com clientes': 'Gastos com Clientes',
+      'custas': 'Gastos com Clientes',
+      'guia de custas': 'Gastos com Clientes',
+      'marketing': 'Marketing',
+      'anuncios': 'Marketing',
+      'propaganda': 'Marketing',
+      'aluguel': 'Infraestrutura e Manutenção',
+      'condominio': 'Infraestrutura e Manutenção',
+      'energia': 'Infraestrutura e Manutenção',
+      'materiais': 'Operacional',
+      'informatica': 'Tecnologia',
+      'software': 'Tecnologia',
+      'simples nacional': 'Tributos e Impostos',
+      'iptu': 'Tributos e Impostos',
+      'tributos': 'Tributos e Impostos',
+      'impostos': 'Tributos e Impostos',
+      'anuidade oab': 'Administrativo e Serviços',
+      'contador': 'Administrativo e Serviços'
+    };
+    
+    // Tentar encontrar categoria correspondente
+    for (const [pattern, catNome] of Object.entries(categoryMapping)) {
+      if (categoryAdvbox.includes(pattern)) {
+        const cat = categorias?.find(c => c.nome === catNome);
+        if (cat) {
+          categoriaId = cat.id;
+          break;
+        }
       }
     }
 
     if (!categoriaId) {
-      // Usar tipoFinal (baseado na categoria) para selecionar categoria padrão
+      // Fallback: usar categoria padrão baseada no tipo
       const defaultCat = tipoFinal === 'receita' 
         ? categorias?.find(c => c.tipo === 'receita')
         : categorias?.find(c => c.tipo === 'despesa');

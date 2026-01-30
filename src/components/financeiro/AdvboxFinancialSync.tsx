@@ -161,6 +161,60 @@ export function AdvboxFinancialSync() {
     }
   };
 
+  const handleResync = async () => {
+    if (!confirm('⚠️ ATENÇÃO: Isso irá APAGAR todos os lançamentos importados do ADVBox e reimportá-los com as classificações corretas.\n\nTransferências entre contas serão ignoradas.\n\nDeseja continuar?')) {
+      return;
+    }
+
+    try {
+      toast.info('Limpando dados antigos do ADVBox...');
+
+      // Deletar lançamentos importados do ADVBox
+      const { error: deleteError } = await supabase
+        .from('fin_lancamentos')
+        .delete()
+        .not('advbox_transaction_id', 'is', null);
+
+      if (deleteError) {
+        throw new Error(`Erro ao limpar lançamentos: ${deleteError.message}`);
+      }
+
+      // Limpar tabela de sincronização
+      const { error: deleteSyncError } = await supabase
+        .from('advbox_financial_sync')
+        .delete()
+        .neq('advbox_transaction_id', 'placeholder');
+
+      if (deleteSyncError) {
+        console.error('Erro ao limpar sync:', deleteSyncError);
+      }
+
+      // Resetar status
+      await supabase
+        .from('advbox_sync_status')
+        .update({ 
+          status: 'idle',
+          last_offset: 0,
+          total_processed: 0,
+          total_created: 0,
+          total_updated: 0,
+          total_skipped: 0,
+          completed_at: null,
+          error_message: null
+        })
+        .eq('sync_type', 'financial');
+
+      toast.success('Dados limpos! Iniciando nova sincronização...');
+      
+      // Iniciar nova sincronização
+      await handleStartSync();
+      
+    } catch (error) {
+      console.error('Erro na resincronização:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro ao resincronizar');
+    }
+  };
+
   const getProgressPercent = () => {
     if (!syncStatus || syncStatus.status !== 'running') return 0;
     // Estimate based on typical transaction counts
@@ -356,16 +410,43 @@ export function AdvboxFinancialSync() {
                 Parar Sincronização
               </Button>
             ) : (
-              <Button 
-                onClick={handleStartSync} 
-                className="flex-1"
-                size="lg"
-              >
-                <Play className="h-4 w-4 mr-2" />
-                {syncStatus?.status === 'completed' ? 'Sincronizar Novamente' : 'Iniciar Sincronização'}
-              </Button>
+              <>
+                <Button 
+                  onClick={handleStartSync} 
+                  className="flex-1"
+                  size="lg"
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  {syncStatus?.status === 'completed' ? 'Sincronizar Novamente' : 'Iniciar Sincronização'}
+                </Button>
+                {stats.totalLocal > 0 && (
+                  <Button 
+                    onClick={handleResync} 
+                    variant="outline"
+                    size="lg"
+                    title="Limpar todos os dados e reimportar com classificações corretas"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Resincronizar
+                  </Button>
+                )}
+              </>
             )}
           </div>
+          
+          {stats.totalLocal > 0 && (
+            <Alert variant="destructive" className="bg-destructive/10 border-destructive/30">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Correção de Classificação</AlertTitle>
+              <AlertDescription className="text-sm">
+                Se os dados financeiros estão mostrando valores incorretos, use o botão <strong>"Resincronizar"</strong> para limpar e reimportar todos os lançamentos com as classificações corrigidas.
+                <br />
+                <span className="text-xs text-muted-foreground mt-1 block">
+                  Transferências entre contas serão ignoradas (não afetam o resultado).
+                </span>
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
 
         {/* Info */}
