@@ -49,6 +49,17 @@ const RUBRICA_ADIANTAMENTO = 'b22a1c45-292d-4f6a-b922-a3451c31d9d7';
 const RUBRICA_IRPF = '59a6de4c-cb74-4398-8692-b7ed6c979c58';
 const RUBRICA_INSS = '9d40ec99-9a94-415d-970c-65829872a52f';
 const RUBRICA_VALE_TRANSPORTE = '8ff27352-aaed-4541-bdba-708de3ad6512';
+const RUBRICA_COMISSAO = '7ceb5095-378a-4ad0-aa11-a57eed4d2632';
+const RUBRICA_REPOUSO_REMUNERADO = 'e54f973f-cebb-417e-966f-5f289256bb25';
+const RUBRICA_PREMIO_COMISSAO = 'a8983cb1-096d-427b-9ecc-dcb0c67c4f86';
+const RUBRICA_DSR_PREMIO = '67f01d22-2751-4cf4-b95f-c48a464a390f';
+
+// ID do cargo Assistente Comercial
+const CARGO_ASSISTENTE_COMERCIAL = 'e122f008-00b9-4f47-a60c-c1ffff5bfb59';
+
+// Rubricas permitidas para Assistente Comercial (baseado no contracheque)
+const COMERCIAL_VANTAGENS = [RUBRICA_HONORARIOS_MENSAIS, RUBRICA_COMISSAO, RUBRICA_REPOUSO_REMUNERADO, RUBRICA_PREMIO_COMISSAO, RUBRICA_DSR_PREMIO];
+const COMERCIAL_DESCONTOS = [RUBRICA_VALE_TRANSPORTE, RUBRICA_INSS, RUBRICA_ADIANTAMENTO, RUBRICA_IRPF];
 
 // Rubricas permitidas para CLT (vantagens: Salário/Honorários, descontos: todos os 4)
 const CLT_DESCONTOS = [RUBRICA_ADIANTAMENTO, RUBRICA_IRPF, RUBRICA_INSS, RUBRICA_VALE_TRANSPORTE];
@@ -266,14 +277,33 @@ export function RHPagamentos() {
     }
   };
 
+  // Verifica se é Assistente Comercial
+  const isAssistenteComercial = () => {
+    return selectedCargo?.id === CARGO_ASSISTENTE_COMERCIAL;
+  };
+
   // Filtrar rubricas baseado no tipo de cargo
   const getVantagensFiltradas = () => {
-    // CLT: mostrar "Salário" (usamos Honorários Mensais com label diferente)
-    // Não-CLT: mostrar "Honorários Mensais"
+    // Assistente Comercial: rubricas específicas do contracheque
+    if (isAssistenteComercial()) {
+      return rubricas.filter(r => r.tipo === 'vantagem' && COMERCIAL_VANTAGENS.includes(r.id));
+    }
+    
+    // CLT geral: mostrar todas as vantagens
+    if (selectedCargo?.tipo === 'clt') {
+      return rubricas.filter(r => r.tipo === 'vantagem');
+    }
+    
+    // Não-CLT: mostrar todas as vantagens
     return rubricas.filter(r => r.tipo === 'vantagem');
   };
 
   const getDescontosFiltrados = () => {
+    // Assistente Comercial: descontos específicos do contracheque
+    if (isAssistenteComercial()) {
+      return rubricas.filter(r => r.tipo === 'desconto' && COMERCIAL_DESCONTOS.includes(r.id));
+    }
+    
     if (!selectedCargo) {
       // Se não tem cargo, mostrar apenas Adiantamento
       return rubricas.filter(r => r.tipo === 'desconto' && NAO_CLT_DESCONTOS.includes(r.id));
@@ -290,6 +320,11 @@ export function RHPagamentos() {
 
   // Retorna o label correto para Honorários Mensais baseado no tipo de cargo
   const getRubricaLabel = (rubrica: Rubrica) => {
+    // Assistente Comercial: Honorários Mensais → Salário Base
+    if (rubrica.id === RUBRICA_HONORARIOS_MENSAIS && isAssistenteComercial()) {
+      return 'Salário Base';
+    }
+    // CLT geral: Honorários Mensais → Salário
     if (rubrica.id === RUBRICA_HONORARIOS_MENSAIS && selectedCargo?.tipo === 'clt') {
       return 'Salário';
     }
