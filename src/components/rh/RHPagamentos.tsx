@@ -55,6 +55,12 @@ const RUBRICA_REPOUSO_REMUNERADO = 'e54f973f-cebb-417e-966f-5f289256bb25';
 const RUBRICA_PREMIO_COMISSAO = 'a8983cb1-096d-427b-9ecc-dcb0c67c4f86';
 const RUBRICA_DSR_PREMIO = '67f01d22-2751-4cf4-b95f-c48a464a390f';
 
+// Rubricas exclusivas para sócios (não devem aparecer para outros cargos)
+const RUBRICA_ANTECIPACAO_LUCRO = '22bfbaf4-f334-4d03-9c70-2f77bd8b1f37';
+const RUBRICA_DISTRIBUICAO_LUCRO = '4f5e06a8-69a9-4783-91e5-4708b493def3';
+const RUBRICA_PRO_LABORE = '6f37b0a3-2874-4fe1-8536-1d30a036eb13';
+const RUBRICAS_EXCLUSIVAS_SOCIOS = [RUBRICA_ANTECIPACAO_LUCRO, RUBRICA_DISTRIBUICAO_LUCRO, RUBRICA_PRO_LABORE];
+
 // ID do cargo Assistente Comercial
 const CARGO_ASSISTENTE_COMERCIAL = 'e122f008-00b9-4f47-a60c-c1ffff5bfb59';
 
@@ -286,11 +292,22 @@ export function RHPagamentos() {
     return selectedCargo?.id === CARGO_ASSISTENTE_COMERCIAL;
   };
 
+  // Verifica se é Sócio
+  const isSocio = () => {
+    return selectedCargo?.tipo === 'socio';
+  };
+
   // Filtrar rubricas baseado no tipo de cargo
-  // Para Assistente Comercial: mostra rubricas específicas primeiro, depois as demais
-  // Para outros: mostra todas as rubricas
+  // Para Assistente Comercial: mostra rubricas específicas primeiro, depois as demais (exceto exclusivas de sócios)
+  // Para Sócios: mostra todas as rubricas
+  // Para outros: mostra todas exceto as exclusivas de sócios
   const getVantagensFiltradas = () => {
-    const todasVantagens = rubricas.filter(r => r.tipo === 'vantagem');
+    let todasVantagens = rubricas.filter(r => r.tipo === 'vantagem');
+    
+    // Se NÃO é sócio, remover rubricas exclusivas de sócios (Antecipação de Lucro, Distribuição de Lucro, Pró-Labore)
+    if (!isSocio()) {
+      todasVantagens = todasVantagens.filter(r => !RUBRICAS_EXCLUSIVAS_SOCIOS.includes(r.id));
+    }
     
     // Assistente Comercial: mostrar específicas primeiro, depois as demais
     if (isAssistenteComercial()) {
@@ -299,7 +316,7 @@ export function RHPagamentos() {
       return [...especificas, ...outras];
     }
     
-    // Outros cargos: mostrar todas as vantagens
+    // Outros cargos: mostrar todas as vantagens (já filtradas acima se não for sócio)
     return todasVantagens;
   };
 
