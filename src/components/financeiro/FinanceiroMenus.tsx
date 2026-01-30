@@ -98,20 +98,6 @@ const menuItems: MenuItem[] = [
     label: 'Alertas',
     icon: Bell,
   },
-  {
-    id: 'rh',
-    label: 'RH / Pagamentos',
-    icon: Users,
-    items: [
-      { id: 'rh-dashboard', label: 'Dashboard RH' },
-      { id: 'rh-colaborador-dashboard', label: 'Dashboard Colaborador' },
-      { id: 'rh-pagamentos', label: 'Folha de Pagamento' },
-      { id: 'rh-adiantamentos', label: 'Adiantamentos' },
-      { id: 'rh-cargos', label: 'Cargos e Salários' },
-      { id: 'rh-colaboradores', label: 'Colaboradores' },
-      { id: 'rh-documentos', label: 'Documentos' },
-    ]
-  },
 ];
 
 export function FinanceiroMenus({ activeTab, onTabChange }: FinanceiroMenusProps) {
