@@ -54,7 +54,6 @@ const menuItems: MenuItem[] = [
     items: [
       { id: 'colaboradores', label: 'Colaboradores' },
       { id: 'cargos', label: 'Cargos e Salários' },
-      { id: 'documentos', label: 'Documentos' },
     ]
   },
 ];

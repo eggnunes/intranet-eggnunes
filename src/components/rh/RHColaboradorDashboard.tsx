@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
-import { Users, TrendingUp, DollarSign, Briefcase, Calendar, CheckSquare, Award, FileText, Eye } from 'lucide-react';
+import { Users, TrendingUp, DollarSign, Briefcase, Calendar, CheckSquare, Award, FileText, Eye, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, subMonths, parse } from 'date-fns';
@@ -51,6 +52,7 @@ interface PontuacaoAdvbox {
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7c43', '#a4de6c'];
 
 export function RHColaboradorDashboard() {
+  const navigate = useNavigate();
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [selectedColaborador, setSelectedColaborador] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -305,7 +307,7 @@ export function RHColaboradorDashboard() {
                     )}
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex flex-col items-end gap-2">
                   {currentColaborador.salario && (
                     <div>
                       <p className="text-sm text-muted-foreground">Salário Atual</p>
@@ -314,6 +316,15 @@ export function RHColaboradorDashboard() {
                       </p>
                     </div>
                   )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/rh?colaboradorId=${selectedColaborador}`)}
+                    className="mt-2"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Ver Perfil Completo
+                  </Button>
                 </div>
               </div>
             </CardContent>

@@ -732,7 +732,7 @@ export function RHPagamentos() {
               type="month"
               value={filtroMes}
               onChange={(e) => setFiltroMes(e.target.value)}
-              className="w-40"
+              className="w-48"
             />
             {selectedForBatch.length > 0 && (
               <Button onClick={gerarRecibosEmLote} variant="outline">
