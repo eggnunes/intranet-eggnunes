@@ -117,6 +117,8 @@ export function RHPagamentos() {
   const [contaId, setContaId] = useState('');
   const [contas, setContas] = useState<{ id: string; nome: string }[]>([]);
   const [categorias, setCategorias] = useState<{ id: string; nome: string }[]>([]);
+  // Estado separado para os valores de texto exibidos nos inputs (preserva cursor)
+  const [displayValues, setDisplayValues] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchData();
@@ -253,6 +255,7 @@ export function RHPagamentos() {
 
   const handleColaboradorChange = async (colaboradorId: string) => {
     setSelectedColaborador(colaboradorId);
+    setDisplayValues({}); // Limpar valores de display ao trocar colaborador
     
     // Buscar cargo do colaborador
     const colaborador = colaboradores.find(c => c.id === colaboradorId);
@@ -345,6 +348,11 @@ export function RHPagamentos() {
 
   // Formata o valor para exibição no input (padrão brasileiro)
   const getDisplayValue = (rubricaId: string): string => {
+    // Se o usuário está digitando, retornar o valor de display
+    if (displayValues[rubricaId] !== undefined) {
+      return displayValues[rubricaId];
+    }
+    // Caso contrário, formatar o valor numérico
     const valor = itens[rubricaId]?.valor;
     if (valor === undefined || valor === 0) return '';
     return formatCurrency(valor);
@@ -354,9 +362,15 @@ export function RHPagamentos() {
   const handleValorInput = (rubricaId: string, inputValue: string) => {
     // Aplica a máscara de moeda brasileira
     const maskedValue = maskCurrency(inputValue);
+    
+    // Atualiza o valor de display (string)
+    setDisplayValues(prev => ({
+      ...prev,
+      [rubricaId]: maskedValue
+    }));
+    
     // Converte para número e salva
     const numericValue = parseCurrency(maskedValue);
-    
     setItens(prev => ({
       ...prev,
       [rubricaId]: {
@@ -505,6 +519,7 @@ export function RHPagamentos() {
     setSelectedCargo(null);
     setItens({});
     setSugestoes({});
+    setDisplayValues({});
     setMesReferencia(format(new Date(), 'yyyy-MM'));
     setDataPagamento(format(new Date(), 'yyyy-MM-dd'));
     setDescricaoGeral('');
