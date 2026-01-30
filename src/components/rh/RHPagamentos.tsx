@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
+import { formatCurrency, parseCurrency, maskCurrency } from '@/lib/masks';
 
 interface Cargo {
   id: string;
@@ -337,7 +338,31 @@ export function RHPagamentos() {
       [rubricaId]: {
         ...prev[rubricaId],
         rubrica_id: rubricaId,
-        [field]: field === 'valor' ? parseFloat(value.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0 : value
+        [field]: field === 'valor' ? parseCurrency(value) : value
+      }
+    }));
+  };
+
+  // Formata o valor para exibição no input (padrão brasileiro)
+  const getDisplayValue = (rubricaId: string): string => {
+    const valor = itens[rubricaId]?.valor;
+    if (valor === undefined || valor === 0) return '';
+    return formatCurrency(valor);
+  };
+
+  // Handler para input de valor com máscara
+  const handleValorInput = (rubricaId: string, inputValue: string) => {
+    // Aplica a máscara de moeda brasileira
+    const maskedValue = maskCurrency(inputValue);
+    // Converte para número e salva
+    const numericValue = parseCurrency(maskedValue);
+    
+    setItens(prev => ({
+      ...prev,
+      [rubricaId]: {
+        ...prev[rubricaId],
+        rubrica_id: rubricaId,
+        valor: numericValue
       }
     }));
   };
@@ -761,8 +786,8 @@ export function RHPagamentos() {
                             <Input
                               type="text"
                               placeholder="0,00"
-                              value={itens[rubrica.id]?.valor || ''}
-                              onChange={(e) => handleItemChange(rubrica.id, 'valor', e.target.value)}
+                              value={getDisplayValue(rubrica.id)}
+                              onChange={(e) => handleValorInput(rubrica.id, e.target.value)}
                               className="w-28"
                             />
                             {sugestoes[rubrica.id] > 0 && (
@@ -787,8 +812,8 @@ export function RHPagamentos() {
                             <Input
                               type="text"
                               placeholder="0,00"
-                              value={itens[rubrica.id]?.valor || ''}
-                              onChange={(e) => handleItemChange(rubrica.id, 'valor', e.target.value)}
+                              value={getDisplayValue(rubrica.id)}
+                              onChange={(e) => handleValorInput(rubrica.id, e.target.value)}
                               className="w-28"
                             />
                           </div>
@@ -925,13 +950,12 @@ export function RHPagamentos() {
                               </div>
                               <div className="col-span-3">
                                 <Input
-                                  type="number"
-                                  step="0.01"
-                                  placeholder="Valor"
+                                  type="text"
+                                  placeholder="0,00"
                                   className="h-9"
-                                  value={rateio.valor?.toFixed(2) || ''}
+                                  value={rateio.valor > 0 ? formatCurrency(rateio.valor) : ''}
                                   onChange={(e) => {
-                                    const val = parseFloat(e.target.value) || 0;
+                                    const val = parseCurrency(e.target.value);
                                     setRateios(rateios.map(r => 
                                       r.id === rateio.id 
                                         ? { ...r, valor: val, percentual: totais.liquido > 0 ? (val / totais.liquido) * 100 : 0 } 
