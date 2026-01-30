@@ -67,6 +67,65 @@ export function unmask(value: string): string {
 }
 
 /**
+ * Formata número para moeda brasileira (R$ 1.234,56)
+ */
+export function formatCurrency(value: number): string {
+  return value.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+/**
+ * Aplica máscara de valor monetário brasileiro
+ * Aceita entrada com vírgula como separador decimal
+ * Retorna string formatada: 1.234,56
+ */
+export function maskCurrency(value: string): string {
+  // Remove tudo exceto números, vírgula e ponto
+  let cleaned = value.replace(/[^\d,.-]/g, '');
+  
+  // Se começar com vírgula ou ponto, adiciona 0 na frente
+  if (cleaned.startsWith(',') || cleaned.startsWith('.')) {
+    cleaned = '0' + cleaned;
+  }
+  
+  // Substitui ponto por vírgula para padronizar entrada
+  // Mas mantém apenas a última vírgula/ponto como decimal
+  const parts = cleaned.split(/[,.]/).filter(p => p !== '');
+  
+  if (parts.length === 0) return '';
+  if (parts.length === 1) return parts[0];
+  
+  // Última parte são os decimais, resto é a parte inteira
+  const decimals = parts.pop() || '';
+  const integers = parts.join('');
+  
+  // Formata a parte inteira com separador de milhares (ponto)
+  const formattedIntegers = integers.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  
+  // Limita decimais a 2 dígitos
+  const formattedDecimals = decimals.slice(0, 2);
+  
+  return formattedDecimals ? `${formattedIntegers},${formattedDecimals}` : formattedIntegers;
+}
+
+/**
+ * Converte string em formato brasileiro (1.234,56) para número
+ */
+export function parseCurrency(value: string): number {
+  if (!value || value === '') return 0;
+  
+  // Remove pontos de milhar e substitui vírgula decimal por ponto
+  const cleaned = value
+    .replace(/\./g, '') // Remove pontos (separador de milhar)
+    .replace(',', '.'); // Substitui vírgula por ponto (decimal)
+  
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+/**
  * Valida CPF (algoritmo oficial)
  */
 export function validateCPF(cpf: string): boolean {
