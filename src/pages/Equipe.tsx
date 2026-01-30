@@ -213,7 +213,7 @@ export default function Equipe() {
                   <Card
                     key={member.id}
                     className={`${positionInfo.bgColor} ${positionInfo.borderColor} border-2 hover:shadow-lg transition-all duration-300 hover:-translate-y-1 ${isSocio ? 'cursor-pointer' : ''}`}
-                    onClick={isSocio ? () => navigate(`/profile?userId=${member.id}`) : undefined}
+                    onClick={isSocio ? () => navigate(`/rh?colaboradorId=${member.id}`) : undefined}
                   >
                     <CardHeader>
                       <div className="flex items-start gap-4">

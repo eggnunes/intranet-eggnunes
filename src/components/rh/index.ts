@@ -7,3 +7,5 @@ export { RHColaboradorDashboard } from './RHColaboradorDashboard';
 export { ColaboradorDocumentos } from './ColaboradorDocumentos';
 export { ColaboradorDocumentosMedicos } from './ColaboradorDocumentosMedicos';
 export { RHAdiantamentos } from './RHAdiantamentos';
+export { RHMenus } from './RHMenus';
+export { ColaboradorPerfilUnificado } from './ColaboradorPerfilUnificado';

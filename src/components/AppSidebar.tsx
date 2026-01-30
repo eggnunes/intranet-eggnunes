@@ -204,6 +204,7 @@ export function AppSidebar() {
         { icon: Home, path: '/home-office', label: 'Home Office' },
         { icon: UserPlus, path: '/contratacao', label: 'Recrutamento' },
         { icon: BookOpen, path: '/onboarding', label: 'Onboarding' },
+        ...(profile?.position === 'socio' || isAdmin ? [{ icon: DollarSign, path: '/rh', label: 'RH / Pagamentos' }] : []),
       ],
     },
     {
