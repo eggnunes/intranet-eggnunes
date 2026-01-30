@@ -287,38 +287,43 @@ export function RHPagamentos() {
   };
 
   // Filtrar rubricas baseado no tipo de cargo
+  // Para Assistente Comercial: mostra rubricas específicas primeiro, depois as demais
+  // Para outros: mostra todas as rubricas
   const getVantagensFiltradas = () => {
-    // Assistente Comercial: rubricas específicas do contracheque
+    const todasVantagens = rubricas.filter(r => r.tipo === 'vantagem');
+    
+    // Assistente Comercial: mostrar específicas primeiro, depois as demais
     if (isAssistenteComercial()) {
-      return rubricas.filter(r => r.tipo === 'vantagem' && COMERCIAL_VANTAGENS.includes(r.id));
+      const especificas = todasVantagens.filter(r => COMERCIAL_VANTAGENS.includes(r.id));
+      const outras = todasVantagens.filter(r => !COMERCIAL_VANTAGENS.includes(r.id));
+      return [...especificas, ...outras];
     }
     
-    // CLT geral: mostrar todas as vantagens
-    if (selectedCargo?.tipo === 'clt') {
-      return rubricas.filter(r => r.tipo === 'vantagem');
-    }
-    
-    // Não-CLT: mostrar todas as vantagens
-    return rubricas.filter(r => r.tipo === 'vantagem');
+    // Outros cargos: mostrar todas as vantagens
+    return todasVantagens;
   };
 
   const getDescontosFiltrados = () => {
-    // Assistente Comercial: descontos específicos do contracheque
+    const todosDescontos = rubricas.filter(r => r.tipo === 'desconto');
+    
+    // Assistente Comercial: mostrar específicos primeiro, depois os demais
     if (isAssistenteComercial()) {
-      return rubricas.filter(r => r.tipo === 'desconto' && COMERCIAL_DESCONTOS.includes(r.id));
+      const especificos = todosDescontos.filter(r => COMERCIAL_DESCONTOS.includes(r.id));
+      const outros = todosDescontos.filter(r => !COMERCIAL_DESCONTOS.includes(r.id));
+      return [...especificos, ...outros];
     }
     
     if (!selectedCargo) {
-      // Se não tem cargo, mostrar apenas Adiantamento
-      return rubricas.filter(r => r.tipo === 'desconto' && NAO_CLT_DESCONTOS.includes(r.id));
+      // Se não tem cargo, mostrar todos os descontos
+      return todosDescontos;
     }
     
     if (selectedCargo.tipo === 'clt') {
-      // CLT: todos os 4 descontos
-      return rubricas.filter(r => r.tipo === 'desconto' && CLT_DESCONTOS.includes(r.id));
+      // CLT: mostrar todos os descontos
+      return todosDescontos;
     } else {
-      // Advogados/Sócios: apenas Adiantamento
-      return rubricas.filter(r => r.tipo === 'desconto' && NAO_CLT_DESCONTOS.includes(r.id));
+      // Advogados/Sócios: mostrar todos os descontos
+      return todosDescontos;
     }
   };
 
