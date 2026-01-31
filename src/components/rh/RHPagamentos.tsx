@@ -56,12 +56,20 @@ const RUBRICA_PREMIO_COMISSAO = 'a8983cb1-096d-427b-9ecc-dcb0c67c4f86';
 const RUBRICA_DSR_PREMIO = '67f01d22-2751-4cf4-b95f-c48a464a390f';
 const RUBRICA_FERIAS = 'f19074bf-d471-4aec-a4b3-3994c10044d7';
 const RUBRICA_UM_TERCO_FERIAS = '2855f702-f2f0-457a-93d5-e95c85668506';
+const RUBRICA_BONIFICACAO_METAS = '18b6aa64-6c8e-4dad-8ccc-ea14e1069ad5';
+const RUBRICA_COMISSAO_INDICACAO = 'cdbdc2c4-5d11-40e3-ab58-8592eb5fbf37';
 
-// Rubricas exclusivas para sócios (não devem aparecer para outros cargos)
+// Rubricas exclusivas para sócios (permitidas apenas para sócios)
 const RUBRICA_ANTECIPACAO_LUCRO = '22bfbaf4-f334-4d03-9c70-2f77bd8b1f37';
 const RUBRICA_DISTRIBUICAO_LUCRO = '4f5e06a8-69a9-4783-91e5-4708b493def3';
 const RUBRICA_PRO_LABORE = '6f37b0a3-2874-4fe1-8536-1d30a036eb13';
 const RUBRICAS_EXCLUSIVAS_SOCIOS = [RUBRICA_ANTECIPACAO_LUCRO, RUBRICA_DISTRIBUICAO_LUCRO, RUBRICA_PRO_LABORE];
+
+// Rubricas que NÃO devem aparecer para sócios
+const RUBRICAS_OCULTAS_SOCIOS = [RUBRICA_BONIFICACAO_METAS, RUBRICA_FERIAS, RUBRICA_COMISSAO_INDICACAO, RUBRICA_COMISSAO];
+
+// Rubricas que NÃO devem aparecer para advogados (exceto sócios)
+const RUBRICAS_OCULTAS_ADVOGADOS = [RUBRICA_FERIAS, RUBRICA_ANTECIPACAO_LUCRO, RUBRICA_DISTRIBUICAO_LUCRO];
 
 // Rubricas exclusivas para Assistente Comercial (DSR, prêmios, etc.)
 const RUBRICAS_EXCLUSIVAS_COMERCIAL = [RUBRICA_REPOUSO_REMUNERADO, RUBRICA_PREMIO_COMISSAO, RUBRICA_DSR_PREMIO];
@@ -310,27 +318,50 @@ export function RHPagamentos() {
   const getVantagensFiltradas = () => {
     let todasVantagens = rubricas.filter(r => r.tipo === 'vantagem');
     
-    // Se NÃO é sócio, remover rubricas exclusivas de sócios (Antecipação de Lucro, Distribuição de Lucro, Pró-Labore)
-    if (!isSocio()) {
-      todasVantagens = todasVantagens.filter(r => !RUBRICAS_EXCLUSIVAS_SOCIOS.includes(r.id));
+    // Sócio: remover Bonificação por Metas, Férias, Comissão de Indicação e Comissão
+    if (isSocio()) {
+      todasVantagens = todasVantagens.filter(r => !RUBRICAS_OCULTAS_SOCIOS.includes(r.id));
+      // Remover também rubricas exclusivas do comercial e 1/3 de férias
+      todasVantagens = todasVantagens.filter(r => 
+        !RUBRICAS_EXCLUSIVAS_COMERCIAL.includes(r.id) && 
+        r.id !== RUBRICA_UM_TERCO_FERIAS
+      );
+      return todasVantagens;
+    }
+    
+    // Advogado (não sócio): remover Férias, Distribuição de Lucro, Antecipação de Lucro
+    if (selectedCargo?.tipo === 'advogado') {
+      todasVantagens = todasVantagens.filter(r => !RUBRICAS_OCULTAS_ADVOGADOS.includes(r.id));
+      // Remover também rubricas exclusivas do comercial e 1/3 de férias
+      todasVantagens = todasVantagens.filter(r => 
+        !RUBRICAS_EXCLUSIVAS_COMERCIAL.includes(r.id) && 
+        r.id !== RUBRICA_UM_TERCO_FERIAS
+      );
+      return todasVantagens;
     }
     
     // Assistente Comercial: mostrar específicas primeiro, depois as demais (exceto exclusivas de sócios)
     if (isAssistenteComercial()) {
+      // Remover rubricas exclusivas de sócios
+      todasVantagens = todasVantagens.filter(r => !RUBRICAS_EXCLUSIVAS_SOCIOS.includes(r.id));
       const especificas = todasVantagens.filter(r => COMERCIAL_VANTAGENS.includes(r.id));
       const outras = todasVantagens.filter(r => !COMERCIAL_VANTAGENS.includes(r.id) && !RUBRICAS_EXCLUSIVAS_COMERCIAL.includes(r.id));
       return [...especificas, ...outras];
     }
     
-    // Para CLT (não comercial): remover rubricas exclusivas do comercial, mas manter 1/3 de férias
+    // Para CLT (não comercial): remover rubricas exclusivas do comercial e de sócios, mas manter 1/3 de férias
     if (selectedCargo?.tipo === 'clt') {
-      todasVantagens = todasVantagens.filter(r => !RUBRICAS_EXCLUSIVAS_COMERCIAL.includes(r.id));
+      todasVantagens = todasVantagens.filter(r => 
+        !RUBRICAS_EXCLUSIVAS_COMERCIAL.includes(r.id) && 
+        !RUBRICAS_EXCLUSIVAS_SOCIOS.includes(r.id)
+      );
       return todasVantagens;
     }
     
-    // Para outros cargos (advogados, sócios, etc.): remover rubricas exclusivas do comercial E 1/3 de férias
+    // Default: remover exclusivas de sócios, comercial e 1/3 de férias
     todasVantagens = todasVantagens.filter(r => 
       !RUBRICAS_EXCLUSIVAS_COMERCIAL.includes(r.id) && 
+      !RUBRICAS_EXCLUSIVAS_SOCIOS.includes(r.id) &&
       r.id !== RUBRICA_UM_TERCO_FERIAS
     );
     
