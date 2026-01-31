@@ -54,6 +54,8 @@ const RUBRICA_COMISSAO = '7ceb5095-378a-4ad0-aa11-a57eed4d2632';
 const RUBRICA_REPOUSO_REMUNERADO = 'e54f973f-cebb-417e-966f-5f289256bb25';
 const RUBRICA_PREMIO_COMISSAO = 'a8983cb1-096d-427b-9ecc-dcb0c67c4f86';
 const RUBRICA_DSR_PREMIO = '67f01d22-2751-4cf4-b95f-c48a464a390f';
+const RUBRICA_FERIAS = 'f19074bf-d471-4aec-a4b3-3994c10044d7';
+const RUBRICA_UM_TERCO_FERIAS = '2855f702-f2f0-457a-93d5-e95c85668506';
 
 // Rubricas exclusivas para sócios (não devem aparecer para outros cargos)
 const RUBRICA_ANTECIPACAO_LUCRO = '22bfbaf4-f334-4d03-9c70-2f77bd8b1f37';
@@ -61,14 +63,18 @@ const RUBRICA_DISTRIBUICAO_LUCRO = '4f5e06a8-69a9-4783-91e5-4708b493def3';
 const RUBRICA_PRO_LABORE = '6f37b0a3-2874-4fe1-8536-1d30a036eb13';
 const RUBRICAS_EXCLUSIVAS_SOCIOS = [RUBRICA_ANTECIPACAO_LUCRO, RUBRICA_DISTRIBUICAO_LUCRO, RUBRICA_PRO_LABORE];
 
+// Rubricas exclusivas para Assistente Comercial (DSR, prêmios, etc.)
+const RUBRICAS_EXCLUSIVAS_COMERCIAL = [RUBRICA_REPOUSO_REMUNERADO, RUBRICA_PREMIO_COMISSAO, RUBRICA_DSR_PREMIO];
+
 // ID do cargo Assistente Comercial
 const CARGO_ASSISTENTE_COMERCIAL = 'e122f008-00b9-4f47-a60c-c1ffff5bfb59';
 
 // Rubricas permitidas para Assistente Comercial (baseado no contracheque)
-const COMERCIAL_VANTAGENS = [RUBRICA_HONORARIOS_MENSAIS, RUBRICA_COMISSAO, RUBRICA_REPOUSO_REMUNERADO, RUBRICA_PREMIO_COMISSAO, RUBRICA_DSR_PREMIO];
+const COMERCIAL_VANTAGENS = [RUBRICA_HONORARIOS_MENSAIS, RUBRICA_COMISSAO, RUBRICA_REPOUSO_REMUNERADO, RUBRICA_PREMIO_COMISSAO, RUBRICA_DSR_PREMIO, RUBRICA_UM_TERCO_FERIAS];
 const COMERCIAL_DESCONTOS = [RUBRICA_VALE_TRANSPORTE, RUBRICA_INSS, RUBRICA_ADIANTAMENTO, RUBRICA_IRPF];
 
-// Rubricas permitidas para CLT (vantagens: Salário/Honorários, descontos: todos os 4)
+// Rubricas permitidas para CLT (inclui 1/3 de férias)
+const CLT_VANTAGENS_EXTRAS = [RUBRICA_UM_TERCO_FERIAS];
 const CLT_DESCONTOS = [RUBRICA_ADIANTAMENTO, RUBRICA_IRPF, RUBRICA_INSS, RUBRICA_VALE_TRANSPORTE];
 
 // Rubricas permitidas para não-CLT (vantagens: Honorários, descontos: apenas Adiantamento)
@@ -309,14 +315,25 @@ export function RHPagamentos() {
       todasVantagens = todasVantagens.filter(r => !RUBRICAS_EXCLUSIVAS_SOCIOS.includes(r.id));
     }
     
-    // Assistente Comercial: mostrar específicas primeiro, depois as demais
+    // Assistente Comercial: mostrar específicas primeiro, depois as demais (exceto exclusivas de sócios)
     if (isAssistenteComercial()) {
       const especificas = todasVantagens.filter(r => COMERCIAL_VANTAGENS.includes(r.id));
-      const outras = todasVantagens.filter(r => !COMERCIAL_VANTAGENS.includes(r.id));
+      const outras = todasVantagens.filter(r => !COMERCIAL_VANTAGENS.includes(r.id) && !RUBRICAS_EXCLUSIVAS_COMERCIAL.includes(r.id));
       return [...especificas, ...outras];
     }
     
-    // Outros cargos: mostrar todas as vantagens (já filtradas acima se não for sócio)
+    // Para CLT (não comercial): remover rubricas exclusivas do comercial, mas manter 1/3 de férias
+    if (selectedCargo?.tipo === 'clt') {
+      todasVantagens = todasVantagens.filter(r => !RUBRICAS_EXCLUSIVAS_COMERCIAL.includes(r.id));
+      return todasVantagens;
+    }
+    
+    // Para outros cargos (advogados, sócios, etc.): remover rubricas exclusivas do comercial E 1/3 de férias
+    todasVantagens = todasVantagens.filter(r => 
+      !RUBRICAS_EXCLUSIVAS_COMERCIAL.includes(r.id) && 
+      r.id !== RUBRICA_UM_TERCO_FERIAS
+    );
+    
     return todasVantagens;
   };
 
