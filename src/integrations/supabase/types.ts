@@ -6670,6 +6670,48 @@ export type Database = {
         }
         Relationships: []
       }
+      tribunal_links: {
+        Row: {
+          ativo: boolean | null
+          categoria: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          nome: string
+          ordem: number | null
+          sistema: string
+          tribunal: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          categoria?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome: string
+          ordem?: number | null
+          sistema: string
+          tribunal: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          ativo?: boolean | null
+          categoria?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome?: string
+          ordem?: number | null
+          sistema?: string
+          tribunal?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
       usage_history: {
         Row: {
           action: string
