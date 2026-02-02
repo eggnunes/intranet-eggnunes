@@ -11,14 +11,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useUserRole } from '@/hooks/useUserRole';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
 import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
 import { TaskCreationDialog } from '@/components/TaskCreationDialog';
 import { TaskSuggestionsPanel } from '@/components/TaskSuggestionsPanel';
+import { TribunalLinksCards } from '@/components/processos/TribunalLinksCards';
+import { TribunalLinksAdmin } from '@/components/processos/TribunalLinksAdmin';
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
 import { format, subDays, subMonths, isAfter, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Briefcase, TrendingUp, BarChart, Search, Filter, AlertCircle, Calendar, ListTodo, RefreshCw, MessageSquare, Send, X, Sparkles } from 'lucide-react';
+import { Briefcase, TrendingUp, BarChart, Search, Filter, AlertCircle, Calendar, ListTodo, RefreshCw, MessageSquare, Send, X, Sparkles, Scale, Settings } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -132,6 +135,7 @@ export default function ProcessosDashboard() {
   const [showAllEvolutionAreas, setShowAllEvolutionAreas] = useState(true);
   
   const { toast } = useToast();
+  const { isAdmin } = useUserRole();
 
   // Função para enviar cobrança de documentos via ChatGuru
   const sendDocumentRequest = async (lawsuit: Lawsuit) => {
@@ -1920,6 +1924,36 @@ export default function ProcessosDashboard() {
                   )}
                       </div>
                     </ScrollArea>
+                </AccordionContent>
+              </AccordionItem>
+
+              {/* Portais de Tribunais */}
+              <AccordionItem value="portais-tribunais" className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <Scale className="h-5 w-5" />
+                    <span className="font-semibold">Portais de Tribunais</span>
+                    <span className="text-sm text-muted-foreground ml-2">
+                      (Acesso rápido aos sistemas processuais)
+                    </span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-4 space-y-6">
+                    {/* Cards de links */}
+                    <TribunalLinksCards />
+                    
+                    {/* Painel Admin - apenas para admins */}
+                    {isAdmin && (
+                      <div className="mt-8 pt-6 border-t">
+                        <div className="flex items-center gap-2 mb-4">
+                          <Settings className="h-5 w-5" />
+                          <h3 className="font-semibold">Gerenciamento (Admin)</h3>
+                        </div>
+                        <TribunalLinksAdmin />
+                      </div>
+                    )}
+                  </div>
                 </AccordionContent>
               </AccordionItem>
 
