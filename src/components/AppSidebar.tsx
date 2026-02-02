@@ -174,6 +174,7 @@ export function AppSidebar() {
       items: [
         { icon: Award, path: '/decisoes-favoraveis', label: 'Decisões Favoráveis' },
         { icon: KeyRound, path: '/codigos-autenticacao', label: 'Códigos TOTP' },
+        { icon: Briefcase, path: '/portais-tribunais', label: 'Portais de Tribunais' },
       ],
     },
     {

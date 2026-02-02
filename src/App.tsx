@@ -61,6 +61,7 @@ import GeradorQRCode from "./pages/GeradorQRCode";
 import Parceiros from "./pages/Parceiros";
 import Asaas from "./pages/Asaas";
 import RH from "./pages/RH";
+import PortaisTribunais from "./pages/PortaisTribunais";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient({
@@ -508,6 +509,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <RH />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/portais-tribunais"
+              element={
+                <ProtectedRoute>
+                  <PortaisTribunais />
                 </ProtectedRoute>
               }
             />
