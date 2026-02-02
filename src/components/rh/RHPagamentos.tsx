@@ -207,6 +207,8 @@ export function RHPagamentos() {
       const startDate = startOfMonth(new Date(filtroMes + '-01'));
       const endDate = endOfMonth(startDate);
 
+      console.log('Buscando pagamentos para:', format(startDate, 'yyyy-MM-dd'), 'até', format(endDate, 'yyyy-MM-dd'));
+
       const { data: pagData, error } = await supabase
         .from('rh_pagamentos')
         .select('*')
@@ -216,8 +218,17 @@ export function RHPagamentos() {
 
       if (error) throw error;
 
+      console.log('Pagamentos encontrados:', pagData?.length || 0, pagData);
+
+      // Se não houver pagamentos, definir lista vazia
+      if (!pagData || pagData.length === 0) {
+        setPagamentos([]);
+        return;
+      }
+
       // Fetch profiles separately
-      const colaboradorIds = [...new Set((pagData || []).map(p => p.colaborador_id))];
+      const colaboradorIds = [...new Set(pagData.map(p => p.colaborador_id))];
+      
       const { data: profilesData } = await supabase
         .from('profiles')
         .select('id, full_name, email')
@@ -225,13 +236,14 @@ export function RHPagamentos() {
 
       const profilesMap = new Map((profilesData || []).map(p => [p.id, p]));
       
-      const pagamentosWithProfiles = (pagData || []).map(p => ({
+      const pagamentosWithProfiles = pagData.map(p => ({
         ...p,
         profiles: profilesMap.get(p.colaborador_id) || { full_name: 'Desconhecido', email: '' }
       }));
 
       setPagamentos(pagamentosWithProfiles as Pagamento[]);
     } catch (error: any) {
+      console.error('Erro ao carregar pagamentos:', error);
       toast.error('Erro ao carregar pagamentos: ' + error.message);
     }
   };
