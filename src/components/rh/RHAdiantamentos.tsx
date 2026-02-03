@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatLocalDate, formatMesReferencia } from '@/lib/dateUtils';
 
 interface Colaborador {
   id: string;
@@ -554,7 +555,7 @@ export function RHAdiantamentos() {
                         : 'À vista'}
                     </TableCell>
                     <TableCell>
-                      {format(new Date(adiantamento.data_adiantamento), 'dd/MM/yyyy')}
+                      {formatLocalDate(adiantamento.data_adiantamento)}
                     </TableCell>
                     <TableCell>
                       <Badge variant={STATUS_BADGES[adiantamento.status]?.variant || 'default'}>
@@ -624,12 +625,12 @@ export function RHAdiantamentos() {
                       <TableRow key={desconto.id}>
                         <TableCell>{desconto.parcela_numero}/{selectedAdiantamento.numero_parcelas}</TableCell>
                         <TableCell>
-                          {format(new Date(desconto.mes_referencia + '-01'), 'MMM/yyyy', { locale: ptBR })}
+                          {formatMesReferencia(desconto.mes_referencia + '-01')}
                         </TableCell>
                         <TableCell>{formatCurrency(desconto.valor_descontado)}</TableCell>
                         <TableCell>
                           {desconto.data_desconto 
-                            ? format(new Date(desconto.data_desconto), 'dd/MM/yyyy')
+                            ? formatLocalDate(desconto.data_desconto)
                             : '-'}
                         </TableCell>
                       </TableRow>

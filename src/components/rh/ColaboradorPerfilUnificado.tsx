@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, parse, subMonths, differenceInMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatMesReferencia, formatLocalDate, parseLocalDate } from '@/lib/dateUtils';
 import { ColaboradorDocumentos, ColaboradorDocumentosMedicos } from '@/components/rh';
 import { useUserRole } from '@/hooks/useUserRole';
 
@@ -149,7 +150,7 @@ export function ColaboradorPerfilUnificado({ colaboradorId }: ColaboradorPerfilU
           .limit(24),
         supabase
           .from('vacation_requests')
-          .select('id, start_date, end_date, status, days_requested')
+          .select('id, start_date, end_date, status, business_days')
           .eq('user_id', colaboradorId)
           .order('start_date', { ascending: false })
           .limit(10)
@@ -190,7 +191,7 @@ export function ColaboradorPerfilUnificado({ colaboradorId }: ColaboradorPerfilU
         const pagamentosFormatados = pagamentosRecentes
           .sort((a, b) => a.mes_referencia.localeCompare(b.mes_referencia))
           .map(p => ({
-            mes: format(new Date(p.mes_referencia), 'MMM/yy', { locale: ptBR }),
+            mes: formatMesReferencia(p.mes_referencia, 'MMM/yy'),
             total_liquido: p.total_liquido,
             total_vantagens: p.total_vantagens,
             total_descontos: p.total_descontos
@@ -204,7 +205,7 @@ export function ColaboradorPerfilUnificado({ colaboradorId }: ColaboradorPerfilU
           data_inicio: f.start_date,
           data_fim: f.end_date,
           status: f.status,
-          dias_totais: f.days_requested
+          dias_totais: f.business_days || 0
         }));
         setFerias(feriasData);
       }
@@ -245,7 +246,7 @@ export function ColaboradorPerfilUnificado({ colaboradorId }: ColaboradorPerfilU
         const dueDate = task.due_date || task.deadline;
         if (!dueDate) return;
         
-        const mes = format(new Date(dueDate), 'MMM/yy', { locale: ptBR });
+        const mes = formatMesReferencia(dueDate.substring(0, 10), 'MMM/yy');
         if (!porMes[mes]) {
           porMes[mes] = { concluidas: 0, total: 0 };
         }
@@ -591,11 +592,11 @@ export function ColaboradorPerfilUnificado({ colaboradorId }: ColaboradorPerfilU
                   {pagamentos.slice(0, 12).map((p) => (
                     <TableRow key={p.id}>
                       <TableCell>
-                        {format(new Date(p.mes_referencia), 'MMMM/yyyy', { locale: ptBR })}
+                        {formatMesReferencia(p.mes_referencia, 'MMMM/yyyy')}
                       </TableCell>
                       <TableCell>
                         {p.data_pagamento 
-                          ? format(new Date(p.data_pagamento), 'dd/MM/yyyy')
+                          ? formatLocalDate(p.data_pagamento)
                           : '-'}
                       </TableCell>
                       <TableCell className="text-right font-medium">
@@ -715,7 +716,7 @@ export function ColaboradorPerfilUnificado({ colaboradorId }: ColaboradorPerfilU
                       {ferias.map((f) => (
                         <TableRow key={f.id}>
                           <TableCell>
-                            {format(new Date(f.data_inicio), 'dd/MM/yy')} - {format(new Date(f.data_fim), 'dd/MM/yy')}
+                            {formatLocalDate(f.data_inicio, 'dd/MM/yy')} - {formatLocalDate(f.data_fim, 'dd/MM/yy')}
                           </TableCell>
                           <TableCell>{f.dias_totais}</TableCell>
                           <TableCell>
@@ -759,7 +760,7 @@ export function ColaboradorPerfilUnificado({ colaboradorId }: ColaboradorPerfilU
                     {historicoSalario.map((h) => (
                       <TableRow key={h.id}>
                         <TableCell>
-                          {format(new Date(h.data_alteracao), 'dd/MM/yyyy')}
+                          {formatLocalDate(h.data_alteracao)}
                         </TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(h.salario_anterior)}

@@ -20,7 +20,7 @@ import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import { formatCurrency, parseCurrency, maskCurrency } from '@/lib/masks';
-import { formatMesReferencia } from '@/lib/dateUtils';
+import { formatMesReferencia, formatLocalDate, parseLocalDate } from '@/lib/dateUtils';
 
 interface Cargo {
   id: string;
@@ -671,12 +671,12 @@ export function RHPagamentos() {
       doc.setFont('helvetica', 'bold');
       doc.text('MÊS REFERÊNCIA:', 20, 62);
       doc.setFont('helvetica', 'normal');
-      doc.text(format(new Date(pagamento.mes_referencia), 'MMMM/yyyy', { locale: ptBR }).toUpperCase(), 75, 62);
+      doc.text(formatMesReferencia(pagamento.mes_referencia, 'MMMM/yyyy').toUpperCase(), 75, 62);
 
       doc.setFont('helvetica', 'bold');
       doc.text('DATA PAGAMENTO:', 120, 62);
       doc.setFont('helvetica', 'normal');
-      doc.text(pagamento.data_pagamento ? format(new Date(pagamento.data_pagamento), 'dd/MM/yyyy') : '-', 170, 62);
+      doc.text(pagamento.data_pagamento ? formatLocalDate(pagamento.data_pagamento) : '-', 170, 62);
 
       doc.line(20, 68, 190, 68);
 
@@ -747,7 +747,7 @@ export function RHPagamentos() {
       y += 15;
       doc.text(`Belo Horizonte, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`, 105, y, { align: 'center' });
 
-      doc.save(`recibo_${pagamento.profiles.full_name.replace(/\s+/g, '_')}_${format(new Date(pagamento.mes_referencia), 'MM_yyyy')}.pdf`);
+      doc.save(`recibo_${pagamento.profiles.full_name.replace(/\s+/g, '_')}_${formatMesReferencia(pagamento.mes_referencia, 'MM_yyyy')}.pdf`);
 
       // Marcar recibo como gerado
       await supabase
