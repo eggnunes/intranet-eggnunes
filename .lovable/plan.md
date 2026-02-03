@@ -1,194 +1,211 @@
 
-# Plano: Correção Completa de Timezone + Auditoria Geral da Intranet
+# Plano: Correção da Tela em Branco no Perfil do Colaborador + Auditoria Completa
 
-## Problema Identificado
+## Problema Principal Identificado
 
-O bug **NÃO foi corrigido** porque a correção anterior só tratou a **inicialização do modal de edição** (linha 790), mas **NÃO corrigiu a exibição na tabela** (linha 1221).
+O perfil do colaborador (Daniel) fica em branco porque há um **erro de banco de dados não tratado**:
 
-### Evidência do Bug
-
-**Dados no banco de dados:**
 ```
-mes_referencia: 2026-01-01 (Janeiro 2026)
+column vacation_requests.days_requested does not exist
 ```
 
-**Exibição na tela:**
-```
-dez/2025 (Dezembro 2025)
-```
+Este erro ocorre no `ColaboradorPerfilUnificado.tsx` na linha 152 e faz com que a promise seja rejeitada sem tratamento adequado, resultando em tela em branco.
 
-### Causa Raiz Completa
+---
 
-Na linha 1221 do `RHPagamentos.tsx`:
+## Causa Raiz Detalhada
+
+### 1. Coluna Inexistente na Query de Férias
+
+**Arquivo:** `src/components/rh/ColaboradorPerfilUnificado.tsx`
+**Linhas:** 150-155, 207
+
 ```typescript
-{format(new Date(pag.mes_referencia), 'MMM/yyyy', { locale: ptBR })}
+// CÓDIGO BUGADO - coluna days_requested NÃO EXISTE!
+supabase
+  .from('vacation_requests')
+  .select('id, start_date, end_date, status, days_requested')  // ERRO!
+  .eq('user_id', colaboradorId)
 ```
 
-O JavaScript interpreta `2026-01-01` como meia-noite UTC. No horário de Brasília (UTC-3), isso se torna `31/12/2025 às 21:00`, resultando em "dez/2025" na formatação.
+**Colunas reais da tabela `vacation_requests`:**
+- id, user_id, start_date, end_date
+- **business_days** (esta é a coluna correta!)
+- status, approved_by, approved_at, rejection_reason
+- notes, created_at, updated_at
+- acquisition_period_start, acquisition_period_end, sold_days
+
+### 2. Referência Duplicada à Coluna Inexistente
+
+Na linha 207, o código tenta acessar `f.days_requested`:
+```typescript
+dias_totais: f.days_requested  // ERRO! Deve ser f.business_days
+```
+
+---
+
+## Outros Problemas Identificados
+
+### 3. Bugs de Timezone Ainda Presentes
+
+O `ColaboradorPerfilUnificado.tsx` não foi atualizado para usar o `dateUtils.ts`, ainda usando `format(new Date(...))`:
+
+| Linha | Código Bugado | Problema |
+|-------|---------------|----------|
+| 193 | `format(new Date(p.mes_referencia), 'MMM/yy')` | Mês pode aparecer errado |
+| 248 | `format(new Date(dueDate), 'MMM/yy')` | Data ADVBOX pode aparecer errada |
+| 408 | `format(parse(promocoes[0].data_promocao, ...))` | OK - usa parse corretamente |
+| 594 | `format(new Date(p.mes_referencia), 'MMMM/yyyy')` | Tabela de pagamentos |
+| 598 | `format(new Date(p.data_pagamento), 'dd/MM/yyyy')` | Data de pagamento |
+| 718 | `format(new Date(f.data_inicio), 'dd/MM/yy')` | Datas de férias |
+| 762 | `format(new Date(h.data_alteracao), 'dd/MM/yyyy')` | Histórico de salário |
+
+### 4. Bugs de Timezone no RHAdiantamentos
+
+**Arquivo:** `src/components/rh/RHAdiantamentos.tsx`
+
+| Linha | Código Bugado |
+|-------|---------------|
+| 557 | `format(new Date(adiantamento.data_adiantamento), 'dd/MM/yyyy')` |
+| 627 | `format(new Date(desconto.mes_referencia + '-01'), 'MMM/yyyy')` |
+| 632 | `format(new Date(desconto.data_desconto), 'dd/MM/yyyy')` |
+
+### 5. Bugs de Timezone no RHPagamentos (PDF)
+
+**Arquivo:** `src/components/rh/RHPagamentos.tsx`
+
+| Linha | Código Bugado |
+|-------|---------------|
+| 674 | `format(new Date(pagamento.mes_referencia), 'MMMM/yyyy')` |
+| 679 | `format(new Date(pagamento.data_pagamento), 'dd/MM/yyyy')` |
+| 750 | `format(new Date(pagamento.mes_referencia), 'MM_yyyy')` |
+
+### 6. Bugs de Timezone no RHDashboard
+
+**Arquivo:** `src/components/rh/RHDashboard.tsx`
+
+| Linha | Código Bugado |
+|-------|---------------|
+| 79 | `startOfMonth(new Date(periodoInicio + '-01'))` |
+| 80 | `endOfMonth(new Date(periodoFim + '-01'))` |
 
 ---
 
 ## Correções Necessárias
 
-### 1. Corrigir Exibição do Mês na Tabela de Pagamentos
+### Prioridade 1: Corrigir Erro Crítico (Tela em Branco)
 
-**Arquivo:** `src/components/rh/RHPagamentos.tsx`
-**Linha:** 1221
+**Arquivo:** `src/components/rh/ColaboradorPerfilUnificado.tsx`
 
-**Código atual (bugado):**
+**Correção 1 - Linha 152:**
 ```typescript
-{format(new Date(pag.mes_referencia), 'MMM/yyyy', { locale: ptBR })}
+// ANTES:
+.select('id, start_date, end_date, status, days_requested')
+
+// DEPOIS:
+.select('id, start_date, end_date, status, business_days')
 ```
 
-**Código corrigido:**
+**Correção 2 - Linha 207:**
 ```typescript
-{(() => {
-  const [year, month] = pag.mes_referencia.split('-');
-  const date = new Date(parseInt(year), parseInt(month) - 1, 1, 12, 0, 0);
-  return format(date, 'MMM/yyyy', { locale: ptBR });
-})()}
+// ANTES:
+dias_totais: f.days_requested
+
+// DEPOIS:
+dias_totais: f.business_days
 ```
 
-**Alternativa mais limpa:** Criar uma função helper:
+### Prioridade 2: Adicionar Import do dateUtils
+
 ```typescript
-const formatMesReferencia = (dateStr: string) => {
-  const [year, month] = dateStr.split('-');
-  const date = new Date(parseInt(year), parseInt(month) - 1, 1, 12, 0, 0);
-  return format(date, 'MMM/yyyy', { locale: ptBR });
-};
+import { formatMesReferencia, formatLocalDate, parseLocalDate } from '@/lib/dateUtils';
 ```
 
-### 2. Aplicar Correção Similar em Profile.tsx
+### Prioridade 3: Corrigir Todas as Formatações de Data
 
-**Arquivo:** `src/pages/Profile.tsx`
-**Linhas afetadas:** 415, 1006, 1763
+Substituir todas as ocorrências de `format(new Date(...))` por funções do `dateUtils.ts`:
 
-O mesmo bug existe na página de perfil do colaborador, que também exibe `mes_referencia`.
+- `formatMesReferencia()` - para mês/ano
+- `formatLocalDate()` - para dd/MM/yyyy
 
-### 3. Criar Helper Centralizado para Datas
+### Prioridade 4: Aplicar Mesma Correção em Outros Arquivos RH
 
-Para evitar repetição e garantir consistência, criar uma função utilitária:
-
-**Arquivo:** `src/lib/dateUtils.ts` (novo)
-```typescript
-// Converte string YYYY-MM-DD para Date local sem shift de timezone
-export function parseLocalDate(dateStr: string): Date {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(year, month - 1, day || 1, 12, 0, 0);
-}
-
-// Formata mes_referencia sem bug de timezone
-export function formatMesReferencia(dateStr: string, formatStr = 'MMM/yyyy'): string {
-  const date = parseLocalDate(dateStr);
-  return format(date, formatStr, { locale: ptBR });
-}
-```
-
----
-
-## Auditoria Geral do Sistema Financeiro
-
-Vou verificar todos os componentes críticos para garantir integridade:
-
-### Componentes Verificados
-
-| Componente | Status | Problema Encontrado |
-|------------|--------|---------------------|
-| `RHPagamentos.tsx` | Bug Crítico | Exibição de mes_referencia com timezone shift |
-| `Profile.tsx` | Bug Crítico | Mesmo problema na exibição de pagamentos |
-| `FinanceiroLancamentos.tsx` | OK | Usa `data_lancamento` diretamente como string |
-| `EditarLancamentoDialog.tsx` | OK | Inicializa datas diretamente das strings |
-| `NovoLancamentoDialog.tsx` | OK | Usa `toISOString().split('T')[0]` para datas locais |
-| `FinanceiroFluxoCaixa.tsx` | Atenção | Usa `new Date(data)` na linha 139 (risco menor) |
-| `FinanceiroRecorrencias.tsx` | Atenção | Usa `new Date(dataInicio)` em cálculos |
-| `FinanceiroConciliacao.tsx` | A verificar |
-| `FinanceiroAprovacoes.tsx` | A verificar |
-
-### Pontos de Risco Identificados
-
-1. **Arquivos com mais de 1000 ocorrências de `format(new Date(...))` (73 arquivos)**
-   - Muitos desses são para timestamps completos (com hora), onde o problema é menor
-   - O risco maior está em datas de calendário (YYYY-MM-DD) usadas para referência de mês
-
-2. **Sincronização ADVBox**
-   - Verificar se as datas financeiras importadas do ADVBox estão sendo tratadas corretamente
-   - A lógica atual usa strings diretamente, o que é seguro
-
-3. **Triggers de Auditoria**
-   - Os triggers de auditoria (`audit_log`) funcionam no lado do banco, não são afetados por timezone do JavaScript
+- `RHAdiantamentos.tsx`
+- `RHPagamentos.tsx` (especialmente na geração de PDF)
+- `RHDashboard.tsx`
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/lib/dateUtils.ts` | **CRIAR** - Funções utilitárias de data |
-| `src/components/rh/RHPagamentos.tsx` | Linha 1221 - Corrigir exibição do mês |
-| `src/pages/Profile.tsx` | Linhas 415, 1006, 1763 - Corrigir exibição |
-| `src/components/financeiro/FinanceiroFluxoCaixa.tsx` | Linha 139 - Verificar e corrigir se necessário |
-
----
-
-## Seção Técnica
-
-### Detalhes do Bug de Timezone
-
-O JavaScript possui um comportamento inconsistente ao interpretar strings de data:
-
-```javascript
-// String YYYY-MM-DD é interpretada como UTC
-new Date('2026-01-01')
-// Result: Wed Jan 01 2026 00:00:00 GMT+0000 (UTC)
-// Em Brasília (UTC-3): Tue Dec 31 2025 21:00:00 GMT-0300
-
-// Construtor com componentes é interpretado como local
-new Date(2026, 0, 1)  // Month is 0-indexed
-// Result: Wed Jan 01 2026 00:00:00 GMT-0300 (horário local)
-```
-
-### Solução Correta
-
-Ao trabalhar com datas de calendário (sem horário), sempre:
-
-1. **Parse manual:** Extrair ano, mês, dia da string e criar Date com o construtor de componentes
-2. **Fixar hora ao meio-dia:** `new Date(year, month - 1, day, 12, 0, 0)` para evitar problemas de DST
-3. **Ou tratar como string:** Quando possível, usar `substring(0, 7)` para extrair `YYYY-MM`
-
-### Padrão Recomendado
-
-```typescript
-// ERRADO - causa shift de timezone
-const date = new Date('2026-01-01');
-
-// CORRETO - cria data local
-function parseLocalDate(dateStr: string): Date {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(year, month - 1, day || 1, 12, 0, 0);
-}
-```
+| Arquivo | Alterações |
+|---------|------------|
+| `src/components/rh/ColaboradorPerfilUnificado.tsx` | Corrigir query de férias + imports + formatação de datas |
+| `src/components/rh/RHAdiantamentos.tsx` | Adicionar imports + corrigir formatação de datas |
+| `src/components/rh/RHPagamentos.tsx` | Corrigir formatação no PDF |
+| `src/components/rh/RHDashboard.tsx` | Corrigir criação de datas para filtros |
 
 ---
 
 ## Resumo de Implementação
 
-| Prioridade | Ação | Arquivo |
+| Prioridade | Ação | Impacto |
 |------------|------|---------|
-| **Crítica** | Corrigir exibição de mês na tabela | RHPagamentos.tsx (linha 1221) |
-| **Crítica** | Corrigir exibição de mês no perfil | Profile.tsx (linhas 415, 1006, 1763) |
-| **Alta** | Criar helper centralizado | src/lib/dateUtils.ts (novo arquivo) |
-| **Média** | Verificar fluxo de caixa | FinanceiroFluxoCaixa.tsx |
-| **Média** | Verificar recorrências | FinanceiroRecorrencias.tsx |
-| **Baixa** | Auditoria completa dos 73 arquivos | Todos os componentes com format(new Date()) |
+| **Crítica** | Corrigir `days_requested` para `business_days` | Resolve tela em branco |
+| **Alta** | Adicionar import do `dateUtils` | Prepara correções de timezone |
+| **Alta** | Corrigir `format(new Date(...))` no ColaboradorPerfilUnificado | Datas corretas no perfil |
+| **Média** | Corrigir outros arquivos RH | Consistência em todo módulo |
+| **Baixa** | Melhorar tratamento de erros | Evita telas em branco futuras |
+
+---
+
+## Seção Técnica
+
+### Por que a tela fica em branco?
+
+1. O `ColaboradorPerfilUnificado` usa `Promise.all()` para buscar dados em paralelo
+2. Uma das queries referencia uma coluna inexistente (`days_requested`)
+3. O Supabase retorna um erro
+4. O erro é capturado pelo `catch`, mas o componente já iniciou a renderização
+5. Como a estrutura de dados não está completa, a UI quebra silenciosamente
+
+### Solução de Tratamento de Erro Robusto
+
+Além de corrigir a coluna, adicionar verificação defensiva:
+
+```typescript
+if (!feriasRes.error && feriasRes.data) {
+  const feriasData = feriasRes.data.map((f: any) => ({
+    id: f.id,
+    data_inicio: f.start_date,
+    data_fim: f.end_date,
+    status: f.status,
+    dias_totais: f.business_days || 0  // Fallback para 0 se não existir
+  }));
+  setFerias(feriasData);
+}
+```
+
+### Verificação de Datas no Dashboard RH
+
+O código atual:
+```typescript
+const startDate = startOfMonth(new Date(periodoInicio + '-01'));
+```
+
+Deveria usar o parseLocalDate:
+```typescript
+const startDate = startOfMonth(parseLocalDate(periodoInicio + '-01'));
+```
 
 ---
 
 ## Validação Pós-Implementação
 
-Após as correções, verificar:
-
-1. O pagamento do Daniel aparece como **jan/2026** na lista
-2. O modal de edição mostra **janeiro de 2026**
-3. A página de perfil do colaborador exibe os meses corretamente
-4. Os filtros de período funcionam corretamente
-5. Dados do ADVBox sincronizados estão sendo exibidos com datas corretas
+1. O perfil do Daniel abre corretamente
+2. Os dados de férias aparecem na aba "Carreira"
+3. Os meses de referência aparecem corretamente (sem shift de timezone)
+4. O gráfico de evolução de pagamentos mostra meses corretos
+5. A tabela de pagamentos no perfil mostra datas corretas
+6. O PDF de recibo gera com datas corretas
+7. O dashboard RH filtra corretamente por período
