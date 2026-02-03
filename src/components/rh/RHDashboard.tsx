@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { parseLocalDate, formatMesReferencia } from '@/lib/dateUtils';
 
 interface DashboardData {
   totalPago: number;
@@ -76,8 +77,8 @@ export function RHDashboard() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const startDate = startOfMonth(new Date(periodoInicio + '-01'));
-      const endDate = endOfMonth(new Date(periodoFim + '-01'));
+      const startDate = startOfMonth(parseLocalDate(periodoInicio + '-01'));
+      const endDate = endOfMonth(parseLocalDate(periodoFim + '-01'));
 
       let query = supabase
         .from('rh_pagamentos')
@@ -112,7 +113,7 @@ export function RHDashboard() {
       // Agrupar por mês
       const porMes: Record<string, PagamentoPorMes> = {};
       pagamentos?.forEach(p => {
-        const mes = format(new Date(p.mes_referencia), 'MMM/yy', { locale: ptBR });
+        const mes = formatMesReferencia(p.mes_referencia, 'MMM/yy');
         if (!porMes[mes]) {
           porMes[mes] = { mes, total: 0, vantagens: 0, descontos: 0 };
         }

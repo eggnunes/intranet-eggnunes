@@ -1,19 +1,23 @@
+# ✅ CORREÇÕES APLICADAS - Perfil do Colaborador + Timezone
 
-# Plano: Correção da Tela em Branco no Perfil do Colaborador + Auditoria Completa
+## Correções Realizadas em 03/02/2026
 
-## Problema Principal Identificado
+### 1. Erro Crítico (Tela em Branco) - CORRIGIDO ✅
 
-O perfil do colaborador (Daniel) fica em branco porque há um **erro de banco de dados não tratado**:
+**Problema:** Query usava `days_requested` que não existe
+**Solução:** Alterado para `business_days` (coluna correta)
 
-```
-column vacation_requests.days_requested does not exist
-```
+### 2. Bugs de Timezone - CORRIGIDOS ✅
 
-Este erro ocorre no `ColaboradorPerfilUnificado.tsx` na linha 152 e faz com que a promise seja rejeitada sem tratamento adequado, resultando em tela em branco.
+**Arquivos atualizados:**
+- `ColaboradorPerfilUnificado.tsx` - Importa e usa `formatMesReferencia`, `formatLocalDate`
+- `RHAdiantamentos.tsx` - Corrigido formatação de datas
+- `RHPagamentos.tsx` - Corrigido PDF e exibição
+- `RHDashboard.tsx` - Corrigido filtros de data
 
 ---
 
-## Causa Raiz Detalhada
+## Causa Raiz Original
 
 ### 1. Coluna Inexistente na Query de Férias
 
