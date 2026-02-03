@@ -282,7 +282,8 @@ export function ColaboradorPerfilUnificado({ colaboradorId }: ColaboradorPerfilU
     return labels[position] || position;
   };
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number | null | undefined) => {
+    if (value === null || value === undefined) return 'R$ 0,00';
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
