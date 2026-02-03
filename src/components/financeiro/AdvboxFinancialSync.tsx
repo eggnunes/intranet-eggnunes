@@ -166,28 +166,69 @@ export function AdvboxFinancialSync() {
       return;
     }
 
+    setSyncing(true);
+
     try {
-      toast.info('Limpando dados antigos do ADVBox...');
+      toast.info('Limpando dados antigos do ADVBox... Isso pode levar alguns minutos.');
 
-      // IMPORTANTE: Primeiro limpar tabela de sincronização (que tem FK para fin_lancamentos)
-      // para evitar erro de foreign key constraint
-      const { error: deleteSyncError } = await supabase
-        .from('advbox_financial_sync')
-        .delete()
-        .neq('advbox_transaction_id', 'placeholder');
+      // Usar RPC para deletar em lotes e evitar timeout
+      // Primeiro, limpar tabela de sincronização (FK constraint)
+      let deletedSyncCount = 0;
+      let hasMoreSync = true;
+      
+      while (hasMoreSync) {
+        const { data: syncBatch } = await supabase
+          .from('advbox_financial_sync')
+          .select('id')
+          .limit(500);
+        
+        if (!syncBatch || syncBatch.length === 0) {
+          hasMoreSync = false;
+          break;
+        }
 
-      if (deleteSyncError) {
-        throw new Error(`Erro ao limpar sincronização: ${deleteSyncError.message}`);
+        const idsToDelete = syncBatch.map(r => r.id);
+        const { error: deleteSyncError } = await supabase
+          .from('advbox_financial_sync')
+          .delete()
+          .in('id', idsToDelete);
+
+        if (deleteSyncError) {
+          throw new Error(`Erro ao limpar sincronização: ${deleteSyncError.message}`);
+        }
+
+        deletedSyncCount += idsToDelete.length;
+        toast.info(`Limpando sincronização... ${deletedSyncCount} registros removidos`);
       }
 
-      // Agora sim, deletar lançamentos importados do ADVBox
-      const { error: deleteError } = await supabase
-        .from('fin_lancamentos')
-        .delete()
-        .not('advbox_transaction_id', 'is', null);
+      // Agora deletar lançamentos em lotes
+      let deletedLancCount = 0;
+      let hasMoreLanc = true;
+      
+      while (hasMoreLanc) {
+        const { data: lancBatch } = await supabase
+          .from('fin_lancamentos')
+          .select('id')
+          .not('advbox_transaction_id', 'is', null)
+          .limit(500);
+        
+        if (!lancBatch || lancBatch.length === 0) {
+          hasMoreLanc = false;
+          break;
+        }
 
-      if (deleteError) {
-        throw new Error(`Erro ao limpar lançamentos: ${deleteError.message}`);
+        const idsToDelete = lancBatch.map(r => r.id);
+        const { error: deleteError } = await supabase
+          .from('fin_lancamentos')
+          .delete()
+          .in('id', idsToDelete);
+
+        if (deleteError) {
+          throw new Error(`Erro ao limpar lançamentos: ${deleteError.message}`);
+        }
+
+        deletedLancCount += idsToDelete.length;
+        toast.info(`Limpando lançamentos... ${deletedLancCount} registros removidos`);
       }
 
       // Resetar status
@@ -205,7 +246,7 @@ export function AdvboxFinancialSync() {
         })
         .eq('sync_type', 'financial');
 
-      toast.success('Dados limpos! Iniciando nova sincronização...');
+      toast.success(`Dados limpos! ${deletedLancCount} lançamentos removidos. Iniciando nova sincronização...`);
       
       // Iniciar nova sincronização
       await handleStartSync();
@@ -213,6 +254,7 @@ export function AdvboxFinancialSync() {
     } catch (error) {
       console.error('Erro na resincronização:', error);
       toast.error(error instanceof Error ? error.message : 'Erro ao resincronizar');
+      setSyncing(false);
     }
   };
 
