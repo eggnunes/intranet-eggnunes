@@ -6186,6 +6186,36 @@ export type Database = {
           },
         ]
       }
+      sheets_advbox_sync: {
+        Row: {
+          advbox_customer_id: string
+          client_name: string
+          cpf: string
+          created_at: string
+          id: string
+          sheet_row_id: number | null
+          synced_at: string
+        }
+        Insert: {
+          advbox_customer_id: string
+          client_name: string
+          cpf: string
+          created_at?: string
+          id?: string
+          sheet_row_id?: number | null
+          synced_at?: string
+        }
+        Update: {
+          advbox_customer_id?: string
+          client_name?: string
+          cpf?: string
+          created_at?: string
+          id?: string
+          sheet_row_id?: number | null
+          synced_at?: string
+        }
+        Relationships: []
+      }
       special_powers_templates: {
         Row: {
           created_at: string

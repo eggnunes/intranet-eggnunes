@@ -48,7 +48,8 @@ import {
   RotateCcw,
   Save,
   Settings,
-  BarChart3
+  BarChart3,
+  Upload
 } from "lucide-react";
 import { format, parse, isAfter, isBefore, isEqual, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -173,6 +174,9 @@ const SetorComercial = () => {
   const [declaracaoGeneratorOpen, setDeclaracaoGeneratorOpen] = useState(false);
   const [clientForDeclaracao, setClientForDeclaracao] = useState<Client | null>(null);
 
+  // ADVBox sync
+  const [syncingAdvbox, setSyncingAdvbox] = useState(false);
+
   const fetchProducts = async () => {
     try {
       setProductsLoading(true);
@@ -213,6 +217,40 @@ const SetorComercial = () => {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const syncToAdvbox = async () => {
+    try {
+      setSyncingAdvbox(true);
+      toast.info('Sincronizando clientes com ADVBox...');
+
+      const { data, error } = await supabase.functions.invoke('sync-sheets-to-advbox');
+
+      if (error) throw error;
+
+      if (data.success) {
+        const { this_run, pending } = data;
+        if (this_run.synced > 0 || this_run.existing > 0) {
+          toast.success(
+            `Sincronização concluída! ${this_run.synced} novos clientes cadastrados` +
+            (this_run.existing > 0 ? `, ${this_run.existing} já existiam` : '') +
+            (pending > 0 ? `. ${pending} aguardando próxima execução.` : '')
+          );
+        } else if (this_run.errors > 0) {
+          toast.error(`Erros durante sincronização: ${this_run.errors} falhas`);
+        } else {
+          toast.info('Nenhum cliente novo para sincronizar');
+        }
+      } else {
+        throw new Error(data.error || 'Erro desconhecido');
+      }
+    } catch (error: unknown) {
+      console.error('Error syncing to ADVBox:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao sincronizar';
+      toast.error(errorMessage);
+    } finally {
+      setSyncingAdvbox(false);
     }
   };
 
@@ -378,6 +416,19 @@ const SetorComercial = () => {
                 Modelos
               </Button>
             )}
+            <Button 
+              onClick={syncToAdvbox}
+              disabled={syncingAdvbox}
+              variant="outline"
+              title="Sincronizar novos clientes do formulário com o ADVBox"
+            >
+              {syncingAdvbox ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 mr-2" />
+              )}
+              Sincronizar ADVBox
+            </Button>
             <Button 
               onClick={() => fetchClients(true)} 
               disabled={refreshing}
