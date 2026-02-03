@@ -169,7 +169,18 @@ export function AdvboxFinancialSync() {
     try {
       toast.info('Limpando dados antigos do ADVBox...');
 
-      // Deletar lançamentos importados do ADVBox
+      // IMPORTANTE: Primeiro limpar tabela de sincronização (que tem FK para fin_lancamentos)
+      // para evitar erro de foreign key constraint
+      const { error: deleteSyncError } = await supabase
+        .from('advbox_financial_sync')
+        .delete()
+        .neq('advbox_transaction_id', 'placeholder');
+
+      if (deleteSyncError) {
+        throw new Error(`Erro ao limpar sincronização: ${deleteSyncError.message}`);
+      }
+
+      // Agora sim, deletar lançamentos importados do ADVBox
       const { error: deleteError } = await supabase
         .from('fin_lancamentos')
         .delete()
@@ -177,16 +188,6 @@ export function AdvboxFinancialSync() {
 
       if (deleteError) {
         throw new Error(`Erro ao limpar lançamentos: ${deleteError.message}`);
-      }
-
-      // Limpar tabela de sincronização
-      const { error: deleteSyncError } = await supabase
-        .from('advbox_financial_sync')
-        .delete()
-        .neq('advbox_transaction_id', 'placeholder');
-
-      if (deleteSyncError) {
-        console.error('Erro ao limpar sync:', deleteSyncError);
       }
 
       // Resetar status
