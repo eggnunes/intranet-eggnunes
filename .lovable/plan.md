@@ -1,127 +1,109 @@
 
-# Plano: Implementação das Rubricas para Assistente Comercial
+# Plano: Corrigir Edição de Mês de Referência em Pagamentos + Auditoria do Financeiro
 
-## Resumo
+## Problema Identificado
 
-Vou adicionar as rubricas específicas que aparecem no contracheque do Assistente Comercial e ajustar a lógica do sistema de pagamentos para exibir corretamente essas rubricas apenas para este cargo.
+O mês de referência não está sendo alterado corretamente porque há um **bug de timezone** na conversão de datas.
 
----
+### Causa Raiz
+Quando você tenta editar um pagamento:
+1. O sistema lê a data `2025-12-01` do banco
+2. Converte para objeto `Date` usando `new Date(pagamento.mes_referencia)`
+3. Dependendo do timezone do navegador, `2025-12-01 00:00 UTC` pode virar `30/11/2025 21:00` no horário de Brasília
+4. O `format()` então exibe `2025-11` em vez de `2025-12`
+5. Mesmo alterando para `2025-01`, a data exibida estava errada desde o início
 
-## Análise Comparativa
+### Status Atual do Pagamento do Daniel
+Verificação no banco de dados mostra:
+- **mes_referencia**: `2026-01-01` (Janeiro 2026)
+- **data_pagamento**: `2026-01-30`
+- **status**: processado
 
-### Rubricas do Contracheque (imagem):
-
-| Código | Descrição | Tipo | Status |
-|--------|-----------|------|--------|
-| 001 | Salário Base | Vantagem | ✅ Existe (Honorários Mensais) |
-| 400 | Comissão | Vantagem | ✅ Existe |
-| 423 | Repouso Remunerado | Vantagem | ❌ Criar |
-| 144 | Prêmio Comissão | Vantagem | ❌ Criar |
-| 439 | DSR s/prêmio | Vantagem | ❌ Criar |
-| 604 | Vale Transporte | Desconto | ✅ Existe |
-| 903 | INSS Folha | Desconto | ✅ Existe |
-
-### Ação Necessária
-
-Criar **3 novas rubricas** no banco de dados para completar o contracheque do Assistente Comercial.
+O pagamento já está em janeiro de 2026, mas o filtro atual pode estar mostrando outro mês.
 
 ---
 
-## Etapas de Implementação
+## Correções Necessárias
 
-### Etapa 1: Criar Novas Rubricas no Banco de Dados
+### 1. Corrigir Bug de Timezone no RHPagamentos
 
-Adicionar via migration SQL as seguintes rubricas específicas para o comercial:
+**Arquivo**: `src/components/rh/RHPagamentos.tsx`
 
-```text
-1. Repouso Remunerado (vantagem, ordem 16)
-   - Descrição: DSR sobre comissões para assistentes comerciais
+**Alteração na inicialização do campo de edição (linha 788):**
+```typescript
+// ANTES (bugado):
+setEditMesReferencia(format(new Date(pagamento.mes_referencia), 'yyyy-MM'));
 
-2. Prêmio Comissão (vantagem, ordem 17)
-   - Descrição: Premiação adicional sobre comissões
-
-3. DSR s/prêmio (vantagem, ordem 18)
-   - Descrição: Descanso semanal remunerado sobre prêmio
+// DEPOIS (corrigido):
+setEditMesReferencia(pagamento.mes_referencia.substring(0, 7));
 ```
 
-### Etapa 2: Atualizar Lógica de Exibição de Rubricas
+Isso extrai diretamente os primeiros 7 caracteres da string (`2026-01`), evitando qualquer conversão de timezone.
 
-Modificar o componente `RHPagamentos.tsx` para:
+### 2. Corrigir Conversão na Busca de Pagamentos
 
-1. **Identificar o cargo "Assistente Comercial"** pelo ID ou nome
-2. **Filtrar rubricas específicas** quando o colaborador selecionado for do cargo comercial:
-   - Mostrar apenas as rubricas relevantes para o contracheque comercial
-   - Manter compatibilidade com outros cargos CLT
+Mesma lógica para evitar problemas ao exibir os pagamentos na tabela - garantir que as datas sejam tratadas como strings quando possível.
 
-### Etapa 3: Adicionar Constantes de IDs
+### 3. Adicionar Log de Depuração Temporário
 
-Adicionar no `RHPagamentos.tsx`:
-- IDs das novas rubricas
-- Lista de rubricas permitidas para Assistente Comercial
+Para garantir que as alterações estão sendo enviadas corretamente ao banco.
 
 ---
 
-## Detalhes Técnicos
+## Verificação Geral do Módulo Financeiro
 
-### Migration SQL
+Como solicitado, vou criar uma tarefa para revisar todo o sistema financeiro.
 
-```sql
-INSERT INTO rh_rubricas (nome, tipo, ordem, descricao, is_active)
-VALUES 
-  ('Repouso Remunerado', 'vantagem', 16, 'DSR sobre comissões para assistentes comerciais', true),
-  ('Prêmio Comissão', 'vantagem', 17, 'Premiação adicional sobre comissões', true),
-  ('DSR s/prêmio', 'vantagem', 18, 'Descanso semanal remunerado sobre prêmio', true);
+### Componentes a Verificar:
+1. **RHPagamentos.tsx** - Edição de pagamentos (problema atual)
+2. **FinanceiroLancamentos.tsx** - Listagem e edição de lançamentos
+3. **EditarLancamentoDialog.tsx** - Modal de edição de lançamentos
+4. **NovoLancamentoDialog.tsx** - Criação de novos lançamentos
+5. **FinanceiroFluxoCaixa.tsx** - Fluxo de caixa
+6. **FinanceiroRecorrencias.tsx** - Lançamentos recorrentes
+7. **FinanceiroAprovacoes.tsx** - Aprovações pendentes
+8. **FinanceiroConciliacao.tsx** - Conciliação bancária
+9. **Triggers de Auditoria** - Verificar se estão funcionando
+
+### Pontos de Verificação:
+- Conversão de datas (timezone issues)
+- Filtros de período
+- Salvamento de dados
+- Integridade de dados entre RH e Financeiro (trigger de sincronização)
+- Policies de RLS para visualização/edição
+
+---
+
+## Resumo de Implementação
+
+| Prioridade | Ação | Arquivo |
+|------------|------|---------|
+| Alta | Corrigir bug de timezone na edição | RHPagamentos.tsx |
+| Alta | Verificar se filtro de mês está correto | RHPagamentos.tsx |
+| Média | Revisar outros componentes com datas | Módulo financeiro |
+| Baixa | Adicionar validações extras | Geral |
+
+---
+
+## Seção Técnica
+
+### Detalhes do Bug de Timezone
+
+O JavaScript interpreta datas no formato `YYYY-MM-DD` como UTC:
+```javascript
+new Date('2025-12-01') 
+// Resultado: Mon Dec 01 2025 00:00:00 GMT+0000 (UTC)
+// No horário de Brasília (UTC-3): Sun Nov 30 2025 21:00:00
 ```
 
-### Lógica de Filtro (pseudocódigo)
+Isso causa o "dia anterior" em países com timezone negativo (como o Brasil).
 
-```text
-SE cargo.nome = "Assistente Comercial" ENTÃO
-  vantagens = [
-    Honorários Mensais (como "Salário Base"),
-    Comissão,
-    Repouso Remunerado,
-    Prêmio Comissão,
-    DSR s/prêmio
-  ]
-  descontos = [
-    Vale Transporte,
-    INSS,
-    Adiantamento,
-    IRPF
-  ]
-SENÃO SE cargo.tipo = "clt" ENTÃO
-  // Lógica atual para CLT
-SENÃO
-  // Lógica atual para advogados/sócios
+### Solução Implementada
+Extrair substring diretamente, sem passar pela conversão `Date`:
+```javascript
+'2025-12-01'.substring(0, 7) // '2025-12' - sempre correto
 ```
 
----
-
-## Arquivos a Modificar
-
-1. **Nova Migration SQL**: Inserir as 3 novas rubricas
-2. **src/components/rh/RHPagamentos.tsx**: 
-   - Adicionar constantes com IDs das novas rubricas
-   - Criar lista `COMERCIAL_VANTAGENS` com IDs específicos
-   - Modificar `getVantagensFiltradas()` para filtrar por cargo comercial
-   - Ajustar `getRubricaLabel()` para renomear "Honorários Mensais" → "Salário Base" para comercial
-
----
-
-## Resultado Esperado
-
-Ao registrar pagamento para um Assistente Comercial, o formulário exibirá exatamente as mesmas rubricas do contracheque:
-
-**Vantagens:**
-- Salário Base (R$ 1.971,36)
-- Comissão
-- Repouso Remunerado
-- Prêmio Comissão
-- DSR s/prêmio
-
-**Descontos:**
-- Vale Transporte
-- INSS Folha
-- Adiantamento (se houver)
-- IRPF (se aplicável)
+### Arquivos Modificados
+1. `src/components/rh/RHPagamentos.tsx`
+   - Linha 788: Corrigir inicialização de `editMesReferencia`
