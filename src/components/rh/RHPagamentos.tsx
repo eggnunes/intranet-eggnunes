@@ -13,7 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, FileText, DollarSign, Calendar, Users, Printer, AlertCircle, PieChart, Trash2 } from 'lucide-react';
+import { Plus, FileText, DollarSign, Calendar, Users, Printer, AlertCircle, PieChart, Trash2, Pencil } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
@@ -111,6 +111,7 @@ interface Pagamento {
   total_liquido: number;
   data_pagamento: string | null;
   recibo_gerado: boolean;
+  observacoes?: string | null;
   profiles: { full_name: string; email: string };
 }
 
@@ -139,6 +140,15 @@ export function RHPagamentos() {
   const [categorias, setCategorias] = useState<{ id: string; nome: string }[]>([]);
   // Estado separado para os valores de texto exibidos nos inputs (preserva cursor)
   const [displayValues, setDisplayValues] = useState<Record<string, string>>({});
+  
+  // Estados para edição de pagamento
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingPagamento, setEditingPagamento] = useState<Pagamento | null>(null);
+  const [editMesReferencia, setEditMesReferencia] = useState('');
+  const [editDataPagamento, setEditDataPagamento] = useState('');
+  const [editObservacoes, setEditObservacoes] = useState('');
+  const [editStatus, setEditStatus] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -772,6 +782,45 @@ export function RHPagamentos() {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
+  // Funções de edição de pagamento
+  const handleEditPagamento = (pagamento: Pagamento) => {
+    setEditingPagamento(pagamento);
+    setEditMesReferencia(format(new Date(pagamento.mes_referencia), 'yyyy-MM'));
+    setEditDataPagamento(pagamento.data_pagamento || format(new Date(), 'yyyy-MM-dd'));
+    setEditObservacoes('');
+    setEditStatus(pagamento.status);
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingPagamento) return;
+    
+    setSavingEdit(true);
+    try {
+      const { error } = await supabase
+        .from('rh_pagamentos')
+        .update({
+          mes_referencia: editMesReferencia + '-01',
+          data_pagamento: editDataPagamento,
+          status: editStatus,
+          observacoes: editObservacoes || editingPagamento.observacoes,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingPagamento.id);
+
+      if (error) throw error;
+
+      toast.success('Pagamento atualizado com sucesso!');
+      setEditDialogOpen(false);
+      setEditingPagamento(null);
+      fetchPagamentos();
+    } catch (error: any) {
+      toast.error('Erro ao atualizar pagamento: ' + error.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const totais = calcularTotais();
 
   if (loading) {
@@ -1184,10 +1233,15 @@ export function RHPagamentos() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={() => gerarRecibo(pag)}>
-                      <FileText className="h-4 w-4 mr-1" />
-                      {pag.recibo_gerado ? 'Reimprimir' : 'Gerar'} Recibo
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => handleEditPagamento(pag)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => gerarRecibo(pag)}>
+                        <FileText className="h-4 w-4 mr-1" />
+                        {pag.recibo_gerado ? 'Reimprimir' : 'Gerar'}
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -1201,6 +1255,76 @@ export function RHPagamentos() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog de Edição */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar Pagamento</DialogTitle>
+          </DialogHeader>
+          {editingPagamento && (
+            <div className="space-y-4">
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="font-medium">{editingPagamento.profiles.full_name}</p>
+                <p className="text-sm text-muted-foreground">
+                  Valor líquido: {formatCurrency(editingPagamento.total_liquido)}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Mês Referência</Label>
+                <Input
+                  type="month"
+                  value={editMesReferencia}
+                  onChange={(e) => setEditMesReferencia(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Data do Pagamento</Label>
+                <Input
+                  type="date"
+                  value={editDataPagamento}
+                  onChange={(e) => setEditDataPagamento(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={editStatus} onValueChange={setEditStatus}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="processado">Processado</SelectItem>
+                    <SelectItem value="pago">Pago</SelectItem>
+                    <SelectItem value="cancelado">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Observações</Label>
+                <Textarea
+                  placeholder="Adicionar observações..."
+                  value={editObservacoes}
+                  onChange={(e) => setEditObservacoes(e.target.value)}
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleSaveEdit} disabled={savingEdit}>
+                  {savingEdit ? 'Salvando...' : 'Salvar Alterações'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
