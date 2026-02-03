@@ -785,7 +785,9 @@ export function RHPagamentos() {
   // Funções de edição de pagamento
   const handleEditPagamento = (pagamento: Pagamento) => {
     setEditingPagamento(pagamento);
-    setEditMesReferencia(format(new Date(pagamento.mes_referencia), 'yyyy-MM'));
+    // Fix: Usar substring para evitar bug de timezone ao converter datas
+    // new Date('2025-12-01') em UTC-3 vira '2025-11-30 21:00' local, causando mês errado
+    setEditMesReferencia(pagamento.mes_referencia.substring(0, 7));
     setEditDataPagamento(pagamento.data_pagamento || format(new Date(), 'yyyy-MM-dd'));
     setEditObservacoes('');
     setEditStatus(pagamento.status);
