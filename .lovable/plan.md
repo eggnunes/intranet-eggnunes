@@ -1,87 +1,132 @@
 
-# Plano: Corrigir Edição de Mês de Referência em Pagamentos + Auditoria do Financeiro
+# Plano: Correção Completa de Timezone + Auditoria Geral da Intranet
 
 ## Problema Identificado
 
-O mês de referência não está sendo alterado corretamente porque há um **bug de timezone** na conversão de datas.
+O bug **NÃO foi corrigido** porque a correção anterior só tratou a **inicialização do modal de edição** (linha 790), mas **NÃO corrigiu a exibição na tabela** (linha 1221).
 
-### Causa Raiz
-Quando você tenta editar um pagamento:
-1. O sistema lê a data `2025-12-01` do banco
-2. Converte para objeto `Date` usando `new Date(pagamento.mes_referencia)`
-3. Dependendo do timezone do navegador, `2025-12-01 00:00 UTC` pode virar `30/11/2025 21:00` no horário de Brasília
-4. O `format()` então exibe `2025-11` em vez de `2025-12`
-5. Mesmo alterando para `2025-01`, a data exibida estava errada desde o início
+### Evidência do Bug
 
-### Status Atual do Pagamento do Daniel
-Verificação no banco de dados mostra:
-- **mes_referencia**: `2026-01-01` (Janeiro 2026)
-- **data_pagamento**: `2026-01-30`
-- **status**: processado
+**Dados no banco de dados:**
+```
+mes_referencia: 2026-01-01 (Janeiro 2026)
+```
 
-O pagamento já está em janeiro de 2026, mas o filtro atual pode estar mostrando outro mês.
+**Exibição na tela:**
+```
+dez/2025 (Dezembro 2025)
+```
+
+### Causa Raiz Completa
+
+Na linha 1221 do `RHPagamentos.tsx`:
+```typescript
+{format(new Date(pag.mes_referencia), 'MMM/yyyy', { locale: ptBR })}
+```
+
+O JavaScript interpreta `2026-01-01` como meia-noite UTC. No horário de Brasília (UTC-3), isso se torna `31/12/2025 às 21:00`, resultando em "dez/2025" na formatação.
 
 ---
 
 ## Correções Necessárias
 
-### 1. Corrigir Bug de Timezone no RHPagamentos
+### 1. Corrigir Exibição do Mês na Tabela de Pagamentos
 
-**Arquivo**: `src/components/rh/RHPagamentos.tsx`
+**Arquivo:** `src/components/rh/RHPagamentos.tsx`
+**Linha:** 1221
 
-**Alteração na inicialização do campo de edição (linha 788):**
+**Código atual (bugado):**
 ```typescript
-// ANTES (bugado):
-setEditMesReferencia(format(new Date(pagamento.mes_referencia), 'yyyy-MM'));
-
-// DEPOIS (corrigido):
-setEditMesReferencia(pagamento.mes_referencia.substring(0, 7));
+{format(new Date(pag.mes_referencia), 'MMM/yyyy', { locale: ptBR })}
 ```
 
-Isso extrai diretamente os primeiros 7 caracteres da string (`2026-01`), evitando qualquer conversão de timezone.
+**Código corrigido:**
+```typescript
+{(() => {
+  const [year, month] = pag.mes_referencia.split('-');
+  const date = new Date(parseInt(year), parseInt(month) - 1, 1, 12, 0, 0);
+  return format(date, 'MMM/yyyy', { locale: ptBR });
+})()}
+```
 
-### 2. Corrigir Conversão na Busca de Pagamentos
+**Alternativa mais limpa:** Criar uma função helper:
+```typescript
+const formatMesReferencia = (dateStr: string) => {
+  const [year, month] = dateStr.split('-');
+  const date = new Date(parseInt(year), parseInt(month) - 1, 1, 12, 0, 0);
+  return format(date, 'MMM/yyyy', { locale: ptBR });
+};
+```
 
-Mesma lógica para evitar problemas ao exibir os pagamentos na tabela - garantir que as datas sejam tratadas como strings quando possível.
+### 2. Aplicar Correção Similar em Profile.tsx
 
-### 3. Adicionar Log de Depuração Temporário
+**Arquivo:** `src/pages/Profile.tsx`
+**Linhas afetadas:** 415, 1006, 1763
 
-Para garantir que as alterações estão sendo enviadas corretamente ao banco.
+O mesmo bug existe na página de perfil do colaborador, que também exibe `mes_referencia`.
+
+### 3. Criar Helper Centralizado para Datas
+
+Para evitar repetição e garantir consistência, criar uma função utilitária:
+
+**Arquivo:** `src/lib/dateUtils.ts` (novo)
+```typescript
+// Converte string YYYY-MM-DD para Date local sem shift de timezone
+export function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day || 1, 12, 0, 0);
+}
+
+// Formata mes_referencia sem bug de timezone
+export function formatMesReferencia(dateStr: string, formatStr = 'MMM/yyyy'): string {
+  const date = parseLocalDate(dateStr);
+  return format(date, formatStr, { locale: ptBR });
+}
+```
 
 ---
 
-## Verificação Geral do Módulo Financeiro
+## Auditoria Geral do Sistema Financeiro
 
-Como solicitado, vou criar uma tarefa para revisar todo o sistema financeiro.
+Vou verificar todos os componentes críticos para garantir integridade:
 
-### Componentes a Verificar:
-1. **RHPagamentos.tsx** - Edição de pagamentos (problema atual)
-2. **FinanceiroLancamentos.tsx** - Listagem e edição de lançamentos
-3. **EditarLancamentoDialog.tsx** - Modal de edição de lançamentos
-4. **NovoLancamentoDialog.tsx** - Criação de novos lançamentos
-5. **FinanceiroFluxoCaixa.tsx** - Fluxo de caixa
-6. **FinanceiroRecorrencias.tsx** - Lançamentos recorrentes
-7. **FinanceiroAprovacoes.tsx** - Aprovações pendentes
-8. **FinanceiroConciliacao.tsx** - Conciliação bancária
-9. **Triggers de Auditoria** - Verificar se estão funcionando
+### Componentes Verificados
 
-### Pontos de Verificação:
-- Conversão de datas (timezone issues)
-- Filtros de período
-- Salvamento de dados
-- Integridade de dados entre RH e Financeiro (trigger de sincronização)
-- Policies de RLS para visualização/edição
+| Componente | Status | Problema Encontrado |
+|------------|--------|---------------------|
+| `RHPagamentos.tsx` | Bug Crítico | Exibição de mes_referencia com timezone shift |
+| `Profile.tsx` | Bug Crítico | Mesmo problema na exibição de pagamentos |
+| `FinanceiroLancamentos.tsx` | OK | Usa `data_lancamento` diretamente como string |
+| `EditarLancamentoDialog.tsx` | OK | Inicializa datas diretamente das strings |
+| `NovoLancamentoDialog.tsx` | OK | Usa `toISOString().split('T')[0]` para datas locais |
+| `FinanceiroFluxoCaixa.tsx` | Atenção | Usa `new Date(data)` na linha 139 (risco menor) |
+| `FinanceiroRecorrencias.tsx` | Atenção | Usa `new Date(dataInicio)` em cálculos |
+| `FinanceiroConciliacao.tsx` | A verificar |
+| `FinanceiroAprovacoes.tsx` | A verificar |
+
+### Pontos de Risco Identificados
+
+1. **Arquivos com mais de 1000 ocorrências de `format(new Date(...))` (73 arquivos)**
+   - Muitos desses são para timestamps completos (com hora), onde o problema é menor
+   - O risco maior está em datas de calendário (YYYY-MM-DD) usadas para referência de mês
+
+2. **Sincronização ADVBox**
+   - Verificar se as datas financeiras importadas do ADVBox estão sendo tratadas corretamente
+   - A lógica atual usa strings diretamente, o que é seguro
+
+3. **Triggers de Auditoria**
+   - Os triggers de auditoria (`audit_log`) funcionam no lado do banco, não são afetados por timezone do JavaScript
 
 ---
 
-## Resumo de Implementação
+## Arquivos a Modificar
 
-| Prioridade | Ação | Arquivo |
-|------------|------|---------|
-| Alta | Corrigir bug de timezone na edição | RHPagamentos.tsx |
-| Alta | Verificar se filtro de mês está correto | RHPagamentos.tsx |
-| Média | Revisar outros componentes com datas | Módulo financeiro |
-| Baixa | Adicionar validações extras | Geral |
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/lib/dateUtils.ts` | **CRIAR** - Funções utilitárias de data |
+| `src/components/rh/RHPagamentos.tsx` | Linha 1221 - Corrigir exibição do mês |
+| `src/pages/Profile.tsx` | Linhas 415, 1006, 1763 - Corrigir exibição |
+| `src/components/financeiro/FinanceiroFluxoCaixa.tsx` | Linha 139 - Verificar e corrigir se necessário |
 
 ---
 
@@ -89,21 +134,61 @@ Como solicitado, vou criar uma tarefa para revisar todo o sistema financeiro.
 
 ### Detalhes do Bug de Timezone
 
-O JavaScript interpreta datas no formato `YYYY-MM-DD` como UTC:
+O JavaScript possui um comportamento inconsistente ao interpretar strings de data:
+
 ```javascript
-new Date('2025-12-01') 
-// Resultado: Mon Dec 01 2025 00:00:00 GMT+0000 (UTC)
-// No horário de Brasília (UTC-3): Sun Nov 30 2025 21:00:00
+// String YYYY-MM-DD é interpretada como UTC
+new Date('2026-01-01')
+// Result: Wed Jan 01 2026 00:00:00 GMT+0000 (UTC)
+// Em Brasília (UTC-3): Tue Dec 31 2025 21:00:00 GMT-0300
+
+// Construtor com componentes é interpretado como local
+new Date(2026, 0, 1)  // Month is 0-indexed
+// Result: Wed Jan 01 2026 00:00:00 GMT-0300 (horário local)
 ```
 
-Isso causa o "dia anterior" em países com timezone negativo (como o Brasil).
+### Solução Correta
 
-### Solução Implementada
-Extrair substring diretamente, sem passar pela conversão `Date`:
-```javascript
-'2025-12-01'.substring(0, 7) // '2025-12' - sempre correto
+Ao trabalhar com datas de calendário (sem horário), sempre:
+
+1. **Parse manual:** Extrair ano, mês, dia da string e criar Date com o construtor de componentes
+2. **Fixar hora ao meio-dia:** `new Date(year, month - 1, day, 12, 0, 0)` para evitar problemas de DST
+3. **Ou tratar como string:** Quando possível, usar `substring(0, 7)` para extrair `YYYY-MM`
+
+### Padrão Recomendado
+
+```typescript
+// ERRADO - causa shift de timezone
+const date = new Date('2026-01-01');
+
+// CORRETO - cria data local
+function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day || 1, 12, 0, 0);
+}
 ```
 
-### Arquivos Modificados
-1. `src/components/rh/RHPagamentos.tsx`
-   - Linha 788: Corrigir inicialização de `editMesReferencia`
+---
+
+## Resumo de Implementação
+
+| Prioridade | Ação | Arquivo |
+|------------|------|---------|
+| **Crítica** | Corrigir exibição de mês na tabela | RHPagamentos.tsx (linha 1221) |
+| **Crítica** | Corrigir exibição de mês no perfil | Profile.tsx (linhas 415, 1006, 1763) |
+| **Alta** | Criar helper centralizado | src/lib/dateUtils.ts (novo arquivo) |
+| **Média** | Verificar fluxo de caixa | FinanceiroFluxoCaixa.tsx |
+| **Média** | Verificar recorrências | FinanceiroRecorrencias.tsx |
+| **Baixa** | Auditoria completa dos 73 arquivos | Todos os componentes com format(new Date()) |
+
+---
+
+## Validação Pós-Implementação
+
+Após as correções, verificar:
+
+1. O pagamento do Daniel aparece como **jan/2026** na lista
+2. O modal de edição mostra **janeiro de 2026**
+3. A página de perfil do colaborador exibe os meses corretamente
+4. Os filtros de período funcionam corretamente
+5. Dados do ADVBox sincronizados estão sendo exibidos com datas corretas
