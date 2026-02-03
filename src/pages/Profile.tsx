@@ -23,6 +23,7 @@ import { EmailNotificationSettings } from '@/components/EmailNotificationSetting
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { maskPhone, maskCPF, maskCEP, fetchAddressByCEP, unmask } from '@/lib/masks';
+import { formatMesReferencia } from '@/lib/dateUtils';
 import { ColaboradorDocumentos, ColaboradorDocumentosMedicos } from '@/components/rh';
 
 const BRAZILIAN_STATES = [
@@ -412,7 +413,7 @@ export default function Profile() {
 
     if (!error && data) {
       const pagamentosFormatados = data.map(p => ({
-        mes: format(new Date(p.mes_referencia), 'MMM/yy', { locale: ptBR }),
+        mes: formatMesReferencia(p.mes_referencia, 'MMM/yy'),
         total_liquido: p.total_liquido,
         total_vantagens: p.total_vantagens,
         total_descontos: p.total_descontos
@@ -1003,7 +1004,7 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                     {viewingPagamentos.map((pag) => (
                       <TableRow key={pag.id}>
                         <TableCell>
-                          {format(new Date(pag.mes_referencia), "MMMM/yyyy", { locale: ptBR })}
+                          {formatMesReferencia(pag.mes_referencia, "MMMM/yyyy")}
                         </TableCell>
                         <TableCell className="font-medium">
                           {Number(pag.total_liquido).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
@@ -1760,7 +1761,7 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                   {pagamentos.map((pag) => (
                     <TableRow key={pag.id}>
                       <TableCell>
-                        {format(new Date(pag.mes_referencia), "MMMM/yyyy", { locale: ptBR })}
+                        {formatMesReferencia(pag.mes_referencia, "MMMM/yyyy")}
                       </TableCell>
                       <TableCell className="font-medium">
                         {Number(pag.total_liquido).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}

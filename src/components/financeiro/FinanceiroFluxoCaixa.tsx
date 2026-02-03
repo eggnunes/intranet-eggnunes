@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { format, addDays, addMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatLocalDate, formatLocalDateWithWeekday } from '@/lib/dateUtils';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 interface FluxoData {
@@ -136,7 +137,7 @@ export function FinanceiroFluxoCaixa() {
 
           fluxoArray.push({
             data,
-            dataFormatada: format(new Date(data), 'dd/MM', { locale: ptBR }),
+            dataFormatada: formatLocalDate(data, 'dd/MM'),
             entradas: valores.entradas,
             saidas: valores.saidas,
             saldo,
@@ -346,7 +347,7 @@ export function FinanceiroFluxoCaixa() {
                     item.saldoAcumulado < 0 ? 'bg-red-50 dark:bg-red-900/10' : ''
                   }`}>
                     <td className="py-2 px-4">
-                      {format(new Date(item.data), 'dd/MM/yyyy (EEE)', { locale: ptBR })}
+                      {formatLocalDateWithWeekday(item.data)}
                     </td>
                     <td className="text-right py-2 px-4 text-green-600">
                       {item.entradas > 0 ? formatCurrency(item.entradas) : '-'}

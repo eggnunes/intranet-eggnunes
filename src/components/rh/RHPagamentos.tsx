@@ -20,6 +20,7 @@ import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import { formatCurrency, parseCurrency, maskCurrency } from '@/lib/masks';
+import { formatMesReferencia } from '@/lib/dateUtils';
 
 interface Cargo {
   id: string;
@@ -1218,7 +1219,7 @@ export function RHPagamentos() {
                   </TableCell>
                   <TableCell className="font-medium">{pag.profiles.full_name}</TableCell>
                   <TableCell>
-                    {format(new Date(pag.mes_referencia), 'MMM/yyyy', { locale: ptBR })}
+                    {formatMesReferencia(pag.mes_referencia)}
                   </TableCell>
                   <TableCell className="text-right text-green-600">
                     {formatCurrency(pag.total_vantagens)}
