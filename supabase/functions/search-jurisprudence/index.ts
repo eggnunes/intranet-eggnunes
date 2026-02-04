@@ -57,7 +57,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'sonar',
+        model: 'sonar-pro',
         messages: [
           {
             role: 'system',
@@ -71,31 +71,39 @@ Para cada decisão encontrada, retorne um JSON estruturado:
 {
   "jurisprudencias": [
     {
-      "tribunal": "Nome do tribunal",
-      "numero_processo": "Número do processo",
-      "relator": "Nome do relator",
-      "data_julgamento": "Data do julgamento",
-      "ementa": "Ementa da decisão",
-      "resumo": "Resumo da tese jurídica",
-      "area_direito": "civil|trabalhista|penal|tributario|administrativo|constitucional|previdenciario|consumidor|ambiental|empresarial|outro",
-      "tese_firmada": "Tese jurídica principal"
+      "tribunal": "Nome do tribunal (ex: STF, STJ, TJ-SP, TRT-2)",
+      "numero_processo": "Número completo do processo",
+      "relator": "Nome do relator/desembargador",
+      "orgao_julgador": "Turma, Câmara ou Seção que julgou (ex: 2ª Turma, 3ª Câmara de Direito Privado)",
+      "data_julgamento": "Data do julgamento no formato DD/MM/AAAA",
+      "ementa": "EMENTA COMPLETA E INTEGRAL da decisão, sem resumir ou truncar. Copie a ementa inteira como consta no acórdão, incluindo todos os tópicos e parágrafos.",
+      "resumo": "Breve resumo em 2-3 frases explicando a decisão de forma didática",
+      "area_direito": "civil|trabalhista|penal|tributario|administrativo|constitucional|previdenciario|consumidor|ambiental|empresarial|familia|outro",
+      "assunto": "Tema principal da decisão (ex: Dano moral, Rescisão contratual, Indenização por acidente)",
+      "tese_firmada": "Tese jurídica principal firmada na decisão",
+      "palavras_chave": ["palavra1", "palavra2", "palavra3"]
     }
   ],
-  "observacoes_gerais": "Observações sobre os resultados"
+  "observacoes_gerais": "Observações sobre os resultados encontrados"
 }
 
-REGRAS:
-1. Busque EXATAMENTE ${maxResults} jurisprudências relevantes
-2. Retorne APENAS o JSON, sem texto adicional
-3. Seja preciso nas citações`
+REGRAS IMPORTANTES:
+1. Busque EXATAMENTE ${maxResults} jurisprudências relevantes e recentes
+2. A EMENTA deve ser COMPLETA e INTEGRAL - não resuma, não trunque, copie integralmente
+3. Retorne APENAS o JSON, sem texto adicional
+4. Seja preciso nas citações e números de processos
+5. Inclua o órgão julgador (Turma, Câmara, Seção) quando disponível
+6. Identifique corretamente a área do direito e o assunto principal`
           },
           {
             role: 'user',
-            content: `Pesquise ${maxResults} jurisprudências sobre: ${query}`
+            content: `Pesquise ${maxResults} jurisprudências RECENTES e RELEVANTES sobre: ${query}
+
+IMPORTANTE: Traga a EMENTA COMPLETA de cada decisão, sem resumir ou cortar.`
           }
         ],
         temperature: 0.2,
-        max_tokens: 4000,
+        max_tokens: 8000,
         return_images: false,
         return_related_questions: false
       }),
