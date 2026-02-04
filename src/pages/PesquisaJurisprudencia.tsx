@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Layout } from '@/components/Layout';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,8 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Search, History, Bookmark, Loader2, Trash2, Download, Save } from 'lucide-react';
+import { Search, History, Bookmark, Loader2, Trash2, Download, Save, Filter, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -27,6 +28,8 @@ interface SavedJurisprudence {
   content: string;
   source: string | null;
   notes: string | null;
+  court: string | null;
+  category: string | null;
   created_at: string;
 }
 
@@ -34,11 +37,14 @@ interface JurisprudenciaItem {
   tribunal: string;
   numero_processo: string;
   relator: string;
+  orgao_julgador?: string;
   data_julgamento: string;
   ementa: string;
   resumo: string;
   area_direito: string;
+  assunto?: string;
   tese_firmada?: string;
+  palavras_chave?: string[];
   sumulas_relacionadas?: string;
 }
 
@@ -59,12 +65,19 @@ export default function PesquisaJurisprudencia() {
   const [loadingSaved, setLoadingSaved] = useState(true);
   const [activeTab, setActiveTab] = useState('search');
   
+  // Filtros para jurisprudências salvas
+  const [filterCourt, setFilterCourt] = useState<string>('todos');
+  const [filterCategory, setFilterCategory] = useState<string>('todos');
+  const [filterSearch, setFilterSearch] = useState('');
+  
   // Dialog para salvar jurisprudência
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [saveTitle, setSaveTitle] = useState('');
   const [saveContent, setSaveContent] = useState('');
   const [saveSource, setSaveSource] = useState('');
   const [saveNotes, setSaveNotes] = useState('');
+  const [saveCourt, setSaveCourt] = useState('');
+  const [saveCategory, setSaveCategory] = useState('');
   const [currentSearchId, setCurrentSearchId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -161,11 +174,13 @@ export default function PesquisaJurisprudencia() {
     }
   };
 
-  const openSaveDialog = (content: string, title?: string, searchId?: string) => {
+  const openSaveDialog = (content: string, title?: string, searchId?: string, court?: string, category?: string) => {
     setSaveContent(content);
     setSaveTitle(title || '');
     setSaveSource('Pesquisa Perplexity AI');
     setSaveNotes('');
+    setSaveCourt(court || '');
+    setSaveCategory(category || '');
     setCurrentSearchId(searchId || null);
     setSaveDialogOpen(true);
   };
@@ -174,8 +189,10 @@ export default function PesquisaJurisprudencia() {
     const content = `TRIBUNAL: ${juris.tribunal}
 PROCESSO: ${juris.numero_processo}
 RELATOR: ${juris.relator || 'Não informado'}
+ÓRGÃO JULGADOR: ${juris.orgao_julgador || 'Não informado'}
 DATA: ${juris.data_julgamento || 'Não informada'}
 ÁREA: ${juris.area_direito || 'Não informada'}
+ASSUNTO: ${juris.assunto || 'Não informado'}
 
 EMENTA:
 ${juris.ementa || 'Não disponível'}
@@ -183,10 +200,10 @@ ${juris.ementa || 'Não disponível'}
 RESUMO:
 ${juris.resumo || 'Não disponível'}
 ${juris.tese_firmada ? `\nTESE FIRMADA:\n${juris.tese_firmada}` : ''}
-${juris.sumulas_relacionadas ? `\nSÚMULAS RELACIONADAS:\n${juris.sumulas_relacionadas}` : ''}`;
+${juris.palavras_chave && juris.palavras_chave.length > 0 ? `\nPALAVRAS-CHAVE: ${juris.palavras_chave.join(', ')}` : ''}`;
 
     const title = `${juris.tribunal} - ${juris.numero_processo}`;
-    openSaveDialog(content, title, searchId);
+    openSaveDialog(content, title, searchId, juris.tribunal, juris.area_direito);
   };
 
   const handleSaveJurisprudence = async () => {
@@ -204,6 +221,8 @@ ${juris.sumulas_relacionadas ? `\nSÚMULAS RELACIONADAS:\n${juris.sumulas_relaci
           content: saveContent.trim(),
           source: saveSource.trim() || null,
           notes: saveNotes.trim() || null,
+          court: saveCourt.trim() || null,
+          category: saveCategory.trim() || null,
           search_id: currentSearchId
         });
 
@@ -310,10 +329,47 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
       'consumidor': 'Consumidor',
       'ambiental': 'Ambiental',
       'empresarial': 'Empresarial',
+      'familia': 'Família',
       'outro': 'Outro'
     };
-    return labels[area] || area;
+    return labels[area?.toLowerCase()] || area;
   };
+
+  // Extrair tribunais e categorias únicos das jurisprudências salvas
+  const uniqueCourts = useMemo(() => {
+    const courts = savedJurisprudence
+      .map(j => j.court)
+      .filter((c): c is string => !!c);
+    return [...new Set(courts)].sort();
+  }, [savedJurisprudence]);
+
+  const uniqueCategories = useMemo(() => {
+    const categories = savedJurisprudence
+      .map(j => j.category)
+      .filter((c): c is string => !!c);
+    return [...new Set(categories)].sort();
+  }, [savedJurisprudence]);
+
+  // Filtrar jurisprudências salvas
+  const filteredSavedJurisprudence = useMemo(() => {
+    return savedJurisprudence.filter(item => {
+      const matchesCourt = filterCourt === 'todos' || item.court === filterCourt;
+      const matchesCategory = filterCategory === 'todos' || item.category === filterCategory;
+      const matchesSearch = !filterSearch || 
+        item.title.toLowerCase().includes(filterSearch.toLowerCase()) ||
+        item.content.toLowerCase().includes(filterSearch.toLowerCase()) ||
+        (item.notes && item.notes.toLowerCase().includes(filterSearch.toLowerCase()));
+      return matchesCourt && matchesCategory && matchesSearch;
+    });
+  }, [savedJurisprudence, filterCourt, filterCategory, filterSearch]);
+
+  const clearFilters = () => {
+    setFilterCourt('todos');
+    setFilterCategory('todos');
+    setFilterSearch('');
+  };
+
+  const hasActiveFilters = filterCourt !== 'todos' || filterCategory !== 'todos' || filterSearch !== '';
 
   return (
     <Layout>
@@ -409,6 +465,11 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                                       {getAreaLabel(juris.area_direito)}
                                     </span>
                                   )}
+                                  {juris.assunto && (
+                                    <span className="bg-secondary text-secondary-foreground px-2 py-1 rounded text-xs">
+                                      {juris.assunto}
+                                    </span>
+                                  )}
                                 </div>
                                 <Button 
                                   variant="outline" 
@@ -425,16 +486,17 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                               </CardTitle>
                               <CardDescription className="flex flex-col gap-1">
                                 {juris.relator && <span>Relator: {juris.relator}</span>}
+                                {juris.orgao_julgador && <span>Órgão Julgador: {juris.orgao_julgador}</span>}
                                 {juris.data_julgamento && <span>Data: {juris.data_julgamento}</span>}
                               </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-3">
                               {juris.ementa && (
                                 <div>
-                                  <h4 className="font-semibold text-sm mb-1">Ementa</h4>
-                                  <p className="text-sm bg-muted/50 p-3 rounded whitespace-pre-wrap">
+                                  <h4 className="font-semibold text-sm mb-1">Ementa Completa</h4>
+                                  <div className="text-sm bg-muted/50 p-3 rounded whitespace-pre-wrap max-h-96 overflow-y-auto">
                                     {juris.ementa}
-                                  </p>
+                                  </div>
                                 </div>
                               )}
                               {juris.resumo && (
@@ -453,12 +515,16 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                                   </p>
                                 </div>
                               )}
-                              {juris.sumulas_relacionadas && (
+                              {juris.palavras_chave && juris.palavras_chave.length > 0 && (
                                 <div>
-                                  <h4 className="font-semibold text-sm mb-1">Súmulas Relacionadas</h4>
-                                  <p className="text-sm text-muted-foreground">
-                                    {juris.sumulas_relacionadas}
-                                  </p>
+                                  <h4 className="font-semibold text-sm mb-1">Palavras-chave</h4>
+                                  <div className="flex flex-wrap gap-1">
+                                    {juris.palavras_chave.map((palavra, i) => (
+                                      <span key={i} className="bg-muted px-2 py-0.5 rounded text-xs">
+                                        {palavra}
+                                      </span>
+                                    ))}
+                                  </div>
                                 </div>
                               )}
                             </CardContent>
@@ -551,12 +617,68 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
           <TabsContent value="saved" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Jurisprudências Salvas</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Filter className="h-5 w-5" />
+                  Jurisprudências Salvas
+                </CardTitle>
                 <CardDescription>
                   Decisões judiciais salvas para consulta e uso em petições
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
+                {/* Filtros */}
+                {savedJurisprudence.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-3">
+                      <div className="flex-1 min-w-[200px]">
+                        <Input
+                          placeholder="Buscar por título, conteúdo ou notas..."
+                          value={filterSearch}
+                          onChange={(e) => setFilterSearch(e.target.value)}
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="w-[180px]">
+                        <Select value={filterCourt} onValueChange={setFilterCourt}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Tribunal" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="todos">Todos os tribunais</SelectItem>
+                            {uniqueCourts.map(court => (
+                              <SelectItem key={court} value={court}>{court}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="w-[180px]">
+                        <Select value={filterCategory} onValueChange={setFilterCategory}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Área do Direito" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="todos">Todas as áreas</SelectItem>
+                            {uniqueCategories.map(cat => (
+                              <SelectItem key={cat} value={cat}>{getAreaLabel(cat)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {hasActiveFilters && (
+                        <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
+                          <X className="h-4 w-4" />
+                          Limpar
+                        </Button>
+                      )}
+                    </div>
+                    {hasActiveFilters && (
+                      <p className="text-sm text-muted-foreground">
+                        Mostrando {filteredSavedJurisprudence.length} de {savedJurisprudence.length} jurisprudências
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {loadingSaved ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin" />
@@ -565,16 +687,32 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                   <p className="text-muted-foreground text-center py-8">
                     Nenhuma jurisprudência salva ainda
                   </p>
+                ) : filteredSavedJurisprudence.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">
+                    Nenhuma jurisprudência encontrada com os filtros selecionados
+                  </p>
                 ) : (
                   <div className="space-y-3">
-                    {savedJurisprudence.map((item) => (
+                    {filteredSavedJurisprudence.map((item) => (
                       <div 
                         key={item.id} 
                         className="border rounded-lg p-4"
                       >
                         <div className="flex justify-between items-start gap-4">
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium">{item.title}</p>
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                              <p className="font-medium">{item.title}</p>
+                              {item.court && (
+                                <span className="bg-primary text-primary-foreground px-2 py-0.5 rounded text-xs">
+                                  {item.court}
+                                </span>
+                              )}
+                              {item.category && (
+                                <span className="bg-muted px-2 py-0.5 rounded text-xs">
+                                  {getAreaLabel(item.category)}
+                                </span>
+                              )}
+                            </div>
                             <p className="text-sm text-muted-foreground">
                               {item.source && `Fonte: ${item.source} • `}
                               {format(new Date(item.created_at), "dd/MM/yyyy", { locale: ptBR })}
@@ -633,11 +771,44 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                   onChange={(e) => setSaveTitle(e.target.value)}
                 />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="save-court">Tribunal</Label>
+                  <Input
+                    id="save-court"
+                    placeholder="Ex: STJ, TJ-SP, TRT-2"
+                    value={saveCourt}
+                    onChange={(e) => setSaveCourt(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="save-category">Área do Direito</Label>
+                  <Select value={saveCategory} onValueChange={setSaveCategory}>
+                    <SelectTrigger id="save-category">
+                      <SelectValue placeholder="Selecione a área" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="civil">Civil</SelectItem>
+                      <SelectItem value="trabalhista">Trabalhista</SelectItem>
+                      <SelectItem value="penal">Penal</SelectItem>
+                      <SelectItem value="tributario">Tributário</SelectItem>
+                      <SelectItem value="administrativo">Administrativo</SelectItem>
+                      <SelectItem value="constitucional">Constitucional</SelectItem>
+                      <SelectItem value="previdenciario">Previdenciário</SelectItem>
+                      <SelectItem value="consumidor">Consumidor</SelectItem>
+                      <SelectItem value="ambiental">Ambiental</SelectItem>
+                      <SelectItem value="empresarial">Empresarial</SelectItem>
+                      <SelectItem value="familia">Família</SelectItem>
+                      <SelectItem value="outro">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="save-source">Fonte</Label>
                 <Input
                   id="save-source"
-                  placeholder="Ex: STJ, TJ-SP, etc."
+                  placeholder="Ex: Pesquisa Perplexity AI"
                   value={saveSource}
                   onChange={(e) => setSaveSource(e.target.value)}
                 />
