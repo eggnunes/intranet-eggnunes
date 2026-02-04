@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Search, Eye, Mail, Phone, Building, MapPin, Globe, Linkedin, Twitter, Facebook, Calendar, Tag, FileText, Edit2, Save, X, History, UserCircle, CheckCircle, Circle, Video, MessageSquare, Package, Award, Target } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, Search, Eye, Mail, Phone, Building, MapPin, Globe, Linkedin, Twitter, Facebook, Calendar, Tag, FileText, Edit2, Save, X, History, UserCircle, CheckCircle, Circle, Video, MessageSquare, Package, Award, Target, Briefcase } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -80,6 +81,7 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [profissaoFilter, setProfissaoFilter] = useState<string>('');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Contact>>({});
@@ -89,6 +91,7 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [profiles, setProfiles] = useState<Record<string, { full_name: string }>>({});
   const [contactDealsMap, setContactDealsMap] = useState<Record<string, { owner_id: string | null; product_name: string | null; campaign_name: string | null }>>({});
+  const [profissoesDisponiveis, setProfissoesDisponiveis] = useState<string[]>([]);
 
   useEffect(() => {
     fetchContacts();
@@ -161,6 +164,14 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
       }
 
       setContacts(allContacts);
+      
+      // Extrair profissões únicas para o filtro
+      const profissoes = [...new Set(
+        allContacts
+          .map(c => c.job_title)
+          .filter((p): p is string => !!p && p.trim() !== '')
+      )].sort();
+      setProfissoesDisponiveis(profissoes);
     } catch (error) {
       console.error('Error fetching contacts:', error);
     }
@@ -335,12 +346,17 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
 
   const filteredContacts = contacts.filter(contact => {
     const search = searchTerm.toLowerCase();
-    return (
+    const matchesSearch = (
       contact.name?.toLowerCase().includes(search) ||
       contact.email?.toLowerCase().includes(search) ||
       contact.phone?.includes(search) ||
-      contact.company?.toLowerCase().includes(search)
+      contact.company?.toLowerCase().includes(search) ||
+      contact.job_title?.toLowerCase().includes(search)
     );
+    
+    const matchesProfissao = !profissaoFilter || contact.job_title === profissaoFilter;
+    
+    return matchesSearch && matchesProfissao;
   });
 
   const handleEditClick = () => {
@@ -449,8 +465,8 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
   return (
     <div className="space-y-4">
       {/* Search and filters */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar contatos..."
@@ -459,6 +475,28 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
             className="pl-9"
           />
         </div>
+        
+        {/* Filtro de Profissão */}
+        <div className="flex items-center gap-2">
+          <Briefcase className="h-4 w-4 text-muted-foreground" />
+          <Select value={profissaoFilter} onValueChange={setProfissaoFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Todas profissões" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todas profissões</SelectItem>
+              {profissoesDisponiveis.map(prof => (
+                <SelectItem key={prof} value={prof}>{prof}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {profissaoFilter && (
+            <Button variant="ghost" size="sm" onClick={() => setProfissaoFilter('')}>
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        
         <Badge variant="secondary">{filteredContacts.length} contatos</Badge>
       </div>
 
@@ -471,9 +509,10 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
                 <TableHead>Nome</TableHead>
                 <TableHead className="hidden sm:table-cell">Email</TableHead>
                 <TableHead className="hidden md:table-cell">Telefone</TableHead>
-                <TableHead className="hidden lg:table-cell">Responsável</TableHead>
-                <TableHead className="hidden lg:table-cell">Produto</TableHead>
-                <TableHead className="hidden md:table-cell">Origem</TableHead>
+                <TableHead className="hidden lg:table-cell">Profissão</TableHead>
+                <TableHead className="hidden xl:table-cell">Responsável</TableHead>
+                <TableHead className="hidden xl:table-cell">Produto</TableHead>
+                <TableHead className="hidden lg:table-cell">Origem</TableHead>
                 <TableHead className="hidden md:table-cell">Qualificado</TableHead>
                 <TableHead>Data</TableHead>
               </TableRow>
@@ -481,7 +520,7 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
             <TableBody>
               {filteredContacts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     {contacts.length === 0 
                       ? 'Nenhum contato. Sincronize com o RD Station.'
                       : 'Nenhum contato encontrado.'}
@@ -524,6 +563,16 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
                         )}
                       </TableCell>
                       <TableCell className="hidden lg:table-cell">
+                        {contact.job_title ? (
+                          <div className="flex items-center gap-1 text-sm">
+                            <Briefcase className="h-3 w-3 text-muted-foreground" />
+                            <span className="truncate max-w-[120px]">{contact.job_title}</span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="hidden xl:table-cell">
                         {ownerName ? (
                           <div className="flex items-center gap-1 text-sm">
                             <UserCircle className="h-3 w-3 text-muted-foreground" />
@@ -533,7 +582,7 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
                           <span className="text-muted-foreground text-xs">-</span>
                         )}
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell">
+                      <TableCell className="hidden xl:table-cell">
                         {contactDeal?.product_name ? (
                           <Badge variant="secondary" className="text-xs truncate max-w-[120px]">
                             <Package className="h-3 w-3 mr-1" />
@@ -543,7 +592,7 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
                           <span className="text-muted-foreground text-xs">-</span>
                         )}
                       </TableCell>
-                      <TableCell className="hidden md:table-cell">
+                      <TableCell className="hidden lg:table-cell">
                         {origin ? (
                           <Badge variant="outline" className="text-xs truncate max-w-[120px]">
                             <Target className="h-3 w-3 mr-1" />
