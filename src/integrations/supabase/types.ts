@@ -4048,6 +4048,56 @@ export type Database = {
         }
         Relationships: []
       }
+      informal_vacation_records: {
+        Row: {
+          colaborador_id: string
+          created_at: string
+          created_by: string
+          data_fim: string | null
+          data_inicio: string | null
+          descricao: string | null
+          dias: number
+          id: string
+          observacoes: string | null
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          colaborador_id: string
+          created_at?: string
+          created_by: string
+          data_fim?: string | null
+          data_inicio?: string | null
+          descricao?: string | null
+          dias: number
+          id?: string
+          observacoes?: string | null
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          colaborador_id?: string
+          created_at?: string
+          created_by?: string
+          data_fim?: string | null
+          data_inicio?: string | null
+          descricao?: string | null
+          dias?: number
+          id?: string
+          observacoes?: string | null
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "informal_vacation_records_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       initial_fee_templates: {
         Row: {
           created_at: string
@@ -7064,6 +7114,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_admin_or_socio: { Args: { user_id: string }; Returns: boolean }
       is_approved: { Args: { _user_id: string }; Returns: boolean }
       is_conversation_participant: {
         Args: { _conversation_id: string; _user_id: string }

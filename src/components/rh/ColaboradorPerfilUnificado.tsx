@@ -19,6 +19,7 @@ import { ptBR } from 'date-fns/locale';
 import { formatMesReferencia, formatLocalDate, parseLocalDate } from '@/lib/dateUtils';
 import { ColaboradorDocumentos, ColaboradorDocumentosMedicos } from '@/components/rh';
 import { useUserRole } from '@/hooks/useUserRole';
+import { InformalVacationSummary } from '@/components/ferias';
 
 interface ColaboradorPerfilUnificadoProps {
   colaboradorId: string;
@@ -737,6 +738,11 @@ export function ColaboradorPerfilUnificado({ colaboradorId }: ColaboradorPerfilU
               </CardContent>
             </Card>
           </div>
+
+          {/* Férias Informais - Apenas para Admins/Sócios */}
+          {canViewMedical && (
+            <InformalVacationSummary colaboradorId={colaboradorId} />
+          )}
 
           {/* Histórico de Salário */}
           <Card>
