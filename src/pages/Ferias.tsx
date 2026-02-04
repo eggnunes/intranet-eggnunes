@@ -14,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Calendar as CalendarIcon, Clock, CheckCircle, XCircle, Plus, User, Info, Users, FileText, Trash2, Pencil, LayoutDashboard, ClipboardList, DollarSign, Wallet, BarChart3 } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle, XCircle, Plus, User, Info, Users, FileText, Trash2, Pencil, LayoutDashboard, ClipboardList, DollarSign, Wallet, BarChart3, CalendarClock } from 'lucide-react';
+import { InformalVacationManager } from '@/components/ferias';
 import { Input } from '@/components/ui/input';
 import { VacationDashboard } from '@/components/VacationDashboard';
 import { format, differenceInBusinessDays, differenceInCalendarDays, parseISO, addYears, isBefore, isAfter, eachDayOfInterval, isWithinInterval, startOfMonth, endOfMonth, addMonths } from 'date-fns';
@@ -1421,7 +1422,7 @@ export default function Ferias() {
 
         {/* Main Navigation Tabs */}
         <Tabs value={mainTab} onValueChange={setMainTab} className="w-full">
-          <TabsList className={cn("grid w-full max-w-3xl", canManageVacations ? "grid-cols-4" : "grid-cols-1")}>
+          <TabsList className={cn("grid w-full max-w-4xl", canManageVacations ? "grid-cols-5" : "grid-cols-1")}>
             <TabsTrigger value="solicitations" className="flex items-center gap-2">
               <ClipboardList className="h-4 w-4" />
               <span className="hidden sm:inline">Solicitações</span>
@@ -1433,6 +1434,11 @@ export default function Ferias() {
                   <FileText className="h-4 w-4" />
                   <span className="hidden sm:inline">Painel Geral</span>
                   <span className="sm:hidden">Painel</span>
+                </TabsTrigger>
+                <TabsTrigger value="informal" className="flex items-center gap-2">
+                  <CalendarClock className="h-4 w-4" />
+                  <span className="hidden sm:inline">Informais</span>
+                  <span className="sm:hidden">Inform.</span>
                 </TabsTrigger>
                 <TabsTrigger value="balance" className="flex items-center gap-2">
                   <Wallet className="h-4 w-4" />
@@ -2722,6 +2728,12 @@ export default function Ferias() {
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+          )}
+
+          {canManageVacations && (
+            <TabsContent value="informal" className="mt-6">
+              <InformalVacationManager />
             </TabsContent>
           )}
 
