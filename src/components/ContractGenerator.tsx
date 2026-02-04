@@ -30,9 +30,11 @@ import {
   Plus,
   Users,
   FileEdit,
-  CloudUpload
+  CloudUpload,
+  Send
 } from "lucide-react";
 import { SaveToTeamsDialog } from "@/components/SaveToTeamsDialog";
+import { ZapSignDialog } from "@/components/ZapSignDialog";
 import { jsPDF } from "jspdf";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -241,6 +243,12 @@ export const ContractGenerator = ({
   // Salvar no Teams
   const [showSaveToTeams, setShowSaveToTeams] = useState(false);
   const [pdfForTeams, setPdfForTeams] = useState<{ fileName: string; content: string } | null>(null);
+
+  // ZapSign - Assinatura Digital
+  const [showZapSignDialog, setShowZapSignDialog] = useState(false);
+  const [showZapSignConfirm, setShowZapSignConfirm] = useState(false);
+  const [pdfBase64ForZapSign, setPdfBase64ForZapSign] = useState("");
+  const [documentNameForZapSign, setDocumentNameForZapSign] = useState("");
 
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
@@ -1647,9 +1655,9 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
       // Adicionar rodapé na última página
       addFooter();
       
-      const nomeArquivo = `Contrato_${client.nomeCompleto.replace(/\s+/g, '_')}_${format(new Date(), 'ddMMyyyy')}.pdf`;
+      const nomeArquivo = `Contrato_${client.nomeCompleto.replace(/\s+/g, '_')}_${productName.replace(/\s+/g, '_')}_${format(new Date(), 'ddMMyyyy')}.pdf`;
       
-      // Salvar PDF para possível upload no Teams
+      // Salvar PDF para possível upload no Teams e ZapSign
       const pdfOutput = doc.output('arraybuffer');
       const uint8Array = new Uint8Array(pdfOutput);
       let binary = '';
@@ -1658,6 +1666,10 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
       }
       const base64Content = btoa(binary);
       setPdfForTeams({ fileName: nomeArquivo, content: base64Content });
+      
+      // Salvar dados para ZapSign
+      setPdfBase64ForZapSign(base64Content);
+      setDocumentNameForZapSign(nomeArquivo.replace('.pdf', ''));
       
       // Salvar PDF na pasta do cliente no storage
       try {
@@ -1767,8 +1779,9 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
         });
       }
       
+      // Perguntar se deseja enviar para assinatura digital
+      setShowZapSignConfirm(true);
       setShowPreview(false);
-      onOpenChange(false);
       
     } catch (error) {
       console.error('Erro ao gerar contrato:', error);
@@ -2804,6 +2817,62 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
         toast.success('Contrato salvo no Teams com sucesso!');
         setShowSaveToTeams(false);
         setPdfForTeams(null);
+      }}
+    />
+
+    {/* Dialog de confirmação ZapSign */}
+    <Dialog open={showZapSignConfirm} onOpenChange={setShowZapSignConfirm}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Send className="h-5 w-5 text-primary" />
+            Enviar para Assinatura Digital?
+          </DialogTitle>
+          <DialogDescription>
+            O contrato foi gerado com sucesso. Deseja enviá-lo para assinatura eletrônica via ZapSign?
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowZapSignConfirm(false);
+              onOpenChange(false);
+            }}
+          >
+            Não, apenas gerar PDF
+          </Button>
+          <Button
+            onClick={() => {
+              setShowZapSignConfirm(false);
+              setShowZapSignDialog(true);
+            }}
+          >
+            <Send className="h-4 w-4 mr-2" />
+            Sim, enviar para ZapSign
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Dialog ZapSign */}
+    <ZapSignDialog
+      open={showZapSignDialog}
+      onOpenChange={(open) => {
+        setShowZapSignDialog(open);
+        if (!open) {
+          onOpenChange(false);
+        }
+      }}
+      documentType="contrato"
+      documentName={documentNameForZapSign}
+      pdfBase64={pdfBase64ForZapSign}
+      clientName={client?.nomeCompleto || ''}
+      clientEmail={client?.email}
+      clientPhone={client?.telefone}
+      clientCpf={client?.cpf}
+      onSuccess={(signUrl) => {
+        console.log('Contrato enviado para assinatura:', signUrl);
       }}
     />
     </>
