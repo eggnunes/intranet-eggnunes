@@ -70,11 +70,9 @@ export const ZapSignDialog = ({
   const [result, setResult] = useState<ZapSignResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Opções de autenticação
-  const [requireSelfie, setRequireSelfie] = useState(true);
-  const [requireDocumentPhoto, setRequireDocumentPhoto] = useState(true);
+  // Envio automático - e-mail ativado por padrão
   const [sendViaWhatsapp, setSendViaWhatsapp] = useState(false);
-  const [sendViaEmail, setSendViaEmail] = useState(false);
+  const [sendViaEmail, setSendViaEmail] = useState(true);
 
   // Dados do cliente editáveis
   const [editableEmail, setEditableEmail] = useState(clientEmail || "");
@@ -97,8 +95,8 @@ export const ZapSignDialog = ({
           clientEmail: editableEmail || clientEmail,
           clientPhone: editablePhone || clientPhone,
           clientCpf,
-          requireSelfie,
-          requireDocumentPhoto,
+          requireSelfie: true,
+          requireDocumentPhoto: true,
           sendViaWhatsapp,
           sendViaEmail,
         },
@@ -218,38 +216,23 @@ export const ZapSignDialog = ({
               </div>
             </div>
 
-            {/* Opções de autenticação */}
-            <div className="space-y-4">
-              <h4 className="text-sm font-medium">Autenticação do signatário</h4>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Camera className="h-4 w-4 text-muted-foreground" />
-                    <Label htmlFor="require-selfie" className="cursor-pointer">
-                      Exigir selfie
-                    </Label>
+            {/* Aviso de autenticação obrigatória */}
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="pt-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex items-center gap-2 text-primary">
+                    <Camera className="h-4 w-4" />
+                    <CreditCard className="h-4 w-4" />
                   </div>
-                  <Switch
-                    id="require-selfie"
-                    checked={requireSelfie}
-                    onCheckedChange={setRequireSelfie}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 text-muted-foreground" />
-                    <Label htmlFor="require-document" className="cursor-pointer">
-                      Exigir foto do documento
-                    </Label>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Autenticação completa obrigatória</p>
+                    <p className="text-xs text-muted-foreground">
+                      O cliente precisará tirar uma selfie e fotografar seu documento de identidade para assinar.
+                    </p>
                   </div>
-                  <Switch
-                    id="require-document"
-                    checked={requireDocumentPhoto}
-                    onCheckedChange={setRequireDocumentPhoto}
-                  />
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
             {/* Opções de envio automático */}
             <div className="space-y-4">
