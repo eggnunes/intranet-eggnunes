@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -7,10 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Users, AlertTriangle, FileCheck, X } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
+import { Users, AlertTriangle, FileCheck, X, MoreVertical, User, DollarSign, Briefcase, FileText, Heart, MessageSquare, Palmtree, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { useStartConversation } from '@/hooks/useStartConversation';
 
 interface Colaborador {
   id: string;
@@ -30,7 +33,9 @@ interface Cargo {
 }
 
 export function RHColaboradores() {
+  const navigate = useNavigate();
   const { user } = useAuth();
+  const { startConversation } = useStartConversation();
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [cargos, setCargos] = useState<Cargo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -218,6 +223,7 @@ export function RHColaboradores() {
                 <TableHead>Cargo</TableHead>
                 <TableHead>Valor Base</TableHead>
                 <TableHead>Contrato Associado</TableHead>
+                <TableHead className="w-[100px]">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -286,6 +292,49 @@ export function RHColaboradores() {
                     ) : (
                       <span className="text-muted-foreground">N/A</span>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuLabel>Atalhos do Perfil</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => navigate(`/rh?colaboradorId=${colab.id}&tab=dados`)}>
+                          <User className="h-4 w-4 mr-2" />
+                          Dados Pessoais
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(`/rh?colaboradorId=${colab.id}&tab=pagamentos`)}>
+                          <DollarSign className="h-4 w-4 mr-2" />
+                          Pagamentos
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(`/rh?colaboradorId=${colab.id}&tab=carreira`)}>
+                          <Briefcase className="h-4 w-4 mr-2" />
+                          Carreira / Férias
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(`/rh?colaboradorId=${colab.id}&tab=documentos`)}>
+                          <FileText className="h-4 w-4 mr-2" />
+                          Documentos
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(`/rh?colaboradorId=${colab.id}&tab=documentos-medicos`)}>
+                          <Heart className="h-4 w-4 mr-2" />
+                          Docs. Médicos
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => startConversation(colab.id, colab.full_name)}>
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          Enviar Mensagem
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => navigate(`/rh?colaboradorId=${colab.id}`)}>
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Ver Perfil Completo
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}

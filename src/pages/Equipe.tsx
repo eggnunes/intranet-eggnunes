@@ -6,11 +6,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, User, Briefcase, GraduationCap, Building2, UserCog, Mail, IdCard, Cake, CalendarCheck, Phone, ExternalLink } from 'lucide-react';
+import { Users, User, Briefcase, GraduationCap, Building2, UserCog, Mail, IdCard, Cake, CalendarCheck, Phone, ExternalLink, MessageSquare } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { format, parse, differenceInMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useStartConversation } from '@/hooks/useStartConversation';
+import { useAuth } from '@/hooks/useAuth';
 
 interface TeamMember {
   id: string;
@@ -35,7 +37,9 @@ interface GroupedTeam {
 
 export default function Equipe() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { profile } = useUserRole();
+  const { startConversation } = useStartConversation();
   const isSocio = profile?.position === 'socio';
   
   const [team, setTeam] = useState<GroupedTeam>({
@@ -273,6 +277,21 @@ export default function Equipe() {
                               </div>
                             )}
                           </div>
+                          {/* Botão de Enviar Mensagem */}
+                          {user && user.id !== member.id && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mt-3 w-full gap-2"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startConversation(member.id, member.full_name);
+                              }}
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                              Enviar Mensagem
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardHeader>

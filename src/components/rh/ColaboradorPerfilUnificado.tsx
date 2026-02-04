@@ -10,8 +10,9 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { 
   User, Calendar, Briefcase, DollarSign, TrendingUp, CheckSquare, 
   FileText, Phone, MapPin, Mail, IdCard, Award, Cake, CalendarCheck,
-  ArrowLeft, Clock, FileSignature, Palmtree, Heart
+  ArrowLeft, Clock, FileSignature, Palmtree, Heart, MessageSquare
 } from 'lucide-react';
+import { useStartConversation } from '@/hooks/useStartConversation';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, parse, subMonths, differenceInMonths } from 'date-fns';
@@ -23,6 +24,7 @@ import { InformalVacationSummary } from '@/components/ferias';
 
 interface ColaboradorPerfilUnificadoProps {
   colaboradorId: string;
+  initialTab?: string;
 }
 
 interface Colaborador {
@@ -97,11 +99,13 @@ interface Ferias {
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7c43', '#a4de6c'];
 
-export function ColaboradorPerfilUnificado({ colaboradorId }: ColaboradorPerfilUnificadoProps) {
+export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados' }: ColaboradorPerfilUnificadoProps) {
   const navigate = useNavigate();
   const { isAdmin, profile: currentUserProfile } = useUserRole();
+  const { startConversation } = useStartConversation();
   const isSocio = currentUserProfile?.position === 'socio';
   const canViewMedical = isAdmin || isSocio;
+  const [activeTab, setActiveTab] = useState(initialTab);
   
   const [colaborador, setColaborador] = useState<Colaborador | null>(null);
   const [cargo, setCargo] = useState<Cargo | null>(null);
@@ -367,6 +371,16 @@ export function ColaboradorPerfilUnificado({ colaboradorId }: ColaboradorPerfilU
                   </Badge>
                 )}
               </div>
+              {/* Botão de Mensagem */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => startConversation(colaboradorId, colaborador.full_name)}
+                className="gap-2"
+              >
+                <MessageSquare className="h-4 w-4" />
+                Enviar Mensagem
+              </Button>
             </div>
             <div className="text-right">
               {colaborador.salario && (
@@ -444,7 +458,7 @@ export function ColaboradorPerfilUnificado({ colaboradorId }: ColaboradorPerfilU
       </div>
 
       {/* Abas de Conteúdo */}
-      <Tabs defaultValue="dados" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid grid-cols-2 md:grid-cols-6 w-full">
           <TabsTrigger value="dados">Dados Pessoais</TabsTrigger>
           <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
