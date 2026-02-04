@@ -194,17 +194,32 @@ export default function DecisoesFavoraveis() {
       const { data: session } = await supabase.auth.getSession();
       if (!session.session) throw new Error('Not authenticated');
 
+      console.log('Fetching ADVBox customers...');
       const response = await supabase.functions.invoke('advbox-integration/customers', {
         headers: {
           Authorization: `Bearer ${session.session.access_token}`,
         },
       });
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        console.error('Error fetching customers:', response.error);
+        throw response.error;
+      }
       
-      // Extract customers from cached data
-      const customers = response.data?.data?.items || response.data?.data || [];
-      return customers.map((c: any) => ({ id: c.id, name: c.name }));
+      console.log('ADVBox customers response:', response.data);
+      
+      // Extract customers from different response formats
+      let customers: any[] = [];
+      if (response.data?.data?.items) {
+        customers = response.data.data.items;
+      } else if (Array.isArray(response.data?.data)) {
+        customers = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        customers = response.data;
+      }
+      
+      console.log(`Found ${customers.length} customers`);
+      return customers.map((c: any) => ({ id: c.id, name: c.name })).filter((c: any) => c.id && c.name);
     },
     staleTime: 10 * 60 * 1000, // Cache for 10 minutes
     enabled: true, // Always load in background
