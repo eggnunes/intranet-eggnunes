@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useAccessTracking } from '@/hooks/useAccessTracking';
+import { useMessageNotifications } from '@/hooks/useMessageNotifications';
 
 import logoEggNunes from '@/assets/logo-eggnunes.png';
 
@@ -27,12 +28,14 @@ export const Layout = ({ children }: LayoutProps) => {
   const { signOut, user } = useAuth();
   const { isAdmin, profile } = useUserRole();
   const [unreadAnnouncementsCount, setUnreadAnnouncementsCount] = useState(0);
-  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
   const showBackButton = location.pathname !== '/dashboard' && location.pathname !== '/';
+  
+  // Hook for real-time message notifications
+  const { unreadCount: unreadMessagesCount } = useMessageNotifications();
   
   // Rastrear acessos às páginas
   useAccessTracking();
@@ -74,7 +77,6 @@ export const Layout = ({ children }: LayoutProps) => {
   useEffect(() => {
     if (user) {
       fetchUnreadAnnouncementsCount();
-      fetchUnreadMessagesCount();
 
       // Escutar mudanças em tempo real nos avisos
       const announcementsChannel = supabase
@@ -127,12 +129,6 @@ export const Layout = ({ children }: LayoutProps) => {
     const unreadCount = announcements.filter(a => !readIds.has(a.id)).length;
 
     setUnreadAnnouncementsCount(unreadCount);
-  };
-
-  const fetchUnreadMessagesCount = async () => {
-    // This can be implemented based on your messaging system
-    // For now, we'll just set it to 0
-    setUnreadMessagesCount(0);
   };
 
   // All searchable items for global search
