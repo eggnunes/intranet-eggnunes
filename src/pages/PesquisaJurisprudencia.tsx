@@ -69,6 +69,13 @@ export default function PesquisaJurisprudencia() {
   const [filterCourt, setFilterCourt] = useState<string>('todos');
   const [filterCategory, setFilterCategory] = useState<string>('todos');
   const [filterSearch, setFilterSearch] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+  
+  // Filtros para histórico
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyDateFrom, setHistoryDateFrom] = useState('');
+  const [historyDateTo, setHistoryDateTo] = useState('');
   
   // Dialog para salvar jurisprudência
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
@@ -359,17 +366,60 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
         item.title.toLowerCase().includes(filterSearch.toLowerCase()) ||
         item.content.toLowerCase().includes(filterSearch.toLowerCase()) ||
         (item.notes && item.notes.toLowerCase().includes(filterSearch.toLowerCase()));
-      return matchesCourt && matchesCategory && matchesSearch;
+      
+      // Filtro por data
+      let matchesDate = true;
+      if (filterDateFrom) {
+        matchesDate = matchesDate && new Date(item.created_at) >= new Date(filterDateFrom);
+      }
+      if (filterDateTo) {
+        const endDate = new Date(filterDateTo);
+        endDate.setHours(23, 59, 59, 999);
+        matchesDate = matchesDate && new Date(item.created_at) <= endDate;
+      }
+      
+      return matchesCourt && matchesCategory && matchesSearch && matchesDate;
     });
-  }, [savedJurisprudence, filterCourt, filterCategory, filterSearch]);
+  }, [savedJurisprudence, filterCourt, filterCategory, filterSearch, filterDateFrom, filterDateTo]);
+
+  // Filtrar histórico
+  const filteredHistory = useMemo(() => {
+    return searchHistory.filter(item => {
+      const matchesSearch = !historySearch || 
+        item.query.toLowerCase().includes(historySearch.toLowerCase()) ||
+        item.response.toLowerCase().includes(historySearch.toLowerCase());
+      
+      // Filtro por data
+      let matchesDate = true;
+      if (historyDateFrom) {
+        matchesDate = matchesDate && new Date(item.created_at) >= new Date(historyDateFrom);
+      }
+      if (historyDateTo) {
+        const endDate = new Date(historyDateTo);
+        endDate.setHours(23, 59, 59, 999);
+        matchesDate = matchesDate && new Date(item.created_at) <= endDate;
+      }
+      
+      return matchesSearch && matchesDate;
+    });
+  }, [searchHistory, historySearch, historyDateFrom, historyDateTo]);
 
   const clearFilters = () => {
     setFilterCourt('todos');
     setFilterCategory('todos');
     setFilterSearch('');
+    setFilterDateFrom('');
+    setFilterDateTo('');
   };
 
-  const hasActiveFilters = filterCourt !== 'todos' || filterCategory !== 'todos' || filterSearch !== '';
+  const clearHistoryFilters = () => {
+    setHistorySearch('');
+    setHistoryDateFrom('');
+    setHistoryDateTo('');
+  };
+
+  const hasActiveFilters = filterCourt !== 'todos' || filterCategory !== 'todos' || filterSearch !== '' || filterDateFrom !== '' || filterDateTo !== '';
+  const hasActiveHistoryFilters = historySearch !== '' || historyDateFrom !== '' || historyDateTo !== '';
 
   return (
     <Layout>
@@ -554,12 +604,60 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
           <TabsContent value="history" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Histórico de Pesquisas</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Filter className="h-5 w-5" />
+                  Histórico de Pesquisas
+                </CardTitle>
                 <CardDescription>
                   Suas últimas 50 pesquisas realizadas
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
+                {/* Filtros do Histórico */}
+                {searchHistory.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-3">
+                      <div className="flex-1 min-w-[200px]">
+                        <Input
+                          placeholder="Buscar por termo pesquisado..."
+                          value={historySearch}
+                          onChange={(e) => setHistorySearch(e.target.value)}
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="w-[150px]">
+                        <Input
+                          type="date"
+                          placeholder="Data inicial"
+                          value={historyDateFrom}
+                          onChange={(e) => setHistoryDateFrom(e.target.value)}
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="w-[150px]">
+                        <Input
+                          type="date"
+                          placeholder="Data final"
+                          value={historyDateTo}
+                          onChange={(e) => setHistoryDateTo(e.target.value)}
+                          className="w-full"
+                        />
+                      </div>
+                      {hasActiveHistoryFilters && (
+                        <Button variant="ghost" size="sm" onClick={clearHistoryFilters} className="gap-1">
+                          <X className="h-4 w-4" />
+                          Limpar
+                        </Button>
+                      )}
+                    </div>
+                    {hasActiveHistoryFilters && (
+                      <p className="text-sm text-muted-foreground">
+                        Mostrando {filteredHistory.length} de {searchHistory.length} pesquisas
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {loadingHistory ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin" />
@@ -568,9 +666,13 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                   <p className="text-muted-foreground text-center py-8">
                     Nenhuma pesquisa realizada ainda
                   </p>
+                ) : filteredHistory.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">
+                    Nenhuma pesquisa encontrada com os filtros selecionados
+                  </p>
                 ) : (
                   <div className="space-y-3">
-                    {searchHistory.map((item) => (
+                    {filteredHistory.map((item) => (
                       <div 
                         key={item.id} 
                         className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
@@ -664,10 +766,30 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                           </SelectContent>
                         </Select>
                       </div>
+                    </div>
+                    <div className="flex flex-wrap gap-3 items-center">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">De:</span>
+                        <Input
+                          type="date"
+                          value={filterDateFrom}
+                          onChange={(e) => setFilterDateFrom(e.target.value)}
+                          className="w-[150px]"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">Até:</span>
+                        <Input
+                          type="date"
+                          value={filterDateTo}
+                          onChange={(e) => setFilterDateTo(e.target.value)}
+                          className="w-[150px]"
+                        />
+                      </div>
                       {hasActiveFilters && (
                         <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
                           <X className="h-4 w-4" />
-                          Limpar
+                          Limpar filtros
                         </Button>
                       )}
                     </div>
