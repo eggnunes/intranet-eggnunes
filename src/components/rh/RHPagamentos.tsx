@@ -1059,6 +1059,19 @@ export function RHPagamentos() {
                             </Button>
                           </div>
 
+                          {/* Instrução */}
+                          <p className="text-xs text-muted-foreground">
+                            💡 Digite o <strong>percentual</strong> ou o <strong>valor</strong> - o outro será calculado automaticamente.
+                          </p>
+
+                          {/* Cabeçalho */}
+                          <div className="grid grid-cols-12 gap-2 items-center text-xs text-muted-foreground font-medium">
+                            <div className="col-span-5">Categoria</div>
+                            <div className="col-span-2 text-center">%</div>
+                            <div className="col-span-3 text-center">ou Valor (R$)</div>
+                            <div className="col-span-2"></div>
+                          </div>
+
                           {rateios.map((rateio, index) => (
                             <div key={rateio.id} className="grid grid-cols-12 gap-2 items-center">
                               <div className="col-span-5">
@@ -1081,37 +1094,45 @@ export function RHPagamentos() {
                                 </Select>
                               </div>
                               <div className="col-span-2">
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  placeholder="%"
-                                  className="h-9"
-                                  value={rateio.percentual || ''}
-                                  onChange={(e) => {
-                                    const pct = parseFloat(e.target.value) || 0;
-                                    setRateios(rateios.map(r => 
-                                      r.id === rateio.id 
-                                        ? { ...r, percentual: pct, valor: (totais.liquido * pct) / 100 } 
-                                        : r
-                                    ));
-                                  }}
-                                />
+                                <div className="relative">
+                                  <Input
+                                    type="text"
+                                    inputMode="decimal"
+                                    placeholder="0"
+                                    className="h-9 pr-6 text-center"
+                                    value={rateio.percentual > 0 ? rateio.percentual.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : ''}
+                                    onChange={(e) => {
+                                      const pctStr = e.target.value.replace(',', '.');
+                                      const pct = parseFloat(pctStr) || 0;
+                                      setRateios(rateios.map(r => 
+                                        r.id === rateio.id 
+                                          ? { ...r, percentual: pct, valor: (totais.liquido * pct) / 100 } 
+                                          : r
+                                      ));
+                                    }}
+                                  />
+                                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">%</span>
+                                </div>
                               </div>
                               <div className="col-span-3">
-                                <Input
-                                  type="text"
-                                  placeholder="0,00"
-                                  className="h-9"
-                                  value={rateio.valor > 0 ? formatCurrency(rateio.valor) : ''}
-                                  onChange={(e) => {
-                                    const val = parseCurrency(e.target.value);
-                                    setRateios(rateios.map(r => 
-                                      r.id === rateio.id 
-                                        ? { ...r, valor: val, percentual: totais.liquido > 0 ? (val / totais.liquido) * 100 : 0 } 
-                                        : r
-                                    ));
-                                  }}
-                                />
+                                <div className="relative">
+                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">R$</span>
+                                  <Input
+                                    type="text"
+                                    inputMode="decimal"
+                                    placeholder="0,00"
+                                    className="h-9 pl-8"
+                                    value={rateio.valor > 0 ? rateio.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}
+                                    onChange={(e) => {
+                                      const val = parseCurrency(e.target.value);
+                                      setRateios(rateios.map(r => 
+                                        r.id === rateio.id 
+                                          ? { ...r, valor: val, percentual: totais.liquido > 0 ? (val / totais.liquido) * 100 : 0 } 
+                                          : r
+                                      ));
+                                    }}
+                                  />
+                                </div>
                               </div>
                               <div className="col-span-2 flex justify-center">
                                 <Button
@@ -1132,7 +1153,7 @@ export function RHPagamentos() {
                             </div>
                           ))}
 
-                          <div className="flex justify-between text-sm mt-2">
+                          <div className="flex justify-between text-sm mt-2 p-2 bg-muted/50 rounded-md">
                             <span className="text-muted-foreground">Total alocado:</span>
                             <span className={
                               Math.abs(rateios.reduce((acc, r) => acc + r.percentual, 0) - 100) < 0.1
