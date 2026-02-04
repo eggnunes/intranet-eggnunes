@@ -9,3 +9,5 @@ export { ColaboradorDocumentosMedicos } from './ColaboradorDocumentosMedicos';
 export { RHAdiantamentos } from './RHAdiantamentos';
 export { RHMenus } from './RHMenus';
 export { ColaboradorPerfilUnificado } from './ColaboradorPerfilUnificado';
+export { RHPromocoes } from './RHPromocoes';
+export { PromocaoDialog } from './PromocaoDialog';

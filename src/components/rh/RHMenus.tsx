@@ -13,7 +13,8 @@ import {
   Banknote,
   FileText,
   Briefcase,
-  CreditCard
+  CreditCard,
+  TrendingUp
 } from 'lucide-react';
 
 interface MenuItem {
@@ -45,6 +46,14 @@ const menuItems: MenuItem[] = [
     items: [
       { id: 'pagamentos', label: 'Pagamentos' },
       { id: 'adiantamentos', label: 'Adiantamentos' },
+    ]
+  },
+  {
+    id: 'gestao-pessoas',
+    label: 'Gestão de Pessoas',
+    icon: TrendingUp,
+    items: [
+      { id: 'promocoes', label: 'Promoções' },
     ]
   },
   {
