@@ -1,215 +1,155 @@
-# ✅ CORREÇÕES APLICADAS - Perfil do Colaborador + Timezone
 
-## Correções Realizadas em 03/02/2026
+# Plano: Automação Completa do ZapSign
 
-### 1. Erro Crítico (Tela em Branco) - CORRIGIDO ✅
+## Resumo
 
-**Problema:** Query usava `days_requested` que não existe
-**Solução:** Alterado para `business_days` (coluna correta)
-
-### 2. Bugs de Timezone - CORRIGIDOS ✅
-
-**Arquivos atualizados:**
-- `ColaboradorPerfilUnificado.tsx` - Importa e usa `formatMesReferencia`, `formatLocalDate`
-- `RHAdiantamentos.tsx` - Corrigido formatação de datas
-- `RHPagamentos.tsx` - Corrigido PDF e exibição
-- `RHDashboard.tsx` - Corrigido filtros de data
+Simplificar a integração ZapSign para que, ao clicar em enviar, o documento seja criado e o e-mail seja disparado automaticamente para o cliente, sem necessidade de configuração manual.
 
 ---
 
-## Causa Raiz Original
+## O Que Já Funciona (Confirmado)
 
-### 1. Coluna Inexistente na Query de Férias
+A integração atual já opera 100% via API:
+- O documento é criado na base do ZapSign automaticamente
+- O link de assinatura é gerado e retornado
+- Tudo acontece dentro da sua intranet
 
-**Arquivo:** `src/components/rh/ColaboradorPerfilUnificado.tsx`
-**Linhas:** 150-155, 207
-
-```typescript
-// CÓDIGO BUGADO - coluna days_requested NÃO EXISTE!
-supabase
-  .from('vacation_requests')
-  .select('id, start_date, end_date, status, days_requested')  // ERRO!
-  .eq('user_id', colaboradorId)
-```
-
-**Colunas reais da tabela `vacation_requests`:**
-- id, user_id, start_date, end_date
-- **business_days** (esta é a coluna correta!)
-- status, approved_by, approved_at, rejection_reason
-- notes, created_at, updated_at
-- acquisition_period_start, acquisition_period_end, sold_days
-
-### 2. Referência Duplicada à Coluna Inexistente
-
-Na linha 207, o código tenta acessar `f.days_requested`:
-```typescript
-dias_totais: f.days_requested  // ERRO! Deve ser f.business_days
-```
+O que falta é apenas **ajustar os padrões** para maior automação.
 
 ---
 
-## Outros Problemas Identificados
+## Mudanças Propostas
 
-### 3. Bugs de Timezone Ainda Presentes
+### 1. Autenticação como Padrão Fixo
 
-O `ColaboradorPerfilUnificado.tsx` não foi atualizado para usar o `dateUtils.ts`, ainda usando `format(new Date(...))`:
+| Configuração | Antes | Depois |
+|--------------|-------|--------|
+| Exigir selfie | Switch (padrão: ativo) | **Sempre ativo** (sem switch) |
+| Exigir foto do documento | Switch (padrão: ativo) | **Sempre ativo** (sem switch) |
 
-| Linha | Código Bugado | Problema |
-|-------|---------------|----------|
-| 193 | `format(new Date(p.mes_referencia), 'MMM/yy')` | Mês pode aparecer errado |
-| 248 | `format(new Date(dueDate), 'MMM/yy')` | Data ADVBOX pode aparecer errada |
-| 408 | `format(parse(promocoes[0].data_promocao, ...))` | OK - usa parse corretamente |
-| 594 | `format(new Date(p.mes_referencia), 'MMMM/yyyy')` | Tabela de pagamentos |
-| 598 | `format(new Date(p.data_pagamento), 'dd/MM/yyyy')` | Data de pagamento |
-| 718 | `format(new Date(f.data_inicio), 'dd/MM/yy')` | Datas de férias |
-| 762 | `format(new Date(h.data_alteracao), 'dd/MM/yyyy')` | Histórico de salário |
+Resultado: Remover a seção de switches de autenticação e exibir apenas um aviso informativo.
 
-### 4. Bugs de Timezone no RHAdiantamentos
+### 2. Envio por E-mail Automático
 
-**Arquivo:** `src/components/rh/RHAdiantamentos.tsx`
+| Configuração | Antes | Depois |
+|--------------|-------|--------|
+| Enviar por e-mail | Switch (padrão: desativado) | **Padrão ativado** |
+| Enviar por WhatsApp | Switch (padrão: desativado) | Mantém desativado (futura implementação) |
 
-| Linha | Código Bugado |
-|-------|---------------|
-| 557 | `format(new Date(adiantamento.data_adiantamento), 'dd/MM/yyyy')` |
-| 627 | `format(new Date(desconto.mes_referencia + '-01'), 'MMM/yyyy')` |
-| 632 | `format(new Date(desconto.data_desconto), 'dd/MM/yyyy')` |
+Resultado: Se o cliente tiver e-mail, o ZapSign envia automaticamente.
 
-### 5. Bugs de Timezone no RHPagamentos (PDF)
+### 3. Interface Simplificada
 
-**Arquivo:** `src/components/rh/RHPagamentos.tsx`
-
-| Linha | Código Bugado |
-|-------|---------------|
-| 674 | `format(new Date(pagamento.mes_referencia), 'MMMM/yyyy')` |
-| 679 | `format(new Date(pagamento.data_pagamento), 'dd/MM/yyyy')` |
-| 750 | `format(new Date(pagamento.mes_referencia), 'MM_yyyy')` |
-
-### 6. Bugs de Timezone no RHDashboard
-
-**Arquivo:** `src/components/rh/RHDashboard.tsx`
-
-| Linha | Código Bugado |
-|-------|---------------|
-| 79 | `startOfMonth(new Date(periodoInicio + '-01'))` |
-| 80 | `endOfMonth(new Date(periodoFim + '-01'))` |
-
----
-
-## Correções Necessárias
-
-### Prioridade 1: Corrigir Erro Crítico (Tela em Branco)
-
-**Arquivo:** `src/components/rh/ColaboradorPerfilUnificado.tsx`
-
-**Correção 1 - Linha 152:**
-```typescript
-// ANTES:
-.select('id, start_date, end_date, status, days_requested')
-
-// DEPOIS:
-.select('id, start_date, end_date, status, business_days')
+Antes (muitas opções):
+```text
+[Dados do documento]
+[Dados de contato editáveis]
+[Autenticação do signatário] ← REMOVER
+  - Switch: Exigir selfie
+  - Switch: Exigir foto do documento
+[Envio automático]
+  - Switch: Enviar por e-mail
+  - Switch: Enviar por WhatsApp
 ```
 
-**Correção 2 - Linha 207:**
-```typescript
-// ANTES:
-dias_totais: f.days_requested
-
-// DEPOIS:
-dias_totais: f.business_days
+Depois (simplificado):
+```text
+[Dados do documento]
+[Dados de contato editáveis]
+[Aviso] "Será exigido selfie e foto do documento"
+[Envio automático]
+  - E-mail: ativado por padrão
+  - WhatsApp: preparado para futura implementação
 ```
-
-### Prioridade 2: Adicionar Import do dateUtils
-
-```typescript
-import { formatMesReferencia, formatLocalDate, parseLocalDate } from '@/lib/dateUtils';
-```
-
-### Prioridade 3: Corrigir Todas as Formatações de Data
-
-Substituir todas as ocorrências de `format(new Date(...))` por funções do `dateUtils.ts`:
-
-- `formatMesReferencia()` - para mês/ano
-- `formatLocalDate()` - para dd/MM/yyyy
-
-### Prioridade 4: Aplicar Mesma Correção em Outros Arquivos RH
-
-- `RHAdiantamentos.tsx`
-- `RHPagamentos.tsx` (especialmente na geração de PDF)
-- `RHDashboard.tsx`
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Alterações |
-|---------|------------|
-| `src/components/rh/ColaboradorPerfilUnificado.tsx` | Corrigir query de férias + imports + formatação de datas |
-| `src/components/rh/RHAdiantamentos.tsx` | Adicionar imports + corrigir formatação de datas |
-| `src/components/rh/RHPagamentos.tsx` | Corrigir formatação no PDF |
-| `src/components/rh/RHDashboard.tsx` | Corrigir criação de datas para filtros |
+### 1. ZapSignDialog.tsx
+
+Alterações:
+- Remover estados `requireSelfie` e `requireDocumentPhoto`
+- Mudar `sendViaEmail` de `useState(false)` para `useState(true)`
+- Remover seção "Autenticação do signatário" com os switches
+- Adicionar Card informativo sobre autenticação obrigatória
+- Enviar valores fixos `true` para selfie e documento na chamada da API
+
+### 2. zapsign-integration (Edge Function)
+
+Alterações:
+- Forçar `require_selfie_photo: true` e `require_document_photo: true` independente do que vier do frontend
+- Garantir consistência e segurança
 
 ---
 
-## Resumo de Implementação
+## Fluxo Final do Usuário
 
-| Prioridade | Ação | Impacto |
-|------------|------|---------|
-| **Crítica** | Corrigir `days_requested` para `business_days` | Resolve tela em branco |
-| **Alta** | Adicionar import do `dateUtils` | Prepara correções de timezone |
-| **Alta** | Corrigir `format(new Date(...))` no ColaboradorPerfilUnificado | Datas corretas no perfil |
-| **Média** | Corrigir outros arquivos RH | Consistência em todo módulo |
-| **Baixa** | Melhorar tratamento de erros | Evita telas em branco futuras |
-
----
-
-## Seção Técnica
-
-### Por que a tela fica em branco?
-
-1. O `ColaboradorPerfilUnificado` usa `Promise.all()` para buscar dados em paralelo
-2. Uma das queries referencia uma coluna inexistente (`days_requested`)
-3. O Supabase retorna um erro
-4. O erro é capturado pelo `catch`, mas o componente já iniciou a renderização
-5. Como a estrutura de dados não está completa, a UI quebra silenciosamente
-
-### Solução de Tratamento de Erro Robusto
-
-Além de corrigir a coluna, adicionar verificação defensiva:
-
-```typescript
-if (!feriasRes.error && feriasRes.data) {
-  const feriasData = feriasRes.data.map((f: any) => ({
-    id: f.id,
-    data_inicio: f.start_date,
-    data_fim: f.end_date,
-    status: f.status,
-    dias_totais: f.business_days || 0  // Fallback para 0 se não existir
-  }));
-  setFerias(feriasData);
-}
-```
-
-### Verificação de Datas no Dashboard RH
-
-O código atual:
-```typescript
-const startDate = startOfMonth(new Date(periodoInicio + '-01'));
-```
-
-Deveria usar o parseLocalDate:
-```typescript
-const startDate = startOfMonth(parseLocalDate(periodoInicio + '-01'));
+```text
+1. Gerar contrato/procuração
+2. Clicar "Enviar para ZapSign"
+3. Diálogo abre com:
+   - Dados do cliente (nome, CPF)
+   - Campo de e-mail (editável)
+   - Campo de WhatsApp (para futuro)
+   - Aviso: "Autenticação completa será exigida"
+   - E-mail automático já ativado
+4. Clicar "Enviar"
+5. Documento criado + E-mail enviado automaticamente
+6. Link de assinatura exibido (para backup manual)
 ```
 
 ---
 
-## Validação Pós-Implementação
+## Detalhes Técnicos
 
-1. O perfil do Daniel abre corretamente
-2. Os dados de férias aparecem na aba "Carreira"
-3. Os meses de referência aparecem corretamente (sem shift de timezone)
-4. O gráfico de evolução de pagamentos mostra meses corretos
-5. A tabela de pagamentos no perfil mostra datas corretas
-6. O PDF de recibo gera com datas corretas
-7. O dashboard RH filtra corretamente por período
+### ZapSignDialog.tsx - Mudanças de Estado
+
+```typescript
+// ANTES
+const [requireSelfie, setRequireSelfie] = useState(true);
+const [requireDocumentPhoto, setRequireDocumentPhoto] = useState(true);
+const [sendViaEmail, setSendViaEmail] = useState(false);
+
+// DEPOIS
+// Remover requireSelfie e requireDocumentPhoto (sempre true)
+const [sendViaEmail, setSendViaEmail] = useState(true); // Padrão ativado
+```
+
+### ZapSignDialog.tsx - Chamada da API
+
+```typescript
+// ANTES
+requireSelfie,
+requireDocumentPhoto,
+
+// DEPOIS
+requireSelfie: true,      // Sempre fixo
+requireDocumentPhoto: true, // Sempre fixo
+```
+
+### Edge Function - Garantia de Segurança
+
+```typescript
+// Forçar autenticação completa independente do request
+const signer: Signer = {
+  // ...outros campos
+  require_selfie_photo: true,        // Fixo
+  require_document_photo: true,      // Fixo
+  send_automatic_email: body.sendViaEmail ?? true, // Padrão true agora
+};
+```
+
+---
+
+## Resultado Esperado
+
+Ao aprovar este plano, a integração funcionará assim:
+
+1. **Zero configuração necessária** - tudo automático
+2. **E-mail enviado automaticamente** pelo ZapSign para o cliente
+3. **Autenticação forte garantida** - selfie + documento sempre
+4. **Link de backup disponível** - caso queira compartilhar manualmente
+5. **Preparado para WhatsApp** - quando você implementar a API
+
+O cliente receberá o e-mail diretamente do ZapSign com o link, clicará, tirará selfie, fotografará documento e assinará na tela.
