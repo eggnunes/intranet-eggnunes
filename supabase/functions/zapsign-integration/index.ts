@@ -87,6 +87,7 @@ serve(async (req) => {
     }
 
     // Configurar signatário (cliente)
+    // Autenticação SEMPRE obrigatória (selfie + documento) - padrão fixo de segurança
     const signer: Signer = {
       name: body.clientName,
       email: body.clientEmail || '',
@@ -96,9 +97,9 @@ serve(async (req) => {
       lock_email: !!body.clientEmail,
       lock_phone: !!phoneNumber,
       auth_mode: 'assinaturaTela', // Assinatura desenhada na tela
-      require_selfie_photo: body.requireSelfie ?? true, // Exigir selfie
-      require_document_photo: body.requireDocumentPhoto ?? true, // Exigir foto do documento
-      send_automatic_email: body.sendViaEmail ?? false,
+      require_selfie_photo: true, // Sempre exigir selfie
+      require_document_photo: true, // Sempre exigir foto do documento
+      send_automatic_email: body.sendViaEmail ?? true, // E-mail automático por padrão
       send_automatic_whatsapp: body.sendViaWhatsapp ?? false,
       qualification: 'Contratante',
     };
