@@ -781,12 +781,71 @@ Deno.serve(async (req) => {
       // ========== CLIENTES E ANIVERSÁRIOS ==========
       
       case 'customers': {
-        const result = await getCachedOrFetch('customers', async () => {
-          return await makeAdvboxRequest({ endpoint: '/customers' });
-        }, forceRefresh);
-        return new Response(JSON.stringify(result), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        console.log('Fetching ALL customers with complete pagination...');
+        const cacheKey = 'customers-full';
+        
+        // Verificar se já temos dados completos em cache
+        const cached = cache.get(cacheKey);
+        const now = Date.now();
+        
+        if (!forceRefresh && cached && (now - cached.timestamp) < CACHE_TTL) {
+          const items = extractItems(cached.data);
+          const totalCount = extractTotalCount(cached.data, items.length);
+          console.log(`Cache hit for customers: ${items.length} items`);
+          
+          return new Response(JSON.stringify({
+            data: { items, totalCount },
+            metadata: {
+              fromCache: true,
+              rateLimited: false,
+              cacheAge: Math.floor((now - cached.timestamp) / 1000),
+            },
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        // Buscar todos os clientes com paginação completa
+        try {
+          const result = await fetchAllPaginatedComplete('/customers', cacheKey, 100, 100);
+          
+          // Salvar no cache
+          cache.set(cacheKey, { 
+            data: { items: result.items, totalCount: result.totalCount },
+            timestamp: now,
+          });
+          
+          return new Response(JSON.stringify({
+            data: { items: result.items, totalCount: result.totalCount },
+            pagesLoaded: result.pagesLoaded,
+            isComplete: result.items.length >= result.totalCount,
+            metadata: {
+              fromCache: false,
+              rateLimited: false,
+              cacheAge: 0,
+            },
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          // Se falhar, retornar cache existente se disponível
+          if (cached) {
+            const items = extractItems(cached.data);
+            const totalCount = extractTotalCount(cached.data, items.length);
+            return new Response(JSON.stringify({
+              data: { items, totalCount },
+              error: error instanceof Error ? error.message : 'Unknown error',
+              metadata: {
+                fromCache: true,
+                rateLimited: true,
+                cacheAge: Math.floor((now - cached.timestamp) / 1000),
+              },
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          throw error;
+        }
       }
 
       case 'customer-birthdays': {
