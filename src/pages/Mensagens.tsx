@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { useMessaging, Conversation, Message } from '@/hooks/useMessaging';
 import { useAuth } from '@/hooks/useAuth';
@@ -90,6 +91,7 @@ interface AttachedFile {
 
 const Mensagens = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const {
     conversations,
     loading,
@@ -103,6 +105,20 @@ const Mensagens = () => {
     editMessage,
     deleteMessage
   } = useMessaging();
+
+  // Handle opening conversation from notification
+  useEffect(() => {
+    const state = location.state as { openConversation?: string } | null;
+    if (state?.openConversation && conversations.length > 0) {
+      const conv = conversations.find(c => c.id === state.openConversation);
+      if (conv) {
+        setActiveConversation(conv);
+        setShowMobileChat(true);
+        // Clear the state to prevent reopening on refresh
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [location.state, conversations, setActiveConversation]);
 
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
