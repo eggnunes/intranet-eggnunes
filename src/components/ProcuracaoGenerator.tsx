@@ -21,8 +21,10 @@ import {
   Save,
   Trash2,
   Plus,
-  Eye
+  Eye,
+  Send
 } from "lucide-react";
+import { ZapSignDialog } from "@/components/ZapSignDialog";
 import { jsPDF } from "jspdf";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -112,6 +114,12 @@ export const ProcuracaoGenerator = ({
   const [objetoContratoDetectado, setObjetoContratoDetectado] = useState<string | null>(null);
   const [loadingContractDraft, setLoadingContractDraft] = useState(false);
   const [poderesGeradosAutomaticamente, setPoderesGeradosAutomaticamente] = useState(false);
+
+  // ZapSign - Assinatura Digital
+  const [showZapSignDialog, setShowZapSignDialog] = useState(false);
+  const [showZapSignConfirm, setShowZapSignConfirm] = useState(false);
+  const [pdfBase64ForZapSign, setPdfBase64ForZapSign] = useState("");
+  const [documentNameForZapSign, setDocumentNameForZapSign] = useState("");
 
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
@@ -640,12 +648,27 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
       doc.text('31 3226-8742 | escritorio@eggnunes.com.br | www.eggnunes.com.br', pageWidth / 2, pageHeight - 15, { align: 'center' });
       doc.text('Rua São Paulo, 1104 - 9º andar - Centro - Belo Horizonte - MG - 30170-131', pageWidth / 2, pageHeight - 10, { align: 'center' });
 
-      // Salvar PDF
+      // Gerar PDF e base64
       const nomeArquivo = `Procuracao_${client.nomeCompleto.replace(/\s+/g, '_')}_${format(new Date(), 'ddMMyyyy')}.pdf`;
+      
+      // Gerar base64 para ZapSign
+      const pdfOutput = doc.output('arraybuffer');
+      const uint8Array = new Uint8Array(pdfOutput);
+      let binary = '';
+      for (let i = 0; i < uint8Array.length; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
+      }
+      const base64Content = btoa(binary);
+      
+      // Salvar dados para ZapSign
+      setPdfBase64ForZapSign(base64Content);
+      setDocumentNameForZapSign(nomeArquivo.replace('.pdf', ''));
+      
+      // Salvar PDF no download
       doc.save(nomeArquivo);
       
-      toast.success("Procuração gerada com sucesso!");
-      onOpenChange(false);
+      // Perguntar se deseja enviar para assinatura digital
+      setShowZapSignConfirm(true);
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
       toast.error("Erro ao gerar PDF. Tente novamente.");
@@ -657,6 +680,7 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
   if (!client) return null;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh]">
         <DialogHeader>
@@ -935,5 +959,63 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Dialog de confirmação ZapSign */}
+    <Dialog open={showZapSignConfirm} onOpenChange={setShowZapSignConfirm}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Send className="h-5 w-5 text-primary" />
+            Enviar para Assinatura Digital?
+          </DialogTitle>
+          <DialogDescription>
+            A procuração foi gerada com sucesso. Deseja enviá-la para assinatura eletrônica via ZapSign?
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowZapSignConfirm(false);
+              onOpenChange(false);
+              toast.success("Procuração gerada com sucesso!");
+            }}
+          >
+            Não, apenas gerar PDF
+          </Button>
+          <Button
+            onClick={() => {
+              setShowZapSignConfirm(false);
+              setShowZapSignDialog(true);
+            }}
+          >
+            <Send className="h-4 w-4 mr-2" />
+            Sim, enviar para ZapSign
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Dialog ZapSign */}
+    <ZapSignDialog
+      open={showZapSignDialog}
+      onOpenChange={(open) => {
+        setShowZapSignDialog(open);
+        if (!open) {
+          onOpenChange(false);
+        }
+      }}
+      documentType="procuracao"
+      documentName={documentNameForZapSign}
+      pdfBase64={pdfBase64ForZapSign}
+      clientName={client?.nomeCompleto || ''}
+      clientEmail={client?.email}
+      clientPhone={client?.telefone}
+      clientCpf={client?.cpf}
+      onSuccess={(signUrl) => {
+        console.log('Procuração enviada para assinatura:', signUrl);
+      }}
+    />
+    </>
   );
 };
