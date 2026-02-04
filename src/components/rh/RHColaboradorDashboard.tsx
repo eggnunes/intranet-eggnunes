@@ -47,6 +47,7 @@ interface PontuacaoAdvbox {
   tarefas_concluidas: number;
   tarefas_atribuidas: number;
   percentual_conclusao: number;
+  pontos: number;
 }
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7c43', '#a4de6c'];
@@ -164,9 +165,9 @@ export function RHColaboradorDashboard() {
       const colaborador = colaboradores.find(c => c.id === colaboradorId);
       if (!colaborador) return;
 
-      // Buscar tarefas do ADVBOX
-      const { data: tasksData, error } = await supabase.functions.invoke('advbox-integration/tasks', {
-        body: { force_refresh: false }
+      // Usar o novo endpoint que já filtra e calcula estatísticas
+      const { data, error } = await supabase.functions.invoke('advbox-integration/tasks-by-user', {
+        body: { user_name: colaborador.full_name }
       });
 
       if (error) {
@@ -174,42 +175,31 @@ export function RHColaboradorDashboard() {
         return;
       }
 
-      const tasks = tasksData?.data || tasksData || [];
-      
-      // Filtrar tarefas pelo nome do colaborador (aproximado)
-      const colaboradorNome = colaborador.full_name.toLowerCase();
-      const colaboradorTasks = tasks.filter((task: any) => {
-        const assignedTo = (task.assigned_to || task.assigned_users || '').toLowerCase();
-        return assignedTo.includes(colaboradorNome.split(' ')[0]);
+      const resultado = data?.data;
+      if (!resultado) {
+        console.log('Nenhum dado de tarefas retornado');
+        return;
+      }
+
+      // Formatar estatísticas mensais para o gráfico
+      const estatisticas = resultado.estatisticas_mensais || [];
+      const pontuacaoFormatada = estatisticas.map((item: any) => {
+        // Converter YYYY-MM para formato legível
+        const [ano, mes] = item.mes.split('-');
+        const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        const mesNome = meses[parseInt(mes) - 1] || mes;
+        
+        return {
+          mes: `${mesNome}/${ano.slice(2)}`,
+          tarefas_concluidas: item.tarefas_concluidas,
+          tarefas_atribuidas: item.tarefas_atribuidas,
+          percentual_conclusao: item.percentual_conclusao,
+          pontos: item.pontos || 0
+        };
       });
 
-      // Agrupar por mês
-      const porMes: Record<string, { concluidas: number; total: number }> = {};
-      
-      colaboradorTasks.forEach((task: any) => {
-        const dueDate = task.due_date || task.deadline;
-        if (!dueDate) return;
-        
-        const mes = format(new Date(dueDate), 'MMM/yy', { locale: ptBR });
-        if (!porMes[mes]) {
-          porMes[mes] = { concluidas: 0, total: 0 };
-        }
-        porMes[mes].total++;
-        
-        const status = (task.status || '').toLowerCase();
-        if (status === 'concluída' || status === 'completed' || status === 'done') {
-          porMes[mes].concluidas++;
-        }
-      });
-
-      const pontuacaoArray = Object.entries(porMes).map(([mes, dados]) => ({
-        mes,
-        tarefas_concluidas: dados.concluidas,
-        tarefas_atribuidas: dados.total,
-        percentual_conclusao: dados.total > 0 ? Math.round((dados.concluidas / dados.total) * 100) : 0
-      }));
-
-      setPontuacaoAdvbox(pontuacaoArray);
+      console.log(`Tarefas encontradas para ${colaborador.full_name}:`, resultado.total_tarefas);
+      setPontuacaoAdvbox(pontuacaoFormatada);
     } catch (error) {
       console.error('Erro ao buscar pontuação ADVBOX:', error);
     }

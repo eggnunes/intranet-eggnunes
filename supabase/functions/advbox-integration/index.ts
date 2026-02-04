@@ -913,10 +913,186 @@ Deno.serve(async (req) => {
       // ========== TAREFAS (POSTS) ==========
       
       case 'tasks': {
-        const result = await getCachedOrFetch('tasks', async () => {
-          return await makeAdvboxRequest({ endpoint: '/posts' });
-        }, forceRefresh);
-        return new Response(JSON.stringify(result), {
+        console.log('Fetching ALL tasks with complete pagination...');
+        const cacheKey = 'tasks-full';
+        
+        // Verificar se já temos dados completos em cache
+        const cached = cache.get(cacheKey);
+        const now = Date.now();
+        
+        if (!forceRefresh && cached && (now - cached.timestamp) < CACHE_TTL) {
+          const items = extractItems(cached.data);
+          const totalCount = extractTotalCount(cached.data, items.length);
+          console.log(`Cache hit for tasks: ${items.length} items`);
+          
+          return new Response(JSON.stringify({
+            data: items,
+            totalCount,
+            isComplete: items.length >= totalCount,
+            metadata: {
+              fromCache: true,
+              rateLimited: false,
+              cacheAge: Math.floor((now - cached.timestamp) / 1000),
+            },
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        // Buscar todas as tarefas com paginação completa
+        try {
+          const result = await fetchAllPaginatedComplete('/posts', cacheKey, 100, 100);
+          
+          // Salvar no cache
+          cache.set(cacheKey, { 
+            data: { items: result.items, totalCount: result.totalCount },
+            timestamp: now,
+          });
+          
+          return new Response(JSON.stringify({
+            data: result.items,
+            totalCount: result.totalCount,
+            pagesLoaded: result.pagesLoaded,
+            isComplete: result.items.length >= result.totalCount,
+            metadata: {
+              fromCache: false,
+              rateLimited: false,
+              cacheAge: 0,
+            },
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          // Se falhar, retornar cache existente se disponível
+          if (cached) {
+            const items = extractItems(cached.data);
+            const totalCount = extractTotalCount(cached.data, items.length);
+            return new Response(JSON.stringify({
+              data: items,
+              totalCount,
+              isComplete: items.length >= totalCount,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              metadata: {
+                fromCache: true,
+                rateLimited: true,
+                cacheAge: Math.floor((now - cached.timestamp) / 1000),
+              },
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          throw error;
+        }
+      }
+      
+      // Endpoint para buscar tarefas por usuário (para perfil do colaborador)
+      case 'tasks-by-user': {
+        const userName = url.searchParams.get('user_name');
+        const userId = url.searchParams.get('user_id');
+        
+        console.log(`Fetching tasks for user: ${userName || userId}`);
+        
+        // Buscar todas as tarefas primeiro
+        const cacheKey = 'tasks-full';
+        const cached = cache.get(cacheKey);
+        const now = Date.now();
+        
+        let allTasks: any[] = [];
+        
+        if (cached && (now - cached.timestamp) < CACHE_TTL) {
+          allTasks = extractItems(cached.data);
+        } else {
+          try {
+            const result = await fetchAllPaginatedComplete('/posts', cacheKey, 100, 100);
+            allTasks = result.items;
+            cache.set(cacheKey, { 
+              data: { items: result.items, totalCount: result.totalCount },
+              timestamp: now,
+            });
+          } catch (error) {
+            if (cached) {
+              allTasks = extractItems(cached.data);
+            } else {
+              throw error;
+            }
+          }
+        }
+        
+        // Filtrar tarefas pelo usuário
+        const userTasks = allTasks.filter((task: any) => {
+          // Verificar várias formas de identificar o responsável
+          const assignedTo = (task.assigned_to || task.responsible || task.user_name || '').toLowerCase();
+          const responsibleId = task.responsible_id || task.user_id || task.assigned_user_id;
+          
+          if (userId && responsibleId && String(responsibleId) === String(userId)) {
+            return true;
+          }
+          
+          if (userName) {
+            const searchName = userName.toLowerCase();
+            const firstName = searchName.split(' ')[0];
+            return assignedTo.includes(firstName) || assignedTo.includes(searchName);
+          }
+          
+          return false;
+        });
+        
+        // Agrupar por mês para estatísticas
+        const porMes: Record<string, { concluidas: number; total: number; pontos: number }> = {};
+        
+        userTasks.forEach((task: any) => {
+          const dueDate = task.due_date || task.deadline || task.date || task.created_at;
+          if (!dueDate) return;
+          
+          try {
+            const date = new Date(dueDate);
+            if (isNaN(date.getTime())) return;
+            
+            const mesKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            if (!porMes[mesKey]) {
+              porMes[mesKey] = { concluidas: 0, total: 0, pontos: 0 };
+            }
+            porMes[mesKey].total++;
+            
+            const status = (task.status || task.situation || '').toLowerCase();
+            const isConcluida = ['concluída', 'concluido', 'completed', 'done', 'finalizada', 'finalizado'].some(s => status.includes(s));
+            
+            if (isConcluida) {
+              porMes[mesKey].concluidas++;
+              // Calcular pontos (pode variar por tipo de tarefa)
+              const pontos = task.points || task.score || 1;
+              porMes[mesKey].pontos += pontos;
+            }
+          } catch (e) {
+            console.warn('Error parsing date:', dueDate);
+          }
+        });
+        
+        // Converter para array ordenado
+        const estatisticasMensais = Object.entries(porMes)
+          .map(([mesKey, dados]) => ({
+            mes: mesKey,
+            tarefas_concluidas: dados.concluidas,
+            tarefas_atribuidas: dados.total,
+            pontos: dados.pontos,
+            percentual_conclusao: dados.total > 0 ? Math.round((dados.concluidas / dados.total) * 100) : 0
+          }))
+          .sort((a, b) => a.mes.localeCompare(b.mes));
+        
+        return new Response(JSON.stringify({
+          data: {
+            tarefas: userTasks,
+            estatisticas_mensais: estatisticasMensais,
+            total_tarefas: userTasks.length,
+            total_concluidas: userTasks.filter((t: any) => {
+              const status = (t.status || t.situation || '').toLowerCase();
+              return ['concluída', 'concluido', 'completed', 'done', 'finalizada', 'finalizado'].some(s => status.includes(s));
+            }).length,
+          },
+          metadata: {
+            fromCache: cached ? (now - cached.timestamp) < CACHE_TTL : false,
+          },
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
