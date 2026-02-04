@@ -14,6 +14,7 @@ export default function RH() {
   const [activeTab, setActiveTab] = useState('dashboard');
   
   const colaboradorId = searchParams.get('colaboradorId');
+  const colaboradorTab = searchParams.get('tab') || 'dados';
   const isSocio = profile?.position === 'socio';
   const canAccess = isAdmin || isSocio;
 
@@ -58,7 +59,7 @@ export default function RH() {
         </div>
 
         <main className="container mx-auto p-6">
-          <ColaboradorPerfilUnificado colaboradorId={colaboradorId} />
+          <ColaboradorPerfilUnificado colaboradorId={colaboradorId} initialTab={colaboradorTab} />
         </main>
       </div>
     );
