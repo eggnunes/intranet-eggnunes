@@ -32,11 +32,29 @@ export default function CodigosAutenticacao() {
         .select('*')
         .order('name');
 
-      if (error) throw error;
+      if (error) {
+        // Log the error for debugging
+        console.error('Error fetching TOTP accounts:', error);
+        
+        // Check if it's a permission error (RLS)
+        if (error.code === 'PGRST301' || error.message?.includes('permission')) {
+          console.warn('TOTP permission denied - user may not have access');
+          // Don't show error toast for permission issues - just show empty state
+          setAccounts([]);
+        } else {
+          // Only show toast for actual errors, not permission issues
+          toast.error('Erro ao carregar contas TOTP');
+        }
+        return;
+      }
+      
       setAccounts(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching TOTP accounts:', error);
-      toast.error('Erro ao carregar contas');
+      // Don't show toast if it's a network error during initial load
+      if (!error?.message?.includes('Failed to fetch')) {
+        toast.error('Erro ao carregar contas');
+      }
     } finally {
       setIsLoading(false);
     }
