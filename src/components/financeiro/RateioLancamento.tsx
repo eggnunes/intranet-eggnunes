@@ -152,6 +152,20 @@ export function RateioLancamentoDialog({
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
+  const formatCurrencyInput = (value: number) => {
+    if (value === 0) return '';
+    return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const parseCurrencyInput = (value: string): number => {
+    if (!value) return 0;
+    // Remove tudo exceto números, vírgula e ponto
+    const cleaned = value.replace(/[^\d,.-]/g, '');
+    // Substitui vírgula por ponto para conversão
+    const normalized = cleaned.replace(',', '.');
+    return parseFloat(normalized) || 0;
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
@@ -183,6 +197,11 @@ export function RateioLancamentoDialog({
               </div>
             </CardContent>
           </Card>
+
+          {/* Instrução */}
+          <p className="text-sm text-muted-foreground text-center">
+            💡 Você pode digitar o <strong>percentual</strong> ou o <strong>valor</strong> - o outro será calculado automaticamente.
+          </p>
 
           {/* Lista de Rateios */}
           <div className="space-y-3">
@@ -235,12 +254,14 @@ export function RateioLancamentoDialog({
                         <Label className="text-xs">Percentual</Label>
                         <div className="relative">
                           <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="100"
-                            value={rateio.percentual}
-                            onChange={(e) => updateRateio(rateio.id, 'percentual', parseFloat(e.target.value) || 0)}
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="0,00"
+                            value={rateio.percentual > 0 ? rateio.percentual.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : ''}
+                            onChange={(e) => {
+                              const val = parseCurrencyInput(e.target.value);
+                              updateRateio(rateio.id, 'percentual', val);
+                            }}
                             className="h-9 pr-8"
                           />
                           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
@@ -249,15 +270,21 @@ export function RateioLancamentoDialog({
 
                       {/* Valor */}
                       <div className="space-y-1">
-                        <Label className="text-xs">Valor</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={rateio.valor.toFixed(2)}
-                          onChange={(e) => updateRateio(rateio.id, 'valor', parseFloat(e.target.value) || 0)}
-                          className="h-9"
-                        />
+                        <Label className="text-xs">Valor (R$)</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">R$</span>
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="0,00"
+                            value={formatCurrencyInput(rateio.valor)}
+                            onChange={(e) => {
+                              const val = parseCurrencyInput(e.target.value);
+                              updateRateio(rateio.id, 'valor', val);
+                            }}
+                            className="h-9 pl-10"
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -267,7 +294,7 @@ export function RateioLancamentoDialog({
                       onClick={() => removeRateio(rateio.id)}
                       disabled={rateios.length <= 1}
                     >
-                      <Trash2 className="h-4 w-4 text-red-500" />
+                      <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
                 </CardContent>
@@ -282,7 +309,7 @@ export function RateioLancamentoDialog({
 
           {/* Aviso de validação */}
           {!isValid && (
-            <p className="text-sm text-red-500 text-center">
+            <p className="text-sm text-destructive text-center">
               A soma dos percentuais ({totalPercentual.toFixed(1)}%) deve ser igual a 100%
             </p>
           )}
