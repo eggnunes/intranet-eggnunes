@@ -10,7 +10,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { 
   User, Calendar, Briefcase, DollarSign, TrendingUp, CheckSquare, 
   FileText, Phone, MapPin, Mail, IdCard, Award, Cake, CalendarCheck,
-  ArrowLeft, Clock, FileSignature, Palmtree, Heart, MessageSquare
+  ArrowLeft, Clock, FileSignature, Palmtree, Heart, MessageSquare, Plus
 } from 'lucide-react';
 import { useStartConversation } from '@/hooks/useStartConversation';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import { format, parse, subMonths, differenceInMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatMesReferencia, formatLocalDate, parseLocalDate } from '@/lib/dateUtils';
-import { ColaboradorDocumentos, ColaboradorDocumentosMedicos } from '@/components/rh';
+import { ColaboradorDocumentos, ColaboradorDocumentosMedicos, PromocaoDialog } from '@/components/rh';
 import { useUserRole } from '@/hooks/useUserRole';
 import { InformalVacationSummary } from '@/components/ferias';
 
@@ -106,6 +106,7 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
   const isSocio = currentUserProfile?.position === 'socio';
   const canViewMedical = isAdmin || isSocio;
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [promocaoDialogOpen, setPromocaoDialogOpen] = useState(false);
   
   const [colaborador, setColaborador] = useState<Colaborador | null>(null);
   const [cargo, setCargo] = useState<Cargo | null>(null);
@@ -116,6 +117,8 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
   const [pontuacaoAdvbox, setPontuacaoAdvbox] = useState<PontuacaoAdvbox[]>([]);
   const [ferias, setFerias] = useState<Ferias[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const canManagePromocoes = isAdmin || isSocio;
 
   useEffect(() => {
     fetchColaboradorCompleto();
@@ -675,10 +678,18 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
             {/* Promoções */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Award className="h-5 w-5" />
-                  Histórico de Promoções
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Award className="h-5 w-5" />
+                    Histórico de Promoções
+                  </CardTitle>
+                  {canManagePromocoes && (
+                    <Button size="sm" variant="outline" onClick={() => setPromocaoDialogOpen(true)}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Nova
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {promocoes.length > 0 ? (
@@ -703,9 +714,15 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
                     ))}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground text-center py-4">
-                    Nenhuma promoção registrada
-                  </p>
+                  <div className="text-center py-4">
+                    <p className="text-muted-foreground mb-3">Nenhuma promoção registrada</p>
+                    {canManagePromocoes && (
+                      <Button variant="outline" size="sm" onClick={() => setPromocaoDialogOpen(true)}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Registrar Promoção
+                      </Button>
+                    )}
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -817,6 +834,21 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
           </TabsContent>
         )}
       </Tabs>
+
+      {/* Dialog de Promoção */}
+      {canManagePromocoes && colaborador && (
+        <PromocaoDialog
+          open={promocaoDialogOpen}
+          onOpenChange={setPromocaoDialogOpen}
+          colaborador={{
+            id: colaborador.id,
+            full_name: colaborador.full_name,
+            cargo_id: colaborador.cargo_id,
+            position: colaborador.position
+          }}
+          onSuccess={fetchColaboradorCompleto}
+        />
+      )}
     </div>
   );
 }

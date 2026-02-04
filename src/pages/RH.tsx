@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Users, UserCircle } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { RHMenus } from '@/components/rh/RHMenus';
-import { RHCargos, RHPagamentos, RHDashboard, RHColaboradores, RHColaboradorDashboard, RHAdiantamentos } from '@/components/rh';
+import { RHCargos, RHPagamentos, RHDashboard, RHColaboradores, RHColaboradorDashboard, RHAdiantamentos, RHPromocoes } from '@/components/rh';
 import { ColaboradorPerfilUnificado } from '@/components/rh/ColaboradorPerfilUnificado';
 import { useUserRole } from '@/hooks/useUserRole';
 
@@ -75,6 +75,8 @@ export default function RH() {
         return <RHPagamentos />;
       case 'adiantamentos':
         return <RHAdiantamentos />;
+      case 'promocoes':
+        return <RHPromocoes />;
       case 'cargos':
         return <RHCargos />;
       case 'colaboradores':
@@ -137,6 +139,9 @@ export default function RH() {
               <optgroup label="Folha de Pagamento">
                 <option value="pagamentos">Folha de Pagamento</option>
                 <option value="adiantamentos">Adiantamentos</option>
+              </optgroup>
+              <optgroup label="Gestão de Pessoas">
+                <option value="promocoes">Promoções</option>
               </optgroup>
               <optgroup label="Cadastros">
                 <option value="colaboradores">Colaboradores</option>
