@@ -7086,6 +7086,78 @@ export type Database = {
           },
         ]
       }
+      zapsign_documents: {
+        Row: {
+          client_cpf: string | null
+          client_email: string | null
+          client_name: string
+          client_phone: string | null
+          client_signer_status: string | null
+          client_signer_token: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          document_name: string
+          document_token: string
+          document_type: string
+          id: string
+          office_signer_status: string | null
+          office_signer_token: string | null
+          original_file_url: string | null
+          sign_url: string | null
+          signed_at: string | null
+          signed_file_url: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          client_cpf?: string | null
+          client_email?: string | null
+          client_name: string
+          client_phone?: string | null
+          client_signer_status?: string | null
+          client_signer_token?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_name: string
+          document_token: string
+          document_type: string
+          id?: string
+          office_signer_status?: string | null
+          office_signer_token?: string | null
+          original_file_url?: string | null
+          sign_url?: string | null
+          signed_at?: string | null
+          signed_file_url?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          client_cpf?: string | null
+          client_email?: string | null
+          client_name?: string
+          client_phone?: string | null
+          client_signer_status?: string | null
+          client_signer_token?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_name?: string
+          document_token?: string
+          document_type?: string
+          id?: string
+          office_signer_status?: string | null
+          office_signer_token?: string | null
+          original_file_url?: string | null
+          sign_url?: string | null
+          signed_at?: string | null
+          signed_file_url?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

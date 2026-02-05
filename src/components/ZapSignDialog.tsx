@@ -24,7 +24,9 @@ import {
   CreditCard,
   Mail,
   MessageCircle,
-  AlertCircle
+   AlertCircle,
+   Building2,
+   User
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,6 +48,8 @@ interface ZapSignResult {
   success: boolean;
   documentToken: string;
   signUrl: string;
+   officeSignatureCompleted?: boolean;
+   isContract?: boolean;
   signers: Array<{
     name: string;
     email: string;
@@ -99,6 +103,7 @@ export const ZapSignDialog = ({
           requireDocumentPhoto: true,
           sendViaWhatsapp,
           sendViaEmail,
+          includeOfficeSigner: documentType === 'contrato',
         },
       });
 
@@ -233,6 +238,24 @@ export const ZapSignDialog = ({
                 </div>
               </CardContent>
             </Card>
+ 
+            {/* Aviso de assinatura automática para contratos */}
+            {documentType === 'contrato' && (
+              <Card className="border-blue-500/20 bg-blue-500/5">
+                <CardContent className="pt-4">
+                  <div className="flex items-start gap-3">
+                    <Building2 className="h-5 w-5 text-blue-600" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Assinatura automática do escritório</p>
+                      <p className="text-xs text-muted-foreground">
+                        O contrato será assinado automaticamente pelo escritório (Egg Nunes Advocacia) assim que for enviado. 
+                        O cliente receberá o link para completar sua assinatura.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Opções de envio automático */}
             <div className="space-y-4">
@@ -297,9 +320,38 @@ export const ZapSignDialog = ({
               </div>
               <h3 className="text-lg font-semibold">Documento enviado com sucesso!</h3>
               <p className="text-sm text-muted-foreground">
-                O link de assinatura foi gerado. Compartilhe com o cliente para que ele assine.
+                {result.isContract && result.officeSignatureCompleted 
+                  ? 'O escritório já assinou automaticamente. Compartilhe o link com o cliente para que ele complete a assinatura.'
+                  : 'O link de assinatura foi gerado. Compartilhe com o cliente para que ele assine.'}
               </p>
             </div>
+ 
+            {/* Status das assinaturas para contratos */}
+            {result.isContract && (
+              <Card className="border-green-500/20 bg-green-500/5">
+                <CardContent className="pt-4 space-y-3">
+                  <Label className="text-sm font-medium">Status das Assinaturas</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4 text-muted-foreground" />
+                        <span>Egg Nunes Advocacia</span>
+                      </div>
+                      <Badge variant={result.officeSignatureCompleted ? "default" : "secondary"} className={result.officeSignatureCompleted ? "bg-green-600" : ""}>
+                        {result.officeSignatureCompleted ? "Assinado" : "Pendente"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span>{clientName}</span>
+                      </div>
+                      <Badge variant="secondary">Aguardando</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Link de assinatura */}
             {result.signUrl && (
@@ -368,11 +420,13 @@ export const ZapSignDialog = ({
               <Card>
                 <CardContent className="pt-4">
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Signatário</Label>
-                    <div className="flex items-center justify-between text-sm">
-                      <span>{result.signers[0].name}</span>
-                      <Badge variant="outline">{result.signers[0].status}</Badge>
-                    </div>
+                    <Label className="text-sm font-medium">Signatários</Label>
+                    {result.signers.map((signer, index) => (
+                      <div key={index} className="flex items-center justify-between text-sm">
+                        <span>{signer.name}</span>
+                        <Badge variant="outline">{signer.status}</Badge>
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
