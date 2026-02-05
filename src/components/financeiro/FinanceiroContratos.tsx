@@ -28,7 +28,10 @@ import {
   ExternalLink,
   TrendingUp,
   DollarSign,
-  Users
+  Users,
+  Loader2,
+  Send,
+  FileCheck
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -58,6 +61,8 @@ interface Contrato {
   advbox_sync_error: string | null;
   status: string | null;
   created_at: string;
+  assinatura_status: string | null;
+  assinado_em: string | null;
 }
 
 export const FinanceiroContratos = () => {
@@ -66,6 +71,8 @@ export const FinanceiroContratos = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("todos");
   const [syncFilter, setSyncFilter] = useState<string>("todos");
+  const [assinaturaFilter, setAssinaturaFilter] = useState<string>("todos");
+  const [registrandoAdvbox, setRegistrandoAdvbox] = useState<string | null>(null);
 
   useEffect(() => {
     loadContratos();
@@ -97,8 +104,9 @@ export const FinanceiroContratos = () => {
     
     const matchesStatus = statusFilter === "todos" || contrato.status === statusFilter;
     const matchesSync = syncFilter === "todos" || contrato.advbox_sync_status === syncFilter;
+    const matchesAssinatura = assinaturaFilter === "todos" || contrato.assinatura_status === assinaturaFilter;
     
-    return matchesSearch && matchesStatus && matchesSync;
+    return matchesSearch && matchesStatus && matchesSync && matchesAssinatura;
   });
 
   // Calcular estatísticas
@@ -130,6 +138,40 @@ export const FinanceiroContratos = () => {
         return <Badge variant="secondary">Finalizado</Badge>;
       default:
         return <Badge variant="outline">-</Badge>;
+    }
+  };
+
+  const getAssinaturaStatusBadge = (status: string | null) => {
+    switch (status) {
+      case 'signed':
+        return <Badge className="bg-green-100 text-green-800"><FileCheck className="h-3 w-3 mr-1" /> Assinado</Badge>;
+      case 'pending_signature':
+        return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1" /> Aguardando</Badge>;
+      case 'manual_signature':
+        return <Badge className="bg-blue-100 text-blue-800"><FileSignature className="h-3 w-3 mr-1" /> Manual</Badge>;
+      default:
+        return <Badge className="bg-gray-100 text-gray-800"><Send className="h-3 w-3 mr-1" /> Não enviado</Badge>;
+    }
+  };
+
+  const handleCadastrarAdvbox = async (contratoId: string) => {
+    setRegistrandoAdvbox(contratoId);
+    try {
+      const { data, error } = await supabase.functions.invoke('advbox-manual-registration', {
+        body: { contrato_id: contratoId },
+      });
+      if (error) throw error;
+      if (data.success) {
+        toast.success('Cliente e processo cadastrados no ADVBox!');
+        loadContratos();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      console.error('Erro:', error);
+      toast.error('Erro ao cadastrar no ADVBox');
+    } finally {
+      setRegistrandoAdvbox(null);
     }
   };
 
@@ -242,6 +284,18 @@ export const FinanceiroContratos = () => {
                 <SelectItem value="pending">Pendente</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={assinaturaFilter} onValueChange={setAssinaturaFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Assinatura" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas Assinaturas</SelectItem>
+                <SelectItem value="signed">Assinado Digital</SelectItem>
+                <SelectItem value="manual_signature">Assinatura Manual</SelectItem>
+                <SelectItem value="pending_signature">Aguardando</SelectItem>
+                <SelectItem value="not_sent">Não Enviado</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Tabela de Contratos */}
@@ -252,23 +306,23 @@ export const FinanceiroContratos = () => {
                   <TableHead>Cliente</TableHead>
                   <TableHead>Produto</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
-                  <TableHead>Forma Pagto</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Assinatura</TableHead>
                   <TableHead>ADVBOX</TableHead>
                   <TableHead>Data</TableHead>
+                  <TableHead>Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
+                    <TableCell colSpan={8} className="text-center py-8">
                       <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
                       Carregando...
                     </TableCell>
                   </TableRow>
                 ) : filteredContratos.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       Nenhum contrato encontrado
                     </TableCell>
                   </TableRow>
@@ -297,15 +351,7 @@ export const FinanceiroContratos = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                        {contrato.forma_pagamento || '-'}
-                        {contrato.valor_entrada && (
-                          <div className="text-xs text-muted-foreground">
-                            Entrada: {formatCurrency(contrato.valor_entrada)}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {getStatusBadge(contrato.status)}
+                        {getAssinaturaStatusBadge(contrato.assinatura_status)}
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">
@@ -334,6 +380,27 @@ export const FinanceiroContratos = () => {
                         <div className="text-xs text-muted-foreground">
                           {format(parseISO(contrato.created_at), "HH:mm", { locale: ptBR })}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {contrato.advbox_sync_status !== 'synced' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCadastrarAdvbox(contrato.id)}
+                            disabled={registrandoAdvbox === contrato.id}
+                          >
+                            {registrandoAdvbox === contrato.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <><Users className="h-4 w-4 mr-1" />ADVBox</>
+                            )}
+                          </Button>
+                        )}
+                        {contrato.advbox_sync_status === 'synced' && (
+                          <Badge variant="outline" className="text-green-600">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />OK
+                          </Badge>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))

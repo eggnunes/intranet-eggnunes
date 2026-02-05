@@ -42,6 +42,7 @@ interface ZapSignDialogProps {
   clientPhone?: string;
   clientCpf?: string;
   onSuccess?: (signUrl: string) => void;
+  contratoId?: string; // ID do contrato em fin_contratos para vincular ao documento ZapSign
 }
 
 interface ZapSignResult {
@@ -69,6 +70,7 @@ export const ZapSignDialog = ({
   clientPhone,
   clientCpf,
   onSuccess,
+  contratoId,
 }: ZapSignDialogProps) => {
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<ZapSignResult | null>(null);
@@ -104,6 +106,7 @@ export const ZapSignDialog = ({
           sendViaWhatsapp,
           sendViaEmail,
           includeOfficeSigner: documentType === 'contrato',
+          contratoId,
         },
       });
 
@@ -119,6 +122,19 @@ export const ZapSignDialog = ({
 
       console.log('Resposta do ZapSign:', data);
       setResult(data);
+      
+      // Se há contratoId, atualizar o status do contrato para pending_signature
+      if (contratoId && data.documentToken) {
+        try {
+          await supabase.from('fin_contratos').update({
+            assinatura_status: 'pending_signature',
+            zapsign_document_id: data.documentToken,
+          }).eq('id', contratoId);
+          console.log('Contrato atualizado com status pending_signature');
+        } catch (updateError) {
+          console.error('Erro ao atualizar contrato:', updateError);
+        }
+      }
       
       toast.success('Documento enviado para assinatura!', {
         description: 'O link de assinatura foi gerado com sucesso.',

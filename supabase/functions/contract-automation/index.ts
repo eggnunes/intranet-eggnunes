@@ -1,5 +1,5 @@
 // Contract Automation Edge Function
-// Cadastra cliente e processo no ADVBOX automaticamente após geração de contrato
+// Registra contrato no banco de dados. A sincronização com ADVBOX ocorre após assinatura via webhook do ZapSign.
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -677,10 +677,7 @@ async function createLawsuit(
 async function registerContract(
   token: string,
   contractData: ContractData,
-  advboxCustomerId?: string,
-  advboxLawsuitId?: string,
-  syncStatus = 'pending',
-  syncError?: string
+  assinaturaStatus = 'not_sent'
 ): Promise<string> {
   console.log('Registering contract in database...');
   
@@ -701,10 +698,8 @@ async function registerContract(
     tem_honorarios_exito: contractData.temHonorariosExito,
     descricao_exito: contractData.descricaoExito,
     qualification: contractData.qualification,
-    advbox_customer_id: advboxCustomerId,
-    advbox_lawsuit_id: advboxLawsuitId,
-    advbox_sync_status: syncStatus,
-    advbox_sync_error: syncError,
+    advbox_sync_status: 'pending',
+    assinatura_status: assinaturaStatus,
   };
   
   const response = await fetch(`${SUPABASE_URL}/rest/v1/fin_contratos`, {
@@ -728,41 +723,6 @@ async function registerContract(
   console.log('Contract registered:', result[0]?.id);
   
   return result[0]?.id;
-}
-
-// Atualizar status de sincronização do contrato
-async function updateContractSyncStatus(
-  token: string,
-  contractId: string,
-  advboxCustomerId?: string,
-  advboxLawsuitId?: string,
-  syncStatus?: string,
-  syncError?: string
-): Promise<void> {
-  console.log('Updating contract sync status:', contractId, syncStatus);
-  
-  const updateData: Record<string, any> = {
-    advbox_sync_status: syncStatus,
-  };
-  
-  if (advboxCustomerId) updateData.advbox_customer_id = advboxCustomerId;
-  if (advboxLawsuitId) updateData.advbox_lawsuit_id = advboxLawsuitId;
-  if (syncError) updateData.advbox_sync_error = syncError;
-  
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/fin_contratos?id=eq.${contractId}`, {
-    method: 'PATCH',
-    headers: {
-      'apikey': SUPABASE_ANON_KEY!,
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(updateData),
-  });
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Error updating contract:', errorText);
-  }
 }
 
 Deno.serve(async (req) => {
@@ -812,114 +772,22 @@ Deno.serve(async (req) => {
 
     console.log('Processing contract for:', contractData.client.nomeCompleto);
     
-    let advboxCustomerId: string | undefined;
-    let advboxLawsuitId: string | undefined;
-    let syncStatus = 'pending';
-    let syncError: string | undefined;
-    
-    // Verificar se o token do ADVBOX está configurado
-    if (!ADVBOX_TOKEN) {
-      console.warn('ADVBOX_API_TOKEN não configurado. Contrato será registrado sem sincronização.');
-      syncStatus = 'error';
-      syncError = 'Token ADVBOX não configurado';
-    } else {
-      try {
-        // 0. Buscar configurações do Advbox (usuários e origens)
-        // Prioridade: comoConheceu do formulário > utm_source do lead
-        console.log('Fetching Advbox settings with comoConheceu:', contractData.comoConheceu, 'and client email/phone:', contractData.client.email, contractData.client.telefone);
-        const advboxSettings = await getAdvboxSettings(contractData.client.email, contractData.client.telefone, contractData.comoConheceu);
-        
-        if (!advboxSettings.defaultUserId) {
-          console.warn('No default user found in Advbox settings');
-        }
-        if (!advboxSettings.defaultOriginId) {
-          console.warn('No default origin found in Advbox settings');
-        }
-        
-        // 1. Verificar se cliente já existe no ADVBOX
-        const existingCustomer = await findExistingCustomer(
-          contractData.client.cpf, 
-          contractData.client.nomeCompleto
-        );
-        
-        if (existingCustomer) {
-          advboxCustomerId = String(existingCustomer.id);
-          console.log('Using existing customer:', advboxCustomerId);
-        } else {
-          // 2. Criar cliente no ADVBOX (com campos obrigatórios)
-          await sleep(1000); // Delay para evitar rate limit
-          const newCustomer = await createCustomer(contractData.client, advboxSettings);
-          if (newCustomer) {
-            advboxCustomerId = newCustomer.id;
-            console.log('Created new customer:', advboxCustomerId);
-          }
-        }
-        
-        // 3. Criar processo no ADVBOX
-        if (advboxCustomerId) {
-          await sleep(1500); // Aguardar para evitar rate limit
-          
-          try {
-            const lawsuit = await createLawsuit(
-              advboxCustomerId, 
-              contractData.productName,
-              contractData.objetoContrato,
-              advboxSettings
-            );
-            
-            if (lawsuit) {
-              advboxLawsuitId = lawsuit.id;
-              syncStatus = 'synced';
-              console.log('Created lawsuit:', advboxLawsuitId);
-            }
-          } catch (lawsuitError) {
-            console.error('Error creating lawsuit, but customer was created:', lawsuitError);
-            syncStatus = 'partial';
-            syncError = `Cliente criado, mas erro ao criar processo: ${lawsuitError instanceof Error ? lawsuitError.message : String(lawsuitError)}`;
-          }
-        }
-        
-        if (!advboxCustomerId) {
-          syncStatus = 'error';
-          syncError = 'Não foi possível criar/encontrar cliente no ADVBOX';
-        }
-        
-      } catch (advboxError) {
-        console.error('Error syncing with ADVBOX:', advboxError);
-        syncStatus = 'error';
-        syncError = advboxError instanceof Error ? advboxError.message : String(advboxError);
-      }
-    }
-    
-    // 4. Registrar contrato no banco de dados (sempre, independente do status ADVBOX)
+    // Registrar contrato no banco de dados com status 'not_sent' (aguardando envio para assinatura)
+    // A sincronização com ADVBox ocorrerá após a assinatura via webhook do ZapSign ou cadastro manual
     const contractId = await registerContract(
       token,
-      contractData,
-      advboxCustomerId,
-      advboxLawsuitId,
-      syncStatus,
-      syncError
+      contractData
     );
     
     console.log('Contract automation completed:', {
       contractId,
-      advboxCustomerId,
-      advboxLawsuitId,
-      syncStatus,
+      assinaturaStatus: 'not_sent',
     });
     
     return new Response(JSON.stringify({
       success: true,
       contractId,
-      advboxCustomerId,
-      advboxLawsuitId,
-      syncStatus,
-      syncError,
-      message: syncStatus === 'synced' 
-        ? 'Contrato registrado e sincronizado com ADVBOX com sucesso!'
-        : syncStatus === 'partial'
-        ? 'Contrato registrado. Cliente criado no ADVBOX, mas houve erro ao criar processo.'
-        : 'Contrato registrado, mas não foi possível sincronizar com ADVBOX.',
+      message: 'Contrato registrado com sucesso! O cadastro no ADVBox será feito após a assinatura.',
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

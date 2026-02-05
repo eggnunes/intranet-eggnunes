@@ -1,3 +1,6 @@
+ // Edge Function para cadastro manual de cliente e processo no ADVBox
+ // Usado quando o contrato é assinado presencialmente (sem ZapSign)
+ 
  import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
  import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
  
@@ -78,7 +81,6 @@
      const response = await makeAdvboxRequest('/settings');
      const settings = response.data || response;
      
-     // Buscar Mariana como responsável padrão
      if (settings.users && Array.isArray(settings.users)) {
        const users = settings.users.map((u: any) => ({
          id: String(u.id || u.user_id || u.users_id),
@@ -89,7 +91,6 @@
        result.defaultUserId = mariana ? mariana.id : users[0]?.id;
      }
      
-     // Usar "Não Informado" como origem padrão
      if (settings.customers_origins && Array.isArray(settings.customers_origins)) {
        const origins = settings.customers_origins.map((o: any) => ({
          id: String(o.id || o.customers_origins_id),
@@ -200,60 +201,6 @@
    }
  }
  
- async function syncContractToAdvbox(supabase: any, contrato: any): Promise<{ customerId?: string; lawsuitId?: string; error?: string }> {
-   if (!ADVBOX_TOKEN) return { error: 'Token ADVBOX não configurado' };
-   
-   try {
-     console.log('Syncing contract to ADVBox:', contrato.id);
-     const settings = await getAdvboxSettings();
-     
-     if (!settings.defaultUserId || !settings.defaultOriginId) {
-       return { error: 'Configurações do ADVBox incompletas' };
-     }
-     
-     // 1. Criar ou buscar cliente
-     let customerId: string | null = null;
-     const existingCustomer = await findExistingCustomer(contrato.client_cpf || '', contrato.client_name);
-     
-     if (existingCustomer) {
-       customerId = String(existingCustomer.id);
-     } else {
-       await sleep(1000);
-       customerId = await createCustomerInAdvbox(contrato, settings);
-     }
-     
-     if (!customerId) return { error: 'Não foi possível criar cliente no ADVBox' };
-     
-     // 2. Criar processo
-     await sleep(1500);
-     const lawsuitId = await createLawsuitInAdvbox(customerId, contrato, settings);
-     
-     if (!lawsuitId) return { customerId, error: 'Erro ao criar processo' };
-     
-     // 3. Criar tarefa para Mariana
-     await sleep(1000);
-     await createTaskForMariana(lawsuitId, contrato.client_name, contrato.product_name, settings);
-     
-     return { customerId, lawsuitId };
-   } catch (error) {
-     console.error('Error syncing to ADVBox:', error);
-     return { error: error instanceof Error ? error.message : String(error) };
-   }
- }
- 
- interface ZapSignWebhookPayload {
-   event_type: string;
-   doc_token: string;
-   doc_status: string;
-   signer_token?: string;
-   signer_status?: string;
-   signer_name?: string;
-   signer_email?: string;
-   signed_file?: string;
-   signed_file_url?: string;
-   created_at?: string;
- }
- 
  serve(async (req) => {
    if (req.method === 'OPTIONS') {
      return new Response('ok', { headers: corsHeaders });
@@ -264,134 +211,131 @@
      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
      const supabase = createClient(supabaseUrl, supabaseServiceKey);
  
-     const payload: ZapSignWebhookPayload = await req.json();
-     console.log('Webhook ZapSign recebido:', JSON.stringify(payload, null, 2));
+     // Verificar autenticação
+     const authHeader = req.headers.get('Authorization');
+     if (!authHeader) {
+       return new Response(JSON.stringify({ error: 'Não autorizado' }), 
+         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+     }
  
-     const { event_type, doc_token, signer_token, signer_status, signed_file_url } = payload;
+     const { contrato_id } = await req.json();
  
-     if (!doc_token) {
-       return new Response(JSON.stringify({ error: 'doc_token é obrigatório' }), 
+     if (!contrato_id) {
+       return new Response(JSON.stringify({ error: 'contrato_id é obrigatório' }), 
          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
      }
  
-     // Buscar documento no banco
-     const { data: document, error: fetchError } = await supabase
-       .from('zapsign_documents')
-       .select('*')
-       .eq('document_token', doc_token)
-       .maybeSingle();
+     console.log('Cadastro manual ADVBox para contrato:', contrato_id);
  
-     if (fetchError) {
-       console.error('Erro ao buscar documento:', fetchError);
-       return new Response(JSON.stringify({ error: 'Erro ao buscar documento' }), 
+     if (!ADVBOX_TOKEN) {
+       return new Response(JSON.stringify({ error: 'Token ADVBOX não configurado' }), 
          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
      }
  
-     if (!document) {
-       console.log('Documento não encontrado:', doc_token);
-       return new Response(JSON.stringify({ message: 'Documento não rastreado' }), 
-         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+     // Buscar contrato
+     const { data: contrato, error: contratoError } = await supabase
+       .from('fin_contratos')
+       .select('*')
+       .eq('id', contrato_id)
+       .single();
+ 
+     if (contratoError || !contrato) {
+       return new Response(JSON.stringify({ error: 'Contrato não encontrado' }), 
+         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
      }
  
-     console.log('Documento encontrado:', document.id);
- 
-     const updates: Record<string, any> = { updated_at: new Date().toISOString() };
-     let shouldSyncAdvbox = false;
- 
-     // Atualizar status do signatário
-     if (signer_token) {
-       if (signer_token === document.office_signer_token) {
-         updates.office_signer_status = signer_status || 'signed';
-       } else if (signer_token === document.client_signer_token) {
-         updates.client_signer_status = signer_status || 'signed';
-         if (signer_status === 'signed') {
-           updates.signed_at = new Date().toISOString();
-           shouldSyncAdvbox = true;
-         }
-       }
+     // Verificar se já foi sincronizado
+     if (contrato.advbox_sync_status === 'synced') {
+       return new Response(JSON.stringify({ 
+         success: true, 
+         message: 'Contrato já foi sincronizado com ADVBox',
+         advboxCustomerId: contrato.advbox_customer_id,
+         advboxLawsuitId: contrato.advbox_lawsuit_id,
+       }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
      }
  
-     // Mapear status do documento
-     switch (event_type) {
-       case 'doc_signed':
-         if (document.document_type === 'contrato') {
-           if (signer_token === document.client_signer_token) {
-             updates.status = 'signed';
-             updates.signed_at = new Date().toISOString();
-             shouldSyncAdvbox = true;
-           }
-         } else {
-           updates.status = 'signed';
-           updates.signed_at = new Date().toISOString();
-         }
-         break;
-       case 'doc_completed':
-       case 'all_signed':
-         updates.status = 'completed';
-         updates.completed_at = new Date().toISOString();
-         if (signed_file_url) updates.signed_file_url = signed_file_url;
-         break;
-       case 'doc_expired':
-         updates.status = 'expired';
-         break;
-       case 'doc_canceled':
-       case 'doc_refused':
-         updates.status = 'canceled';
-         break;
-     }
- 
-     if (signed_file_url) updates.signed_file_url = signed_file_url;
- 
-     // Atualizar documento
-     await supabase.from('zapsign_documents').update(updates).eq('id', document.id);
- 
-     // Sincronizar com ADVBox se cliente assinou
-     let advboxResult: any = {};
+     // Buscar configurações do ADVBox
+     const settings = await getAdvboxSettings();
      
-     if (shouldSyncAdvbox && document.fin_contrato_id && !document.advbox_sync_triggered) {
-       console.log('Cliente assinou - sincronizando com ADVBox...');
-       
-       await supabase.from('zapsign_documents')
-         .update({ advbox_sync_triggered: true, advbox_sync_at: new Date().toISOString() })
-         .eq('id', document.id);
-       
-       const { data: contrato } = await supabase
-         .from('fin_contratos')
-         .select('*')
-         .eq('id', document.fin_contrato_id)
-         .single();
-       
-       if (contrato) {
-         advboxResult = await syncContractToAdvbox(supabase, contrato);
-         
-         const contratoUpdate: Record<string, any> = {
-           assinatura_status: 'signed',
-           assinado_em: new Date().toISOString(),
-         };
-         
-         if (advboxResult.customerId) contratoUpdate.advbox_customer_id = advboxResult.customerId;
-         if (advboxResult.lawsuitId) contratoUpdate.advbox_lawsuit_id = advboxResult.lawsuitId;
-         
-         contratoUpdate.advbox_sync_status = advboxResult.lawsuitId ? 'synced' : (advboxResult.customerId ? 'partial' : 'error');
-         if (advboxResult.error) contratoUpdate.advbox_sync_error = advboxResult.error;
-         
-         await supabase.from('fin_contratos').update(contratoUpdate).eq('id', document.fin_contrato_id);
-         console.log('Contrato atualizado:', contratoUpdate);
-       }
+     if (!settings.defaultUserId || !settings.defaultOriginId) {
+       return new Response(JSON.stringify({ error: 'Configurações do ADVBox incompletas' }), 
+         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
      }
  
-     console.log('Webhook processado com sucesso');
+     // 1. Criar ou buscar cliente
+     let customerId: string | null = null;
+     const existingCustomer = await findExistingCustomer(contrato.client_cpf || '', contrato.client_name);
+     
+     if (existingCustomer) {
+       customerId = String(existingCustomer.id);
+       console.log('Using existing customer:', customerId);
+     } else {
+       await sleep(1000);
+       customerId = await createCustomerInAdvbox(contrato, settings);
+       console.log('Created new customer:', customerId);
+     }
+     
+     if (!customerId) {
+       await supabase.from('fin_contratos').update({
+         advbox_sync_status: 'error',
+         advbox_sync_error: 'Não foi possível criar cliente no ADVBox',
+       }).eq('id', contrato_id);
+       
+       return new Response(JSON.stringify({ error: 'Não foi possível criar cliente no ADVBox' }), 
+         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+     }
+ 
+     // 2. Criar processo
+     await sleep(1500);
+     let lawsuitId: string | null = null;
+     
+     try {
+       lawsuitId = await createLawsuitInAdvbox(customerId, contrato, settings);
+       console.log('Created lawsuit:', lawsuitId);
+     } catch (error) {
+       console.error('Error creating lawsuit:', error);
+       
+       await supabase.from('fin_contratos').update({
+         advbox_customer_id: customerId,
+         advbox_sync_status: 'partial',
+         advbox_sync_error: 'Cliente criado, mas erro ao criar processo',
+         assinatura_status: 'manual_signature',
+         assinado_em: new Date().toISOString(),
+       }).eq('id', contrato_id);
+       
+       return new Response(JSON.stringify({ 
+         success: false, 
+         error: 'Cliente criado, mas erro ao criar processo',
+         advboxCustomerId: customerId,
+       }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+     }
+ 
+     // 3. Criar tarefa para Mariana
+     await sleep(1000);
+     await createTaskForMariana(lawsuitId!, contrato.client_name, contrato.product_name, settings);
+ 
+     // 4. Atualizar contrato
+     await supabase.from('fin_contratos').update({
+       advbox_customer_id: customerId,
+       advbox_lawsuit_id: lawsuitId,
+       advbox_sync_status: 'synced',
+       advbox_sync_error: null,
+       assinatura_status: 'manual_signature',
+       assinado_em: new Date().toISOString(),
+     }).eq('id', contrato_id);
+ 
+     console.log('Cadastro manual concluído com sucesso');
  
      return new Response(JSON.stringify({ 
        success: true, 
-       documentId: document.id,
-       eventType: event_type,
-       advboxSynced: !!advboxResult.lawsuitId,
+       message: 'Cliente e processo cadastrados no ADVBox com sucesso!',
+       advboxCustomerId: customerId,
+       advboxLawsuitId: lawsuitId,
      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
  
    } catch (error) {
-     console.error('Erro no webhook:', error);
-     return new Response(JSON.stringify({ error: 'Erro interno' }), 
+     console.error('Erro no cadastro manual:', error);
+     return new Response(JSON.stringify({ error: 'Erro interno no servidor' }), 
        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
    }
  });
