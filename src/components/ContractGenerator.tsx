@@ -2101,8 +2101,12 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
                           <Badge 
                             variant={selectedContraPartidaTemplateId === template.id ? "default" : (template.is_default ? "secondary" : "outline")}
                             className={`cursor-pointer hover:bg-primary/10 ${selectedContraPartidaTemplateId === template.id ? 'ring-2 ring-primary' : ''}`}
-                            onClick={() => {
-                              setContraPartida(template.description);
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              // Substituir completamente o valor atual pelo template selecionado
+                              const novoValor = template.description;
+                              setContraPartida(novoValor);
                               setSelectedContraPartidaTemplateId(template.id);
                             }}
                           >
@@ -2113,7 +2117,11 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
                           </Badge>
                           {(!template.is_default || isAdmin) && (
                             <button
-                              onClick={() => deletarContraPartidaTemplate(template.id, template.is_default)}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                deletarContraPartidaTemplate(template.id, template.is_default);
+                              }}
                               className="text-muted-foreground hover:text-destructive p-0.5"
                             >
                               <Trash2 className="h-3 w-3" />
@@ -2157,9 +2165,16 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
                   
                   <Input
                     id="contraPartida"
+                    key={`contraPartida-${selectedContraPartidaTemplateId || 'manual'}`}
                     placeholder="Ex: Estado de Minas Gerais, INSS, União Federal..."
                     value={contraPartida}
-                    onChange={(e) => setContraPartida(e.target.value)}
+                    onChange={(e) => {
+                      setContraPartida(e.target.value);
+                      // Se editar manualmente, desmarcar o template selecionado
+                      if (selectedContraPartidaTemplateId) {
+                        setSelectedContraPartidaTemplateId(null);
+                      }
+                    }}
                   />
                 </div>
                 
