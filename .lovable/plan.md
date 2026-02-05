@@ -1,193 +1,122 @@
 
-# Plano: Múltiplos Signatários e Assinatura Automática do Advogado no ZapSign
+# Plano: Configuração Completa do ZapSign
 
-## Objetivo
-Implementar suporte a múltiplos signatários nos contratos, adicionando automaticamente o advogado do escritório como segundo signatário com assinatura automática via API.
+## Visão Geral
 
----
-
-## Análise do Cenário
-
-| Tipo de Documento | Signatários | Autenticação |
-|-------------------|-------------|--------------|
-| Procuração | Apenas cliente | Selfie + Documento (obrigatório) |
-| Declaração | Apenas cliente | Selfie + Documento (obrigatório) |
-| Contrato | Cliente + Advogado | Cliente: Selfie + Documento / Advogado: Apenas assinatura na tela |
+Vou solicitar os tokens necessários e configurar o sistema completo, incluindo:
+1. Token de usuário para assinatura automática
+2. Webhook para receber notificações de status
 
 ---
 
-## Recursos Necessários do ZapSign
+## Fase 1: Secrets a Configurar
 
-### 1. Múltiplos Signatários
-A API do ZapSign já suporta múltiplos signatários no array `signers` ao criar o documento.
-
-### 2. Assinatura Automática via API
-Endpoint: `POST https://api.zapsign.com.br/api/v1/sign/`
-
-Pré-requisitos:
-- `user_token` do advogado (obtido em Configurações > Meu Perfil no ZapSign)
-- O signatário (advogado) deve estar registrado como usuário na conta ZapSign
-- O e-mail do signatário deve ser vazio ou igual ao do usuário que vai assinar
-- Dados do perfil configurados (nome, assinatura, visto)
+| Secret | Descrição | Status |
+|--------|-----------|--------|
+| `ZAPSIGN_API_TOKEN` | Token da API do ZapSign | Já configurado |
+| `ZAPSIGN_USER_TOKEN` | Token do usuário para assinatura automática | Será solicitado |
 
 ---
 
-## Implementação Proposta
+## Fase 2: Implementação da Assinatura Automática
 
-### Fase 1: Nova Secret Necessária
+Após você fornecer o token de usuário, implementarei as alterações nos arquivos:
 
-| Secret | Descrição |
-|--------|-----------|
-| `ZAPSIGN_USER_TOKEN` | Token do advogado/escritório para assinatura automática |
-
-O `ZAPSIGN_API_TOKEN` já está configurado. Será necessário adicionar o `ZAPSIGN_USER_TOKEN` do perfil do advogado que vai assinar automaticamente.
-
-### Fase 2: Modificações na Edge Function
-
-**Arquivo: `supabase/functions/zapsign-integration/index.ts`**
+### Edge Function (zapsign-integration)
 
 Alterações:
-1. Aceitar novo parâmetro `includeOfficeSigner: boolean` (indica se deve incluir o advogado)
-2. Quando `documentType === 'contrato'` e `includeOfficeSigner === true`:
-   - Adicionar segundo signatário (advogado do escritório)
-   - Configurar autenticação simplificada para o advogado (sem selfie/documento)
-   - Após criar o documento, chamar endpoint de assinatura automática para o advogado
+- Adicionar segundo signatário (advogado) quando `documentType === 'contrato'`
+- Advogado: sem exigência de selfie/documento
+- Após criar documento, chamar `POST /api/v1/sign/` para assinar automaticamente
 
-Fluxo técnico:
-```text
-1. Criar documento com 2 signatários
-   ├─ Signatário 1 (Cliente): selfie + documento obrigatórios
-   └─ Signatário 2 (Advogado): apenas assinatura na tela
-
-2. Receber resposta com tokens dos signatários
-
-3. Automaticamente assinar pelo advogado
-   POST /api/v1/sign/
-   {
-     "user_token": "<ZAPSIGN_USER_TOKEN>",
-     "signer_tokens": ["<token do signatário advogado>"]
-   }
-
-4. Retornar apenas o link do cliente (advogado já assinou)
-```
-
-### Fase 3: Modificações no Dialog
-
-**Arquivo: `src/components/ZapSignDialog.tsx`**
+### ZapSignDialog.tsx
 
 Alterações:
-1. Para `documentType === 'contrato'`: exibir aviso de que a assinatura do escritório será incluída automaticamente
-2. Adicionar informação visual de que o documento terá 2 signatários
-3. Na resposta de sucesso, exibir status de ambos signatários
+- Exibir aviso sobre assinatura automática do escritório em contratos
+- Mostrar status de ambos signatários na resposta
 
-### Fase 4: Dados do Advogado Signatário
+### ContractGenerator.tsx
 
-Utilizar dados fixos do escritório para o signatário advogado:
-- Nome: "Egg Nunes Advocacia" ou nome de um advogado específico
-- E-mail: Vazio ou e-mail configurado no perfil ZapSign
-- Qualification: "Contratado"
+Alterações:
+- Passar flag `includeOfficeSigner: true` para contratos
 
 ---
 
-## Arquivos a Modificar
+## Fase 3: Configuração do Webhook
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/functions/zapsign-integration/index.ts` | Adicionar lógica de múltiplos signatários e assinatura automática |
-| `src/components/ZapSignDialog.tsx` | Atualizar UI para indicar assinatura automática do escritório em contratos |
-| `src/components/ContractGenerator.tsx` | Passar flag `includeOfficeSigner` para o dialog |
+O Webhook permite que o ZapSign notifique seu sistema quando:
+- Um signatário assinar o documento
+- O documento for completamente assinado
+- Houver algum erro ou expiração
+
+### Nova Edge Function: zapsign-webhook
+
+Criar uma nova Edge Function para receber as notificações:
+
+| Campo | Valor |
+|-------|-------|
+| URL do Webhook | `https://igzcajgwqfpcgybxanjo.supabase.co/functions/v1/zapsign-webhook` |
+| Eventos | Documento assinado, todos assinaram, etc. |
+
+### Nova Tabela: zapsign_documents
+
+Para rastrear os documentos enviados e seu status:
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | uuid | Identificador único |
+| document_token | text | Token do documento no ZapSign |
+| document_type | text | contrato, procuracao, declaracao |
+| document_name | text | Nome do documento |
+| client_name | text | Nome do cliente |
+| client_email | text | E-mail do cliente |
+| status | text | pending, signed, completed, expired |
+| sign_url | text | Link para assinatura |
+| signed_file_url | text | URL do arquivo assinado |
+| created_at | timestamp | Data de criação |
+| updated_at | timestamp | Data de atualização |
 
 ---
 
-## Interface Modificada
-
-O diálogo para contratos mostrará:
+## Fluxo Completo
 
 ```text
-┌─────────────────────────────────────────────────────────┐
-│ Enviar para Assinatura Digital                          │
-├─────────────────────────────────────────────────────────┤
-│ [Dados do documento]                                    │
-│ [Dados do cliente]                                      │
-│                                                         │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ 📝 Assinatura do Escritório (automática)            │ │
-│ │ Este contrato será assinado automaticamente pelo    │ │
-│ │ escritório assim que você clicar em enviar.         │ │
-│ │ O cliente receberá o link e ao assinar, o contrato  │ │
-│ │ estará completo.                                    │ │
-│ └─────────────────────────────────────────────────────┘ │
-│                                                         │
-│ [Enviar para ZapSign]                                   │
-└─────────────────────────────────────────────────────────┘
+1. Gerar contrato na intranet
+2. Enviar para ZapSign
+   ├─ Documento criado com 2 signatários
+   ├─ Advogado assina automaticamente via API
+   └─ Cliente recebe link por e-mail
+3. Webhook recebe notificação quando cliente assinar
+4. Sistema atualiza status do documento
+5. Arquivo assinado disponível para download
 ```
 
 ---
 
-## Detalhes Técnicos
+## Ordem de Implementação
 
-### Edge Function - Novo Fluxo
-
-```typescript
-// Configurar signatários
-const signers: Signer[] = [clientSigner];
-
-// Para contratos, adicionar advogado
-if (body.documentType === 'contrato' && body.includeOfficeSigner) {
-  const officeSigner: Signer = {
-    name: 'Egg Nunes Advocacia',
-    email: '', // Vazio para permitir assinatura via API
-    auth_mode: 'assinaturaTela',
-    require_selfie_photo: false, // Sem exigência
-    require_document_photo: false, // Sem exigência
-    qualification: 'Contratado',
-    send_automatic_email: false, // Não enviar e-mail
-  };
-  signers.push(officeSigner);
-}
-
-// Criar documento
-const response = await fetch(`${ZAPSIGN_API_URL}/docs/`, { ... });
-const data = await response.json();
-
-// Assinar automaticamente pelo escritório
-if (body.includeOfficeSigner && data.signers?.length > 1) {
-  const ZAPSIGN_USER_TOKEN = Deno.env.get('ZAPSIGN_USER_TOKEN');
-  const officeSignerToken = data.signers[1].token;
-  
-  await fetch(`${ZAPSIGN_API_URL}/sign/`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${ZAPSIGN_API_TOKEN}` },
-    body: JSON.stringify({
-      user_token: ZAPSIGN_USER_TOKEN,
-      signer_tokens: [officeSignerToken]
-    })
-  });
-}
-```
+1. **Solicitar ZAPSIGN_USER_TOKEN** - Token do seu perfil
+2. **Atualizar Edge Function** - Lógica de múltiplos signatários
+3. **Atualizar ZapSignDialog** - UI para contratos
+4. **Criar tabela zapsign_documents** - Rastreamento
+5. **Criar zapsign-webhook** - Receber notificações
+6. **Atualizar ContractGenerator** - Passar flag
 
 ---
 
-## Próximos Passos
+## Configuração no ZapSign
 
-1. **Você precisará fornecer o `ZAPSIGN_USER_TOKEN`**:
-   - Acesse o ZapSign
-   - Vá em Configurações > Meu Perfil
-   - No final da página, habilite "Assinatura via API"
-   - Copie o token gerado
+Após implementar, você precisará configurar o Webhook no painel do ZapSign:
 
-2. Após fornecer o token, implementarei as alterações nos arquivos
+1. Acesse Configurações > Integrações > Webhooks
+2. Adicione um novo webhook com a URL fornecida
+3. Selecione os eventos que deseja receber
 
 ---
 
 ## Resultado Esperado
 
-**Para Procuração/Declaração**:
-- Comportamento atual mantido (apenas cliente assina)
-
-**Para Contrato**:
-- 2 signatários configurados automaticamente
-- Advogado assina instantaneamente via API
-- Cliente recebe link e assina quando quiser
-- Quando cliente assinar, documento fica 100% concluído
-
+- Contratos assinados automaticamente pelo escritório
+- Cliente recebe link e assina
+- Sistema recebe notificação quando cliente assinar
+- Histórico de documentos enviados disponível
