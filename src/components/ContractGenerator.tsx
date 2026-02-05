@@ -251,6 +251,14 @@ export const ContractGenerator = ({
   const [documentNameForZapSign, setDocumentNameForZapSign] = useState("");
 
   const { user } = useAuth();
+ 
+  // ID do contrato registrado no banco (para vincular ao ZapSign e cadastro manual ADVBox)
+  const [contratoId, setContratoId] = useState<string | null>(null);
+  
+  // Diálogo para cadastro manual no ADVBox (quando não envia para ZapSign)
+  const [showAdvboxManualConfirm, setShowAdvboxManualConfirm] = useState(false);
+  const [registrandoAdvboxManual, setRegistrandoAdvboxManual] = useState(false);
+ 
   const { isAdmin } = useUserRole();
 
   // Carregar todos os templates
@@ -1737,6 +1745,11 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
         } else {
           console.log('Automação concluída:', automationResult);
           
+          // Salvar o ID do contrato para vincular ao ZapSign
+          if (automationResult.contractId) {
+            setContratoId(automationResult.contractId);
+          }
+          
           if (automationResult.syncStatus === 'synced') {
             toast.success("Contrato gerado e sincronizado!", {
               description: "Cliente e processo registrados no ADVBOX e financeiro.",
@@ -2837,7 +2850,8 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
             variant="outline"
             onClick={() => {
               setShowZapSignConfirm(false);
-              onOpenChange(false);
+              // Perguntar se deseja cadastrar manualmente no ADVBox
+              setShowAdvboxManualConfirm(true);
             }}
           >
             Não, apenas gerar PDF
@@ -2850,6 +2864,77 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
           >
             <Send className="h-4 w-4 mr-2" />
             Sim, enviar para ZapSign
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Dialog para cadastro manual no ADVBox */}
+    <Dialog open={showAdvboxManualConfirm} onOpenChange={setShowAdvboxManualConfirm}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary" />
+            Cadastrar no ADVBox?
+          </DialogTitle>
+          <DialogDescription>
+            Como o contrato não foi enviado para assinatura digital, você pode cadastrar manualmente o cliente e processo no ADVBox agora.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowAdvboxManualConfirm(false);
+              onOpenChange(false);
+            }}
+            disabled={registrandoAdvboxManual}
+          >
+            Mais tarde
+          </Button>
+          <Button
+            onClick={async () => {
+              if (!contratoId) {
+                toast.error("ID do contrato não encontrado");
+                setShowAdvboxManualConfirm(false);
+                onOpenChange(false);
+                return;
+              }
+              
+              setRegistrandoAdvboxManual(true);
+              try {
+                const { data, error } = await supabase.functions.invoke('advbox-manual-registration', {
+                  body: { contrato_id: contratoId },
+                });
+                
+                if (error) throw error;
+                
+                if (data.success) {
+                  toast.success('Cliente e processo cadastrados no ADVBox!', {
+                    description: 'Uma tarefa foi criada para a coordenadora analisar o caso.',
+                  });
+                } else {
+                  throw new Error(data.error || 'Erro desconhecido');
+                }
+              } catch (err) {
+                console.error('Erro ao cadastrar no ADVBox:', err);
+                toast.error('Erro ao cadastrar no ADVBox', {
+                  description: err instanceof Error ? err.message : 'Erro desconhecido',
+                });
+              } finally {
+                setRegistrandoAdvboxManual(false);
+                setShowAdvboxManualConfirm(false);
+                onOpenChange(false);
+              }
+            }}
+            disabled={registrandoAdvboxManual}
+          >
+            {registrandoAdvboxManual ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Users className="h-4 w-4 mr-2" />
+            )}
+            Cadastrar no ADVBox
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -2871,6 +2956,7 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
       clientEmail={client?.email}
       clientPhone={client?.telefone}
       clientCpf={client?.cpf}
+      contratoId={contratoId || undefined}
       onSuccess={(signUrl) => {
         console.log('Contrato enviado para assinatura:', signUrl);
       }}

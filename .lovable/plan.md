@@ -1,14 +1,14 @@
 
 # Plano: Cadastro ADVBox Após Assinatura do Contrato
 
-## Resumo das Alterações
+## ✅ Status: Implementado
 
-O sistema atual cadastra o cliente e processo no ADVBox imediatamente após a **geração** do contrato. A nova lógica irá:
+O sistema foi atualizado conforme especificado. A lógica atual:
 
-1. **Adiar o cadastro no ADVBox** para quando o contrato for assinado via ZapSign (webhook)
-2. **Permitir cadastro manual** quando o contrato for assinado presencialmente (sem ZapSign)
-3. **Exibir status de assinatura** nas abas de Contratos e Comercial
-4. **Criar tarefa automática para Mariana** após o cadastro no ADVBox
+1. ✅ **Cadastro no ADVBox adiado** para quando o contrato for assinado via ZapSign (webhook)
+2. ✅ **Cadastro manual disponível** quando o contrato for assinado presencialmente (sem ZapSign)
+3. ✅ **Status de assinatura visível** na aba de Contratos com badges
+4. ✅ **Tarefa automática para Mariana** criada após o cadastro no ADVBox
 
 ---
 
