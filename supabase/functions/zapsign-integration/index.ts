@@ -142,7 +142,6 @@ serve(async (req) => {
    }
 
     // Montar payload para criar documento via PDF base64
-    // NOTA: sandbox=true para ambiente de testes. Remover para produção.
     const documentPayload = {
       name: body.documentName,
       base64_pdf: cleanBase64,
@@ -152,7 +151,6 @@ serve(async (req) => {
       signed_file_only_finished: true,
       brand_primary_color: '#1e40af', // Cor do escritório
       external_id: `${body.documentType}_${Date.now()}`,
-      sandbox: true, // Modo sandbox para testes - remover quando contratar plano de produção
     };
 
     console.log('Enviando para ZapSign API...', {
