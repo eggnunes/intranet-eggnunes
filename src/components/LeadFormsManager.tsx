@@ -8,10 +8,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Copy, Plus, Trash2, FileText, Code, Eye, EyeOff, ExternalLink } from 'lucide-react';
+import { Copy, Plus, Trash2, FileText, Code, Eye, EyeOff, ExternalLink, Pencil } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import logoEggnunes from '@/assets/logo-eggnunes.png';
 
 interface LeadForm {
   id: string;
@@ -24,21 +25,89 @@ interface LeadForm {
   created_at: string;
 }
 
+const INITIAL_FORM_DATA = {
+  name: '',
+  whatsapp_number: '',
+  whatsapp_message: 'Olá! Meu nome é {nome}. Gostaria de mais informações.',
+  redirect_to_whatsapp: true,
+};
+
+type FormDataType = typeof INITIAL_FORM_DATA;
+
+function FormFields({ formData, setFormData }: { formData: FormDataType; setFormData: (data: FormDataType) => void }) {
+  return (
+    <div className="space-y-4 py-4">
+      <div className="p-3 bg-muted rounded-lg space-y-2">
+        <Label className="text-sm font-semibold">Campos que o lead irá preencher:</Label>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline" className="bg-background">Nome *</Badge>
+          <Badge variant="outline" className="bg-background">Telefone *</Badge>
+          <Badge variant="outline" className="bg-background">E-mail</Badge>
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          * Campos obrigatórios. Além disso, são capturados automaticamente: UTM parameters, URL da página, referrer.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Nome do Formulário *</Label>
+        <Input
+          placeholder="Ex: Formulário Landing Previdenciário"
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>Número do WhatsApp *</Label>
+        <Input
+          placeholder="5531999999999"
+          value={formData.whatsapp_number}
+          onChange={(e) => setFormData({ ...formData, whatsapp_number: e.target.value })}
+        />
+        <p className="text-xs text-muted-foreground">
+          Formato: código do país + DDD + número (sem espaços ou traços)
+        </p>
+      </div>
+      <div className="space-y-2">
+        <Label>Mensagem do WhatsApp</Label>
+        <Textarea
+          placeholder="Olá! Meu nome é {nome}..."
+          value={formData.whatsapp_message}
+          onChange={(e) => setFormData({ ...formData, whatsapp_message: e.target.value })}
+          rows={3}
+        />
+        <p className="text-xs text-muted-foreground">
+          Use {'{nome}'} e {'{telefone}'} para inserir os dados do lead
+        </p>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="space-y-0.5">
+          <Label>Redirecionar para WhatsApp</Label>
+          <p className="text-xs text-muted-foreground">
+            Abrir WhatsApp após envio do formulário
+          </p>
+        </div>
+        <Switch
+          checked={formData.redirect_to_whatsapp}
+          onCheckedChange={(checked) => setFormData({ ...formData, redirect_to_whatsapp: checked })}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function LeadFormsManager() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [forms, setForms] = useState<LeadForm[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingForm, setEditingForm] = useState<LeadForm | null>(null);
   const [selectedForm, setSelectedForm] = useState<LeadForm | null>(null);
   const [showEmbedCode, setShowEmbedCode] = useState(false);
 
-  const [formData, setFormData] = useState({
-    name: '',
-    whatsapp_number: '',
-    whatsapp_message: 'Olá! Meu nome é {nome}. Gostaria de mais informações.',
-    redirect_to_whatsapp: true,
-  });
+  const [formData, setFormData] = useState({ ...INITIAL_FORM_DATA });
 
   useEffect(() => {
     fetchForms();
@@ -60,6 +129,21 @@ export function LeadFormsManager() {
     }
   };
 
+  const resetFormData = () => {
+    setFormData({ ...INITIAL_FORM_DATA });
+  };
+
+  const openEditDialog = (form: LeadForm) => {
+    setEditingForm(form);
+    setFormData({
+      name: form.name,
+      whatsapp_number: form.whatsapp_number,
+      whatsapp_message: form.whatsapp_message,
+      redirect_to_whatsapp: form.redirect_to_whatsapp,
+    });
+    setShowEditDialog(true);
+  };
+
   const createForm = async () => {
     if (!formData.name || !formData.whatsapp_number) {
       toast({ title: 'Preencha nome e número do WhatsApp', variant: 'destructive' });
@@ -79,16 +163,39 @@ export function LeadFormsManager() {
 
       toast({ title: 'Formulário criado!' });
       setShowCreateDialog(false);
-      setFormData({
-        name: '',
-        whatsapp_number: '',
-        whatsapp_message: 'Olá! Meu nome é {nome}. Gostaria de mais informações.',
-        redirect_to_whatsapp: true,
-      });
+      resetFormData();
       fetchForms();
     } catch (error) {
       console.error('Error creating form:', error);
       toast({ title: 'Erro ao criar formulário', variant: 'destructive' });
+    }
+  };
+
+  const updateForm = async () => {
+    if (!editingForm) return;
+    if (!formData.name || !formData.whatsapp_number) {
+      toast({ title: 'Preencha nome e número do WhatsApp', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('lead_capture_forms').update({
+        name: formData.name,
+        whatsapp_number: formData.whatsapp_number,
+        whatsapp_message: formData.whatsapp_message,
+        redirect_to_whatsapp: formData.redirect_to_whatsapp,
+      }).eq('id', editingForm.id);
+
+      if (error) throw error;
+
+      toast({ title: 'Formulário atualizado!' });
+      setShowEditDialog(false);
+      setEditingForm(null);
+      resetFormData();
+      fetchForms();
+    } catch (error) {
+      console.error('Error updating form:', error);
+      toast({ title: 'Erro ao atualizar formulário', variant: 'destructive' });
     }
   };
 
@@ -122,29 +229,45 @@ export function LeadFormsManager() {
 
   const generateEmbedCode = (form: LeadForm) => {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const formId = form.id.replace(/-/g, '_'); // Safe ID for JavaScript
+    const formId = form.id.replace(/-/g, '_');
+    const logoUrl = 'https://intranet-eggnunes.lovable.app/logo-eggnunes.png';
     
     return `<!-- Formulário de Captura de Leads - ${form.name} -->
 <!-- Compatível com WordPress/Elementor -->
 <style>
   .lead-form-container-${formId} {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    max-width: 400px;
+    max-width: 420px;
     margin: 0 auto;
-    padding: 24px;
+    padding: 28px 24px;
     background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
     box-sizing: border-box;
   }
   .lead-form-container-${formId} * {
     box-sizing: border-box;
   }
-  .lead-form-container-${formId} h3 {
-    margin: 0 0 16px;
-    font-size: 1.25rem;
+  .lead-form-container-${formId} .lead-form-logo {
+    display: block;
+    max-width: 160px;
+    height: auto;
+    margin: 0 auto 16px;
+  }
+  .lead-form-container-${formId} .lead-form-header {
     text-align: center;
-    color: #333;
+    margin-bottom: 20px;
+  }
+  .lead-form-container-${formId} .lead-form-header h3 {
+    margin: 0 0 6px;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #1a1a1a;
+  }
+  .lead-form-container-${formId} .lead-form-header p {
+    margin: 0;
+    font-size: 14px;
+    color: #666;
   }
   .lead-form-container-${formId} .form-group {
     margin-bottom: 16px;
@@ -158,29 +281,31 @@ export function LeadFormsManager() {
   }
   .lead-form-container-${formId} input {
     width: 100%;
-    padding: 12px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
+    padding: 12px 14px;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 10px;
     font-size: 16px;
     box-sizing: border-box;
-    background: #fff;
+    background: #fafafa;
     color: #333;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
   .lead-form-container-${formId} input:focus {
     outline: none;
     border-color: #25D366;
-    box-shadow: 0 0 0 2px rgba(37, 211, 102, 0.2);
+    box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.15);
+    background: #fff;
   }
   .lead-form-container-${formId} input::placeholder {
-    color: #999;
+    color: #aaa;
   }
   .lead-form-container-${formId} button[type="submit"] {
     width: 100%;
     padding: 14px;
-    background: #25D366;
+    background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
     color: white;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 16px;
     font-weight: 600;
     cursor: pointer;
@@ -188,24 +313,41 @@ export function LeadFormsManager() {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    transition: background-color 0.2s ease;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
+    margin-top: 4px;
   }
   .lead-form-container-${formId} button[type="submit"]:hover {
-    background: #128C7E;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(37, 211, 102, 0.4);
+  }
+  .lead-form-container-${formId} button[type="submit"]:active {
+    transform: translateY(0);
   }
   .lead-form-container-${formId} button[type="submit"]:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+    transform: none;
   }
   .lead-form-container-${formId} .whatsapp-icon {
     width: 20px;
     height: 20px;
     fill: currentColor;
   }
+  .lead-form-container-${formId} .lead-form-footer {
+    text-align: center;
+    margin-top: 14px;
+    font-size: 11px;
+    color: #aaa;
+  }
 </style>
 
 <div class="lead-form-container-${formId}" id="lead-container-${form.id}">
-  <h3>Fale Conosco</h3>
+  <img src="${logoUrl}" alt="Egg Nunes Advogados" class="lead-form-logo" onerror="this.style.display='none'">
+  <div class="lead-form-header">
+    <h3>Fale Conosco Agora</h3>
+    <p>Preencha seus dados e entraremos em contato rapidamente</p>
+  </div>
   <form id="lead-form-${form.id}" autocomplete="on">
     <div class="form-group">
       <label for="name-${form.id}">Nome *</label>
@@ -227,19 +369,17 @@ export function LeadFormsManager() {
       Falar no WhatsApp
     </button>
   </form>
+  <div class="lead-form-footer">Seus dados estão seguros conosco</div>
 </div>
 
 <script>
 (function() {
-  // Prevent multiple initializations
   if (window['leadForm_${formId}_initialized']) return;
   
-  // UTM Storage Key - persists UTMs across page navigation
   var UTM_STORAGE_KEY = 'lead_form_utm_params';
   var UTM_LANDING_KEY = 'lead_form_landing_page';
   var UTM_REFERRER_KEY = 'lead_form_original_referrer';
   
-  // Function to get and persist UTM params
   function getUtmParams() {
     var urlParams = new URLSearchParams(window.location.search);
     var utmParams = {
@@ -250,11 +390,9 @@ export function LeadFormsManager() {
       utm_term: urlParams.get('utm_term')
     };
     
-    // Check if we have UTMs in the current URL
     var hasUtmsInUrl = utmParams.utm_source || utmParams.utm_medium || utmParams.utm_campaign;
     
     if (hasUtmsInUrl) {
-      // Save UTMs to sessionStorage for persistence across page navigation
       try {
         sessionStorage.setItem(UTM_STORAGE_KEY, JSON.stringify(utmParams));
         sessionStorage.setItem(UTM_LANDING_KEY, window.location.href);
@@ -267,7 +405,6 @@ export function LeadFormsManager() {
       return utmParams;
     }
     
-    // Try to recover UTMs from sessionStorage
     try {
       var storedUtms = sessionStorage.getItem(UTM_STORAGE_KEY);
       if (storedUtms) {
@@ -277,7 +414,6 @@ export function LeadFormsManager() {
       console.log('Could not retrieve stored UTMs');
     }
     
-    // Try to extract UTMs from referrer URL (if user came from an ad)
     if (document.referrer) {
       try {
         var referrerUrl = new URL(document.referrer);
@@ -292,12 +428,9 @@ export function LeadFormsManager() {
         if (referrerUtms.utm_source || referrerUtms.utm_medium) {
           return referrerUtms;
         }
-      } catch (e) {
-        // Invalid referrer URL
-      }
+      } catch (e) {}
     }
     
-    // Auto-detect source from referrer domain
     var autoSource = null;
     var autoMedium = null;
     if (document.referrer) {
@@ -334,7 +467,6 @@ export function LeadFormsManager() {
       } catch (e) {}
     }
     
-    // If no UTMs found anywhere but we detected a source
     if (autoSource) {
       return {
         utm_source: autoSource,
@@ -345,7 +477,6 @@ export function LeadFormsManager() {
       };
     }
     
-    // Check if it's a direct access
     if (!document.referrer || document.referrer.includes(window.location.hostname)) {
       return {
         utm_source: 'direct',
@@ -359,7 +490,6 @@ export function LeadFormsManager() {
     return utmParams;
   }
   
-  // Get original landing page from storage or current URL
   function getOriginalLandingPage() {
     try {
       var stored = sessionStorage.getItem(UTM_LANDING_KEY);
@@ -368,7 +498,6 @@ export function LeadFormsManager() {
     return window.location.href;
   }
   
-  // Get original referrer from storage
   function getOriginalReferrer() {
     try {
       var stored = sessionStorage.getItem(UTM_REFERRER_KEY);
@@ -382,21 +511,17 @@ export function LeadFormsManager() {
     var submitBtn = document.getElementById('submit-btn-${form.id}');
     var container = document.getElementById('lead-container-${form.id}');
     
-    // Check if elements exist
     if (!form || !submitBtn || !container) {
       console.log('Lead form elements not found yet, retrying...');
       return false;
     }
     
-    // Check if already initialized
     if (form.dataset.initialized === 'true') return true;
     form.dataset.initialized = 'true';
     window['leadForm_${formId}_initialized'] = true;
     
-    // Get UTM params (with persistence and auto-detection)
     var utmData = getUtmParams();
     
-    // Create WhatsApp icon
     function createWhatsAppIcon() {
       var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.setAttribute('class', 'whatsapp-icon');
@@ -429,7 +554,6 @@ export function LeadFormsManager() {
       var phoneVal = (formDataObj.get('phone') || '').toString().trim();
       var emailVal = (formDataObj.get('email') || '').toString().trim();
       
-      // Basic validation
       if (!nameVal || nameVal.length < 2) {
         alert('Por favor, informe seu nome.');
         submitBtn.disabled = false;
@@ -477,10 +601,12 @@ export function LeadFormsManager() {
           window.open(result.whatsapp_url, '_blank');
         }
         
-        // Hide form and show success message
         form.style.display = 'none';
+        var headerEl = container.querySelector('.lead-form-header');
+        if (headerEl) headerEl.style.display = 'none';
+        var footerEl = container.querySelector('.lead-form-footer');
+        if (footerEl) footerEl.style.display = 'none';
         
-        // Create success message
         var successDiv = document.createElement('div');
         successDiv.style.cssText = 'text-align: center; padding: 20px 0;';
         successDiv.innerHTML = '<div style="font-size: 48px; margin-bottom: 12px;">✓</div>' +
@@ -488,7 +614,6 @@ export function LeadFormsManager() {
           '<p style="color: #666; margin: 0; font-size: 14px;">Em breve entraremos em contato.</p>';
         container.appendChild(successDiv);
         
-        // Optional: hide entire container after delay
         setTimeout(function() {
           container.style.opacity = '0';
           container.style.transition = 'opacity 0.5s ease';
@@ -512,10 +637,8 @@ export function LeadFormsManager() {
     return true;
   }
   
-  // Try to initialize immediately
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
     if (!initLeadForm()) {
-      // If elements not found, retry with delay (for Elementor async loading)
       var retryCount = 0;
       var maxRetries = 20;
       var retryInterval = setInterval(function() {
@@ -529,7 +652,6 @@ export function LeadFormsManager() {
       }, 250);
     }
   } else {
-    // Wait for DOM to be ready
     document.addEventListener('DOMContentLoaded', function() {
       if (!initLeadForm()) {
         var retryCount = 0;
@@ -544,14 +666,12 @@ export function LeadFormsManager() {
     });
   }
   
-  // Also listen for jQuery ready if available (WordPress compatibility)
   if (typeof jQuery !== 'undefined') {
     jQuery(document).ready(function() {
       setTimeout(initLeadForm, 100);
     });
   }
   
-  // Elementor frontend loaded event
   if (typeof jQuery !== 'undefined') {
     jQuery(window).on('elementor/frontend/init', function() {
       setTimeout(initLeadForm, 500);
@@ -580,7 +700,10 @@ export function LeadFormsManager() {
               Crie formulários para incorporar em suas landing pages
             </CardDescription>
           </div>
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+          <Dialog open={showCreateDialog} onOpenChange={(open) => {
+            setShowCreateDialog(open);
+            if (!open) resetFormData();
+          }}>
             <DialogTrigger asChild>
               <Button className="flex items-center gap-2">
                 <Plus className="h-4 w-4" />
@@ -591,67 +714,29 @@ export function LeadFormsManager() {
               <DialogHeader>
                 <DialogTitle>Criar Novo Formulário</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                {/* Campos que serão coletados */}
-                <div className="p-3 bg-muted rounded-lg space-y-2">
-                  <Label className="text-sm font-semibold">Campos que o lead irá preencher:</Label>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className="bg-background">Nome *</Badge>
-                    <Badge variant="outline" className="bg-background">Telefone *</Badge>
-                    <Badge variant="outline" className="bg-background">E-mail</Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    * Campos obrigatórios. Além disso, são capturados automaticamente: UTM parameters, URL da página, referrer.
-                  </p>
-                </div>
+              <FormFields formData={formData} setFormData={setFormData} />
+              <Button onClick={createForm} className="w-full">
+                Criar Formulário
+              </Button>
+            </DialogContent>
+          </Dialog>
 
-                <div className="space-y-2">
-                  <Label>Nome do Formulário *</Label>
-                  <Input
-                    placeholder="Ex: Formulário Landing Previdenciário"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Número do WhatsApp *</Label>
-                  <Input
-                    placeholder="5531999999999"
-                    value={formData.whatsapp_number}
-                    onChange={(e) => setFormData({ ...formData, whatsapp_number: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Formato: código do país + DDD + número (sem espaços ou traços)
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Mensagem do WhatsApp</Label>
-                  <Textarea
-                    placeholder="Olá! Meu nome é {nome}..."
-                    value={formData.whatsapp_message}
-                    onChange={(e) => setFormData({ ...formData, whatsapp_message: e.target.value })}
-                    rows={3}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Use {'{nome}'} e {'{telefone}'} para inserir os dados do lead
-                  </p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Redirecionar para WhatsApp</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Abrir WhatsApp após envio do formulário
-                    </p>
-                  </div>
-                  <Switch
-                    checked={formData.redirect_to_whatsapp}
-                    onCheckedChange={(checked) => setFormData({ ...formData, redirect_to_whatsapp: checked })}
-                  />
-                </div>
-                <Button onClick={createForm} className="w-full">
-                  Criar Formulário
-                </Button>
-              </div>
+          {/* Edit Dialog */}
+          <Dialog open={showEditDialog} onOpenChange={(open) => {
+            setShowEditDialog(open);
+            if (!open) {
+              setEditingForm(null);
+              resetFormData();
+            }
+          }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Editar Formulário</DialogTitle>
+              </DialogHeader>
+              <FormFields formData={formData} setFormData={setFormData} />
+              <Button onClick={updateForm} className="w-full">
+                Salvar Alterações
+              </Button>
             </DialogContent>
           </Dialog>
         </CardHeader>
@@ -678,7 +763,15 @@ export function LeadFormsManager() {
                       WhatsApp: {form.whatsapp_number}
                     </p>
                   </div>
-                  <div className="flex gap-2 flex-wrap">
+                   <div className="flex gap-2 flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEditDialog(form)}
+                      title="Editar formulário"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -708,39 +801,51 @@ export function LeadFormsManager() {
                           {/* Preview Visual */}
                           <div className="space-y-3">
                             <Label className="text-sm font-semibold">Preview do Formulário</Label>
-                            <div className="border rounded-lg p-4 bg-white">
-                              <div className="max-w-[350px] mx-auto p-6 bg-white rounded-xl shadow-lg">
-                                <h3 className="text-lg font-semibold text-center text-gray-800 mb-4">Fale Conosco</h3>
+                            <div className="border rounded-lg p-4" style={{ background: '#fff' }}>
+                              <div className="max-w-[380px] mx-auto p-7 rounded-2xl" style={{ background: '#fff', boxShadow: '0 8px 30px rgba(0,0,0,0.12)' }}>
+                                <img 
+                                  src={logoEggnunes} 
+                                  alt="Egg Nunes Advogados" 
+                                  className="mx-auto mb-4 max-w-[160px] h-auto"
+                                />
+                                <div className="text-center mb-5">
+                                  <h3 className="text-xl font-bold" style={{ color: '#1a1a1a' }}>Fale Conosco Agora</h3>
+                                  <p className="text-sm mt-1" style={{ color: '#666' }}>Preencha seus dados e entraremos em contato rapidamente</p>
+                                </div>
                                 <div className="space-y-4">
                                   <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+                                    <label className="block text-sm font-medium mb-1" style={{ color: '#333' }}>Nome *</label>
                                     <input 
                                       type="text" 
                                       placeholder="Seu nome completo"
-                                      className="w-full px-3 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-green-500"
+                                      className="w-full px-3.5 py-3 rounded-[10px] text-sm focus:outline-none"
+                                      style={{ border: '1.5px solid #e0e0e0', background: '#fafafa', color: '#333' }}
                                       disabled
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Telefone *</label>
+                                    <label className="block text-sm font-medium mb-1" style={{ color: '#333' }}>Telefone *</label>
                                     <input 
                                       type="tel" 
                                       placeholder="(00) 00000-0000"
-                                      className="w-full px-3 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-green-500"
+                                      className="w-full px-3.5 py-3 rounded-[10px] text-sm focus:outline-none"
+                                      style={{ border: '1.5px solid #e0e0e0', background: '#fafafa', color: '#333' }}
                                       disabled
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+                                    <label className="block text-sm font-medium mb-1" style={{ color: '#333' }}>E-mail</label>
                                     <input 
                                       type="email" 
                                       placeholder="seu@email.com"
-                                      className="w-full px-3 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-green-500"
+                                      className="w-full px-3.5 py-3 rounded-[10px] text-sm focus:outline-none"
+                                      style={{ border: '1.5px solid #e0e0e0', background: '#fafafa', color: '#333' }}
                                       disabled
                                     />
                                   </div>
                                   <button 
-                                    className="w-full py-3 bg-[#25D366] hover:bg-[#128C7E] text-white font-semibold rounded-lg flex items-center justify-center gap-2 transition-colors"
+                                    className="w-full py-3.5 font-semibold rounded-[10px] flex items-center justify-center gap-2"
+                                    style={{ background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)', color: '#fff', boxShadow: '0 4px 12px rgba(37, 211, 102, 0.3)', border: 'none' }}
                                     disabled
                                   >
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -749,10 +854,11 @@ export function LeadFormsManager() {
                                     Falar no WhatsApp
                                   </button>
                                 </div>
+                                <p className="text-center mt-3.5 text-[11px]" style={{ color: '#aaa' }}>Seus dados estão seguros conosco</p>
                               </div>
                             </div>
                             <p className="text-xs text-muted-foreground text-center">
-                              Este é o visual padrão. Você pode personalizar o CSS no código embed.
+                              Preview do formulário com logo e layout atualizado.
                             </p>
                           </div>
 
