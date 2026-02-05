@@ -3017,6 +3017,8 @@ export type Database = {
           advbox_lawsuit_id: string | null
           advbox_sync_error: string | null
           advbox_sync_status: string | null
+          assinado_em: string | null
+          assinatura_status: string | null
           client_cpf: string | null
           client_email: string | null
           client_id: number
@@ -3041,12 +3043,15 @@ export type Database = {
           valor_entrada: number | null
           valor_parcela: number | null
           valor_total: number | null
+          zapsign_document_id: string | null
         }
         Insert: {
           advbox_customer_id?: string | null
           advbox_lawsuit_id?: string | null
           advbox_sync_error?: string | null
           advbox_sync_status?: string | null
+          assinado_em?: string | null
+          assinatura_status?: string | null
           client_cpf?: string | null
           client_email?: string | null
           client_id: number
@@ -3071,12 +3076,15 @@ export type Database = {
           valor_entrada?: number | null
           valor_parcela?: number | null
           valor_total?: number | null
+          zapsign_document_id?: string | null
         }
         Update: {
           advbox_customer_id?: string | null
           advbox_lawsuit_id?: string | null
           advbox_sync_error?: string | null
           advbox_sync_status?: string | null
+          assinado_em?: string | null
+          assinatura_status?: string | null
           client_cpf?: string | null
           client_email?: string | null
           client_id?: number
@@ -3101,8 +3109,17 @@ export type Database = {
           valor_entrada?: number | null
           valor_parcela?: number | null
           valor_total?: number | null
+          zapsign_document_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fin_contratos_zapsign_document_id_fkey"
+            columns: ["zapsign_document_id"]
+            isOneToOne: false
+            referencedRelation: "zapsign_documents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       fin_importacao_itens: {
         Row: {
@@ -7088,6 +7105,8 @@ export type Database = {
       }
       zapsign_documents: {
         Row: {
+          advbox_sync_at: string | null
+          advbox_sync_triggered: boolean | null
           client_cpf: string | null
           client_email: string | null
           client_name: string
@@ -7100,6 +7119,7 @@ export type Database = {
           document_name: string
           document_token: string
           document_type: string
+          fin_contrato_id: string | null
           id: string
           office_signer_status: string | null
           office_signer_token: string | null
@@ -7111,6 +7131,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          advbox_sync_at?: string | null
+          advbox_sync_triggered?: boolean | null
           client_cpf?: string | null
           client_email?: string | null
           client_name: string
@@ -7123,6 +7145,7 @@ export type Database = {
           document_name: string
           document_token: string
           document_type: string
+          fin_contrato_id?: string | null
           id?: string
           office_signer_status?: string | null
           office_signer_token?: string | null
@@ -7134,6 +7157,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          advbox_sync_at?: string | null
+          advbox_sync_triggered?: boolean | null
           client_cpf?: string | null
           client_email?: string | null
           client_name?: string
@@ -7146,6 +7171,7 @@ export type Database = {
           document_name?: string
           document_token?: string
           document_type?: string
+          fin_contrato_id?: string | null
           id?: string
           office_signer_status?: string | null
           office_signer_token?: string | null
@@ -7156,7 +7182,15 @@ export type Database = {
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "zapsign_documents_fin_contrato_id_fkey"
+            columns: ["fin_contrato_id"]
+            isOneToOne: false
+            referencedRelation: "fin_contratos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
