@@ -1,155 +1,193 @@
 
-# Plano: Automação Completa do ZapSign
+# Plano: Múltiplos Signatários e Assinatura Automática do Advogado no ZapSign
 
-## Resumo
-
-Simplificar a integração ZapSign para que, ao clicar em enviar, o documento seja criado e o e-mail seja disparado automaticamente para o cliente, sem necessidade de configuração manual.
-
----
-
-## O Que Já Funciona (Confirmado)
-
-A integração atual já opera 100% via API:
-- O documento é criado na base do ZapSign automaticamente
-- O link de assinatura é gerado e retornado
-- Tudo acontece dentro da sua intranet
-
-O que falta é apenas **ajustar os padrões** para maior automação.
+## Objetivo
+Implementar suporte a múltiplos signatários nos contratos, adicionando automaticamente o advogado do escritório como segundo signatário com assinatura automática via API.
 
 ---
 
-## Mudanças Propostas
+## Análise do Cenário
 
-### 1. Autenticação como Padrão Fixo
+| Tipo de Documento | Signatários | Autenticação |
+|-------------------|-------------|--------------|
+| Procuração | Apenas cliente | Selfie + Documento (obrigatório) |
+| Declaração | Apenas cliente | Selfie + Documento (obrigatório) |
+| Contrato | Cliente + Advogado | Cliente: Selfie + Documento / Advogado: Apenas assinatura na tela |
 
-| Configuração | Antes | Depois |
-|--------------|-------|--------|
-| Exigir selfie | Switch (padrão: ativo) | **Sempre ativo** (sem switch) |
-| Exigir foto do documento | Switch (padrão: ativo) | **Sempre ativo** (sem switch) |
+---
 
-Resultado: Remover a seção de switches de autenticação e exibir apenas um aviso informativo.
+## Recursos Necessários do ZapSign
 
-### 2. Envio por E-mail Automático
+### 1. Múltiplos Signatários
+A API do ZapSign já suporta múltiplos signatários no array `signers` ao criar o documento.
 
-| Configuração | Antes | Depois |
-|--------------|-------|--------|
-| Enviar por e-mail | Switch (padrão: desativado) | **Padrão ativado** |
-| Enviar por WhatsApp | Switch (padrão: desativado) | Mantém desativado (futura implementação) |
+### 2. Assinatura Automática via API
+Endpoint: `POST https://api.zapsign.com.br/api/v1/sign/`
 
-Resultado: Se o cliente tiver e-mail, o ZapSign envia automaticamente.
+Pré-requisitos:
+- `user_token` do advogado (obtido em Configurações > Meu Perfil no ZapSign)
+- O signatário (advogado) deve estar registrado como usuário na conta ZapSign
+- O e-mail do signatário deve ser vazio ou igual ao do usuário que vai assinar
+- Dados do perfil configurados (nome, assinatura, visto)
 
-### 3. Interface Simplificada
+---
 
-Antes (muitas opções):
+## Implementação Proposta
+
+### Fase 1: Nova Secret Necessária
+
+| Secret | Descrição |
+|--------|-----------|
+| `ZAPSIGN_USER_TOKEN` | Token do advogado/escritório para assinatura automática |
+
+O `ZAPSIGN_API_TOKEN` já está configurado. Será necessário adicionar o `ZAPSIGN_USER_TOKEN` do perfil do advogado que vai assinar automaticamente.
+
+### Fase 2: Modificações na Edge Function
+
+**Arquivo: `supabase/functions/zapsign-integration/index.ts`**
+
+Alterações:
+1. Aceitar novo parâmetro `includeOfficeSigner: boolean` (indica se deve incluir o advogado)
+2. Quando `documentType === 'contrato'` e `includeOfficeSigner === true`:
+   - Adicionar segundo signatário (advogado do escritório)
+   - Configurar autenticação simplificada para o advogado (sem selfie/documento)
+   - Após criar o documento, chamar endpoint de assinatura automática para o advogado
+
+Fluxo técnico:
 ```text
-[Dados do documento]
-[Dados de contato editáveis]
-[Autenticação do signatário] ← REMOVER
-  - Switch: Exigir selfie
-  - Switch: Exigir foto do documento
-[Envio automático]
-  - Switch: Enviar por e-mail
-  - Switch: Enviar por WhatsApp
+1. Criar documento com 2 signatários
+   ├─ Signatário 1 (Cliente): selfie + documento obrigatórios
+   └─ Signatário 2 (Advogado): apenas assinatura na tela
+
+2. Receber resposta com tokens dos signatários
+
+3. Automaticamente assinar pelo advogado
+   POST /api/v1/sign/
+   {
+     "user_token": "<ZAPSIGN_USER_TOKEN>",
+     "signer_tokens": ["<token do signatário advogado>"]
+   }
+
+4. Retornar apenas o link do cliente (advogado já assinou)
 ```
 
-Depois (simplificado):
-```text
-[Dados do documento]
-[Dados de contato editáveis]
-[Aviso] "Será exigido selfie e foto do documento"
-[Envio automático]
-  - E-mail: ativado por padrão
-  - WhatsApp: preparado para futura implementação
-```
+### Fase 3: Modificações no Dialog
+
+**Arquivo: `src/components/ZapSignDialog.tsx`**
+
+Alterações:
+1. Para `documentType === 'contrato'`: exibir aviso de que a assinatura do escritório será incluída automaticamente
+2. Adicionar informação visual de que o documento terá 2 signatários
+3. Na resposta de sucesso, exibir status de ambos signatários
+
+### Fase 4: Dados do Advogado Signatário
+
+Utilizar dados fixos do escritório para o signatário advogado:
+- Nome: "Egg Nunes Advocacia" ou nome de um advogado específico
+- E-mail: Vazio ou e-mail configurado no perfil ZapSign
+- Qualification: "Contratado"
 
 ---
 
 ## Arquivos a Modificar
 
-### 1. ZapSignDialog.tsx
-
-Alterações:
-- Remover estados `requireSelfie` e `requireDocumentPhoto`
-- Mudar `sendViaEmail` de `useState(false)` para `useState(true)`
-- Remover seção "Autenticação do signatário" com os switches
-- Adicionar Card informativo sobre autenticação obrigatória
-- Enviar valores fixos `true` para selfie e documento na chamada da API
-
-### 2. zapsign-integration (Edge Function)
-
-Alterações:
-- Forçar `require_selfie_photo: true` e `require_document_photo: true` independente do que vier do frontend
-- Garantir consistência e segurança
+| Arquivo | Alteração |
+|---------|-----------|
+| `supabase/functions/zapsign-integration/index.ts` | Adicionar lógica de múltiplos signatários e assinatura automática |
+| `src/components/ZapSignDialog.tsx` | Atualizar UI para indicar assinatura automática do escritório em contratos |
+| `src/components/ContractGenerator.tsx` | Passar flag `includeOfficeSigner` para o dialog |
 
 ---
 
-## Fluxo Final do Usuário
+## Interface Modificada
+
+O diálogo para contratos mostrará:
 
 ```text
-1. Gerar contrato/procuração
-2. Clicar "Enviar para ZapSign"
-3. Diálogo abre com:
-   - Dados do cliente (nome, CPF)
-   - Campo de e-mail (editável)
-   - Campo de WhatsApp (para futuro)
-   - Aviso: "Autenticação completa será exigida"
-   - E-mail automático já ativado
-4. Clicar "Enviar"
-5. Documento criado + E-mail enviado automaticamente
-6. Link de assinatura exibido (para backup manual)
+┌─────────────────────────────────────────────────────────┐
+│ Enviar para Assinatura Digital                          │
+├─────────────────────────────────────────────────────────┤
+│ [Dados do documento]                                    │
+│ [Dados do cliente]                                      │
+│                                                         │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ 📝 Assinatura do Escritório (automática)            │ │
+│ │ Este contrato será assinado automaticamente pelo    │ │
+│ │ escritório assim que você clicar em enviar.         │ │
+│ │ O cliente receberá o link e ao assinar, o contrato  │ │
+│ │ estará completo.                                    │ │
+│ └─────────────────────────────────────────────────────┘ │
+│                                                         │
+│ [Enviar para ZapSign]                                   │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Detalhes Técnicos
 
-### ZapSignDialog.tsx - Mudanças de Estado
+### Edge Function - Novo Fluxo
 
 ```typescript
-// ANTES
-const [requireSelfie, setRequireSelfie] = useState(true);
-const [requireDocumentPhoto, setRequireDocumentPhoto] = useState(true);
-const [sendViaEmail, setSendViaEmail] = useState(false);
+// Configurar signatários
+const signers: Signer[] = [clientSigner];
 
-// DEPOIS
-// Remover requireSelfie e requireDocumentPhoto (sempre true)
-const [sendViaEmail, setSendViaEmail] = useState(true); // Padrão ativado
+// Para contratos, adicionar advogado
+if (body.documentType === 'contrato' && body.includeOfficeSigner) {
+  const officeSigner: Signer = {
+    name: 'Egg Nunes Advocacia',
+    email: '', // Vazio para permitir assinatura via API
+    auth_mode: 'assinaturaTela',
+    require_selfie_photo: false, // Sem exigência
+    require_document_photo: false, // Sem exigência
+    qualification: 'Contratado',
+    send_automatic_email: false, // Não enviar e-mail
+  };
+  signers.push(officeSigner);
+}
+
+// Criar documento
+const response = await fetch(`${ZAPSIGN_API_URL}/docs/`, { ... });
+const data = await response.json();
+
+// Assinar automaticamente pelo escritório
+if (body.includeOfficeSigner && data.signers?.length > 1) {
+  const ZAPSIGN_USER_TOKEN = Deno.env.get('ZAPSIGN_USER_TOKEN');
+  const officeSignerToken = data.signers[1].token;
+  
+  await fetch(`${ZAPSIGN_API_URL}/sign/`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${ZAPSIGN_API_TOKEN}` },
+    body: JSON.stringify({
+      user_token: ZAPSIGN_USER_TOKEN,
+      signer_tokens: [officeSignerToken]
+    })
+  });
+}
 ```
 
-### ZapSignDialog.tsx - Chamada da API
+---
 
-```typescript
-// ANTES
-requireSelfie,
-requireDocumentPhoto,
+## Próximos Passos
 
-// DEPOIS
-requireSelfie: true,      // Sempre fixo
-requireDocumentPhoto: true, // Sempre fixo
-```
+1. **Você precisará fornecer o `ZAPSIGN_USER_TOKEN`**:
+   - Acesse o ZapSign
+   - Vá em Configurações > Meu Perfil
+   - No final da página, habilite "Assinatura via API"
+   - Copie o token gerado
 
-### Edge Function - Garantia de Segurança
-
-```typescript
-// Forçar autenticação completa independente do request
-const signer: Signer = {
-  // ...outros campos
-  require_selfie_photo: true,        // Fixo
-  require_document_photo: true,      // Fixo
-  send_automatic_email: body.sendViaEmail ?? true, // Padrão true agora
-};
-```
+2. Após fornecer o token, implementarei as alterações nos arquivos
 
 ---
 
 ## Resultado Esperado
 
-Ao aprovar este plano, a integração funcionará assim:
+**Para Procuração/Declaração**:
+- Comportamento atual mantido (apenas cliente assina)
 
-1. **Zero configuração necessária** - tudo automático
-2. **E-mail enviado automaticamente** pelo ZapSign para o cliente
-3. **Autenticação forte garantida** - selfie + documento sempre
-4. **Link de backup disponível** - caso queira compartilhar manualmente
-5. **Preparado para WhatsApp** - quando você implementar a API
+**Para Contrato**:
+- 2 signatários configurados automaticamente
+- Advogado assina instantaneamente via API
+- Cliente recebe link e assina quando quiser
+- Quando cliente assinar, documento fica 100% concluído
 
-O cliente receberá o e-mail diretamente do ZapSign com o link, clicará, tirará selfie, fotografará documento e assinará na tela.
