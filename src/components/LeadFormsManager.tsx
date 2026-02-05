@@ -346,7 +346,7 @@ export function LeadFormsManager() {
   <img src="${logoUrl}" alt="Egg Nunes Advogados" class="lead-form-logo" onerror="this.style.display='none'">
   <div class="lead-form-header">
     <h3>Fale Conosco Agora</h3>
-    <p>Preencha seus dados e entraremos em contato rapidamente</p>
+    <p>Preencha os seus dados abaixo e clique no botão de WhatsApp</p>
   </div>
   <form id="lead-form-${form.id}" autocomplete="on">
     <div class="form-group">
@@ -810,7 +810,7 @@ export function LeadFormsManager() {
                                 />
                                 <div className="text-center mb-5">
                                   <h3 className="text-xl font-bold" style={{ color: '#1a1a1a' }}>Fale Conosco Agora</h3>
-                                  <p className="text-sm mt-1" style={{ color: '#666' }}>Preencha seus dados e entraremos em contato rapidamente</p>
+                                  <p className="text-sm mt-1" style={{ color: '#666' }}>Preencha os seus dados abaixo e clique no botão de WhatsApp</p>
                                 </div>
                                 <div className="space-y-4">
                                   <div>
