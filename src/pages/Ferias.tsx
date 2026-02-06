@@ -595,7 +595,7 @@ export default function Ferias() {
       .select('*')
       .eq('user_id', userId)
       .eq('year', currentYear)
-      .single();
+      .maybeSingle();
 
     setBalance(balanceData);
     setLoading(false);
