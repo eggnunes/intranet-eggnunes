@@ -1330,7 +1330,7 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
     const precisaClausulaPrimeira = !isContratoBSB();
     
     if (precisaClausulaPrimeira && !clausulaPrimeiraGerada) {
-      toast.error("Gere a Cláusula Primeira antes de visualizar");
+      toast.error("Crie a Cláusula Primeira (use o botão 'Usar Texto Manual' ou 'Gerar com IA')");
       return;
     }
     
@@ -1343,7 +1343,7 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
     if (temHonorariosExito) {
       const clausulasExitoGeradas = exitoOptions.filter(o => o.clausulaGerada.trim());
       if (clausulasExitoGeradas.length === 0) {
-        toast.error("Gere pelo menos uma cláusula de honorários êxito");
+        toast.error("Adicione pelo menos uma cláusula de êxito (use 'Usar Manual' ou 'Gerar com IA')");
         return;
       }
     }
@@ -2309,18 +2309,37 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
                   </Button>
                 )}
                 
-                <Button 
-                  onClick={gerarClausulaPrimeira} 
-                  disabled={gerandoClausulaPrimeira || !contraPartida || !objetoContrato}
-                  className="w-full"
-                >
-                  {gerandoClausulaPrimeira ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-4 w-4 mr-2" />
-                  )}
-                  Gerar Cláusula com IA
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => {
+                      if (!contraPartida.trim() || !objetoContrato.trim()) {
+                        toast.error("Preencha a parte contrária e o objeto do contrato");
+                        return;
+                      }
+                      const clausulaManual = `Os Contratados comprometem-se, em cumprimento ao mandato recebido, a requerer para o(a) Contratante, em face do ${contraPartida.trim()}, a ${objetoContrato.trim()}.`;
+                      setClausulaPrimeiraGerada(clausulaManual);
+                      toast.success("Cláusula criada! Você pode editá-la abaixo.");
+                    }}
+                    disabled={!contraPartida || !objetoContrato}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    <FileEdit className="h-4 w-4 mr-2" />
+                    Usar Texto Manual
+                  </Button>
+                  <Button 
+                    onClick={gerarClausulaPrimeira} 
+                    disabled={gerandoClausulaPrimeira || !contraPartida || !objetoContrato}
+                    className="flex-1"
+                  >
+                    {gerandoClausulaPrimeira ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4 mr-2" />
+                    )}
+                    Gerar com IA
+                  </Button>
+                </div>
                 
                 {clausulaPrimeiraGerada && (
                   <div className="space-y-2">
@@ -2640,20 +2659,40 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
                         className="min-h-[60px]"
                       />
                       
-                      <Button 
-                        onClick={() => gerarClausulaExitoParaOpcao(opcao.id)} 
-                        disabled={opcao.gerando || !opcao.descricao.trim()}
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                      >
-                        {opcao.gerando ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                          <Sparkles className="h-4 w-4 mr-2" />
-                        )}
-                        Gerar Cláusula com IA
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={() => {
+                            if (!opcao.descricao.trim()) {
+                              toast.error("Preencha a descrição dos honorários de êxito");
+                              return;
+                            }
+                            setExitoOptions(prev => prev.map(o => 
+                              o.id === opcao.id ? { ...o, clausulaGerada: opcao.descricao.trim() } : o
+                            ));
+                            toast.success("Texto manual adicionado! Você pode editá-lo abaixo.");
+                          }}
+                          disabled={!opcao.descricao.trim()}
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                        >
+                          <FileEdit className="h-4 w-4 mr-1" />
+                          Usar Manual
+                        </Button>
+                        <Button 
+                          onClick={() => gerarClausulaExitoParaOpcao(opcao.id)} 
+                          disabled={opcao.gerando || !opcao.descricao.trim()}
+                          size="sm"
+                          className="flex-1"
+                        >
+                          {opcao.gerando ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-4 w-4 mr-1" />
+                          )}
+                          Gerar com IA
+                        </Button>
+                      </div>
                       
                       {opcao.clausulaGerada && (
                         <div className="space-y-2">
