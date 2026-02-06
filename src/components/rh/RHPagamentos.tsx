@@ -150,6 +150,7 @@ export function RHPagamentos() {
   const [editObservacoes, setEditObservacoes] = useState('');
   const [editStatus, setEditStatus] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -492,8 +493,11 @@ export function RHPagamentos() {
     return { vantagens, descontos, liquido: vantagens - descontos };
   };
 
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    
     if (!selectedColaborador) {
       toast.error('Selecione um colaborador');
       return;
@@ -507,7 +511,25 @@ export function RHPagamentos() {
     const totais = calcularTotais();
     const colaborador = colaboradores.find(c => c.id === selectedColaborador);
 
+    setSubmitting(true);
     try {
+      // Verificar se já existe pagamento para este colaborador no mês
+      const { data: existente, error: checkError } = await supabase
+        .from('rh_pagamentos')
+        .select('id')
+        .eq('colaborador_id', selectedColaborador)
+        .eq('mes_referencia', mesReferencia + '-01')
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existente) {
+        const mesFormatado = format(new Date(mesReferencia + '-01'), 'MMMM/yyyy', { locale: ptBR });
+        toast.error(`Já existe um pagamento registrado para ${colaborador?.full_name} em ${mesFormatado}. Edite o pagamento existente ou exclua-o antes de criar um novo.`);
+        setSubmitting(false);
+        return;
+      }
+
       const { data: user } = await supabase.auth.getUser();
 
       // Criar pagamento
@@ -609,6 +631,8 @@ export function RHPagamentos() {
       fetchPagamentos();
     } catch (error: any) {
       toast.error('Erro ao registrar pagamento: ' + error.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
