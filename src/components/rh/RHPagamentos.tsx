@@ -499,6 +499,11 @@ export function RHPagamentos() {
       return;
     }
 
+    if (!contaId) {
+      toast.error('Selecione a conta de saída do pagamento');
+      return;
+    }
+
     const totais = calcularTotais();
     const colaborador = colaboradores.find(c => c.id === selectedColaborador);
 
@@ -994,7 +999,7 @@ export function RHPagamentos() {
                       
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Conta de Saída</Label>
+                          <Label>Conta de Saída <span className="text-destructive">*</span></Label>
                           <Select value={contaId} onValueChange={setContaId}>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione a conta..." />
