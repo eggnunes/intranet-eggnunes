@@ -1,224 +1,181 @@
 
-# Plano: Cadastro ADVBox Após Assinatura do Contrato
 
-## ✅ Status: Implementado
+# Plano: Assinatura de Contrato com 5 Signatarios no ZapSign
 
-O sistema foi atualizado conforme especificado. A lógica atual:
+## Resumo
 
-1. ✅ **Cadastro no ADVBox adiado** para quando o contrato for assinado via ZapSign (webhook)
-2. ✅ **Cadastro manual disponível** quando o contrato for assinado presencialmente (sem ZapSign)
-3. ✅ **Status de assinatura visível** na aba de Contratos com badges
-4. ✅ **Tarefa automática para Mariana** criada após o cadastro no ADVBox
+Atualizar o fluxo de assinatura de contratos para incluir 5 signatarios, com assinatura automatica para os 4 internos e assinatura manual apenas para o cliente.
 
----
+## Correcao de Entendimento sobre Tokens
 
-## Fase 1: Alterações na Estrutura de Dados
+| Secret | Pessoa | Status |
+|--------|--------|--------|
+| `ZAPSIGN_USER_TOKEN` | **Rafael** (ja salvo) | Ja configurado |
+| `ZAPSIGN_TOKEN_MARCOS` | Marcos | Novo - token: `31d2c9b0-ebd1-401c-9ab3-56fcc4016754` |
+| `ZAPSIGN_TOKEN_DANIEL` | Daniel | Novo - token: `e3e23b45-1da9-46a4-a4ed-59fe538db2b5` |
+| `ZAPSIGN_TOKEN_JHONNY` | Johnny | Novo - token: `26b68866-6f1c-4a9e-b261-c93ef62dd0b4` |
+| `ZAPSIGN_TOKEN_LUCAS` | Lucas | Novo - token: `fe577425-5287-4116-ad99-7fe749efcf3d` |
 
-### Tabela `zapsign_documents`
-Adicionar campos para vincular ao contrato local e rastrear sincronização:
+## Regras de Autenticacao por Signatario
 
-| Campo | Tipo | Descrição |
+| Signatario | Tipo | Selfie | Foto Documento | Assinatura Tela |
+|------------|------|--------|----------------|-----------------|
+| Marcos (1o Contratado) | Automatica | NAO | NAO | SIM |
+| Rafael (2o Contratado) | Automatica | NAO | NAO | SIM |
+| Cliente (Contratante) | Manual | SIM | SIM | SIM |
+| Testemunha 1 | Automatica | NAO | NAO | SIM |
+| Testemunha 2 | Automatica | NAO | NAO | SIM |
+
+## Fase 1: Salvar os 4 Novos Tokens como Secrets
+
+Solicitar ao usuario que insira cada token como secret no backend:
+- `ZAPSIGN_TOKEN_MARCOS`
+- `ZAPSIGN_TOKEN_DANIEL`
+- `ZAPSIGN_TOKEN_JHONNY`
+- `ZAPSIGN_TOKEN_LUCAS`
+
+## Fase 2: Banco de Dados - Novas Colunas em `zapsign_documents`
+
+Adicionar colunas para rastrear os novos signatarios:
+
+| Campo | Tipo | Descricao |
 |-------|------|-----------|
-| fin_contrato_id | uuid | FK para fin_contratos |
-| advbox_sync_triggered | boolean | Se já tentou sincronizar |
-| advbox_sync_at | timestamp | Data da sincronização |
+| `marcos_signer_token` | text | Token do signatario Marcos no ZapSign |
+| `marcos_signer_status` | text | Status da assinatura do Marcos |
+| `rafael_signer_token` | text | Token do signatario Rafael no ZapSign |
+| `rafael_signer_status` | text | Status da assinatura do Rafael |
+| `witness1_name` | text | Nome da testemunha 1 |
+| `witness1_signer_token` | text | Token do signatario testemunha 1 |
+| `witness1_signer_status` | text | Status da assinatura da testemunha 1 |
+| `witness2_name` | text | Nome da testemunha 2 |
+| `witness2_signer_token` | text | Token do signatario testemunha 2 |
+| `witness2_signer_status` | text | Status da assinatura da testemunha 2 |
 
-### Tabela `fin_contratos`
-Adicionar campo para status de assinatura:
+O campo existente `office_signer_token`/`office_signer_status` sera renomeado conceitualmente para representar o Marcos (1o contratado), mas mantido por retrocompatibilidade. Os novos campos serao adicionados separadamente.
 
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| zapsign_document_id | uuid | FK para zapsign_documents |
-| assinatura_status | text | pending_signature, signed, manual_signature, not_sent |
-| assinado_em | timestamp | Data da assinatura |
+## Fase 3: Atualizacao da Edge Function `zapsign-integration`
 
----
+### Mudancas principais
 
-## Fase 2: Modificar Edge Function `contract-automation`
+1. **Novos parametros de entrada**: campo `witnesses` com array de 2 testemunhas selecionadas
 
-### O Que Muda
-- **Antes**: Criava cliente + processo no ADVBox automaticamente
-- **Depois**: Apenas registra o contrato no banco com status `pending_signature` (não sincroniza com ADVBox)
+2. **5 signatarios para contratos** (nesta ordem):
+   - Marcos Luiz Egg Nunes (Contratado) - `auth_mode: 'assinaturaTela'`, `require_selfie_photo: false`, `require_document_photo: false`
+   - Rafael Egg Nunes (Contratado) - mesma configuracao do Marcos
+   - Cliente (Contratante) - `require_selfie_photo: true`, `require_document_photo: true`
+   - Testemunha 1 - mesma configuracao do Marcos
+   - Testemunha 2 - mesma configuracao do Marcos
 
-A sincronização com ADVBox será disparada apenas:
-1. Pelo webhook quando o cliente assinar
-2. Manualmente pelo botão de cadastro manual
+3. **Assinatura automatica em sequencia** apos criar o documento:
+   - Marcos assina via `ZAPSIGN_TOKEN_MARCOS`
+   - Rafael assina via `ZAPSIGN_USER_TOKEN` (token ja existente)
+   - Testemunha 1 assina via token correspondente (Daniel/Johnny/Lucas)
+   - Testemunha 2 assina via token correspondente (Daniel/Johnny/Lucas)
 
----
+4. **Salvar no banco**: Registrar todos os tokens de signatarios nas novas colunas
 
-## Fase 3: Modificar Edge Function `zapsign-webhook`
+5. **Retorno atualizado**: incluir status individual de cada assinatura no resultado
 
-### Novo Fluxo Quando Cliente Assina
-
-Ao receber notificação de assinatura do cliente:
+### Mapeamento de tokens por testemunha
 
 ```text
-1. Atualizar status do documento → 'signed'
-2. Atualizar fin_contratos.assinatura_status → 'signed'
-3. Buscar dados do contrato (client, productName, etc)
-4. Chamar lógica de sincronização ADVBox:
-   - Criar/buscar cliente no ADVBox
-   - Criar processo no ADVBox
-5. Criar tarefa para Mariana no ADVBox:
-   - Título: "Analisar novo caso - [Nome do Cliente]"
-   - Descrição: "Cliente assinou contrato. Analisar caso e designar advogado responsável."
-   - Prazo: 2 dias úteis
-6. Atualizar fin_contratos com IDs do ADVBox
+'daniel' -> ZAPSIGN_TOKEN_DANIEL
+'jhonny' -> ZAPSIGN_TOKEN_JHONNY
+'lucas'  -> ZAPSIGN_TOKEN_LUCAS
 ```
 
----
+## Fase 4: Interface - Selecao de Testemunhas no ZapSignDialog
 
-## Fase 4: Nova Função para Cadastro Manual
+### Novo campo no dialogo (apenas para contratos)
 
-### Nova Edge Function: `advbox-manual-registration`
+Adicionar secao "Testemunhas" com 3 checkboxes:
+- Daniel
+- Johnny
+- Lucas
 
-Será invocada quando o usuário clicar no botão de "Cadastrar no ADVBox" para contratos assinados manualmente.
+Regras:
+- Exatamente 2 devem estar selecionadas para enviar
+- Por padrao, as 2 primeiras vem pre-selecionadas (Daniel e Johnny)
+- Validacao impede envio sem exatamente 2 selecionadas
+
+### Aviso atualizado sobre assinaturas
+
+Substituir o aviso atual "Assinatura automatica do escritorio" por um aviso mais detalhado:
 
 ```text
-Parâmetros de entrada:
-- contrato_id: ID do contrato em fin_contratos
-
-Ações:
-1. Buscar dados do contrato
-2. Criar cliente no ADVBox (se não existir)
-3. Criar processo no ADVBox
-4. Criar tarefa para Mariana
-5. Atualizar fin_contratos com:
-   - advbox_customer_id
-   - advbox_lawsuit_id
-   - advbox_sync_status = 'synced'
-   - assinatura_status = 'manual_signature'
+"O contrato sera assinado automaticamente por:
+ - Marcos Luiz Egg Nunes (1o Contratado)
+ - Rafael Egg Nunes (2o Contratado)  
+ - 2 Testemunhas selecionadas
+ 
+ O cliente recebera o link para completar sua assinatura."
 ```
 
----
+### Status apos envio bem-sucedido
 
-## Fase 5: Alterações no Frontend
+Exibir status individual de cada signatario:
+
+```text
+Marcos Luiz Egg Nunes (Contratado)    [Assinado]
+Rafael Egg Nunes (Contratado)         [Assinado]
+[Nome do Cliente] (Contratante)       [Aguardando]
+Daniel (Testemunha)                   [Assinado]
+Johnny (Testemunha)                   [Assinado]
+```
+
+## Fase 5: Atualizacao do Webhook `zapsign-webhook`
+
+Atualizar a logica para reconhecer os novos tokens de signatarios:
+
+```text
+if signer_token == marcos_signer_token -> atualizar marcos_signer_status
+if signer_token == rafael_signer_token -> atualizar rafael_signer_status
+if signer_token == witness1_signer_token -> atualizar witness1_signer_status
+if signer_token == witness2_signer_token -> atualizar witness2_signer_status
+if signer_token == client_signer_token -> atualizar client_signer_status + sincronizar ADVBox
+```
+
+A sincronizacao com ADVBox continua sendo disparada APENAS quando o **cliente** assina.
+
+## Fase 6: Ancoras no PDF (Posicionamento de Assinaturas)
 
 ### ContractGenerator.tsx
 
-**Alteração no diálogo de confirmação após gerar contrato:**
+Na geracao do PDF, inserir textos ancora invisiveis (fonte 1pt, cor branca) nas posicoes de assinatura:
 
-Quando o usuário **não enviar para ZapSign** (clica em "Não" ou "Fechar"):
-- Mostrar novo diálogo perguntando:
+| Posicao | Ancora |
+|---------|--------|
+| Linha do 1o Contratado | `<<<<assinatura_contratado1>>>>` |
+| Linha do 2o Contratado | `<<<<assinatura_contratado2>>>>` |
+| Linha do Contratante | `<<<<assinatura_contratante>>>>` |
+| Linha da Testemunha 1 | `<<<<assinatura_testemunha1>>>>` |
+| Linha da Testemunha 2 | `<<<<assinatura_testemunha2>>>>` |
 
-```text
-┌─────────────────────────────────────────────────┐
-│  Deseja cadastrar o cliente no ADVBox?          │
-│                                                 │
-│  Como o contrato não foi enviado para           │
-│  assinatura digital, você pode cadastrar        │
-│  manualmente o cliente e processo no ADVBox.    │
-│                                                 │
-│  [Cadastrar no ADVBox]    [Mais tarde]          │
-└─────────────────────────────────────────────────┘
-```
+Na Edge Function, cada signatario tera o campo `signature_placement` apontando para sua ancora correspondente, garantindo posicionamento correto independente do tamanho do documento.
 
-### ZapSignDialog.tsx
+## Arquivos a Serem Modificados
 
-Após envio bem-sucedido:
-- Atualizar `fin_contratos` com o `zapsign_document_id`
-- Mostrar que o cadastro no ADVBox será feito automaticamente após assinatura
-
-### SetorComercial.tsx (Aba Comercial)
-
-Na tabela de clientes, adicionar coluna visual com badges:
-
-| Badge | Significado |
-|-------|-------------|
-| "Aguardando Assinatura" | Contrato enviado via ZapSign, aguardando |
-| "Assinado" (verde) | Contrato assinado digitalmente |
-| "Assinatura Manual" | Contrato assinado presencialmente |
-| "Sem Contrato" | Nenhum contrato gerado ainda |
-
-Também mostrar se está sincronizado com ADVBox:
-| Badge | Significado |
-|-------|-------------|
-| "ADVBox ✓" (verde) | Cliente e processo cadastrados |
-| "ADVBox Pendente" | Aguardando cadastro |
-
-### FinanceiroContratos.tsx (Aba Contratos)
-
-Adicionar colunas:
-- **Status Assinatura**: Com os badges acima
-- **ADVBox**: Status de sincronização
-- **Ação**: Botão "Cadastrar no ADVBox" (visível apenas quando assinatura_status = 'manual_signature' e advbox_sync_status != 'synced')
-
----
-
-## Fase 6: Criar Tarefa no ADVBox
-
-### Lógica de Criação de Tarefa
-
-Após cadastrar cliente e processo no ADVBox:
-
-```text
-POST /posts (endpoint de tarefas do ADVBox)
-{
-  "title": "Analisar novo caso - {Nome do Cliente}",
-  "description": "Cliente {Nome} assinou contrato para {Produto}. 
-                  Analisar documentação e designar advogado responsável.",
-  "lawsuit_id": {ID do processo criado},
-  "assigned_to": {ID da Mariana},
-  "due_date": {Data atual + 2 dias úteis},
-  "priority": "normal"
-}
-```
-
----
+| Arquivo | Alteracao |
+|---------|-----------|
+| Migracao SQL | Adicionar novas colunas em `zapsign_documents` |
+| `supabase/functions/zapsign-integration/index.ts` | 5 signatarios, assinatura automatica sequencial, ancoras |
+| `supabase/functions/zapsign-webhook/index.ts` | Reconhecer novos tokens de signatarios |
+| `src/components/ZapSignDialog.tsx` | Selecao de testemunhas + status expandido |
+| `src/components/ContractGenerator.tsx` | Inserir textos ancora invisiveis no PDF |
 
 ## Fluxo Completo
 
 ```text
-CENÁRIO 1: Assinatura via ZapSign
-────────────────────────────────
-1. Usuário gera contrato → Salvo em fin_contratos (assinatura_status = 'pending_signature')
-2. Usuário envia para ZapSign → Escritório assina automaticamente
-3. Cliente recebe link e assina
-4. Webhook recebe notificação:
-   ├─ Atualiza zapsign_documents.status = 'signed'
-   ├─ Atualiza fin_contratos.assinatura_status = 'signed'
-   ├─ Cria cliente no ADVBox
-   ├─ Cria processo no ADVBox
-   ├─ Cria tarefa para Mariana
-   └─ Atualiza fin_contratos com IDs do ADVBox
-
-CENÁRIO 2: Assinatura Presencial (Manual)
-─────────────────────────────────────────
-1. Usuário gera contrato → Salvo em fin_contratos (assinatura_status = 'not_sent')
-2. Usuário NÃO envia para ZapSign
-3. Sistema pergunta: "Deseja cadastrar no ADVBox?"
-   ├─ Se SIM:
-   │   ├─ Cria cliente no ADVBox
-   │   ├─ Cria processo no ADVBox
-   │   ├─ Cria tarefa para Mariana
-   │   └─ Atualiza fin_contratos (assinatura_status = 'manual_signature')
-   │
-   └─ Se NÃO:
-       └─ Contrato fica com assinatura_status = 'not_sent'
-           (pode cadastrar depois pela aba de Contratos)
+1. Usuario gera contrato no sistema
+2. PDF e gerado com textos ancora invisiveis nas posicoes de assinatura
+3. Usuario clica "Enviar para ZapSign"
+4. Dialogo exibe selecao de testemunhas (2 de 3: Daniel, Johnny, Lucas)
+5. Usuario confirma e envia
+6. Edge Function cria documento no ZapSign com 5 signatarios
+7. Assinaturas automaticas executadas em sequencia:
+   Marcos -> Rafael -> Testemunha 1 -> Testemunha 2
+8. Cliente recebe link por e-mail (unica assinatura pendente)
+9. Cliente assina com selfie + foto do documento
+10. Webhook recebe notificacao e sincroniza com ADVBox
 ```
-
----
-
-## Arquivos a Serem Modificados
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/migrations/...` | Adicionar colunas em zapsign_documents e fin_contratos |
-| `supabase/functions/contract-automation/index.ts` | Remover sincronização ADVBox automática |
-| `supabase/functions/zapsign-webhook/index.ts` | Adicionar lógica de criação ADVBox + tarefa |
-| `supabase/functions/advbox-manual-registration/index.ts` | **NOVA** - Cadastro manual |
-| `src/components/ContractGenerator.tsx` | Diálogo de cadastro manual + vincular ZapSign |
-| `src/components/ZapSignDialog.tsx` | Vincular com fin_contratos |
-| `src/pages/SetorComercial.tsx` | Mostrar badges de status |
-| `src/components/financeiro/FinanceiroContratos.tsx` | Colunas de status + botão de cadastro manual |
-
----
-
-## Resultado Esperado
-
-- Contratos enviados via ZapSign: cadastro automático no ADVBox após assinatura
-- Contratos assinados presencialmente: opção de cadastrar manualmente
-- Visibilidade clara do status de assinatura e sincronização ADVBox
-- Tarefa automática para Mariana analisar cada novo caso
 
