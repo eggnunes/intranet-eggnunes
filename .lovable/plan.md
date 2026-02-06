@@ -1,32 +1,69 @@
 
 
-# Plano: Assinatura de Contrato com 5 Signatarios no ZapSign
+# Correção de 3 Bugs no RotaDoc
 
-## Status: ✅ IMPLEMENTADO
+## Problema 1: Bug no `ImageCropEditor.tsx` (linha 65)
 
-## Resumo
+O `useState` esta sendo usado incorretamente como se fosse um `useEffect`. O codigo atual:
 
-Fluxo de assinatura de contratos atualizado para incluir 5 signatarios, com assinatura automatica para os 4 internos e assinatura manual apenas para o cliente.
+```text
+useState(() => {
+  if (file) {
+    const url = URL.createObjectURL(file);
+    setImageUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }
+});
+```
 
-## Tokens Configurados
+Isso so executa uma vez (na montagem) e a funcao de cleanup retornada nunca e chamada, causando:
+- A imagem pode nao carregar se o `file` mudar
+- Memory leak pois o Object URL nunca e revogado
 
-| Secret | Pessoa | Status |
-|--------|--------|--------|
-| `ZAPSIGN_USER_TOKEN` | **Rafael** | ✅ Configurado |
-| `ZAPSIGN_TOKEN_MARCOS` | Marcos | ✅ Configurado |
-| `ZAPSIGN_TOKEN_DANIEL` | Daniel | ✅ Configurado |
-| `ZAPSIGN_TOKEN_JHONNY` | Johnny | ✅ Configurado |
-| `ZAPSIGN_TOKEN_LUCAS` | Lucas | ✅ Configurado |
+**Correcao**: Substituir por `useEffect` com dependencia em `file`, que faz `revokeObjectURL` no cleanup.
 
-## Fases Implementadas
+Alem disso, na linha 343 existe um fallback `imageUrl || URL.createObjectURL(file)` que cria um novo Object URL a cada re-render. Sera removido para usar apenas `imageUrl` gerenciado pelo `useEffect`.
 
-- ✅ Fase 1: Tokens salvos como secrets
-- ✅ Fase 2: Migração SQL (novas colunas em zapsign_documents)
-- ✅ Fase 3: Edge Function zapsign-integration (5 signatários, assinatura automática sequencial)
-- ✅ Fase 4: ZapSignDialog (seleção de testemunhas + status expandido)
-- ✅ Fase 5: Webhook atualizado para reconhecer novos tokens
-- ✅ Fase 6: Âncoras no PDF (contrato padrão)
+---
 
-## Pendente
+## Problema 2: Memory leaks no `FilePreview.tsx`
 
-- Âncoras no contrato BSB (formato diferente com 4 escritórios contratados)
+Tres funcoes criam `URL.createObjectURL` sem nunca chamar `revokeObjectURL`:
+
+- `resizeImageForAnalysis` (linha 184)
+- `getImageDimensions` (linha 194)
+- `applyCrop` (linha 271)
+
+Alem disso, na linha 299, `URL.createObjectURL(file)` e chamado diretamente no JSX, criando um novo Object URL a cada re-render.
+
+**Correcao**:
+- Nas 3 funcoes, adicionar `URL.revokeObjectURL(url)` apos o `img.onload` e `img.onerror`
+- Para o preview no JSX, usar `useMemo` para criar e gerenciar os Object URLs das thumbnails, revogando-os quando os arquivos mudam
+
+---
+
+## Problema 3: Memory leak no `FileUpload.tsx`
+
+Na linha 80, `URL.createObjectURL(file)` e chamado diretamente no JSX dentro de um `map`, criando novos Object URLs a cada re-render.
+
+**Correcao**: Usar `useMemo` para criar os Object URLs uma vez e `useEffect` para revoga-los no cleanup.
+
+---
+
+## Problema 4 (bonus): Memory leak no `RotaDoc.tsx`
+
+Na funcao `resizeImage` (linha 108), `URL.createObjectURL(file)` e chamado sem revogacao.
+
+**Correcao**: Adicionar `URL.revokeObjectURL` apos uso.
+
+---
+
+## Arquivos a Modificar
+
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/components/ImageCropEditor.tsx` | Trocar `useState` por `useEffect` para carregar imagem; remover fallback no JSX |
+| `src/components/FilePreview.tsx` | Adicionar `revokeObjectURL` nas 3 funcoes; usar `useMemo` para thumbnails no JSX |
+| `src/components/FileUpload.tsx` | Usar `useMemo`/`useEffect` para gerenciar Object URLs das previews |
+| `src/pages/RotaDoc.tsx` | Adicionar `revokeObjectURL` na funcao `resizeImage` |
+
