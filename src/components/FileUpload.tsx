@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo, useEffect } from 'react';
 import { Upload, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -71,38 +71,58 @@ export const FileUpload = ({ onFilesSelected, files }: FileUploadProps) => {
       </div>
 
       {files.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {files.map((file, index) => (
-            <div key={index} className="relative group">
-              <div className="aspect-square rounded-lg overflow-hidden bg-muted shadow-card flex items-center justify-center">
-                {file.type.startsWith('image/') ? (
-                  <img
-                    src={URL.createObjectURL(file)}
-                    alt={file.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center p-4">
-                    <Upload className="w-8 h-8 text-muted-foreground mb-2" />
-                    <span className="text-xs text-muted-foreground text-center">
-                      {file.type || 'Arquivo'}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() => removeFile(index)}
-                className="absolute -top-2 -right-2 p-1 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-elegant"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              <p className="mt-2 text-xs text-muted-foreground truncate">
-                {file.name}
-              </p>
-            </div>
-          ))}
-        </div>
+        <FileUploadThumbnails files={files} onRemove={removeFile} />
       )}
+    </div>
+  );
+};
+
+const FileUploadThumbnails = ({ files, onRemove }: { files: File[]; onRemove: (index: number) => void }) => {
+  const thumbnailUrls = useMemo(() => {
+    return files.map(file =>
+      file.type.startsWith('image/') ? URL.createObjectURL(file) : null
+    );
+  }, [files]);
+
+  useEffect(() => {
+    return () => {
+      thumbnailUrls.forEach(url => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    };
+  }, [thumbnailUrls]);
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      {files.map((file, index) => (
+        <div key={index} className="relative group">
+          <div className="aspect-square rounded-lg overflow-hidden bg-muted shadow-card flex items-center justify-center">
+            {thumbnailUrls[index] ? (
+              <img
+                src={thumbnailUrls[index]!}
+                alt={file.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center p-4">
+                <Upload className="w-8 h-8 text-muted-foreground mb-2" />
+                <span className="text-xs text-muted-foreground text-center">
+                  {file.type || 'Arquivo'}
+                </span>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => onRemove(index)}
+            className="absolute -top-2 -right-2 p-1 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-elegant"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <p className="mt-2 text-xs text-muted-foreground truncate">
+            {file.name}
+          </p>
+        </div>
+      ))}
     </div>
   );
 };

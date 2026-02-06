@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Upload, X, GripVertical, ArrowUp, ArrowDown, Pencil, Wand2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ImageCropEditor } from './ImageCropEditor';
@@ -163,8 +163,10 @@ export const FilePreview = ({ files, onFilesChange, onRemove }: FilePreviewProps
       const img = new Image();
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
+      const url = URL.createObjectURL(file);
 
       img.onload = () => {
+        URL.revokeObjectURL(url);
         let { width, height } = img;
         
         if (width > maxDimension || height > maxDimension) {
@@ -180,8 +182,11 @@ export const FilePreview = ({ files, onFilesChange, onRemove }: FilePreviewProps
         resolve(canvas.toDataURL('image/jpeg', 0.8));
       };
       
-      img.onerror = () => reject(new Error('Erro ao carregar imagem'));
-      img.src = URL.createObjectURL(file);
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Erro ao carregar imagem'));
+      };
+      img.src = url;
     });
   };
 
@@ -189,9 +194,16 @@ export const FilePreview = ({ files, onFilesChange, onRemove }: FilePreviewProps
   const getImageDimensions = (file: File): Promise<{ width: number; height: number }> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
-      img.onload = () => resolve({ width: img.width, height: img.height });
-      img.onerror = () => reject(new Error('Erro ao carregar imagem'));
-      img.src = URL.createObjectURL(file);
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve({ width: img.width, height: img.height });
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Erro ao carregar imagem'));
+      };
+      img.src = url;
     });
   };
 
@@ -206,6 +218,7 @@ export const FilePreview = ({ files, onFilesChange, onRemove }: FilePreviewProps
   ): Promise<File> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
+      const url = URL.createObjectURL(file);
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
 
@@ -267,10 +280,28 @@ export const FilePreview = ({ files, onFilesChange, onRemove }: FilePreviewProps
         );
       };
       
-      img.onerror = () => reject(new Error('Erro ao carregar imagem'));
-      img.src = URL.createObjectURL(file);
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Erro ao carregar imagem'));
+      };
+      img.src = url;
     });
   };
+
+  // Manage Object URLs for thumbnails to prevent memory leaks
+  const thumbnailUrls = useMemo(() => {
+    return files.map(file => 
+      file.type.startsWith('image/') ? URL.createObjectURL(file) : null
+    );
+  }, [files]);
+
+  useEffect(() => {
+    return () => {
+      thumbnailUrls.forEach(url => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    };
+  }, [thumbnailUrls]);
 
   if (files.length === 0) return null;
 
@@ -294,9 +325,9 @@ export const FilePreview = ({ files, onFilesChange, onRemove }: FilePreviewProps
             <GripVertical className="w-5 h-5 text-muted-foreground cursor-move" />
             
             <div className="flex-shrink-0 w-16 h-16 rounded overflow-hidden bg-background flex items-center justify-center">
-              {file.type.startsWith('image/') ? (
+              {thumbnailUrls[index] ? (
                 <img
-                  src={URL.createObjectURL(file)}
+                  src={thumbnailUrls[index]!}
                   alt={file.name}
                   className="w-full h-full object-cover"
                 />
