@@ -75,7 +75,7 @@ export function useAccessTracking() {
           .select('id, access_count')
           .eq('user_id', user.id)
           .eq('page_path', path)
-          .single();
+          .maybeSingle();
 
         if (existing) {
           await supabase
