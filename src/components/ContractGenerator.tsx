@@ -1298,21 +1298,26 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
     
     texto += `E por estarem assim justos e contratados, assinam o presente instrumento, em duas vias de igual teor e forma, juntamente com duas testemunhas.\n\n`;
     texto += `Belo Horizonte, ${dataAtual}.\n\n\n`;
-    texto += `[ASSINATURA_CONTRATANTE]\n`;
-    texto += `_______________________________________\n`;
-    texto += `**${client.nomeCompleto.toUpperCase()}**\n`;
-    texto += `CONTRATANTE\n\n\n`;
     texto += `[ASSINATURA_CONTRATADO_1]\n`;
+    texto += `<<<<assinatura_contratado1>>>>\n`;
     texto += `_______________________________________\n`;
     texto += `**EGG NUNES ADVOGADOS ASSOCIADOS**\n`;
     texto += `Representado pelo sócio Marcos Luiz Egg Nunes, OAB/MG 115.283\n`;
     texto += `CONTRATADO\n\n\n`;
     texto += `[ASSINATURA_CONTRATADO_2]\n`;
+    texto += `<<<<assinatura_contratado2>>>>\n`;
     texto += `_______________________________________\n`;
     texto += `**RAFAEL EGG NUNES**, OAB/MG 118.395\n`;
     texto += `CONTRATADO\n\n\n`;
+    texto += `[ASSINATURA_CONTRATANTE]\n`;
+    texto += `<<<<assinatura_contratante>>>>\n`;
+    texto += `_______________________________________\n`;
+    texto += `**${client.nomeCompleto.toUpperCase()}**\n`;
+    texto += `CONTRATANTE\n\n\n`;
     texto += `[TESTEMUNHAS_LADO_A_LADO]\n`;
     texto += `TESTEMUNHAS:\n`;
+    texto += `<<<<assinatura_testemunha1>>>>\n`;
+    texto += `<<<<assinatura_testemunha2>>>>\n`;
 
     return texto;
   };
@@ -1475,6 +1480,16 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
         // Marcador de testemunhas lado a lado
         if (trimmedLine === '[TESTEMUNHAS_LADO_A_LADO]') {
           continue; // Apenas marcador, não renderiza
+        }
+        
+        // Textos âncora do ZapSign - renderizar em branco, 1pt (invisíveis no PDF impresso)
+        if (trimmedLine.startsWith('<<<<') && trimmedLine.endsWith('>>>>')) {
+          doc.setFontSize(1);
+          doc.setTextColor(255, 255, 255); // Branco - invisível
+          doc.text(trimmedLine, marginLeft, yPos);
+          doc.setTextColor(0, 0, 0); // Restaurar preto
+          doc.setFontSize(9);
+          continue;
         }
         
         // Linhas de assinatura - centralizadas com espaço acima para assinatura
