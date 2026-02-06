@@ -1,16 +1,39 @@
- import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
- import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
- const ZAPSIGN_API_URL = 'https://api.zapsign.com.br/api/v1';
- 
- // Configurações do escritório para assinatura automática
- const OFFICE_SIGNER_NAME = "Egg Nunes Advocacia";
- const OFFICE_SIGNER_EMAIL = "contato@eggnunes.com.br";
+const ZAPSIGN_API_URL = 'https://api.zapsign.com.br/api/v1';
+
+// Configurações dos signatários internos
+const SIGNERS_CONFIG = {
+  marcos: {
+    name: "Marcos Luiz Egg Nunes",
+    qualification: "Contratado",
+    tokenEnvKey: "ZAPSIGN_TOKEN_MARCOS",
+  },
+  rafael: {
+    name: "Rafael Egg Nunes",
+    qualification: "Contratado",
+    tokenEnvKey: "ZAPSIGN_USER_TOKEN",
+  },
+};
+
+// Mapeamento de testemunhas para seus tokens
+const WITNESS_TOKEN_MAP: Record<string, string> = {
+  'daniel': 'ZAPSIGN_TOKEN_DANIEL',
+  'jhonny': 'ZAPSIGN_TOKEN_JHONNY',
+  'lucas': 'ZAPSIGN_TOKEN_LUCAS',
+};
+
+const WITNESS_DISPLAY_NAMES: Record<string, string> = {
+  'daniel': 'Daniel',
+  'jhonny': 'Johnny',
+  'lucas': 'Lucas',
+};
 
 interface Signer {
   name: string;
@@ -26,6 +49,12 @@ interface Signer {
   send_automatic_email?: boolean;
   send_automatic_whatsapp?: boolean;
   qualification?: string;
+  signature_placement?: string;
+}
+
+interface WitnessInput {
+  name: string;
+  tokenKey: string; // 'daniel' | 'jhonny' | 'lucas'
 }
 
 interface CreateDocumentRequest {
@@ -40,11 +69,46 @@ interface CreateDocumentRequest {
   requireDocumentPhoto?: boolean;
   sendViaWhatsapp?: boolean;
   sendViaEmail?: boolean;
-   includeOfficeSigner?: boolean;
+  includeOfficeSigner?: boolean;
+  witnesses?: WitnessInput[];
+}
+
+// Helper para assinar automaticamente
+async function autoSign(
+  apiToken: string,
+  userToken: string,
+  signerToken: string,
+  signerName: string
+): Promise<{ success: boolean; result?: any; error?: string }> {
+  try {
+    console.log(`Assinando automaticamente para ${signerName}...`);
+    const response = await fetch(`${ZAPSIGN_API_URL}/sign/`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_token: userToken,
+        signer_token: signerToken,
+      }),
+    });
+
+    const text = await response.text();
+    console.log(`Assinatura ${signerName} (status ${response.status}):`, text);
+
+    if (response.ok) {
+      return { success: true, result: JSON.parse(text) };
+    } else {
+      return { success: false, error: text };
+    }
+  } catch (err) {
+    console.error(`Erro ao assinar para ${signerName}:`, err);
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -58,22 +122,19 @@ serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-   
-   const ZAPSIGN_USER_TOKEN = Deno.env.get('ZAPSIGN_USER_TOKEN');
-   
-   // Inicializar Supabase client para salvar no banco
-   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-   const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body: CreateDocumentRequest = await req.json();
     console.log('Recebido pedido para criar documento no ZapSign:', {
       documentType: body.documentType,
       documentName: body.documentName,
       clientName: body.clientName,
+      witnesses: body.witnesses?.map(w => w.name),
     });
 
-    // Validar campos obrigatórios
     if (!body.pdfBase64 || !body.clientName || !body.documentName) {
       return new Response(
         JSON.stringify({ error: 'Campos obrigatórios faltando: pdfBase64, clientName, documentName' }),
@@ -81,67 +142,121 @@ serve(async (req) => {
       );
     }
 
-    // Limpar o base64 - remover prefixo data:application/pdf;base64, se existir
     let cleanBase64 = body.pdfBase64;
     if (cleanBase64.startsWith('data:')) {
       cleanBase64 = cleanBase64.split(',')[1];
     }
 
-    // Formatar telefone para o padrão brasileiro
+    // Formatar telefone
     let phoneNumber = body.clientPhone || '';
-    let phoneCountry = '55'; // Brasil por padrão
-    
-    // Remove caracteres não numéricos
+    let phoneCountry = '55';
     phoneNumber = phoneNumber.replace(/\D/g, '');
-    
-    // Se começa com 55, remove
     if (phoneNumber.startsWith('55') && phoneNumber.length > 11) {
       phoneNumber = phoneNumber.substring(2);
     }
 
-    // Configurar signatário (cliente)
-    // Autenticação SEMPRE obrigatória (selfie + documento) - padrão fixo de segurança
-    const signer: Signer = {
-      name: body.clientName,
-      email: body.clientEmail || '',
-      phone_country: phoneCountry,
-      phone_number: phoneNumber,
-      lock_name: true,
-      lock_email: !!body.clientEmail,
-      lock_phone: !!phoneNumber,
-      auth_mode: 'assinaturaTela', // Assinatura desenhada na tela
-      require_selfie_photo: true, // Sempre exigir selfie
-      require_document_photo: true, // Sempre exigir foto do documento
-      send_automatic_email: body.sendViaEmail ?? true, // E-mail automático por padrão
-      send_automatic_whatsapp: body.sendViaWhatsapp ?? false,
-      qualification: 'Contratante',
-    };
- 
-   // Array de signatários
-   const signers: Signer[] = [signer];
- 
-   // Para contratos, adicionar signatário do escritório (advogado)
-   const isContract = body.documentType === 'contrato' && body.includeOfficeSigner !== false;
-   
-   if (isContract) {
-     const officeSigner: Signer = {
-       name: OFFICE_SIGNER_NAME,
-       email: OFFICE_SIGNER_EMAIL,
-       lock_name: true,
-       lock_email: true,
-       auth_mode: 'assinaturaTela', // Assinatura simples para o escritório
-       require_selfie_photo: false,
-       require_document_photo: false,
-       send_automatic_email: false, // Não enviar e-mail, será assinado automaticamente
-       send_automatic_whatsapp: false,
-       qualification: 'Contratado',
-     };
-     // Escritório assina primeiro
-     signers.unshift(officeSigner);
-     console.log('Contrato detectado - adicionando signatário do escritório para assinatura automática');
-   }
+    const isContract = body.documentType === 'contrato' && body.includeOfficeSigner !== false;
+    const signers: Signer[] = [];
 
-    // Montar payload para criar documento via PDF base64
+    if (isContract) {
+      // ===== 5 SIGNATÁRIOS PARA CONTRATOS =====
+      
+      // 1. Marcos (1º Contratado)
+      signers.push({
+        name: SIGNERS_CONFIG.marcos.name,
+        lock_name: true,
+        auth_mode: 'assinaturaTela',
+        require_selfie_photo: false,
+        require_document_photo: false,
+        send_automatic_email: false,
+        send_automatic_whatsapp: false,
+        qualification: 'Contratado',
+        signature_placement: '<<<<assinatura_contratado1>>>>',
+      });
+
+      // 2. Rafael (2º Contratado)
+      signers.push({
+        name: SIGNERS_CONFIG.rafael.name,
+        lock_name: true,
+        auth_mode: 'assinaturaTela',
+        require_selfie_photo: false,
+        require_document_photo: false,
+        send_automatic_email: false,
+        send_automatic_whatsapp: false,
+        qualification: 'Contratado',
+        signature_placement: '<<<<assinatura_contratado2>>>>',
+      });
+
+      // 3. Cliente (Contratante)
+      signers.push({
+        name: body.clientName,
+        email: body.clientEmail || '',
+        phone_country: phoneCountry,
+        phone_number: phoneNumber,
+        lock_name: true,
+        lock_email: !!body.clientEmail,
+        lock_phone: !!phoneNumber,
+        auth_mode: 'assinaturaTela',
+        require_selfie_photo: true,
+        require_document_photo: true,
+        send_automatic_email: body.sendViaEmail ?? true,
+        send_automatic_whatsapp: body.sendViaWhatsapp ?? false,
+        qualification: 'Contratante',
+        signature_placement: '<<<<assinatura_contratante>>>>',
+      });
+
+      // 4. Testemunha 1
+      const witness1 = body.witnesses?.[0];
+      if (witness1) {
+        signers.push({
+          name: WITNESS_DISPLAY_NAMES[witness1.tokenKey] || witness1.name,
+          lock_name: true,
+          auth_mode: 'assinaturaTela',
+          require_selfie_photo: false,
+          require_document_photo: false,
+          send_automatic_email: false,
+          send_automatic_whatsapp: false,
+          qualification: 'Testemunha',
+          signature_placement: '<<<<assinatura_testemunha1>>>>',
+        });
+      }
+
+      // 5. Testemunha 2
+      const witness2 = body.witnesses?.[1];
+      if (witness2) {
+        signers.push({
+          name: WITNESS_DISPLAY_NAMES[witness2.tokenKey] || witness2.name,
+          lock_name: true,
+          auth_mode: 'assinaturaTela',
+          require_selfie_photo: false,
+          require_document_photo: false,
+          send_automatic_email: false,
+          send_automatic_whatsapp: false,
+          qualification: 'Testemunha',
+          signature_placement: '<<<<assinatura_testemunha2>>>>',
+        });
+      }
+
+      console.log(`Contrato com ${signers.length} signatários:`, signers.map(s => `${s.name} (${s.qualification})`));
+    } else {
+      // ===== PROCURAÇÃO/DECLARAÇÃO: apenas cliente =====
+      signers.push({
+        name: body.clientName,
+        email: body.clientEmail || '',
+        phone_country: phoneCountry,
+        phone_number: phoneNumber,
+        lock_name: true,
+        lock_email: !!body.clientEmail,
+        lock_phone: !!phoneNumber,
+        auth_mode: 'assinaturaTela',
+        require_selfie_photo: true,
+        require_document_photo: true,
+        send_automatic_email: body.sendViaEmail ?? true,
+        send_automatic_whatsapp: body.sendViaWhatsapp ?? false,
+        qualification: 'Contratante',
+      });
+    }
+
     const documentPayload = {
       name: body.documentName,
       base64_pdf: cleanBase64,
@@ -149,18 +264,17 @@ serve(async (req) => {
       lang: 'pt-br',
       disable_signer_emails: !(body.sendViaEmail ?? false),
       signed_file_only_finished: true,
-      brand_primary_color: '#1e40af', // Cor do escritório
+      brand_primary_color: '#1e40af',
       external_id: `${body.documentType}_${Date.now()}`,
     };
 
     console.log('Enviando para ZapSign API...', {
       endpoint: `${ZAPSIGN_API_URL}/docs/`,
-     signersCount: signers.length,
-     isContract: isContract,
-     signerNames: signers.map(s => s.name),
+      signersCount: signers.length,
+      isContract,
+      signerNames: signers.map(s => s.name),
     });
 
-    // Fazer requisição para a API do ZapSign
     const response = await fetch(`${ZAPSIGN_API_URL}/docs/`, {
       method: 'POST',
       headers: {
@@ -172,106 +286,137 @@ serve(async (req) => {
 
     const responseText = await response.text();
     console.log('Resposta ZapSign (status):', response.status);
-    console.log('Resposta ZapSign (body):', responseText);
+    console.log('Resposta ZapSign (body):', responseText.substring(0, 500));
 
     if (!response.ok) {
       console.error('Erro na API ZapSign:', responseText);
       return new Response(
-        JSON.stringify({ 
-          error: 'Erro ao criar documento no ZapSign',
-          details: responseText,
-          status: response.status
-        }),
+        JSON.stringify({ error: 'Erro ao criar documento no ZapSign', details: responseText, status: response.status }),
         { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const data = JSON.parse(responseText);
-    console.log('Documento criado com sucesso no ZapSign:', {
-      token: data.token,
-      status: data.status,
-      signersCount: data.signers?.length,
-    });
- 
-   // Se for contrato, assinar automaticamente pelo escritório
-   let officeSignResult = null;
-   if (isContract && ZAPSIGN_USER_TOKEN && data.signers?.length > 0) {
-     const officeSignerData = data.signers[0]; // Primeiro signatário é o escritório
-     console.log('Iniciando assinatura automática do escritório...', {
-       signerToken: officeSignerData.token,
-     });
- 
-     try {
-       const signResponse = await fetch(`${ZAPSIGN_API_URL}/sign/`, {
-         method: 'POST',
-         headers: {
-           'Authorization': `Bearer ${ZAPSIGN_API_TOKEN}`,
-           'Content-Type': 'application/json',
-         },
-         body: JSON.stringify({
-           user_token: ZAPSIGN_USER_TOKEN,
-           signer_token: officeSignerData.token,
-         }),
-       });
- 
-       const signText = await signResponse.text();
-       console.log('Resposta assinatura automática (status):', signResponse.status);
-       console.log('Resposta assinatura automática (body):', signText);
- 
-       if (signResponse.ok) {
-         officeSignResult = JSON.parse(signText);
-         console.log('Assinatura automática do escritório realizada com sucesso!');
-       } else {
-         console.error('Erro na assinatura automática:', signText);
-       }
-     } catch (signError) {
-       console.error('Erro ao tentar assinatura automática:', signError);
-     }
-   }
- 
-   // Salvar documento no banco de dados para rastreamento
-   try {
-     const clientSignerData = isContract ? data.signers[1] : data.signers[0];
-     const officeSignerData = isContract ? data.signers[0] : null;
- 
-     const { error: dbError } = await supabase
-       .from('zapsign_documents')
-       .insert({
-         document_token: data.token,
-         document_type: body.documentType,
-         document_name: body.documentName,
-         client_name: body.clientName,
-         client_email: body.clientEmail || null,
-         client_phone: body.clientPhone || null,
-         client_cpf: body.clientCpf || null,
-         status: 'pending',
-         sign_url: clientSignerData?.sign_url || null,
-         original_file_url: data.original_file || null,
-         office_signer_token: officeSignerData?.token || null,
-         office_signer_status: officeSignResult ? 'signed' : (officeSignerData ? 'pending' : null),
-         client_signer_token: clientSignerData?.token || null,
-         client_signer_status: 'pending',
-       });
- 
-     if (dbError) {
-       console.error('Erro ao salvar documento no banco:', dbError);
-     } else {
-       console.log('Documento salvo no banco de dados para rastreamento');
-     }
-   } catch (dbError) {
-     console.error('Erro ao salvar no banco:', dbError);
-   }
+    console.log('Documento criado com sucesso:', { token: data.token, signersCount: data.signers?.length });
 
-    // Extrair informações importantes da resposta
-   const clientSignerIndex = isContract ? 1 : 0;
+    // ===== ASSINATURAS AUTOMÁTICAS PARA CONTRATOS =====
+    const autoSignResults: Record<string, { success: boolean; error?: string }> = {};
+
+    if (isContract && data.signers?.length >= 3) {
+      // Índices: 0=Marcos, 1=Rafael, 2=Cliente, 3=Testemunha1, 4=Testemunha2
+
+      // 1. Marcos
+      const marcosToken = Deno.env.get('ZAPSIGN_TOKEN_MARCOS');
+      if (marcosToken && data.signers[0]) {
+        autoSignResults.marcos = await autoSign(ZAPSIGN_API_TOKEN, marcosToken, data.signers[0].token, 'Marcos');
+      }
+
+      // 2. Rafael
+      const rafaelToken = Deno.env.get('ZAPSIGN_USER_TOKEN');
+      if (rafaelToken && data.signers[1]) {
+        autoSignResults.rafael = await autoSign(ZAPSIGN_API_TOKEN, rafaelToken, data.signers[1].token, 'Rafael');
+      }
+
+      // 3. Testemunha 1
+      const witness1 = body.witnesses?.[0];
+      if (witness1 && data.signers[3]) {
+        const w1EnvKey = WITNESS_TOKEN_MAP[witness1.tokenKey];
+        const w1Token = w1EnvKey ? Deno.env.get(w1EnvKey) : null;
+        if (w1Token) {
+          autoSignResults.witness1 = await autoSign(ZAPSIGN_API_TOKEN, w1Token, data.signers[3].token, witness1.name);
+        }
+      }
+
+      // 4. Testemunha 2
+      const witness2 = body.witnesses?.[1];
+      if (witness2 && data.signers[4]) {
+        const w2EnvKey = WITNESS_TOKEN_MAP[witness2.tokenKey];
+        const w2Token = w2EnvKey ? Deno.env.get(w2EnvKey) : null;
+        if (w2Token) {
+          autoSignResults.witness2 = await autoSign(ZAPSIGN_API_TOKEN, w2Token, data.signers[4].token, witness2.name);
+        }
+      }
+
+      console.log('Resultados assinaturas automáticas:', JSON.stringify(autoSignResults));
+    }
+
+    // ===== SALVAR NO BANCO DE DADOS =====
+    try {
+      const dbRecord: Record<string, any> = {
+        document_token: data.token,
+        document_type: body.documentType,
+        document_name: body.documentName,
+        client_name: body.clientName,
+        client_email: body.clientEmail || null,
+        client_phone: body.clientPhone || null,
+        client_cpf: body.clientCpf || null,
+        status: 'pending',
+        original_file_url: data.original_file || null,
+      };
+
+      if (isContract && data.signers?.length >= 3) {
+        // Marcos (índice 0)
+        dbRecord.marcos_signer_token = data.signers[0]?.token || null;
+        dbRecord.marcos_signer_status = autoSignResults.marcos?.success ? 'signed' : 'pending';
+        dbRecord.office_signer_token = data.signers[0]?.token || null;
+        dbRecord.office_signer_status = autoSignResults.marcos?.success ? 'signed' : 'pending';
+        
+        // Rafael (índice 1)
+        dbRecord.rafael_signer_token = data.signers[1]?.token || null;
+        dbRecord.rafael_signer_status = autoSignResults.rafael?.success ? 'signed' : 'pending';
+        
+        // Cliente (índice 2)
+        dbRecord.client_signer_token = data.signers[2]?.token || null;
+        dbRecord.client_signer_status = 'pending';
+        dbRecord.sign_url = data.signers[2]?.sign_url || null;
+        
+        // Testemunha 1 (índice 3)
+        if (data.signers[3] && body.witnesses?.[0]) {
+          dbRecord.witness1_name = WITNESS_DISPLAY_NAMES[body.witnesses[0].tokenKey] || body.witnesses[0].name;
+          dbRecord.witness1_signer_token = data.signers[3]?.token || null;
+          dbRecord.witness1_signer_status = autoSignResults.witness1?.success ? 'signed' : 'pending';
+        }
+        
+        // Testemunha 2 (índice 4)
+        if (data.signers[4] && body.witnesses?.[1]) {
+          dbRecord.witness2_name = WITNESS_DISPLAY_NAMES[body.witnesses[1].tokenKey] || body.witnesses[1].name;
+          dbRecord.witness2_signer_token = data.signers[4]?.token || null;
+          dbRecord.witness2_signer_status = autoSignResults.witness2?.success ? 'signed' : 'pending';
+        }
+      } else {
+        // Procuração/Declaração - apenas cliente
+        dbRecord.client_signer_token = data.signers[0]?.token || null;
+        dbRecord.client_signer_status = 'pending';
+        dbRecord.sign_url = data.signers[0]?.sign_url || null;
+      }
+
+      const { error: dbError } = await supabase.from('zapsign_documents').insert(dbRecord);
+      if (dbError) {
+        console.error('Erro ao salvar documento no banco:', dbError);
+      } else {
+        console.log('Documento salvo no banco');
+      }
+    } catch (dbError) {
+      console.error('Erro ao salvar no banco:', dbError);
+    }
+
+    // ===== RESULTADO =====
+    const clientSignerIndex = isContract ? 2 : 0;
     const result = {
       success: true,
       documentToken: data.token,
       documentStatus: data.status,
       documentName: data.name,
       originalFileUrl: data.original_file,
-     officeSignatureCompleted: !!officeSignResult,
-     isContract: isContract,
+      isContract,
+      autoSignResults: isContract ? {
+        marcos: autoSignResults.marcos?.success || false,
+        rafael: autoSignResults.rafael?.success || false,
+        witness1: autoSignResults.witness1?.success || false,
+        witness2: autoSignResults.witness2?.success || false,
+      } : undefined,
+      witness1Name: body.witnesses?.[0] ? (WITNESS_DISPLAY_NAMES[body.witnesses[0].tokenKey] || body.witnesses[0].name) : undefined,
+      witness2Name: body.witnesses?.[1] ? (WITNESS_DISPLAY_NAMES[body.witnesses[1].tokenKey] || body.witnesses[1].name) : undefined,
       signers: data.signers?.map((s: any) => ({
         name: s.name,
         email: s.email,
@@ -279,7 +424,7 @@ serve(async (req) => {
         status: s.status,
         token: s.token,
       })),
-     signUrl: data.signers?.[clientSignerIndex]?.sign_url || null,
+      signUrl: data.signers?.[clientSignerIndex]?.sign_url || null,
       createdAt: data.created_at,
     };
 
@@ -291,10 +436,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Erro na integração ZapSign:', error);
     return new Response(
-      JSON.stringify({ 
-        error: 'Erro interno na integração ZapSign',
-        details: error instanceof Error ? error.message : 'Erro desconhecido'
-      }),
+      JSON.stringify({ error: 'Erro interno na integração ZapSign', details: error instanceof Error ? error.message : 'Erro desconhecido' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

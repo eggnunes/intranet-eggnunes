@@ -298,18 +298,28 @@
      const updates: Record<string, any> = { updated_at: new Date().toISOString() };
      let shouldSyncAdvbox = false;
  
-     // Atualizar status do signatário
-     if (signer_token) {
-       if (signer_token === document.office_signer_token) {
-         updates.office_signer_status = signer_status || 'signed';
-       } else if (signer_token === document.client_signer_token) {
-         updates.client_signer_status = signer_status || 'signed';
-         if (signer_status === 'signed') {
-           updates.signed_at = new Date().toISOString();
-           shouldSyncAdvbox = true;
-         }
-       }
-     }
+    // Atualizar status do signatário
+    if (signer_token) {
+      if (signer_token === document.marcos_signer_token) {
+        updates.marcos_signer_status = signer_status || 'signed';
+        updates.office_signer_status = signer_status || 'signed';
+      } else if (signer_token === document.rafael_signer_token) {
+        updates.rafael_signer_status = signer_status || 'signed';
+      } else if (signer_token === document.office_signer_token && !document.marcos_signer_token) {
+        // Retrocompatibilidade para documentos antigos sem marcos_signer_token
+        updates.office_signer_status = signer_status || 'signed';
+      } else if (signer_token === document.witness1_signer_token) {
+        updates.witness1_signer_status = signer_status || 'signed';
+      } else if (signer_token === document.witness2_signer_token) {
+        updates.witness2_signer_status = signer_status || 'signed';
+      } else if (signer_token === document.client_signer_token) {
+        updates.client_signer_status = signer_status || 'signed';
+        if (signer_status === 'signed') {
+          updates.signed_at = new Date().toISOString();
+          shouldSyncAdvbox = true;
+        }
+      }
+    }
  
      // Mapear status do documento
      switch (event_type) {

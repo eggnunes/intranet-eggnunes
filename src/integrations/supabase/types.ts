@@ -7121,14 +7121,24 @@ export type Database = {
           document_type: string
           fin_contrato_id: string | null
           id: string
+          marcos_signer_status: string | null
+          marcos_signer_token: string | null
           office_signer_status: string | null
           office_signer_token: string | null
           original_file_url: string | null
+          rafael_signer_status: string | null
+          rafael_signer_token: string | null
           sign_url: string | null
           signed_at: string | null
           signed_file_url: string | null
           status: string
           updated_at: string
+          witness1_name: string | null
+          witness1_signer_status: string | null
+          witness1_signer_token: string | null
+          witness2_name: string | null
+          witness2_signer_status: string | null
+          witness2_signer_token: string | null
         }
         Insert: {
           advbox_sync_at?: string | null
@@ -7147,14 +7157,24 @@ export type Database = {
           document_type: string
           fin_contrato_id?: string | null
           id?: string
+          marcos_signer_status?: string | null
+          marcos_signer_token?: string | null
           office_signer_status?: string | null
           office_signer_token?: string | null
           original_file_url?: string | null
+          rafael_signer_status?: string | null
+          rafael_signer_token?: string | null
           sign_url?: string | null
           signed_at?: string | null
           signed_file_url?: string | null
           status?: string
           updated_at?: string
+          witness1_name?: string | null
+          witness1_signer_status?: string | null
+          witness1_signer_token?: string | null
+          witness2_name?: string | null
+          witness2_signer_status?: string | null
+          witness2_signer_token?: string | null
         }
         Update: {
           advbox_sync_at?: string | null
@@ -7173,14 +7193,24 @@ export type Database = {
           document_type?: string
           fin_contrato_id?: string | null
           id?: string
+          marcos_signer_status?: string | null
+          marcos_signer_token?: string | null
           office_signer_status?: string | null
           office_signer_token?: string | null
           original_file_url?: string | null
+          rafael_signer_status?: string | null
+          rafael_signer_token?: string | null
           sign_url?: string | null
           signed_at?: string | null
           signed_file_url?: string | null
           status?: string
           updated_at?: string
+          witness1_name?: string | null
+          witness1_signer_status?: string | null
+          witness1_signer_token?: string | null
+          witness2_name?: string | null
+          witness2_signer_status?: string | null
+          witness2_signer_token?: string | null
         }
         Relationships: [
           {

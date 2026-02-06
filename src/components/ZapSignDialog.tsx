@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   FileSignature, 
   Loader2, 
@@ -24,9 +25,10 @@ import {
   CreditCard,
   Mail,
   MessageCircle,
-   AlertCircle,
-   Building2,
-   User
+  AlertCircle,
+  Building2,
+  User,
+  Users
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,15 +44,22 @@ interface ZapSignDialogProps {
   clientPhone?: string;
   clientCpf?: string;
   onSuccess?: (signUrl: string) => void;
-  contratoId?: string; // ID do contrato em fin_contratos para vincular ao documento ZapSign
+  contratoId?: string;
 }
 
 interface ZapSignResult {
   success: boolean;
   documentToken: string;
   signUrl: string;
-   officeSignatureCompleted?: boolean;
-   isContract?: boolean;
+  isContract?: boolean;
+  autoSignResults?: {
+    marcos: boolean;
+    rafael: boolean;
+    witness1: boolean;
+    witness2: boolean;
+  };
+  witness1Name?: string;
+  witness2Name?: string;
   signers: Array<{
     name: string;
     email: string;
@@ -58,6 +67,12 @@ interface ZapSignResult {
     status: string;
   }>;
 }
+
+const WITNESSES = [
+  { key: 'daniel', label: 'Daniel' },
+  { key: 'jhonny', label: 'Johnny' },
+  { key: 'lucas', label: 'Lucas' },
+];
 
 export const ZapSignDialog = ({
   open,
@@ -76,15 +91,36 @@ export const ZapSignDialog = ({
   const [result, setResult] = useState<ZapSignResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Envio automático - e-mail ativado por padrão
   const [sendViaWhatsapp, setSendViaWhatsapp] = useState(false);
   const [sendViaEmail, setSendViaEmail] = useState(true);
 
-  // Dados do cliente editáveis
   const [editableEmail, setEditableEmail] = useState(clientEmail || "");
   const [editablePhone, setEditablePhone] = useState(clientPhone || "");
 
+  // Testemunhas selecionadas (apenas para contratos)
+  const [selectedWitnesses, setSelectedWitnesses] = useState<string[]>(['daniel', 'jhonny']);
+
+  const toggleWitness = (key: string) => {
+    setSelectedWitnesses(prev => {
+      if (prev.includes(key)) {
+        return prev.filter(w => w !== key);
+      }
+      if (prev.length >= 2) {
+        // Substituir o mais antigo
+        return [prev[1], key];
+      }
+      return [...prev, key];
+    });
+  };
+
+  const witnessesValid = documentType !== 'contrato' || selectedWitnesses.length === 2;
+
   const handleSendToZapSign = async () => {
+    if (documentType === 'contrato' && selectedWitnesses.length !== 2) {
+      toast.error('Selecione exatamente 2 testemunhas');
+      return;
+    }
+
     setSending(true);
     setError(null);
     setResult(null);
@@ -92,6 +128,13 @@ export const ZapSignDialog = ({
     try {
       console.log('Enviando documento para ZapSign...');
       
+      const witnesses = documentType === 'contrato' 
+        ? selectedWitnesses.map(key => ({
+            name: WITNESSES.find(w => w.key === key)?.label || key,
+            tokenKey: key,
+          }))
+        : undefined;
+
       const { data, error: invokeError } = await supabase.functions.invoke('zapsign-integration', {
         body: {
           documentType,
@@ -107,6 +150,7 @@ export const ZapSignDialog = ({
           sendViaEmail,
           includeOfficeSigner: documentType === 'contrato',
           contratoId,
+          witnesses,
         },
       });
 
@@ -123,14 +167,12 @@ export const ZapSignDialog = ({
       console.log('Resposta do ZapSign:', data);
       setResult(data);
       
-      // Se há contratoId, atualizar o status do contrato para pending_signature
       if (contratoId && data.documentToken) {
         try {
           await supabase.from('fin_contratos').update({
             assinatura_status: 'pending_signature',
             zapsign_document_id: data.documentToken,
           }).eq('id', contratoId);
-          console.log('Contrato atualizado com status pending_signature');
         } catch (updateError) {
           console.error('Erro ao atualizar contrato:', updateError);
         }
@@ -148,9 +190,7 @@ export const ZapSignDialog = ({
       console.error('Erro ao enviar para ZapSign:', err);
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
       setError(errorMessage);
-      toast.error('Erro ao enviar documento', {
-        description: errorMessage,
-      });
+      toast.error('Erro ao enviar documento', { description: errorMessage });
     } finally {
       setSending(false);
     }
@@ -237,7 +277,7 @@ export const ZapSignDialog = ({
               </div>
             </div>
 
-            {/* Aviso de autenticação obrigatória */}
+            {/* Autenticação do cliente */}
             <Card className="border-primary/20 bg-primary/5">
               <CardContent className="pt-4">
                 <div className="flex items-start gap-3">
@@ -254,20 +294,56 @@ export const ZapSignDialog = ({
                 </div>
               </CardContent>
             </Card>
- 
-            {/* Aviso de assinatura automática para contratos */}
+
+            {/* Seleção de testemunhas - apenas para contratos */}
             {documentType === 'contrato' && (
               <Card className="border-blue-500/20 bg-blue-500/5">
-                <CardContent className="pt-4">
+                <CardContent className="pt-4 space-y-4">
                   <div className="flex items-start gap-3">
-                    <Building2 className="h-5 w-5 text-blue-600" />
+                    <Building2 className="h-5 w-5 text-blue-600 mt-0.5" />
                     <div className="space-y-1">
-                      <p className="text-sm font-medium">Assinatura automática do escritório</p>
+                      <p className="text-sm font-medium">Assinaturas automáticas</p>
                       <p className="text-xs text-muted-foreground">
-                        O contrato será assinado automaticamente pelo escritório (Egg Nunes Advocacia) assim que for enviado. 
+                        O contrato será assinado automaticamente por:
+                      </p>
+                      <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-0.5">
+                        <li>Marcos Luiz Egg Nunes (1º Contratado)</li>
+                        <li>Rafael Egg Nunes (2º Contratado)</li>
+                        <li>2 Testemunhas selecionadas abaixo</li>
+                      </ul>
+                      <p className="text-xs text-muted-foreground mt-1">
                         O cliente receberá o link para completar sua assinatura.
                       </p>
                     </div>
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-blue-600" />
+                      <Label className="text-sm font-medium">Testemunhas (selecione 2)</Label>
+                    </div>
+                    <div className="space-y-2">
+                      {WITNESSES.map((witness) => (
+                        <div key={witness.key} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`witness-${witness.key}`}
+                            checked={selectedWitnesses.includes(witness.key)}
+                            onCheckedChange={() => toggleWitness(witness.key)}
+                          />
+                          <Label
+                            htmlFor={`witness-${witness.key}`}
+                            className="text-sm cursor-pointer"
+                          >
+                            {witness.label}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                    {selectedWitnesses.length !== 2 && (
+                      <p className="text-xs text-destructive">
+                        Selecione exatamente 2 testemunhas para prosseguir.
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -336,34 +412,53 @@ export const ZapSignDialog = ({
               </div>
               <h3 className="text-lg font-semibold">Documento enviado com sucesso!</h3>
               <p className="text-sm text-muted-foreground">
-                {result.isContract && result.officeSignatureCompleted 
-                  ? 'O escritório já assinou automaticamente. Compartilhe o link com o cliente para que ele complete a assinatura.'
+                {result.isContract 
+                  ? 'As assinaturas internas foram processadas automaticamente. Compartilhe o link com o cliente.'
                   : 'O link de assinatura foi gerado. Compartilhe com o cliente para que ele assine.'}
               </p>
             </div>
- 
+
             {/* Status das assinaturas para contratos */}
-            {result.isContract && (
+            {result.isContract && result.autoSignResults && (
               <Card className="border-green-500/20 bg-green-500/5">
                 <CardContent className="pt-4 space-y-3">
                   <Label className="text-sm font-medium">Status das Assinaturas</Label>
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                        <span>Egg Nunes Advocacia</span>
-                      </div>
-                      <Badge variant={result.officeSignatureCompleted ? "default" : "secondary"} className={result.officeSignatureCompleted ? "bg-green-600" : ""}>
-                        {result.officeSignatureCompleted ? "Assinado" : "Pendente"}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span>{clientName}</span>
-                      </div>
-                      <Badge variant="secondary">Aguardando</Badge>
-                    </div>
+                    <SignerStatusRow
+                      icon={<Building2 className="h-4 w-4 text-muted-foreground" />}
+                      name="Marcos Luiz Egg Nunes"
+                      role="Contratado"
+                      signed={result.autoSignResults.marcos}
+                    />
+                    <SignerStatusRow
+                      icon={<Building2 className="h-4 w-4 text-muted-foreground" />}
+                      name="Rafael Egg Nunes"
+                      role="Contratado"
+                      signed={result.autoSignResults.rafael}
+                    />
+                    <SignerStatusRow
+                      icon={<User className="h-4 w-4 text-muted-foreground" />}
+                      name={clientName}
+                      role="Contratante"
+                      signed={false}
+                      pending
+                    />
+                    {result.witness1Name && (
+                      <SignerStatusRow
+                        icon={<Users className="h-4 w-4 text-muted-foreground" />}
+                        name={result.witness1Name}
+                        role="Testemunha"
+                        signed={result.autoSignResults.witness1}
+                      />
+                    )}
+                    {result.witness2Name && (
+                      <SignerStatusRow
+                        icon={<Users className="h-4 w-4 text-muted-foreground" />}
+                        name={result.witness2Name}
+                        role="Testemunha"
+                        signed={result.autoSignResults.witness2}
+                      />
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -373,7 +468,7 @@ export const ZapSignDialog = ({
             {result.signUrl && (
               <Card>
                 <CardContent className="pt-4 space-y-3">
-                  <Label className="text-sm font-medium">Link de assinatura</Label>
+                  <Label className="text-sm font-medium">Link de assinatura do cliente</Label>
                   <div className="flex gap-2">
                     <Input 
                       value={result.signUrl} 
@@ -430,23 +525,6 @@ export const ZapSignDialog = ({
                 </CardContent>
               </Card>
             )}
-
-            {/* Informações do signatário */}
-            {result.signers && result.signers.length > 0 && (
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Signatários</Label>
-                    {result.signers.map((signer, index) => (
-                      <div key={index} className="flex items-center justify-between text-sm">
-                        <span>{signer.name}</span>
-                        <Badge variant="outline">{signer.status}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
         )}
 
@@ -456,7 +534,7 @@ export const ZapSignDialog = ({
               <Button variant="outline" onClick={handleClose} disabled={sending}>
                 Cancelar
               </Button>
-              <Button onClick={handleSendToZapSign} disabled={sending}>
+              <Button onClick={handleSendToZapSign} disabled={sending || !witnessesValid}>
                 {sending ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
@@ -475,3 +553,34 @@ export const ZapSignDialog = ({
     </Dialog>
   );
 };
+
+// Componente auxiliar para exibir status de cada signatário
+function SignerStatusRow({ 
+  icon, 
+  name, 
+  role, 
+  signed, 
+  pending 
+}: { 
+  icon: React.ReactNode; 
+  name: string; 
+  role: string; 
+  signed: boolean; 
+  pending?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between text-sm">
+      <div className="flex items-center gap-2">
+        {icon}
+        <span>{name}</span>
+        <span className="text-xs text-muted-foreground">({role})</span>
+      </div>
+      <Badge 
+        variant={signed ? "default" : "secondary"} 
+        className={signed ? "bg-green-600" : ""}
+      >
+        {signed ? "Assinado" : (pending ? "Aguardando" : "Pendente")}
+      </Badge>
+    </div>
+  );
+}
