@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
 import heic2any from 'heic2any';
-
+import { PDFDocument } from 'pdf-lib';
 interface ProcessedDocument {
   name: string;
   url: string;
@@ -162,7 +162,7 @@ export default function RotaDoc() {
 
       // Process files in batches of 2 to avoid memory issues
       const BATCH_SIZE = 2;
-      const allDocuments: ProcessedDocument[] = [];
+      const batchDocuments: ProcessedDocument[] = [];
       const allWarnings: string[] = [];
       
       for (let i = 0; i < filesData.length; i += BATCH_SIZE) {
@@ -178,26 +178,66 @@ export default function RotaDoc() {
         const { data, error } = await supabase.functions.invoke('process-documents', {
           body: {
             files: batch,
-            mergeAll: true, // Always merge within batch
+            mergeAll: true,
           },
         });
 
         if (error) {
           console.error('Erro no lote:', error);
           allWarnings.push(`Lote ${Math.floor(i / BATCH_SIZE) + 1}: ${error.message || 'Erro no processamento'}`);
-          continue; // Continue with next batch instead of failing completely
+          continue;
         }
 
         if (data?.documents) {
-          allDocuments.push(...data.documents);
+          batchDocuments.push(...data.documents);
         }
         if (data?.legibilityWarnings) {
           allWarnings.push(...data.legibilityWarnings);
         }
       }
 
-      if (allDocuments.length === 0) {
+      if (batchDocuments.length === 0) {
         throw new Error('Nenhum documento foi processado com sucesso');
+      }
+
+      // If mergeAll is enabled and we have multiple PDFs from batches, merge them client-side
+      let allDocuments: ProcessedDocument[];
+      if (mergeAll && batchDocuments.length > 1) {
+        console.log(`Mesclando ${batchDocuments.length} PDFs em um único documento...`);
+        try {
+          const mergedPdf = await PDFDocument.create();
+          
+          for (const doc of batchDocuments) {
+            // Extract base64 from data URL
+            const base64Data = doc.url.split(',')[1];
+            const pdfBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+            const sourcePdf = await PDFDocument.load(pdfBytes);
+            const pages = await mergedPdf.copyPages(sourcePdf, sourcePdf.getPageIndices());
+            pages.forEach(page => mergedPdf.addPage(page));
+          }
+          
+          const mergedBytes = await mergedPdf.save();
+          const mergedBase64 = btoa(
+            mergedBytes.reduce((data, byte) => data + String.fromCharCode(byte), '')
+          );
+          
+          const totalPages = mergedPdf.getPageCount();
+          const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+          
+          allDocuments = [{
+            name: `Documento_Mesclado_${timestamp}.pdf`,
+            url: `data:application/pdf;base64,${mergedBase64}`,
+            pageCount: totalPages,
+          }];
+          
+          console.log(`PDF mesclado gerado com ${totalPages} páginas`);
+        } catch (mergeError) {
+          console.error('Erro ao mesclar PDFs:', mergeError);
+          allWarnings.push('Não foi possível mesclar os PDFs. Documentos individuais foram mantidos.');
+          allDocuments = batchDocuments;
+        }
+      } else {
+        allDocuments = batchDocuments;
       }
 
       setProcessedDocuments(allDocuments);
