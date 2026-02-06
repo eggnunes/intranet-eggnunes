@@ -74,8 +74,10 @@ export default function RotaDoc() {
       const img = new Image();
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
+      const url = URL.createObjectURL(file);
       
       img.onload = () => {
+        URL.revokeObjectURL(url);
         let { width, height } = img;
         
         // Only resize if larger than max dimension
@@ -104,8 +106,11 @@ export default function RotaDoc() {
         );
       };
       
-      img.onerror = () => resolve(file); // Fallback to original on error
-      img.src = URL.createObjectURL(file);
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(file); // Fallback to original on error
+      };
+      img.src = url;
     });
   };
 

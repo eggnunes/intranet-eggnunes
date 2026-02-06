@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import {
@@ -62,13 +62,13 @@ export const ImageCropEditor = ({ file, isOpen, onClose, onSave }: ImageCropEdit
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Load image when file changes
-  useState(() => {
+  useEffect(() => {
     if (file) {
       const url = URL.createObjectURL(file);
       setImageUrl(url);
       return () => URL.revokeObjectURL(url);
     }
-  });
+  }, [file]);
 
   const onImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const { width, height } = e.currentTarget;
@@ -340,7 +340,7 @@ export const ImageCropEditor = ({ file, isOpen, onClose, onSave }: ImageCropEdit
               >
                 <img
                   ref={imgRef}
-                  src={imageUrl || URL.createObjectURL(file)}
+                  src={imageUrl}
                   alt="Editar imagem"
                   onLoad={onImageLoad}
                   style={{
