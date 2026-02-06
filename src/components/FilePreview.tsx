@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Upload, X, GripVertical, ArrowUp, ArrowDown, Pencil, Wand2, Loader2 } from 'lucide-react';
+import { Upload, X, GripVertical, ArrowUp, ArrowDown, Pencil, Wand2, Loader2, Sparkles } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { ImageCropEditor } from './ImageCropEditor';
 import { supabase } from '@/integrations/supabase/client';
@@ -26,6 +27,8 @@ export const FilePreview = ({ files, onFilesChange, onRemove }: FilePreviewProps
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [autoCroppingIndex, setAutoCroppingIndex] = useState<number | null>(null);
+  const [batchCropping, setBatchCropping] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
 
   const moveFile = (fromIndex: number, toIndex: number) => {
     const newFiles = [...files];
@@ -157,6 +160,97 @@ export const FilePreview = ({ files, onFilesChange, onRemove }: FilePreviewProps
     }
   };
 
+  // Batch auto-crop all images at once
+  const handleBatchAutoCrop = async () => {
+    const imageIndices = files
+      .map((file, index) => ({ file, index }))
+      .filter(({ file }) => isImageFile(file));
+
+    if (imageIndices.length === 0) {
+      toast.info('Nenhuma imagem encontrada para recorte automático.');
+      return;
+    }
+
+    setBatchCropping(true);
+    setBatchProgress({ current: 0, total: imageIndices.length });
+
+    const newFiles = [...files];
+    let successCount = 0;
+    let skipCount = 0;
+    let errorCount = 0;
+
+    for (let i = 0; i < imageIndices.length; i++) {
+      const { file, index } = imageIndices[i];
+      setBatchProgress({ current: i + 1, total: imageIndices.length });
+
+      try {
+        const analysisDataUrl = await resizeImageForAnalysis(file, 800);
+        const base64Data = analysisDataUrl.split(',')[1];
+        const originalDimensions = await getImageDimensions(file);
+
+        const { data, error } = await supabase.functions.invoke('auto-crop-document', {
+          body: {
+            imageBase64: base64Data,
+            imageType: file.type || 'image/jpeg',
+            originalWidth: originalDimensions.width,
+            originalHeight: originalDimensions.height,
+          },
+        });
+
+        if (error) {
+          errorCount++;
+          continue;
+        }
+
+        const result = data as AutoCropResult;
+
+        if (!result.success) {
+          skipCount++;
+          continue;
+        }
+
+        const isSignificant =
+          result.cropX > 3 ||
+          result.cropY > 3 ||
+          result.cropWidth < 94 ||
+          result.cropHeight < 94 ||
+          result.rotation !== 0;
+
+        if (!isSignificant) {
+          skipCount++;
+          continue;
+        }
+
+        const croppedFile = await applyCrop(
+          file,
+          result.cropX,
+          result.cropY,
+          result.cropWidth,
+          result.cropHeight,
+          result.rotation
+        );
+
+        newFiles[index] = croppedFile;
+        successCount++;
+      } catch (err) {
+        console.error(`Erro no auto-crop do arquivo ${file.name}:`, err);
+        errorCount++;
+      }
+    }
+
+    onFilesChange(newFiles);
+    setBatchCropping(false);
+
+    const parts: string[] = [];
+    if (successCount > 0) parts.push(`${successCount} recortada(s)`);
+    if (skipCount > 0) parts.push(`${skipCount} sem necessidade`);
+    if (errorCount > 0) parts.push(`${errorCount} com erro`);
+
+    toast.success('Recorte em lote concluído', {
+      description: parts.join(', '),
+    });
+  };
+
   // Resize image for analysis to save bandwidth
   const resizeImageForAnalysis = (file: File, maxDimension: number): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -223,6 +317,7 @@ export const FilePreview = ({ files, onFilesChange, onRemove }: FilePreviewProps
       const ctx = canvas.getContext('2d');
 
       img.onload = () => {
+        URL.revokeObjectURL(url);
         const { width, height } = img;
         
         // Calculate pixel values from percentages
@@ -305,11 +400,43 @@ export const FilePreview = ({ files, onFilesChange, onRemove }: FilePreviewProps
 
   if (files.length === 0) return null;
 
+  const imageCount = files.filter(f => isImageFile(f)).length;
+
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-foreground">
-        Arquivos Selecionados ({files.length})
-      </h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-foreground">
+          Arquivos Selecionados ({files.length})
+        </h3>
+        {imageCount >= 2 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleBatchAutoCrop}
+            disabled={batchCropping || autoCroppingIndex !== null}
+            className="gap-2"
+          >
+            {batchCropping ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )}
+            {batchCropping
+              ? `Recortando ${batchProgress.current}/${batchProgress.total}...`
+              : `Recorte automático (${imageCount} imagens)`}
+          </Button>
+        )}
+      </div>
+      
+      {batchCropping && (
+        <div className="space-y-2">
+          <Progress value={(batchProgress.current / batchProgress.total) * 100} className="h-2" />
+          <p className="text-xs text-muted-foreground text-center">
+            Processando imagem {batchProgress.current} de {batchProgress.total}...
+          </p>
+        </div>
+      )}
+
       <div className="grid gap-3">
         {files.map((file, index) => (
           <div
@@ -352,8 +479,8 @@ export const FilePreview = ({ files, onFilesChange, onRemove }: FilePreviewProps
                     variant="ghost"
                     size="icon"
                     onClick={() => handleAutoCrop(index)}
-                    disabled={autoCroppingIndex !== null}
-                    className="h-8 w-8 text-violet-600 hover:text-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/20"
+                    disabled={autoCroppingIndex !== null || batchCropping}
+                    className="h-8 w-8 text-accent-foreground hover:bg-accent"
                     title="Recorte automático com IA"
                   >
                     {autoCroppingIndex === index ? (
