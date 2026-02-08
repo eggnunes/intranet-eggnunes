@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Paperclip, Mic, MicOff, Clock, X, Check, Image, FileText } from 'lucide-react';
+import { Send, Paperclip, Mic, MicOff, Clock, X, Check, Image, FileText, StickyNote } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -25,9 +25,10 @@ interface Template {
 interface MessageInputProps {
   onSendMessage: (type: 'text' | 'audio' | 'image' | 'document', content: string, mediaUrl?: string, filename?: string) => Promise<any>;
   conversationPhone: string;
+  onToggleComment?: () => void;
 }
 
-export function MessageInput({ onSendMessage, conversationPhone }: MessageInputProps) {
+export function MessageInput({ onSendMessage, conversationPhone, onToggleComment }: MessageInputProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [text, setText] = useState('');
@@ -331,6 +332,13 @@ export function MessageInput({ onSendMessage, conversationPhone }: MessageInputP
           className="min-h-[40px] max-h-32 resize-none text-sm"
           rows={1}
         />
+
+        {/* Comment toggle button */}
+        {onToggleComment && (
+          <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={onToggleComment} title="Comentário interno">
+            <StickyNote className="h-5 w-5" />
+          </Button>
+        )}
 
         {/* Schedule button */}
         <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => setScheduleOpen(true)} title="Agendar mensagem">
