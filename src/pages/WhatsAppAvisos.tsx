@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MessageCircle, Clock, FileText } from 'lucide-react';
+import { MessageCircle, Clock, FileText, Tag } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ConversationList } from '@/components/whatsapp/ConversationList';
-import { ChatArea } from '@/components/whatsapp/ChatArea';
+import { ChatArea, InternalComment } from '@/components/whatsapp/ChatArea';
 import { ScheduledMessages } from '@/components/whatsapp/ScheduledMessages';
 import { TemplatesManager } from '@/components/whatsapp/TemplatesManager';
+import { TagsManager } from '@/components/whatsapp/TagsManager';
 
 interface Conversation {
   id: string;
@@ -17,6 +18,7 @@ interface Conversation {
   last_message_at: string | null;
   unread_count: number;
   is_archived: boolean;
+  sector?: string | null;
 }
 
 interface Message {
@@ -40,6 +42,7 @@ export default function WhatsAppAvisos() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [comments, setComments] = useState<InternalComment[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
@@ -58,16 +61,38 @@ export default function WhatsAppAvisos() {
 
   const fetchMessages = useCallback(async (conversationId: string) => {
     setLoadingMessages(true);
-    const { data, error } = await supabase
-      .from('whatsapp_messages')
-      .select('*')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true })
-      .limit(200);
+    const [messagesRes, commentsRes] = await Promise.all([
+      supabase
+        .from('whatsapp_messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true })
+        .limit(200),
+      supabase
+        .from('whatsapp_internal_comments')
+        .select('*, profiles!whatsapp_internal_comments_author_id_fkey(full_name)')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true }),
+    ]);
 
-    if (!error && data) {
-      setMessages(data as Message[]);
+    if (messagesRes.data) {
+      setMessages(messagesRes.data as Message[]);
     }
+
+    if (commentsRes.data) {
+      setComments(
+        commentsRes.data.map((c: any) => ({
+          id: c.id,
+          conversation_id: c.conversation_id,
+          author_id: c.author_id,
+          author_name: c.profiles?.full_name || 'Desconhecido',
+          content: c.content,
+          created_at: c.created_at,
+          _type: 'comment' as const,
+        }))
+      );
+    }
+
     setLoadingMessages(false);
   }, []);
 
@@ -100,18 +125,38 @@ export default function WhatsAppAvisos() {
         table: 'whatsapp_messages',
       }, (payload) => {
         const newMsg = payload.new as Message;
-
-        // Update messages if we're viewing this conversation
         if (selectedConversation && newMsg.conversation_id === selectedConversation.id) {
           setMessages(prev => {
-            // Check for duplicate
             if (prev.some(m => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
         }
-
-        // Update conversations list
         fetchConversations();
+      })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'whatsapp_internal_comments',
+      }, (payload) => {
+        const newComment = payload.new as any;
+        if (selectedConversation && newComment.conversation_id === selectedConversation.id) {
+          // Fetch author name for the new comment
+          supabase.from('profiles').select('full_name').eq('id', newComment.author_id).single().then(({ data }) => {
+            const comment: InternalComment = {
+              id: newComment.id,
+              conversation_id: newComment.conversation_id,
+              author_id: newComment.author_id,
+              author_name: data?.full_name || 'Desconhecido',
+              content: newComment.content,
+              created_at: newComment.created_at,
+              _type: 'comment',
+            };
+            setComments(prev => {
+              if (prev.some(c => c.id === comment.id)) return prev;
+              return [...prev, comment];
+            });
+          });
+        }
       })
       .subscribe();
 
@@ -128,13 +173,6 @@ export default function WhatsAppAvisos() {
   ) => {
     if (!selectedConversation) return;
 
-    const actionMap = {
-      text: 'send-message',
-      audio: 'send-audio',
-      image: 'send-image',
-      document: 'send-document',
-    };
-
     const bodyMap: Record<string, any> = {
       text: { action: 'send-message', phone: selectedConversation.phone, message: content, skipFooter: true },
       audio: { action: 'send-audio', phone: selectedConversation.phone, audioUrl: mediaUrl },
@@ -146,36 +184,41 @@ export default function WhatsAppAvisos() {
       body: bodyMap[type],
     });
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
-    // Refresh messages and conversations
     await fetchMessages(selectedConversation.id);
     await fetchConversations();
-
     return data;
   }, [selectedConversation, fetchMessages, fetchConversations]);
+
+  const handleCommentSent = useCallback(() => {
+    if (selectedConversation) {
+      fetchMessages(selectedConversation.id);
+    }
+  }, [selectedConversation, fetchMessages]);
+
+  const handleConversationUpdated = useCallback((updates: Partial<Conversation>) => {
+    if (!selectedConversation) return;
+    const updated = { ...selectedConversation, ...updates };
+    setSelectedConversation(updated);
+    setConversations(prev =>
+      prev.map(c => c.id === updated.id ? { ...c, ...updates } : c)
+    );
+  }, [selectedConversation]);
 
   const handleNewConversation = useCallback(async (phone: string, contactName?: string) => {
     const cleanPhone = phone.replace(/\D/g, '');
     const fullPhone = cleanPhone.length <= 11 ? `55${cleanPhone}` : cleanPhone;
 
-    // Check if conversation already exists
     const existing = conversations.find(c => c.phone === fullPhone);
     if (existing) {
       handleSelectConversation(existing);
       return;
     }
 
-    // Create new conversation
     const { data, error } = await supabase
       .from('whatsapp_conversations')
-      .insert({
-        phone: fullPhone,
-        contact_name: contactName || null,
-        unread_count: 0,
-      })
+      .insert({ phone: fullPhone, contact_name: contactName || null, unread_count: 0 })
       .select()
       .single();
 
@@ -184,6 +227,7 @@ export default function WhatsAppAvisos() {
       setConversations(prev => [newConv, ...prev]);
       setSelectedConversation(newConv);
       setMessages([]);
+      setComments([]);
     }
   }, [conversations, handleSelectConversation]);
 
@@ -209,11 +253,14 @@ export default function WhatsAppAvisos() {
               <FileText className="h-4 w-4" />
               Templates
             </TabsTrigger>
+            <TabsTrigger value="tags" className="gap-2">
+              <Tag className="h-4 w-4" />
+              Tags
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="conversas" className="mt-4">
             <div className="flex h-[calc(100vh-280px)] min-h-[500px] border rounded-lg overflow-hidden bg-card">
-              {/* Conversation List - left side */}
               <div className="w-80 min-w-[280px] border-r flex-shrink-0">
                 <ConversationList
                   conversations={conversations}
@@ -223,15 +270,16 @@ export default function WhatsAppAvisos() {
                   loading={loadingConversations}
                 />
               </div>
-
-              {/* Chat Area - right side */}
               <div className="flex-1 min-w-0">
                 <ChatArea
                   conversation={selectedConversation}
                   messages={messages}
+                  comments={comments}
                   loading={loadingMessages}
                   onSendMessage={handleSendMessage}
                   userId={user?.id || ''}
+                  onCommentSent={handleCommentSent}
+                  onConversationUpdated={handleConversationUpdated}
                 />
               </div>
             </div>
@@ -243,6 +291,10 @@ export default function WhatsAppAvisos() {
 
           <TabsContent value="templates" className="mt-4">
             <TemplatesManager />
+          </TabsContent>
+
+          <TabsContent value="tags" className="mt-4">
+            <TagsManager />
           </TabsContent>
         </Tabs>
       </div>

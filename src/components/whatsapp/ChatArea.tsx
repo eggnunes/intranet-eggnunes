@@ -1,8 +1,11 @@
-import { useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageCircle, Check, CheckCheck, Clock, Image, FileText, Mic } from 'lucide-react';
+import { MessageCircle, Check, CheckCheck, Clock, FileText, Mic, Lock, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { MessageInput } from '@/components/whatsapp/MessageInput';
+import { InternalCommentInput } from '@/components/whatsapp/InternalCommentInput';
+import { ContactDetailsPanel } from '@/components/whatsapp/ContactDetailsPanel';
+import { Button } from '@/components/ui/button';
 
 interface Conversation {
   id: string;
@@ -12,6 +15,7 @@ interface Conversation {
   last_message_at: string | null;
   unread_count: number;
   is_archived: boolean;
+  sector?: string | null;
 }
 
 interface Message {
@@ -30,12 +34,27 @@ interface Message {
   zapi_message_id: string | null;
 }
 
+export interface InternalComment {
+  id: string;
+  conversation_id: string;
+  author_id: string;
+  author_name: string;
+  content: string;
+  created_at: string;
+  _type: 'comment';
+}
+
+type TimelineItem = (Message & { _type: 'message' }) | InternalComment;
+
 interface ChatAreaProps {
   conversation: Conversation | null;
   messages: Message[];
+  comments: InternalComment[];
   loading: boolean;
   onSendMessage: (type: 'text' | 'audio' | 'image' | 'document', content: string, mediaUrl?: string, filename?: string) => Promise<any>;
   userId: string;
+  onCommentSent: () => void;
+  onConversationUpdated: (conv: Partial<Conversation>) => void;
 }
 
 function formatPhone(phone: string): string {
@@ -60,6 +79,37 @@ function StatusIcon({ status }: { status: string }) {
   }
 }
 
+function highlightMentions(text: string): React.ReactNode {
+  const parts = text.split(/(@[A-Za-zÀ-ÿ]+(?:\s[A-Za-zÀ-ÿ]+)*)/g);
+  return parts.map((part, i) =>
+    part.startsWith('@') ? (
+      <span key={i} className="text-blue-600 dark:text-blue-400 font-medium">{part}</span>
+    ) : (
+      <span key={i}>{part}</span>
+    )
+  );
+}
+
+function CommentBubble({ comment }: { comment: InternalComment }) {
+  const time = format(new Date(comment.created_at), 'HH:mm');
+
+  return (
+    <div className="flex justify-center mb-2">
+      <div className="max-w-[80%] rounded-lg px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <Lock className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+          <span className="text-[10px] font-medium text-amber-700 dark:text-amber-400 uppercase">Interno</span>
+          <span className="text-[10px] text-muted-foreground">• {comment.author_name}</span>
+        </div>
+        <p className="text-sm whitespace-pre-wrap break-words">{highlightMentions(comment.content)}</p>
+        <div className="flex justify-end mt-1">
+          <span className="text-[10px] text-muted-foreground">{time}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MessageBubble({ message }: { message: Message }) {
   const isOutbound = message.is_from_me || message.direction === 'outbound';
   const time = format(new Date(message.created_at), 'HH:mm');
@@ -73,7 +123,6 @@ function MessageBubble({ message }: { message: Message }) {
             : 'bg-card border text-foreground'
         }`}
       >
-        {/* Media content */}
         {message.message_type === 'image' && message.media_url && (
           <div className="mb-1">
             <img
@@ -114,12 +163,10 @@ function MessageBubble({ message }: { message: Message }) {
           </div>
         )}
 
-        {/* Text content */}
         {message.content && message.message_type !== 'document' && (
           <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
         )}
 
-        {/* Time and status */}
         <div className={`flex items-center gap-1 mt-1 ${isOutbound ? 'justify-end' : 'justify-start'}`}>
           <span className="text-[10px] text-muted-foreground">{time}</span>
           {isOutbound && <StatusIcon status={message.status} />}
@@ -129,12 +176,14 @@ function MessageBubble({ message }: { message: Message }) {
   );
 }
 
-export function ChatArea({ conversation, messages, loading, onSendMessage, userId }: ChatAreaProps) {
+export function ChatArea({ conversation, messages, comments, loading, onSendMessage, userId, onCommentSent, onConversationUpdated }: ChatAreaProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [showCommentInput, setShowCommentInput] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, comments]);
 
   if (!conversation) {
     return (
@@ -148,62 +197,103 @@ export function ChatArea({ conversation, messages, loading, onSendMessage, userI
     );
   }
 
-  // Group messages by date
-  const groupedMessages: { date: string; messages: Message[] }[] = [];
-  messages.forEach(msg => {
-    const date = format(new Date(msg.created_at), 'dd/MM/yyyy');
-    const lastGroup = groupedMessages[groupedMessages.length - 1];
+  // Build unified timeline
+  const timeline: TimelineItem[] = [
+    ...messages.map(m => ({ ...m, _type: 'message' as const })),
+    ...comments,
+  ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+  // Group by date
+  const groupedTimeline: { date: string; items: TimelineItem[] }[] = [];
+  timeline.forEach(item => {
+    const date = format(new Date(item.created_at), 'dd/MM/yyyy');
+    const lastGroup = groupedTimeline[groupedTimeline.length - 1];
     if (lastGroup && lastGroup.date === date) {
-      lastGroup.messages.push(msg);
+      lastGroup.items.push(item);
     } else {
-      groupedMessages.push({ date, messages: [msg] });
+      groupedTimeline.push({ date, items: [item] });
     }
   });
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="px-4 py-3 border-b bg-card flex items-center gap-3">
-        <div className="h-10 w-10 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
-          <MessageCircle className="h-5 w-5 text-green-600" />
-        </div>
-        <div className="min-w-0">
-          <p className="font-medium text-sm truncate text-foreground">
-            {conversation.contact_name || formatPhone(conversation.phone)}
-          </p>
-          <p className="text-xs text-muted-foreground">{formatPhone(conversation.phone)}</p>
-        </div>
+    <div className="flex h-full">
+      <div className="flex flex-col flex-1 min-w-0">
+        {/* Header - clickable */}
+        <button
+          onClick={() => setShowDetails(true)}
+          className="px-4 py-3 border-b bg-card flex items-center gap-3 w-full text-left hover:bg-accent/30 transition-colors"
+        >
+          <div className="h-10 w-10 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+            <MessageCircle className="h-5 w-5 text-green-600" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-sm truncate text-foreground">
+              {conversation.contact_name || formatPhone(conversation.phone)}
+            </p>
+            <p className="text-xs text-muted-foreground">{formatPhone(conversation.phone)}</p>
+          </div>
+          <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+        </button>
+
+        {/* Messages */}
+        <ScrollArea className="flex-1 p-4 bg-muted/10">
+          {loading ? (
+            <div className="text-center text-muted-foreground text-sm py-8">Carregando mensagens...</div>
+          ) : timeline.length === 0 ? (
+            <div className="text-center text-muted-foreground text-sm py-8">
+              Nenhuma mensagem ainda. Envie a primeira!
+            </div>
+          ) : (
+            <div>
+              {groupedTimeline.map(group => (
+                <div key={group.date}>
+                  <div className="flex justify-center my-3">
+                    <span className="text-xs bg-muted px-3 py-1 rounded-full text-muted-foreground">
+                      {group.date}
+                    </span>
+                  </div>
+                  {group.items.map(item =>
+                    item._type === 'comment' ? (
+                      <CommentBubble key={`c-${item.id}`} comment={item} />
+                    ) : (
+                      <MessageBubble key={`m-${item.id}`} message={item} />
+                    )
+                  )}
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </ScrollArea>
+
+        {/* Input area */}
+        {showCommentInput ? (
+          <InternalCommentInput
+            conversationId={conversation.id}
+            onCommentSent={() => { onCommentSent(); setShowCommentInput(false); }}
+            onCancel={() => setShowCommentInput(false)}
+          />
+        ) : (
+          <MessageInput
+            onSendMessage={onSendMessage}
+            conversationPhone={conversation.phone}
+            onToggleComment={() => setShowCommentInput(true)}
+          />
+        )}
       </div>
 
-      {/* Messages */}
-      <ScrollArea className="flex-1 p-4 bg-muted/10">
-        {loading ? (
-          <div className="text-center text-muted-foreground text-sm py-8">Carregando mensagens...</div>
-        ) : messages.length === 0 ? (
-          <div className="text-center text-muted-foreground text-sm py-8">
-            Nenhuma mensagem ainda. Envie a primeira!
-          </div>
-        ) : (
-          <div>
-            {groupedMessages.map(group => (
-              <div key={group.date}>
-                <div className="flex justify-center my-3">
-                  <span className="text-xs bg-muted px-3 py-1 rounded-full text-muted-foreground">
-                    {group.date}
-                  </span>
-                </div>
-                {group.messages.map(msg => (
-                  <MessageBubble key={msg.id} message={msg} />
-                ))}
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
-        )}
-      </ScrollArea>
-
-      {/* Input */}
-      <MessageInput onSendMessage={onSendMessage} conversationPhone={conversation.phone} />
+      {/* Details Panel */}
+      {showDetails && (
+        <ContactDetailsPanel
+          conversationId={conversation.id}
+          contactName={conversation.contact_name}
+          phone={conversation.phone}
+          sector={conversation.sector || null}
+          onClose={() => setShowDetails(false)}
+          onNameUpdated={(name) => onConversationUpdated({ contact_name: name })}
+          onSectorUpdated={(sector) => onConversationUpdated({ sector })}
+        />
+      )}
     </div>
   );
 }
