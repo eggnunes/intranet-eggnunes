@@ -113,6 +113,87 @@ serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
+    // Action: setup-webhooks - register all webhook URLs via Z-API API
+    if (action === 'setup-webhooks') {
+      const ZAPI_INSTANCE_ID = (Deno.env.get('ZAPI_INSTANCE_ID') || '').trim();
+      const ZAPI_TOKEN = (Deno.env.get('ZAPI_TOKEN') || '').trim();
+      const ZAPI_CLIENT_TOKEN = (Deno.env.get('ZAPI_CLIENT_TOKEN') || '').trim();
+
+      if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN || !ZAPI_CLIENT_TOKEN) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Credenciais da Z-API não configuradas' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+      const webhookUrl = `${SUPABASE_URL}/functions/v1/zapi-webhook`;
+
+      console.log(`[Z-API] Setting up webhooks with URL: ${webhookUrl}`);
+
+      const baseUrl = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}`;
+      const headers = {
+        'Content-Type': 'application/json',
+        'Client-Token': ZAPI_CLIENT_TOKEN,
+      };
+
+      const webhookConfigs = [
+        { endpoint: '/update-webhook-received', body: { value: webhookUrl }, name: 'ReceivedCallback (mensagens recebidas)' },
+        { endpoint: '/update-webhook-delivery', body: { value: webhookUrl }, name: 'DeliveryCallback (confirmação de entrega)' },
+        { endpoint: '/update-webhook-message-status', body: { value: webhookUrl }, name: 'MessageStatusCallback (status de mensagem)' },
+        { endpoint: '/update-webhook-chat-presence', body: { value: webhookUrl }, name: 'ChatPresenceCallback (presença no chat)' },
+        { endpoint: '/update-webhook-disconnected', body: { value: webhookUrl }, name: 'DisconnectedCallback (desconexão)' },
+        { endpoint: '/update-webhook-connected', body: { value: webhookUrl }, name: 'ConnectedCallback (conexão)' },
+      ];
+
+      const results: { name: string; success: boolean; error?: string }[] = [];
+
+      for (const config of webhookConfigs) {
+        try {
+          const resp = await fetch(`${baseUrl}${config.endpoint}`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify(config.body),
+          });
+          const respText = await resp.text();
+          console.log(`[Z-API] ${config.name}: ${resp.status} - ${respText}`);
+          results.push({ name: config.name, success: resp.ok, error: resp.ok ? undefined : respText });
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          console.error(`[Z-API] Error setting ${config.name}:`, errorMsg);
+          results.push({ name: config.name, success: false, error: errorMsg });
+        }
+      }
+
+      // Ativar notifySentByMe para receber eventos de mensagens enviadas por mim
+      try {
+        const sentByMeResp = await fetch(`${baseUrl}/update-webhook-received`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ value: webhookUrl, notifySentByMe: true }),
+        });
+        const sentByMeText = await sentByMeResp.text();
+        console.log(`[Z-API] notifySentByMe: ${sentByMeResp.status} - ${sentByMeText}`);
+        results.push({ name: 'notifySentByMe (mensagens enviadas por mim)', success: sentByMeResp.ok, error: sentByMeResp.ok ? undefined : sentByMeText });
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        results.push({ name: 'notifySentByMe', success: false, error: errorMsg });
+      }
+
+      const allSuccess = results.every(r => r.success);
+      const successCount = results.filter(r => r.success).length;
+
+      return new Response(
+        JSON.stringify({
+          success: allSuccess,
+          message: `${successCount}/${results.length} webhooks configurados com sucesso.`,
+          webhookUrl,
+          results,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Action: test-connection - just verify Z-API credentials work
     if (action === 'test-connection') {
       const ZAPI_INSTANCE_ID = (Deno.env.get('ZAPI_INSTANCE_ID') || '').trim();
@@ -261,7 +342,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ error: 'Ação não reconhecida. Use: test-connection, send-message, send-bulk' }),
+      JSON.stringify({ error: 'Ação não reconhecida. Use: test-connection, send-message, send-bulk, setup-webhooks' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
