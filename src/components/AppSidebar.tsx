@@ -212,6 +212,7 @@ export function AppSidebar() {
       label: '💬 COMUNICAÇÃO',
       items: [
         { icon: MessageCircle, path: '/mensagens', label: 'Mensagens' },
+        { icon: Phone, path: '/whatsapp-avisos', label: 'WhatsApp Avisos' },
         { icon: MessageSquare, path: '/forum', label: 'Fórum' },
         { icon: Lightbulb, path: '/sugestoes', label: 'Sugestões' },
         { icon: HeartHandshake, path: '/caixinha-desabafo', label: 'Caixinha de Desabafo' },

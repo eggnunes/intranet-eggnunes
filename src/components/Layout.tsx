@@ -159,6 +159,7 @@ export const Layout = ({ children }: LayoutProps) => {
     { path: '/contratacao', label: 'Recrutamento', description: 'Gestão de currículos', category: 'Equipe e RH' },
     { path: '/onboarding', label: 'Onboarding', description: 'Materiais de integração', category: 'Equipe e RH' },
     { path: '/mensagens', label: 'Mensagens', description: 'Chat com a equipe', category: 'Comunicação' },
+    { path: '/whatsapp-avisos', label: 'WhatsApp Avisos', description: 'Mensagens WhatsApp para clientes', category: 'Comunicação' },
     { path: '/forum', label: 'Fórum', description: 'Discussões da equipe', category: 'Comunicação' },
     { path: '/sugestoes', label: 'Sugestões', description: 'Envie suas ideias', category: 'Comunicação' },
     { path: '/caixinha-desabafo', label: 'Caixinha de Desabafo', description: 'Canal anônimo', category: 'Comunicação' },

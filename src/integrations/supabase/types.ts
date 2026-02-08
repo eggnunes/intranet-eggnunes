@@ -7181,6 +7181,192 @@ export type Database = {
           },
         ]
       }
+      whatsapp_conversations: {
+        Row: {
+          contact_name: string | null
+          created_at: string
+          id: string
+          is_archived: boolean
+          last_message_at: string | null
+          last_message_text: string | null
+          phone: string
+          unread_count: number
+          updated_at: string
+        }
+        Insert: {
+          contact_name?: string | null
+          created_at?: string
+          id?: string
+          is_archived?: boolean
+          last_message_at?: string | null
+          last_message_text?: string | null
+          phone: string
+          unread_count?: number
+          updated_at?: string
+        }
+        Update: {
+          contact_name?: string | null
+          created_at?: string
+          id?: string
+          is_archived?: boolean
+          last_message_at?: string | null
+          last_message_text?: string | null
+          phone?: string
+          unread_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      whatsapp_messages: {
+        Row: {
+          content: string | null
+          conversation_id: string | null
+          created_at: string
+          direction: string
+          id: string
+          is_from_me: boolean
+          media_filename: string | null
+          media_mime_type: string | null
+          media_url: string | null
+          message_type: string
+          phone: string
+          quoted_message_id: string | null
+          sent_by: string | null
+          status: string
+          zapi_message_id: string | null
+        }
+        Insert: {
+          content?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          direction?: string
+          id?: string
+          is_from_me?: boolean
+          media_filename?: string | null
+          media_mime_type?: string | null
+          media_url?: string | null
+          message_type?: string
+          phone: string
+          quoted_message_id?: string | null
+          sent_by?: string | null
+          status?: string
+          zapi_message_id?: string | null
+        }
+        Update: {
+          content?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          direction?: string
+          id?: string
+          is_from_me?: boolean
+          media_filename?: string | null
+          media_mime_type?: string | null
+          media_url?: string | null
+          message_type?: string
+          phone?: string
+          quoted_message_id?: string | null
+          sent_by?: string | null
+          status?: string
+          zapi_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_messages_quoted_message_id_fkey"
+            columns: ["quoted_message_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_scheduled_messages: {
+        Row: {
+          contact_name: string | null
+          content: string | null
+          created_at: string
+          created_by: string
+          error_message: string | null
+          id: string
+          media_url: string | null
+          message_type: string
+          phone: string
+          scheduled_at: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          contact_name?: string | null
+          content?: string | null
+          created_at?: string
+          created_by: string
+          error_message?: string | null
+          id?: string
+          media_url?: string | null
+          message_type?: string
+          phone: string
+          scheduled_at: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          contact_name?: string | null
+          content?: string | null
+          created_at?: string
+          created_by?: string
+          error_message?: string | null
+          id?: string
+          media_url?: string | null
+          message_type?: string
+          phone?: string
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
+      whatsapp_templates: {
+        Row: {
+          category: string
+          content: string
+          created_at: string
+          created_by: string
+          id: string
+          is_shared: boolean
+          shortcut: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          content: string
+          created_at?: string
+          created_by: string
+          id?: string
+          is_shared?: boolean
+          shortcut: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_shared?: boolean
+          shortcut?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       zapi_messages_log: {
         Row: {
           created_at: string
