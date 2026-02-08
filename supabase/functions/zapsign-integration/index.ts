@@ -406,9 +406,11 @@ serve(async (req) => {
 
     if (clientSignUrl && phoneNumber) {
       try {
-        const ZAPI_INSTANCE_ID = Deno.env.get('ZAPI_INSTANCE_ID');
-        const ZAPI_TOKEN_ENV = Deno.env.get('ZAPI_TOKEN');
-        const ZAPI_CLIENT_TOKEN = Deno.env.get('ZAPI_CLIENT_TOKEN');
+        const ZAPI_INSTANCE_ID = (Deno.env.get('ZAPI_INSTANCE_ID') || '').trim();
+        const ZAPI_TOKEN_ENV = (Deno.env.get('ZAPI_TOKEN') || '').trim();
+        const ZAPI_CLIENT_TOKEN = (Deno.env.get('ZAPI_CLIENT_TOKEN') || '').trim();
+
+        console.log(`[Z-API] Credentials debug - Instance ID length: ${ZAPI_INSTANCE_ID.length}, Token length: ${ZAPI_TOKEN_ENV.length}`);
 
         if (ZAPI_INSTANCE_ID && ZAPI_TOKEN_ENV && ZAPI_CLIENT_TOKEN) {
           const WHATSAPP_OFICIAL = '553132268742';

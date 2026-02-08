@@ -79,9 +79,11 @@ function buildReminderMessage(customerName: string, value: number, dueDate: stri
 }
 
 async function sendZAPIMessage(phone: string, message: string): Promise<{ zaapId?: string; success: boolean }> {
-  const ZAPI_INSTANCE_ID = Deno.env.get('ZAPI_INSTANCE_ID');
-  const ZAPI_TOKEN = Deno.env.get('ZAPI_TOKEN');
-  const ZAPI_CLIENT_TOKEN = Deno.env.get('ZAPI_CLIENT_TOKEN');
+  const ZAPI_INSTANCE_ID = (Deno.env.get('ZAPI_INSTANCE_ID') || '').trim();
+  const ZAPI_TOKEN = (Deno.env.get('ZAPI_TOKEN') || '').trim();
+  const ZAPI_CLIENT_TOKEN = (Deno.env.get('ZAPI_CLIENT_TOKEN') || '').trim();
+
+  console.log(`[Z-API] Credentials debug - Instance ID length: ${ZAPI_INSTANCE_ID.length}, Token length: ${ZAPI_TOKEN.length}, Client Token length: ${ZAPI_CLIENT_TOKEN.length}`);
 
   if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN || !ZAPI_CLIENT_TOKEN) {
     throw new Error('Credenciais da Z-API não configuradas');
