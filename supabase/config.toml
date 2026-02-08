@@ -131,3 +131,6 @@ verify_jwt = true
 
 [functions.zapi-send-message]
 verify_jwt = true
+
+[functions.asaas-boleto-reminders]
+verify_jwt = false

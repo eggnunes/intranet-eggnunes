@@ -400,8 +400,93 @@ serve(async (req) => {
       console.error('Erro ao salvar no banco:', dbError);
     }
 
-    // ===== RESULTADO =====
+    // ===== ENVIAR NOTIFICAÇÃO WHATSAPP VIA Z-API PARA O CLIENTE =====
     const clientSignerIndex = isContract ? 2 : 0;
+    const clientSignUrl = data.signers?.[clientSignerIndex]?.sign_url || null;
+
+    if (clientSignUrl && phoneNumber) {
+      try {
+        const ZAPI_INSTANCE_ID = Deno.env.get('ZAPI_INSTANCE_ID');
+        const ZAPI_TOKEN_ENV = Deno.env.get('ZAPI_TOKEN');
+        const ZAPI_CLIENT_TOKEN = Deno.env.get('ZAPI_CLIENT_TOKEN');
+
+        if (ZAPI_INSTANCE_ID && ZAPI_TOKEN_ENV && ZAPI_CLIENT_TOKEN) {
+          const WHATSAPP_OFICIAL = '553132268742';
+          const FOOTER_AVISO = `\n\n⚠️ *Este número é exclusivo para envio de avisos e informativos do escritório Egg & Nunes Advogados.*\nPara entrar em contato conosco, utilize nosso canal oficial:\n📞 WhatsApp Oficial: https://wa.me/${WHATSAPP_OFICIAL}\n\n_Não responda esta mensagem._`;
+
+          const firstName = body.clientName.split(' ')[0];
+          const docTypeLabel = body.documentType === 'contrato' ? 'Contrato de Honorários' : 'Procuração';
+
+          const whatsappMessage = `Olá, *${firstName}*! 👋\n\nO escritório *Egg & Nunes Advogados* enviou um documento para sua assinatura digital.\n\n📄 *Documento:* ${docTypeLabel}\n📝 *Nome:* ${body.documentName}\n\n*Como assinar:*\n1️⃣ Clique no link abaixo para acessar o documento\n2️⃣ Leia atentamente todo o conteúdo\n3️⃣ Siga as instruções na tela para assinar digitalmente\n4️⃣ Você precisará tirar uma selfie e uma foto do seu documento de identificação para validação\n\n🔗 *Acesse e assine aqui:*\n${clientSignUrl}\n\n⏰ Por favor, assine o documento o mais breve possível para dar andamento ao seu processo.\n\nEm caso de dúvidas, entre em contato conosco pelo nosso canal oficial.` + FOOTER_AVISO;
+
+          // Format phone for Z-API
+          let zapiPhone = phoneNumber.replace(/\D/g, '');
+          if (zapiPhone.length <= 11) {
+            zapiPhone = `55${zapiPhone}`;
+          }
+
+          const zapiUrl = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN_ENV}/send-text`;
+
+          console.log(`[Z-API] Sending ZapSign notification to client ${body.clientName} at ${zapiPhone}`);
+
+          const zapiResponse = await fetch(zapiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Client-Token': ZAPI_CLIENT_TOKEN,
+            },
+            body: JSON.stringify({
+              phone: zapiPhone,
+              message: whatsappMessage,
+            }),
+          });
+
+          const zapiResponseText = await zapiResponse.text();
+          console.log(`[Z-API] ZapSign notification response: ${zapiResponse.status} - ${zapiResponseText}`);
+
+          if (zapiResponse.ok) {
+            let zapiData;
+            try { zapiData = JSON.parse(zapiResponseText); } catch { zapiData = {}; }
+
+            // Log the notification
+            await supabase.from('zapi_messages_log').insert({
+              customer_name: body.clientName,
+              customer_phone: zapiPhone,
+              message_text: `Notificação ZapSign - ${docTypeLabel} - ${body.documentName}`,
+              message_type: 'zapsign_assinatura',
+              status: 'sent',
+              zapi_message_id: zapiData.zaapId || zapiData.messageId || null,
+            }).then(({ error: logError }) => {
+              if (logError) console.error('[Z-API] Error logging ZapSign notification:', logError);
+            });
+
+            console.log(`[Z-API] ✓ ZapSign notification sent successfully to ${body.clientName}`);
+          } else {
+            console.error(`[Z-API] ✗ Failed to send ZapSign notification: ${zapiResponseText}`);
+
+            await supabase.from('zapi_messages_log').insert({
+              customer_name: body.clientName,
+              customer_phone: zapiPhone,
+              message_text: `Falha notificação ZapSign - ${docTypeLabel} - ${body.documentName}`,
+              message_type: 'zapsign_assinatura',
+              status: 'failed',
+              error_message: zapiResponseText.substring(0, 500),
+            }).then(({ error: logError }) => {
+              if (logError) console.error('[Z-API] Error logging failed notification:', logError);
+            });
+          }
+        } else {
+          console.log('[Z-API] Z-API credentials not configured, skipping WhatsApp notification');
+        }
+      } catch (zapiError) {
+        console.error('[Z-API] Error sending ZapSign WhatsApp notification:', zapiError);
+        // Don't fail the entire request just because notification failed
+      }
+    } else {
+      console.log('[ZapSign] No sign URL or phone number available, skipping WhatsApp notification');
+    }
+
+    // ===== RESULTADO =====
     const result = {
       success: true,
       documentToken: data.token,
@@ -424,8 +509,9 @@ serve(async (req) => {
         status: s.status,
         token: s.token,
       })),
-      signUrl: data.signers?.[clientSignerIndex]?.sign_url || null,
+      signUrl: clientSignUrl,
       createdAt: data.created_at,
+      whatsappNotificationSent: !!(clientSignUrl && phoneNumber),
     };
 
     return new Response(
