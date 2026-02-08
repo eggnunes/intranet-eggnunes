@@ -62,6 +62,7 @@ import Parceiros from "./pages/Parceiros";
 import Asaas from "./pages/Asaas";
 import RH from "./pages/RH";
 import PortaisTribunais from "./pages/PortaisTribunais";
+import WhatsAppAvisos from "./pages/WhatsAppAvisos";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient({
@@ -517,6 +518,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <PortaisTribunais />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/whatsapp-avisos"
+              element={
+                <ProtectedRoute>
+                  <WhatsAppAvisos />
                 </ProtectedRoute>
               }
             />
