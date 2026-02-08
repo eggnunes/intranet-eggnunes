@@ -1,69 +1,61 @@
 
 
-# Correção de 3 Bugs no RotaDoc
+# Correção: Adicionar `.trim()` nas credenciais da Z-API
 
-## Problema 1: Bug no `ImageCropEditor.tsx` (linha 65)
+## Problema Identificado
 
-O `useState` esta sendo usado incorretamente como se fosse um `useEffect`. O codigo atual:
+Os secrets da Z-API (`ZAPI_INSTANCE_ID`, `ZAPI_TOKEN`, `ZAPI_CLIENT_TOKEN`) estão sendo lidos diretamente do ambiente sem nenhum tratamento de espaços em branco. Se houver espaços, tabs ou quebras de linha no inicio ou fim dos valores armazenados, a URL da API fica com formato invalido, causando o erro **"404: Instance not found"**.
 
+A instancia esta **Conectada** e com assinatura **PAGA** no painel da Z-API, confirmando que as credenciais sao validas.
+
+## Solucao
+
+Adicionar `.trim()` em todas as leituras dos secrets da Z-API, em todas as Edge Functions que os utilizam. Tambem adicionar logging de debug temporario para confirmar que os valores estao corretos.
+
+## Funcoes que serao corrigidas
+
+1. **`zapi-send-message/index.ts`** - Funcao principal de envio de mensagens
+2. **`asaas-boleto-reminders/index.ts`** - Lembretes de boletos
+3. **`chatguru-birthday-messages/index.ts`** - Mensagens de aniversario
+4. **`zapsign-integration/index.ts`** - Notificacao de assinatura de documentos
+
+## Detalhes Tecnicos
+
+### Alteracao em cada funcao
+
+Onde hoje o codigo faz:
 ```text
-useState(() => {
-  if (file) {
-    const url = URL.createObjectURL(file);
-    setImageUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }
-});
+const ZAPI_INSTANCE_ID = Deno.env.get('ZAPI_INSTANCE_ID');
+const ZAPI_TOKEN = Deno.env.get('ZAPI_TOKEN');
+const ZAPI_CLIENT_TOKEN = Deno.env.get('ZAPI_CLIENT_TOKEN');
 ```
 
-Isso so executa uma vez (na montagem) e a funcao de cleanup retornada nunca e chamada, causando:
-- A imagem pode nao carregar se o `file` mudar
-- Memory leak pois o Object URL nunca e revogado
+Sera alterado para:
+```text
+const ZAPI_INSTANCE_ID = (Deno.env.get('ZAPI_INSTANCE_ID') || '').trim();
+const ZAPI_TOKEN = (Deno.env.get('ZAPI_TOKEN') || '').trim();
+const ZAPI_CLIENT_TOKEN = (Deno.env.get('ZAPI_CLIENT_TOKEN') || '').trim();
+```
 
-**Correcao**: Substituir por `useEffect` com dependencia em `file`, que faz `revokeObjectURL` no cleanup.
+### Logging de debug (temporario)
 
-Alem disso, na linha 343 existe um fallback `imageUrl || URL.createObjectURL(file)` que cria um novo Object URL a cada re-render. Sera removido para usar apenas `imageUrl` gerenciado pelo `useEffect`.
+Sera adicionado em cada funcao um log que mostra o comprimento dos valores e os primeiros/ultimos caracteres (sem expor os valores completos):
 
----
+```text
+console.log(`[Z-API] Credentials - Instance ID length: ${ZAPI_INSTANCE_ID.length}, Token length: ${ZAPI_TOKEN.length}`);
+console.log(`[Z-API] Instance ID starts with: ${ZAPI_INSTANCE_ID.substring(0, 4)}... ends with: ...${ZAPI_INSTANCE_ID.substring(ZAPI_INSTANCE_ID.length - 4)}`);
+```
 
-## Problema 2: Memory leaks no `FilePreview.tsx`
+### Teste apos deploy
 
-Tres funcoes criam `URL.createObjectURL` sem nunca chamar `revokeObjectURL`:
+Apos o deploy, sera feito um teste de conexao chamando a acao `test-connection` da funcao `zapi-send-message` para verificar se o erro 404 foi resolvido.
 
-- `resizeImageForAnalysis` (linha 184)
-- `getImageDimensions` (linha 194)
-- `applyCrop` (linha 271)
-
-Alem disso, na linha 299, `URL.createObjectURL(file)` e chamado diretamente no JSX, criando um novo Object URL a cada re-render.
-
-**Correcao**:
-- Nas 3 funcoes, adicionar `URL.revokeObjectURL(url)` apos o `img.onload` e `img.onerror`
-- Para o preview no JSX, usar `useMemo` para criar e gerenciar os Object URLs das thumbnails, revogando-os quando os arquivos mudam
-
----
-
-## Problema 3: Memory leak no `FileUpload.tsx`
-
-Na linha 80, `URL.createObjectURL(file)` e chamado diretamente no JSX dentro de um `map`, criando novos Object URLs a cada re-render.
-
-**Correcao**: Usar `useMemo` para criar os Object URLs uma vez e `useEffect` para revoga-los no cleanup.
-
----
-
-## Problema 4 (bonus): Memory leak no `RotaDoc.tsx`
-
-Na funcao `resizeImage` (linha 108), `URL.createObjectURL(file)` e chamado sem revogacao.
-
-**Correcao**: Adicionar `URL.revokeObjectURL` apos uso.
-
----
-
-## Arquivos a Modificar
+## Arquivos a serem modificados
 
 | Arquivo | Alteracao |
-|---------|-----------|
-| `src/components/ImageCropEditor.tsx` | Trocar `useState` por `useEffect` para carregar imagem; remover fallback no JSX |
-| `src/components/FilePreview.tsx` | Adicionar `revokeObjectURL` nas 3 funcoes; usar `useMemo` para thumbnails no JSX |
-| `src/components/FileUpload.tsx` | Usar `useMemo`/`useEffect` para gerenciar Object URLs das previews |
-| `src/pages/RotaDoc.tsx` | Adicionar `revokeObjectURL` na funcao `resizeImage` |
+|---|---|
+| `supabase/functions/zapi-send-message/index.ts` | Adicionar `.trim()` nas linhas 33-35 + logging |
+| `supabase/functions/asaas-boleto-reminders/index.ts` | Adicionar `.trim()` nas linhas 82-84 + logging |
+| `supabase/functions/chatguru-birthday-messages/index.ts` | Adicionar `.trim()` nas linhas de credenciais + logging |
+| `supabase/functions/zapsign-integration/index.ts` | Adicionar `.trim()` nas linhas 409-411 + logging |
 
