@@ -25,9 +25,12 @@ function validateBrazilianPhone(phone: string): string {
 }
 
 async function sendZAPIMessage(phone: string, message: string): Promise<{ zaapId?: string; messageId?: string; success: boolean }> {
-  const ZAPI_INSTANCE_ID = Deno.env.get('ZAPI_INSTANCE_ID');
-  const ZAPI_TOKEN = Deno.env.get('ZAPI_TOKEN');
-  const ZAPI_CLIENT_TOKEN = Deno.env.get('ZAPI_CLIENT_TOKEN');
+  const ZAPI_INSTANCE_ID = (Deno.env.get('ZAPI_INSTANCE_ID') || '').trim();
+  const ZAPI_TOKEN = (Deno.env.get('ZAPI_TOKEN') || '').trim();
+  const ZAPI_CLIENT_TOKEN = (Deno.env.get('ZAPI_CLIENT_TOKEN') || '').trim();
+
+  console.log(`[Z-API] Credentials debug - Instance ID length: ${ZAPI_INSTANCE_ID.length}, Token length: ${ZAPI_TOKEN.length}, Client Token length: ${ZAPI_CLIENT_TOKEN.length}`);
+  console.log(`[Z-API] Instance ID starts with: "${ZAPI_INSTANCE_ID.substring(0, 4)}..." ends with: "...${ZAPI_INSTANCE_ID.substring(ZAPI_INSTANCE_ID.length - 4)}"`);
 
   if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN || !ZAPI_CLIENT_TOKEN) {
     throw new Error('Credenciais da Z-API não configuradas');
@@ -112,9 +115,12 @@ serve(async (req) => {
 
     // Action: test-connection - just verify Z-API credentials work
     if (action === 'test-connection') {
-      const ZAPI_INSTANCE_ID = Deno.env.get('ZAPI_INSTANCE_ID');
-      const ZAPI_TOKEN = Deno.env.get('ZAPI_TOKEN');
-      const ZAPI_CLIENT_TOKEN = Deno.env.get('ZAPI_CLIENT_TOKEN');
+      const ZAPI_INSTANCE_ID = (Deno.env.get('ZAPI_INSTANCE_ID') || '').trim();
+      const ZAPI_TOKEN = (Deno.env.get('ZAPI_TOKEN') || '').trim();
+      const ZAPI_CLIENT_TOKEN = (Deno.env.get('ZAPI_CLIENT_TOKEN') || '').trim();
+
+      console.log(`[Z-API] test-connection - Instance ID length: ${ZAPI_INSTANCE_ID.length}, Token length: ${ZAPI_TOKEN.length}, Client Token length: ${ZAPI_CLIENT_TOKEN.length}`);
+      console.log(`[Z-API] Instance ID: "${ZAPI_INSTANCE_ID.substring(0, 4)}...${ZAPI_INSTANCE_ID.substring(ZAPI_INSTANCE_ID.length - 4)}"`);
 
       if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN || !ZAPI_CLIENT_TOKEN) {
         return new Response(
