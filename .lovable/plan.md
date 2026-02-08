@@ -1,270 +1,189 @@
 
-# Sistema Completo de WhatsApp Avisos
+# Comentarios Internos, Tags, Responsaveis e Filtros no WhatsApp Avisos
 
-## Objetivo
-Criar uma interface completa de WhatsApp dentro da aba "Comunicacao" da intranet, permitindo enviar e receber mensagens via Z-API, gerenciar conversas, anexar documentos, gravar/ouvir audios, agendar mensagens e usar templates com atalho de barra "/".
-
----
-
-## Estrutura Geral
-
-O sistema sera dividido em 5 partes principais:
-
-1. **Banco de dados** - Novas tabelas para conversas, mensagens, agendamentos e templates
-2. **Backend (Edge Functions)** - Funcao ampliada para enviar midia, gerenciar agendamentos
-3. **Frontend** - Pagina completa estilo WhatsApp Web com lista de conversas, area de chat, templates
-4. **Navegacao** - Nova entrada "WhatsApp Avisos" no menu Comunicacao do sidebar
-5. **Webhook** - Atualizar o webhook para alimentar as conversas em tempo real
+## Resumo
+Adicionar ao modulo WhatsApp Avisos: comentarios internos visiveis apenas para colaboradores (com marcacao de colegas via @), sistema de tags coloridas por contato, edicao de nome do contato, atribuicao de responsaveis e setores, filtros avancados na lista de conversas, e notificacoes em tempo real quando alguem for mencionado.
 
 ---
 
-## 1. Banco de Dados (Migrations)
+## 1. Banco de Dados - Novas Tabelas e Colunas
 
-### Tabela `whatsapp_conversations`
-Armazena as conversas agrupadas por numero de telefone do cliente.
-
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | uuid (PK) | Identificador |
-| phone | text (unique) | Numero do cliente (formato 55...) |
-| contact_name | text | Nome do contato |
-| last_message_text | text | Ultima mensagem (preview) |
-| last_message_at | timestamptz | Horario da ultima mensagem |
-| unread_count | integer | Mensagens nao lidas |
-| is_archived | boolean | Se a conversa esta arquivada |
-| created_at | timestamptz | Criacao |
-| updated_at | timestamptz | Atualizacao |
-
-### Tabela `whatsapp_messages`
-Armazena cada mensagem individual (enviada e recebida).
+### Tabela `whatsapp_internal_comments`
+Armazena comentarios internos que aparecem na timeline da conversa, mas nao sao enviados ao cliente.
 
 | Coluna | Tipo | Descricao |
 |--------|------|-----------|
 | id | uuid (PK) | Identificador |
-| conversation_id | uuid (FK) | Referencia a conversa |
-| phone | text | Numero do contato |
-| direction | text | 'inbound' ou 'outbound' |
-| message_type | text | 'text', 'audio', 'image', 'document', 'video' |
-| content | text | Texto da mensagem |
-| media_url | text | URL da midia |
-| media_mime_type | text | MIME type |
-| media_filename | text | Nome do arquivo |
-| zapi_message_id | text | ID da Z-API |
-| status | text | 'pending', 'sent', 'delivered', 'read', 'failed' |
-| sent_by | uuid | Usuario que enviou (mensagens outbound) |
-| quoted_message_id | uuid | Mensagem citada (reply) |
-| is_from_me | boolean | Se foi enviado pelo escritorio |
-| created_at | timestamptz | Horario da mensagem |
+| conversation_id | uuid (FK -> whatsapp_conversations) | Conversa relacionada |
+| author_id | uuid (FK -> profiles) | Quem escreveu o comentario |
+| content | text | Texto do comentario |
+| created_at | timestamptz | Data/hora |
 
-### Tabela `whatsapp_scheduled_messages`
-Para agendamento de mensagens futuras.
+### Tabela `whatsapp_comment_mentions`
+Registra quais colaboradores foram marcados em cada comentario (para gerar notificacoes).
 
 | Coluna | Tipo | Descricao |
 |--------|------|-----------|
 | id | uuid (PK) | Identificador |
-| phone | text | Numero destino |
-| contact_name | text | Nome do contato |
-| message_type | text | Tipo da mensagem |
-| content | text | Texto |
-| media_url | text | URL da midia (se houver) |
-| scheduled_at | timestamptz | Quando enviar |
-| status | text | 'pending', 'sent', 'cancelled', 'failed' |
-| sent_at | timestamptz | Quando foi enviado |
-| created_by | uuid | Quem agendou |
-| created_at | timestamptz | Criacao |
+| comment_id | uuid (FK -> whatsapp_internal_comments) | Comentario |
+| mentioned_user_id | uuid (FK -> profiles) | Colaborador mencionado |
+| created_at | timestamptz | Data/hora |
 
-### Tabela `whatsapp_templates`
-Templates de mensagens rapidas com suporte a "/" slash command.
+### Tabela `whatsapp_tags`
+Cadastro global de tags reutilizaveis.
 
 | Coluna | Tipo | Descricao |
 |--------|------|-----------|
 | id | uuid (PK) | Identificador |
-| shortcut | text | Atalho (ex: "/saudacao", "/cobranca") |
-| title | text | Nome do template |
-| content | text | Texto do template |
-| category | text | Categoria (saudacao, cobranca, etc.) |
+| name | text (unique) | Nome da tag (ex: "VIP", "Urgente") |
+| color | text | Cor em hex (ex: "#FF5733") |
 | created_by | uuid | Quem criou |
-| is_shared | boolean | Se e compartilhado com todos |
-| created_at | timestamptz | Criacao |
-| updated_at | timestamptz | Atualizacao |
+| created_at | timestamptz | Data/hora |
 
-**RLS**: Todas as tabelas terao RLS habilitado, permitindo acesso apenas a usuarios autenticados.
+### Tabela `whatsapp_conversation_tags`
+Relacao N:N entre conversas e tags.
 
-**Realtime**: A tabela `whatsapp_messages` sera adicionada ao `supabase_realtime` para atualizacoes em tempo real.
+| Coluna | Tipo | Descricao |
+|--------|------|-----------|
+| id | uuid (PK) | Identificador |
+| conversation_id | uuid (FK -> whatsapp_conversations) | Conversa |
+| tag_id | uuid (FK -> whatsapp_tags) | Tag |
+| created_at | timestamptz | Data/hora |
+| UNIQUE(conversation_id, tag_id) | | Sem duplicatas |
 
----
+### Tabela `whatsapp_conversation_assignees`
+Colaboradores responsaveis pela conversa (pode ter mais de um).
 
-## 2. Backend (Edge Functions)
+| Coluna | Tipo | Descricao |
+|--------|------|-----------|
+| id | uuid (PK) | Identificador |
+| conversation_id | uuid (FK -> whatsapp_conversations) | Conversa |
+| user_id | uuid (FK -> profiles) | Colaborador responsavel |
+| created_at | timestamptz | Data/hora |
+| UNIQUE(conversation_id, user_id) | | Sem duplicatas |
 
-### Atualizar `zapi-send-message`
-Adicionar novas actions:
+### Coluna nova em `whatsapp_conversations`
+- `sector` text (nullable) - Setor responsavel: 'comercial', 'operacional', 'financeiro' ou null
 
-- **`send-audio`**: Envia audio via Z-API endpoint `/send-audio` (aceita URL)
-- **`send-image`**: Envia imagem via `/send-image` (aceita URL + caption)
-- **`send-document`**: Envia documento via `/send-document/{extension}` (aceita URL)
-- **`get-chat-messages`**: Busca historico de mensagens da tabela `whatsapp_messages`
-
-Cada envio:
-1. Salva a mensagem na tabela `whatsapp_messages` com status 'pending'
-2. Envia via Z-API
-3. Atualiza o status para 'sent' ou 'failed'
-4. Atualiza a `whatsapp_conversations` (last_message, timestamp)
-
-### Atualizar `zapi-webhook`
-Alem de salvar em `zapi_webhook_events`, tambem:
-1. Criar/atualizar a conversa em `whatsapp_conversations`
-2. Inserir a mensagem em `whatsapp_messages` (mensagens recebidas e enviadas por mim)
-3. Incrementar `unread_count` para mensagens recebidas
-
-### Nova Edge Function: `process-scheduled-whatsapp`
-- Executada periodicamente (cron)
-- Busca mensagens agendadas com `scheduled_at <= now()` e `status = 'pending'`
-- Valida horario comercial (08:00-19:00 Brasilia)
-- Envia via Z-API e atualiza status
+### Configuracao
+- RLS habilitado em todas as tabelas (acesso para usuarios autenticados)
+- Realtime habilitado para `whatsapp_internal_comments` (comentarios aparecem em tempo real)
 
 ---
 
-## 3. Frontend - Pagina WhatsApp Avisos
+## 2. Notificacoes em Tempo Real
 
-### Estrutura da Pagina
-Layout estilo WhatsApp Web com 3 areas:
+### Mecanismo
+Quando um comentario interno e criado com mencoes (@usuario), o sistema:
+1. Insere o comentario em `whatsapp_internal_comments`
+2. Insere registros em `whatsapp_comment_mentions` para cada usuario mencionado
+3. Insere notificacoes na tabela `user_notifications` existente para cada mencionado
+4. O hook `useNotifications` ja existente captura as novas notificacoes via Realtime e exibe o toast
 
-```text
-+--------------------+------------------------------------+
-|                    |                                    |
-|  Lista de          |    Area de Chat                    |
-|  Conversas         |    (mensagens + input)             |
-|                    |                                    |
-|  - Busca           |    [header com nome/telefone]      |
-|  - Filtros         |    [bolhas de mensagem]            |
-|  - Cards           |    [input com / templates]         |
-|  - Nova conversa   |    [anexos + audio + agendar]      |
-|                    |                                    |
-+--------------------+------------------------------------+
-```
+### Trigger no banco de dados
+Um trigger `AFTER INSERT` na tabela `whatsapp_comment_mentions` criara automaticamente uma notificacao em `user_notifications` para o colaborador mencionado, com:
+- `title`: "Voce foi mencionado no WhatsApp"
+- `message`: Trecho do comentario + nome do contato
+- `action_url`: "/whatsapp-avisos"
+- `type`: "whatsapp_mention"
 
-### Componentes Principais
-
-1. **WhatsAppAvisosPage** (`src/pages/WhatsAppAvisos.tsx`)
-   - Pagina principal com Layout
-   - Gerencia estado de conversas e mensagens
-   - Abas: Conversas | Agendadas | Templates
-
-2. **WhatsAppConversationList** (`src/components/whatsapp/ConversationList.tsx`)
-   - Lista lateral com busca e filtros
-   - Card de cada conversa (nome, preview, hora, badge de nao lidas)
-   - Botao para iniciar nova conversa (digitando numero)
-
-3. **WhatsAppChatArea** (`src/components/whatsapp/ChatArea.tsx`)
-   - Header com nome e telefone do contato
-   - Scroll de mensagens com bolhas (estilo WhatsApp)
-   - Suporte a texto, imagem, audio, documento
-   - Player de audio inline para ouvir audios recebidos
-   - Status de entrega (enviado, entregue, lido)
-
-4. **WhatsAppMessageInput** (`src/components/whatsapp/MessageInput.tsx`)
-   - Campo de texto com deteccao de "/" para slash commands
-   - Popup de templates ao digitar "/"
-   - Botao de anexar (imagem/documento)
-   - Botao de gravar audio
-   - Botao de agendar mensagem
-   - Botao de enviar
-
-5. **WhatsAppTemplatesManager** (`src/components/whatsapp/TemplatesManager.tsx`)
-   - CRUD de templates
-   - Upload em lote via arquivo CSV/TXT
-   - Definir atalho "/" para cada template
-   - Categorias de templates
-
-6. **WhatsAppScheduledMessages** (`src/components/whatsapp/ScheduledMessages.tsx`)
-   - Lista de mensagens agendadas
-   - Status (pendente, enviada, cancelada)
-   - Opcao de cancelar agendamento
-
-### Funcionalidades do Chat
-
-- **Slash Commands**: Ao digitar "/" no campo de mensagem, aparece uma lista flutuante com os templates disponiveis, filtrando conforme o usuario digita
-- **Gravacao de Audio**: Botao de microfone inicia gravacao, exibe timer, botao de cancelar (X) e enviar (check)
-- **Player de Audio**: Mensagens de audio recebidas exibem player inline com play/pause e barra de progresso
-- **Anexos**: Botao de clipe abre seletor de arquivo, exibe preview antes de enviar
-- **Agendamento**: Botao de relogio abre dialog para selecionar data/hora de envio
-- **Tempo Real**: Mensagens recebidas aparecem instantaneamente via Supabase Realtime
-- **Upload em lote de templates**: Aceita arquivo CSV com colunas "atalho, titulo, conteudo"
+Isso tambem sera aplicado ao sistema de mensagens internas (tabela `messages`): um trigger similar detectara mencoes com "@" no conteudo da mensagem e gerara notificacoes em `user_notifications`.
+Nas mensagens internas, o usuário será notificado não só quando for selecionado o @ dele, mas também quando receber uma mensagem direcionada a ele. Nesse caso, as notificações poderiam o ocorrer como um pop-up que aparece por alguns segundos no canto inferior direito da tela, inclusive quando a janela estiver minimizada. 
 
 ---
 
-## 4. Navegacao
+## 3. Frontend - Novos Componentes
 
-### Sidebar (`AppSidebar.tsx`)
-Adicionar na secao "COMUNICACAO":
-```
-{ icon: Phone, path: '/whatsapp-avisos', label: 'WhatsApp Avisos' }
-```
+### 3.1 Painel Lateral de Detalhes do Contato
+Novo componente `ContactDetailsPanel.tsx` que abre ao clicar no header da conversa:
+- **Editar nome do contato** (campo editavel inline)
+- **Setor**: Dropdown com opcoes Comercial, Operacional, Financeiro
+- **Responsaveis**: Multi-select de colaboradores (busca na tabela `profiles`)
+- **Tags**: Exibicao das tags atuais + adicionar/remover tags existentes + criar nova tag inline
 
-### Rota (`App.tsx`)
-Adicionar rota protegida:
-```
-<Route path="/whatsapp-avisos" element={<ProtectedRoute><WhatsAppAvisos /></ProtectedRoute>} />
-```
+### 3.2 Bolha de Comentario Interno
+No `ChatArea.tsx`, alem das mensagens normais, exibir comentarios internos intercalados na timeline por data/hora. A bolha tera:
+- Fundo bege/amarelo claro (`bg-amber-50 dark:bg-amber-900/20`) com borda (`border-amber-200`)
+- Icone de cadeado ou etiqueta "Interno"
+- Nome do autor
+- Conteudo com mencoes destacadas em azul
+- Nao tem status de entrega (nao e mensagem real)
 
-### Busca Global (`Layout.tsx`)
-Adicionar item de busca:
-```
-{ path: '/whatsapp-avisos', label: 'WhatsApp Avisos', description: 'Mensagens WhatsApp para clientes', category: 'Comunicacao' }
-```
+### 3.3 Input de Comentario Interno
+Botao no `MessageInput.tsx` (icone de nota/comentario) que alterna o modo de envio entre "mensagem" e "comentario interno". Quando ativado:
+- O campo de texto muda a borda para amarelo/bege
+- Placeholder muda para "Escrever comentario interno..."
+- Ao digitar "@", aparece lista de colaboradores para mencao
+- O envio salva em `whatsapp_internal_comments` (nao envia via Z-API)
+
+### 3.4 Aba de Tags
+Nova aba "Tags" nas tabs do WhatsApp Avisos:
+- Lista todas as tags cadastradas com nome, cor e contagem de uso
+- Botao para criar nova tag (nome + seletor de cor)
+- Botao para editar e excluir tags
+
+### 3.5 Filtros na Lista de Conversas
+No `ConversationList.tsx`, adicionar icone de filtro que expande um painel com:
+- **Responsavel**: Dropdown multi-select de colaboradores
+- **Setor**: Checkbox para Comercial, Operacional, Financeiro
+- **Tag**: Multi-select de tags disponiveis
+- **Telefone**: Campo de busca (ja existe, manter)
+- **Nome do cliente**: Campo de busca (ja existe, manter)
+- **Status**: Com/sem mensagens nao lidas
+- Badge indicando quantos filtros estao ativos
+
+### 3.6 Exibicao de Tags e Responsaveis na Lista de Conversas
+Cada card de conversa na lista lateral exibira:
+- Badges coloridos das tags atribuidas (compactos)
+- Avatar pequeno dos responsaveis atribuidos
 
 ---
 
-## 5. Fluxo de Dados
+## 4. Arquivos a Criar
 
-### Envio de Mensagem
-1. Usuario digita mensagem (ou seleciona template, grava audio, anexa arquivo)
-2. Frontend chama `zapi-send-message` com action adequada (send-message, send-audio, send-image, send-document)
-3. Edge Function salva em `whatsapp_messages` com status 'pending'
-4. Edge Function envia via Z-API
-5. Atualiza status e `whatsapp_conversations`
-6. Frontend recebe atualizacao via Realtime
+| Arquivo | Descricao |
+|---------|-----------|
+| `src/components/whatsapp/ContactDetailsPanel.tsx` | Painel lateral com detalhes, edicao de nome, setor, responsaveis e tags |
+| `src/components/whatsapp/TagsManager.tsx` | Aba de gestao de tags (CRUD) |
+| `src/components/whatsapp/ConversationFilters.tsx` | Painel de filtros avancados |
+| `src/components/whatsapp/InternalCommentInput.tsx` | Input alternativo para comentarios internos com @mencoes |
+| 1 migration SQL | Todas as tabelas, colunas, RLS, triggers e realtime |
 
-### Recebimento de Mensagem
-1. Z-API envia webhook para `zapi-webhook`
-2. Webhook salva em `zapi_webhook_events` (auditoria)
-3. Webhook cria/atualiza `whatsapp_conversations`
-4. Webhook insere em `whatsapp_messages`
-5. Frontend recebe via Realtime e exibe na conversa
+## 5. Arquivos a Modificar
 
-### Agendamento
-1. Usuario agenda mensagem com data/hora
-2. Salva em `whatsapp_scheduled_messages` com status 'pending'
-3. Cron job executa `process-scheduled-whatsapp` a cada minuto
-4. Valida horario comercial, envia e atualiza status
+| Arquivo | Mudancas |
+|---------|----------|
+| `src/components/whatsapp/ChatArea.tsx` | Exibir comentarios internos intercalados, header clicavel para abrir detalhes |
+| `src/components/whatsapp/MessageInput.tsx` | Botao para alternar modo comentario, integracao com @mencoes |
+| `src/components/whatsapp/ConversationList.tsx` | Exibir tags/responsaveis, integrar filtros, receber props de filtro |
+| `src/pages/WhatsAppAvisos.tsx` | Nova aba "Tags", carregar dados de tags/responsaveis, passar filtros, carregar comentarios junto com mensagens |
+
+## 6. Notificacoes nas Mensagens Internas
+
+Para o sistema de mensagens internas entre colaboradores (pagina Mensagens):
+- Criar um trigger no banco que detecta mencoes "@nome" em mensagens da tabela `messages`
+- Resolver o nome mencionado para o user_id correspondente na tabela `profiles`
+- Inserir notificacao em `user_notifications` com `action_url` apontando para `/mensagens`
+- O sistema de notificacoes existente ja cuida de exibir o toast em tempo real
 
 ---
 
 ## Detalhes Tecnicos
 
-### Arquivos a Criar
-- `src/pages/WhatsAppAvisos.tsx`
-- `src/components/whatsapp/ConversationList.tsx`
-- `src/components/whatsapp/ChatArea.tsx`
-- `src/components/whatsapp/MessageInput.tsx`
-- `src/components/whatsapp/TemplatesManager.tsx`
-- `src/components/whatsapp/ScheduledMessages.tsx`
-- `supabase/functions/process-scheduled-whatsapp/index.ts`
-- 1 migration SQL
+### Consulta combinada de mensagens + comentarios
+No `WhatsAppAvisos.tsx`, ao carregar mensagens de uma conversa:
+1. Buscar `whatsapp_messages` filtrado por `conversation_id`
+2. Buscar `whatsapp_internal_comments` filtrado por `conversation_id`, com join em `profiles` para nome do autor
+3. Unificar em uma lista ordenada por `created_at` com um campo `_type: 'message' | 'comment'`
+4. Renderizar cada item com a bolha adequada
 
-### Arquivos a Modificar
-- `src/App.tsx` (nova rota)
-- `src/components/AppSidebar.tsx` (novo menu)
-- `src/components/Layout.tsx` (busca global)
-- `supabase/functions/zapi-send-message/index.ts` (novas actions)
-- `supabase/functions/zapi-webhook/index.ts` (popular whatsapp_messages)
-- `supabase/config.toml` (nova function)
+### Mencoes com "@"
+- Ao digitar "@" no input de comentario, buscar colaboradores ativos da tabela `profiles`
+- Exibir dropdown flutuante filtrado pelo texto apos "@"
+- Ao selecionar, inserir o nome formatado no texto: `@NomeCompleto`
+- Ao salvar, extrair mencoes do texto e inserir em `whatsapp_comment_mentions`
 
-### APIs Z-API Utilizadas
-- `POST /send-text` - Envio de texto (ja existente)
-- `POST /send-audio` - Envio de audio (URL ou base64)
-- `POST /send-image` - Envio de imagem (URL ou base64 + caption)
-- `POST /send-document/{ext}` - Envio de documento (URL + filename)
-
-### Upload de Midia
-Arquivos serao armazenados no Storage (bucket existente `task-attachments`) e a URL sera usada para envio via Z-API.
+### Filtros
+- Os filtros serao aplicados no frontend combinando os dados carregados
+- Para tags e responsaveis, carregar as relacoes junto com as conversas via queries separadas (evitar joins complexos que podem falhar no PostgREST)
+- Manter estado dos filtros no componente pai `WhatsAppAvisos.tsx`
