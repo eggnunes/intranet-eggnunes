@@ -119,12 +119,15 @@ verify_jwt = true
 
 [functions.sync-sheets-to-advbox]
 verify_jwt = false
- 
- [functions.zapsign-integration]
- verify_jwt = true
- 
- [functions.zapsign-webhook]
- verify_jwt = false
+
+[functions.zapsign-integration]
+verify_jwt = true
+
+[functions.zapsign-webhook]
+verify_jwt = false
 
 [functions.advbox-manual-registration]
+verify_jwt = true
+
+[functions.zapi-send-message]
 verify_jwt = true
