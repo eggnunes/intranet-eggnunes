@@ -994,6 +994,54 @@ export type Database = {
         }
         Relationships: []
       }
+      boleto_reminder_log: {
+        Row: {
+          asaas_payment_id: string
+          created_at: string
+          customer_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          due_date: string | null
+          error_message: string | null
+          id: string
+          reminder_type: string
+          sent_at: string
+          status: string
+          value: number | null
+          zapi_message_id: string | null
+        }
+        Insert: {
+          asaas_payment_id: string
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          due_date?: string | null
+          error_message?: string | null
+          id?: string
+          reminder_type: string
+          sent_at?: string
+          status?: string
+          value?: number | null
+          zapi_message_id?: string | null
+        }
+        Update: {
+          asaas_payment_id?: string
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          due_date?: string | null
+          error_message?: string | null
+          id?: string
+          reminder_type?: string
+          sent_at?: string
+          status?: string
+          value?: number | null
+          zapi_message_id?: string | null
+        }
+        Relationships: []
+      }
       captured_leads: {
         Row: {
           created_at: string
