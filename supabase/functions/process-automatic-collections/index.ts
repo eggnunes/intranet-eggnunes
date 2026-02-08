@@ -6,13 +6,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// 3 minutes between messages to avoid Meta banning
+const BULK_INTERVAL_MS = 3 * 60 * 1000;
+
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Verify that the request comes from an authorized source (cron job with service role key)
+  // Verify that the request comes from an authorized source
   const authHeader = req.headers.get('Authorization');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   
@@ -32,7 +34,7 @@ serve(async (req) => {
 
     console.log('Starting automatic collection processing...');
 
-    // Buscar regras ativas
+    // Fetch active rules
     const { data: rules, error: rulesError } = await supabase
       .from('collection_rules')
       .select('*')
@@ -54,7 +56,7 @@ serve(async (req) => {
 
     console.log(`Found ${rules.length} active rules`);
 
-    // Buscar exclusões
+    // Fetch exclusions
     const { data: exclusions } = await supabase
       .from('defaulter_exclusions')
       .select('customer_id');
@@ -62,7 +64,7 @@ serve(async (req) => {
     const excludedIds = new Set((exclusions || []).map(e => e.customer_id));
     console.log(`Found ${excludedIds.size} excluded customers`);
 
-    // Buscar transações em atraso do Advbox via cache
+    // Fetch overdue transactions from Advbox via cache
     const advboxResponse = await fetch(
       `${Deno.env.get('SUPABASE_URL')}/functions/v1/advbox-integration?endpoint=transactions`,
       {
@@ -90,11 +92,9 @@ serve(async (req) => {
     let messagesSkipped = 0;
     let messagesFailed = 0;
 
-    // Processar cada regra
     for (const rule of rules) {
       console.log(`Processing rule: ${rule.name} (${rule.days_overdue} days)`);
 
-      // Filtrar transações que correspondem à regra
       const overdueTransactions = transactions.filter((t: any) => {
         if (t.type !== 'income' || t.status !== 'overdue') return false;
         if (!t.customer_id || excludedIds.has(t.customer_id)) return false;
@@ -102,15 +102,15 @@ serve(async (req) => {
         const dueDate = t.due_date ? new Date(t.due_date) : new Date(t.date);
         const daysPastDue = Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
 
-        // Verifica se está na faixa exata de dias (±1 dia de tolerância)
         return Math.abs(daysPastDue - rule.days_overdue) <= 1;
       });
 
       console.log(`Found ${overdueTransactions.length} transactions matching rule ${rule.name}`);
 
-      // Processar cada transação
-      for (const transaction of overdueTransactions) {
-        // Verificar se já enviou mensagem recentemente (últimas 24h)
+      for (let i = 0; i < overdueTransactions.length; i++) {
+        const transaction = overdueTransactions[i];
+
+        // Check if message was already sent in the last 24h
         const { data: recentMessages } = await supabase
           .from('defaulter_messages_log')
           .select('*')
@@ -133,7 +133,7 @@ serve(async (req) => {
         }
 
         try {
-          // Enviar mensagem via função de envio
+          // Send message via the send-defaulter-message function (now uses Z-API)
           const sendResponse = await fetch(
             `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-defaulter-message`,
             {
@@ -162,8 +162,11 @@ serve(async (req) => {
             messagesFailed++;
           }
 
-          // Delay entre mensagens para evitar rate limiting
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          // Wait 3 minutes between messages to avoid Meta banning
+          if (i < overdueTransactions.length - 1) {
+            console.log(`⏳ Waiting 3 minutes before next message...`);
+            await new Promise(resolve => setTimeout(resolve, BULK_INTERVAL_MS));
+          }
 
         } catch (error) {
           console.error(`Error sending message to ${transaction.customer_name}:`, error);
@@ -188,12 +191,10 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in process-automatic-collections function:', error);
     
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-    
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: errorMessage 
+        error: error instanceof Error ? error.message : 'Erro desconhecido'
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -7133,6 +7133,51 @@ export type Database = {
           },
         ]
       }
+      zapi_messages_log: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          customer_name: string | null
+          customer_phone: string
+          error_message: string | null
+          id: string
+          message_text: string
+          message_type: string
+          sent_at: string | null
+          sent_by: string | null
+          status: string
+          zapi_message_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone: string
+          error_message?: string | null
+          id?: string
+          message_text: string
+          message_type?: string
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          zapi_message_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string
+          error_message?: string | null
+          id?: string
+          message_text?: string
+          message_type?: string
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          zapi_message_id?: string | null
+        }
+        Relationships: []
+      }
       zapsign_documents: {
         Row: {
           advbox_sync_at: string | null

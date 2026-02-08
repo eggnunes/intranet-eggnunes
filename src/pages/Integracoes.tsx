@@ -68,10 +68,19 @@ const INTEGRATIONS_CONFIG: Omit<Integration, 'isActive' | 'lastTested' | 'testSt
   {
     id: 'chatguru',
     name: 'ChatGuru',
-    description: 'WhatsApp Business - mensagens automáticas e cobrança',
+    description: 'WhatsApp Business (API Oficial Meta) - templates aprovados',
     icon: <MessageSquare className="h-6 w-6" />,
     secretKeys: ['CHATGURU_API_KEY', 'CHATGURU_ACCOUNT_ID', 'CHATGURU_PHONE_ID'],
     category: 'communication',
+  },
+  {
+    id: 'z-api',
+    name: 'Z-API',
+    description: 'WhatsApp Avisos - mensagens de aniversário, cobrança e informativos (sem custo Meta)',
+    icon: <MessageSquare className="h-6 w-6" />,
+    secretKeys: ['ZAPI_INSTANCE_ID', 'ZAPI_TOKEN', 'ZAPI_CLIENT_TOKEN'],
+    category: 'communication',
+    testEndpoint: 'zapi-send-message',
   },
   {
     id: 'openai',
@@ -221,6 +230,11 @@ export default function Integracoes() {
           body: { action: 'list-sites' },
         });
         testSuccess = !error && data;
+      } else if (integration.id === 'z-api') {
+        const { data, error } = await supabase.functions.invoke('zapi-send-message', {
+          body: { action: 'test-connection' },
+        });
+        testSuccess = !error && data?.success;
       }
 
       // Update test status in database

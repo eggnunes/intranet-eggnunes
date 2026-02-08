@@ -6,186 +6,103 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Dialog ID do template "boletoematraso" aprovado pela Meta
-const DIALOG_ID = '679a5d753968d5272a54d207';
-const TEMPLATE_NAME = 'boletoematraso';
+const WHATSAPP_OFICIAL = '553132268742';
+const FOOTER_AVISO = `\n\n⚠️ *Este número é exclusivo para envio de avisos e informativos do escritório Egg & Nunes Advogados.*\nPara entrar em contato conosco, utilize nosso canal oficial:\n📞 WhatsApp Oficial: https://wa.me/${WHATSAPP_OFICIAL}\n\n_Não responda esta mensagem._`;
 
-// Brazilian phone validation regex: country code (55) + DDD (2 digits, 11-99) + number (8-9 digits)
+// Brazilian phone validation regex
 const BRAZILIAN_PHONE_REGEX = /^55[1-9][0-9]9?[0-9]{8}$/;
 
-// Map internal errors to safe user-facing messages
 function getSafeErrorMessage(error: Error | unknown): string {
   const errorMessage = error instanceof Error ? error.message : String(error);
-  
-  // Map known errors to safe messages
   if (errorMessage.includes('telefone inválido') || errorMessage.includes('formato')) {
     return 'Número de telefone inválido. Verifique o formato.';
   }
-  if (errorMessage.includes('ChatGuru') || errorMessage.includes('API')) {
+  if (errorMessage.includes('Z-API') || errorMessage.includes('API')) {
     return 'Erro ao enviar mensagem. Tente novamente mais tarde.';
   }
   if (errorMessage.includes('Credenciais')) {
     return 'Sistema de mensagens não configurado. Contate o administrador.';
   }
   if (errorMessage.includes('exclusão')) {
-    return errorMessage; // This is already a user-facing message
+    return errorMessage;
   }
   if (errorMessage.includes('autenticado')) {
     return 'Você precisa estar logado para realizar esta ação.';
   }
-  
-  // Default safe message
   return 'Erro ao processar solicitação. Tente novamente.';
 }
 
 function validateBrazilianPhone(phone: string): string {
-  // Remove all non-digit characters
   const cleanPhone = phone.replace(/\D/g, '');
-  
-  // Add country code if not present
   let fullPhone = cleanPhone;
   if (cleanPhone.length <= 11) {
     fullPhone = `55${cleanPhone}`;
   }
-  
-  // Validate against Brazilian phone format
   if (!BRAZILIAN_PHONE_REGEX.test(fullPhone)) {
     throw new Error(`Número de telefone com formato inválido: esperado formato brasileiro (DDD + número)`);
   }
-  
   return fullPhone;
 }
 
-async function setChatStatusToAttending(phone: string) {
-  const CHATGURU_API_KEY = Deno.env.get('CHATGURU_API_KEY');
-  const CHATGURU_ACCOUNT_ID = Deno.env.get('CHATGURU_ACCOUNT_ID');
-  const CHATGURU_PHONE_ID = Deno.env.get('CHATGURU_PHONE_ID');
+async function sendCollectionMessageViaZAPI(phone: string, customerName: string, amount: number, daysOverdue: number): Promise<{ zaapId?: string; success: boolean }> {
+  const ZAPI_INSTANCE_ID = Deno.env.get('ZAPI_INSTANCE_ID');
+  const ZAPI_TOKEN = Deno.env.get('ZAPI_TOKEN');
+  const ZAPI_CLIENT_TOKEN = Deno.env.get('ZAPI_CLIENT_TOKEN');
 
-  console.log(`Setting chat status to "em atendimento" for ${phone}`);
-
-  const params = new URLSearchParams({
-    key: CHATGURU_API_KEY!,
-    account_id: CHATGURU_ACCOUNT_ID!,
-    phone_id: CHATGURU_PHONE_ID!,
-    action: 'chat_edit',
-    chat_number: phone,
-    status: 'em atendimento',
-  });
-
-  const url = `https://s17.chatguru.app/api/v1?${params.toString()}`;
-  
-  try {
-    const response = await fetch(url, { method: 'POST' });
-    const responseText = await response.text();
-    console.log('ChatGuru chat_edit (status) response:', responseText);
-    
-    const data = JSON.parse(responseText);
-    if (data.result === 'success') {
-      console.log('Chat status changed to "em atendimento" successfully');
-      return true;
-    }
-    console.warn('Failed to change chat status:', data);
-    return false;
-  } catch (error) {
-    console.error('Error changing chat status:', error);
-    return false;
+  if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN || !ZAPI_CLIENT_TOKEN) {
+    throw new Error('Credenciais da Z-API não configuradas');
   }
-}
 
-async function sendWhatsAppMessage(phone: string, customerName: string) {
-  const CHATGURU_API_KEY = Deno.env.get('CHATGURU_API_KEY');
-  const CHATGURU_ACCOUNT_ID = Deno.env.get('CHATGURU_ACCOUNT_ID');
-  const CHATGURU_PHONE_ID = Deno.env.get('CHATGURU_PHONE_ID');
-
-  console.log(`Sending collection message to ${phone} for ${customerName}`);
-  
-  // Validate and format phone number
   const fullPhone = validateBrazilianPhone(phone);
-  
-  console.log(`Formatted phone number: ${fullPhone}`);
-  console.log(`Using Dialog ID: ${DIALOG_ID}`);
-  
-  // Primeiro, tentar dialog_execute (para chats existentes)
-  console.log('Attempting dialog_execute for existing chat...');
-  const dialogParams = new URLSearchParams({
-    key: CHATGURU_API_KEY!,
-    account_id: CHATGURU_ACCOUNT_ID!,
-    phone_id: CHATGURU_PHONE_ID!,
-    action: 'dialog_execute',
-    chat_number: fullPhone,
-    dialog_id: DIALOG_ID,
+  console.log(`[Z-API] Sending collection message to ${fullPhone} for ${customerName}`);
+
+  const firstName = customerName.split(' ')[0];
+  const formattedAmount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount);
+
+  let collectionMessage = '';
+  if (daysOverdue <= 3) {
+    collectionMessage = `Olá, *${firstName}*! 👋\n\nEste é um lembrete amigável do escritório *Egg & Nunes Advogados*.\n\nIdentificamos um pagamento no valor de *${formattedAmount}* que está com *${daysOverdue} dia(s) em atraso*.\n\nCaso já tenha efetuado o pagamento, por favor desconsidere esta mensagem. Caso contrário, pedimos a gentileza de regularizar o quanto antes.\n\nAgradecemos a compreensão! 🙏`;
+  } else if (daysOverdue <= 15) {
+    collectionMessage = `Olá, *${firstName}*! 👋\n\nGostaríamos de informar que consta em nosso sistema um pagamento pendente no valor de *${formattedAmount}*, com *${daysOverdue} dias em atraso*.\n\nPedimos a gentileza de providenciar a regularização o mais breve possível para evitar demais encargos.\n\nCaso tenha alguma dúvida ou dificuldade, entre em contato conosco pelos nossos canais oficiais.\n\nAtenciosamente,\n*Egg & Nunes Advogados*`;
+  } else {
+    collectionMessage = `Prezado(a) *${firstName}*,\n\nInformamos que consta em nosso sistema uma pendência financeira no valor de *${formattedAmount}*, com *${daysOverdue} dias em atraso*.\n\nSolicitamos a regularização urgente desta pendência.\n\nPara tratar sobre esta questão, entre em contato conosco através dos nossos canais oficiais.\n\nAtenciosamente,\n*Egg & Nunes Advogados*`;
+  }
+
+  // Append footer
+  collectionMessage += FOOTER_AVISO;
+
+  const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-text`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Client-Token': ZAPI_CLIENT_TOKEN,
+    },
+    body: JSON.stringify({
+      phone: fullPhone,
+      message: collectionMessage,
+    }),
   });
-  
-  const dialogUrl = `https://s17.chatguru.app/api/v1?${dialogParams.toString()}`;
-  console.log('Full URL (redacted key):', dialogUrl.replace(CHATGURU_API_KEY!, 'REDACTED'));
-  
-  const dialogResponse = await fetch(dialogUrl, { method: 'POST' });
-  const dialogResponseText = await dialogResponse.text();
-  console.log('ChatGuru dialog_execute response:', dialogResponseText);
-  
-  let dialogData;
+
+  const responseText = await response.text();
+  console.log(`[Z-API] Response status: ${response.status}, body: ${responseText}`);
+
+  if (!response.ok) {
+    throw new Error(`Z-API error (${response.status}): ${responseText}`);
+  }
+
+  let data;
   try {
-    dialogData = JSON.parse(dialogResponseText);
-  } catch (e) {
-    console.error('Failed to parse dialog response as JSON:', dialogResponseText.substring(0, 200));
+    data = JSON.parse(responseText);
+  } catch {
     throw new Error('Erro de comunicação com serviço de mensagens');
   }
-  
-  // Se dialog_execute funcionou, alterar status para "em atendimento"
-  if (dialogData.result === 'success') {
-    console.log('Message sent successfully via dialog_execute');
-    await setChatStatusToAttending(fullPhone);
-    return dialogData;
-  }
-  
-  // Se o erro for "Chat não encontrado", tentar chat_add com dialog_id
-  if (dialogData.description?.includes('Chat não encontrado') || dialogData.code === 400) {
-    console.log('Chat not found, attempting chat_add with dialog_id and template text...');
-    
-    // Para WABA/API oficial do WhatsApp, usar o nome do template como texto inicial
-    const chatAddParams = new URLSearchParams({
-      key: CHATGURU_API_KEY!,
-      account_id: CHATGURU_ACCOUNT_ID!,
-      phone_id: CHATGURU_PHONE_ID!,
-      action: 'chat_add',
-      chat_number: fullPhone,
-      name: customerName,
-      text: TEMPLATE_NAME, // Nome do template WABA aprovado pela Meta
-      dialog_id: DIALOG_ID,
-    });
-    
-    const chatAddUrl = `https://s17.chatguru.app/api/v1?${chatAddParams.toString()}`;
-    console.log('Calling chat_add with dialog_id and text=boletoematraso...');
-    console.log('Full URL (redacted key):', chatAddUrl.replace(CHATGURU_API_KEY!, 'REDACTED'));
-    
-    const chatAddResponse = await fetch(chatAddUrl, { method: 'POST' });
-    const chatAddResponseText = await chatAddResponse.text();
-    console.log('ChatGuru chat_add response:', chatAddResponseText);
-    
-    let chatAddData;
-    try {
-      chatAddData = JSON.parse(chatAddResponseText);
-    } catch (e) {
-      console.error('Failed to parse chat_add response as JSON:', chatAddResponseText.substring(0, 200));
-      throw new Error('Erro de comunicação com serviço de mensagens');
-    }
-    
-    if (chatAddData.result === 'success') {
-      console.log('Chat created and dialog scheduled successfully');
-      await setChatStatusToAttending(fullPhone);
-      return chatAddData;
-    }
-    
-    console.error('ChatGuru chat_add error:', chatAddData);
-    throw new Error('Falha ao criar conversa no WhatsApp');
-  }
-  
-  console.error('ChatGuru API error:', dialogData);
-  throw new Error('Falha ao enviar mensagem via WhatsApp');
+
+  return { zaapId: data.zaapId || data.messageId, success: true };
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -197,19 +114,18 @@ serve(async (req) => {
     );
 
     const { customerId, customerName, customerPhone, amount, daysOverdue } = await req.json();
+    console.log('[Z-API] Sending defaulter message:', { customerId, customerName, customerPhone, amount, daysOverdue });
 
-    console.log('Sending defaulter message:', { customerId, customerName, customerPhone, amount, daysOverdue });
+    // Verify Z-API credentials
+    const ZAPI_INSTANCE_ID = Deno.env.get('ZAPI_INSTANCE_ID');
+    const ZAPI_TOKEN = Deno.env.get('ZAPI_TOKEN');
+    const ZAPI_CLIENT_TOKEN = Deno.env.get('ZAPI_CLIENT_TOKEN');
 
-    // Verificar credenciais
-    const CHATGURU_API_KEY = Deno.env.get('CHATGURU_API_KEY');
-    const CHATGURU_ACCOUNT_ID = Deno.env.get('CHATGURU_ACCOUNT_ID');
-    const CHATGURU_PHONE_ID = Deno.env.get('CHATGURU_PHONE_ID');
-
-    if (!CHATGURU_API_KEY || !CHATGURU_ACCOUNT_ID || !CHATGURU_PHONE_ID) {
-      throw new Error('Credenciais do ChatGuru não configuradas');
+    if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN || !ZAPI_CLIENT_TOKEN) {
+      throw new Error('Credenciais da Z-API não configuradas');
     }
 
-    // Verificar se o cliente está na lista de exclusões
+    // Check exclusion list
     const { data: exclusion } = await supabase
       .from('defaulter_exclusions')
       .select('*')
@@ -223,17 +139,14 @@ serve(async (req) => {
           success: false, 
           error: 'Cliente está na lista de exclusão e não receberá mensagens de cobrança.' 
         }),
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400 
-        }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Enviar mensagem via ChatGuru
-    const chatguruResponse = await sendWhatsAppMessage(customerPhone, customerName);
+    // Send message via Z-API
+    const zapiResponse = await sendCollectionMessageViaZAPI(customerPhone, customerName, amount, daysOverdue);
 
-    // Obter o usuário autenticado
+    // Get authenticated user
     const authHeader = req.headers.get('Authorization')!;
     const token = authHeader.replace('Bearer ', '');
     const { data: { user } } = await supabase.auth.getUser(token);
@@ -242,7 +155,7 @@ serve(async (req) => {
       throw new Error('Usuário não autenticado');
     }
 
-    // Security: Verify user has admin role before allowing to send messages
+    // Verify admin role
     const { data: roleData } = await supabase
       .from('user_roles')
       .select('role')
@@ -251,50 +164,54 @@ serve(async (req) => {
       .maybeSingle();
 
     if (!roleData) {
-      console.log('Non-admin user attempted to send defaulter message:', user.id);
       return new Response(
         JSON.stringify({ 
           success: false, 
           error: 'Acesso restrito - apenas administradores podem enviar mensagens de cobrança.' 
         }),
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 403 
-        }
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Registrar no log
-    const { error: logError } = await supabase
+    // Log in defaulter messages log
+    await supabase
       .from('defaulter_messages_log')
       .insert({
         customer_id: customerId,
         customer_name: customerName,
         customer_phone: customerPhone.replace(/\D/g, ''),
         days_overdue: daysOverdue,
-        message_template: TEMPLATE_NAME,
-        message_text: `Template: ${TEMPLATE_NAME} | Cliente: ${customerName} | Valor: R$ ${amount} | Dias em atraso: ${daysOverdue}`,
+        message_template: 'zapi-collection',
+        message_text: `Z-API | Cliente: ${customerName} | Valor: R$ ${amount} | Dias em atraso: ${daysOverdue}`,
         status: 'sent',
-        chatguru_message_id: chatguruResponse?.message_id || null,
+        chatguru_message_id: zapiResponse.zaapId || null,
         sent_at: new Date().toISOString(),
         sent_by: user.id,
       });
 
-    if (logError) {
-      console.error('Error logging message:', logError);
-    }
+    // Also log in Z-API log table
+    await supabase.from('zapi_messages_log').insert({
+      customer_id: customerId,
+      customer_name: customerName,
+      customer_phone: customerPhone.replace(/\D/g, ''),
+      message_text: `Cobrança - ${customerName} - R$ ${amount} - ${daysOverdue} dias em atraso`,
+      message_type: 'cobranca',
+      status: 'sent',
+      zapi_message_id: zapiResponse.zaapId || null,
+      sent_by: user.id,
+    });
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        messageId: chatguruResponse?.message_id,
-        template: TEMPLATE_NAME 
+        messageId: zapiResponse.zaapId,
+        provider: 'z-api',
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Error in send-defaulter-message function:', error);
+    console.error('[Z-API] Error in send-defaulter-message:', error);
     
     return new Response(
       JSON.stringify({ 
