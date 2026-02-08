@@ -7226,6 +7226,117 @@ export type Database = {
         }
         Relationships: []
       }
+      zapi_webhook_events: {
+        Row: {
+          battery_level: number | null
+          broadcast: boolean | null
+          caption: string | null
+          chat_name: string | null
+          connected: boolean | null
+          created_at: string
+          event_type: string
+          id: string
+          is_charging: boolean | null
+          is_from_me: boolean | null
+          is_group: boolean | null
+          latitude: number | null
+          link_description: string | null
+          link_title: string | null
+          link_url: string | null
+          longitude: number | null
+          media_mime_type: string | null
+          media_url: string | null
+          message_id: string | null
+          message_text: string | null
+          message_type: string | null
+          moment_type: string | null
+          phone: string | null
+          processed: boolean | null
+          processed_at: string | null
+          quoted_message_id: string | null
+          raw_payload: Json
+          reaction_emoji: string | null
+          received_at: string
+          sender_name: string | null
+          sender_phone: string | null
+          status: string | null
+          thumbnail_url: string | null
+          zaap_id: string | null
+        }
+        Insert: {
+          battery_level?: number | null
+          broadcast?: boolean | null
+          caption?: string | null
+          chat_name?: string | null
+          connected?: boolean | null
+          created_at?: string
+          event_type: string
+          id?: string
+          is_charging?: boolean | null
+          is_from_me?: boolean | null
+          is_group?: boolean | null
+          latitude?: number | null
+          link_description?: string | null
+          link_title?: string | null
+          link_url?: string | null
+          longitude?: number | null
+          media_mime_type?: string | null
+          media_url?: string | null
+          message_id?: string | null
+          message_text?: string | null
+          message_type?: string | null
+          moment_type?: string | null
+          phone?: string | null
+          processed?: boolean | null
+          processed_at?: string | null
+          quoted_message_id?: string | null
+          raw_payload?: Json
+          reaction_emoji?: string | null
+          received_at?: string
+          sender_name?: string | null
+          sender_phone?: string | null
+          status?: string | null
+          thumbnail_url?: string | null
+          zaap_id?: string | null
+        }
+        Update: {
+          battery_level?: number | null
+          broadcast?: boolean | null
+          caption?: string | null
+          chat_name?: string | null
+          connected?: boolean | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          is_charging?: boolean | null
+          is_from_me?: boolean | null
+          is_group?: boolean | null
+          latitude?: number | null
+          link_description?: string | null
+          link_title?: string | null
+          link_url?: string | null
+          longitude?: number | null
+          media_mime_type?: string | null
+          media_url?: string | null
+          message_id?: string | null
+          message_text?: string | null
+          message_type?: string | null
+          moment_type?: string | null
+          phone?: string | null
+          processed?: boolean | null
+          processed_at?: string | null
+          quoted_message_id?: string | null
+          raw_payload?: Json
+          reaction_emoji?: string | null
+          received_at?: string
+          sender_name?: string | null
+          sender_phone?: string | null
+          status?: string | null
+          thumbnail_url?: string | null
+          zaap_id?: string | null
+        }
+        Relationships: []
+      }
       zapsign_documents: {
         Row: {
           advbox_sync_at: string | null
