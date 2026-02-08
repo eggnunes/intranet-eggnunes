@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const WHATSAPP_OFICIAL = '553132268742';
-const FOOTER_AVISO = `\n\n⚠️ *Este número é exclusivo para envio de avisos e informativos do escritório Egg & Nunes Advogados.*\nPara entrar em contato conosco, utilize nosso canal oficial:\n📞 WhatsApp Oficial: https://wa.me/${WHATSAPP_OFICIAL}\n\n_Não responda esta mensagem._`;
+const FOOTER_AVISO = `\n\n⚠️ *Este número é exclusivo para envio de avisos e informativos do escritório Egg Nunes Advogados Associados.*\nPara entrar em contato conosco, utilize nosso canal oficial:\n📞 WhatsApp Oficial: https://wa.me/${WHATSAPP_OFICIAL}\n\n_Não responda esta mensagem._`;
 
 // Brazilian phone validation regex
 const BRAZILIAN_PHONE_REGEX = /^55[1-9][0-9]9?[0-9]{8}$/;
@@ -63,11 +63,11 @@ async function sendCollectionMessageViaZAPI(phone: string, customerName: string,
 
   let collectionMessage = '';
   if (daysOverdue <= 3) {
-    collectionMessage = `Olá, *${firstName}*! 👋\n\nEste é um lembrete amigável do escritório *Egg & Nunes Advogados*.\n\nIdentificamos um pagamento no valor de *${formattedAmount}* que está com *${daysOverdue} dia(s) em atraso*.\n\nCaso já tenha efetuado o pagamento, por favor desconsidere esta mensagem. Caso contrário, pedimos a gentileza de regularizar o quanto antes.\n\nAgradecemos a compreensão! 🙏`;
+    collectionMessage = `Olá, *${firstName}*! 👋\n\nEste é um lembrete amigável do escritório *Egg Nunes Advogados Associados*.\n\nIdentificamos um pagamento no valor de *${formattedAmount}* que está com *${daysOverdue} dia(s) em atraso*.\n\nCaso já tenha efetuado o pagamento, por favor desconsidere esta mensagem. Caso contrário, pedimos a gentileza de regularizar o quanto antes.\n\nAgradecemos a compreensão! 🙏`;
   } else if (daysOverdue <= 15) {
-    collectionMessage = `Olá, *${firstName}*! 👋\n\nGostaríamos de informar que consta em nosso sistema um pagamento pendente no valor de *${formattedAmount}*, com *${daysOverdue} dias em atraso*.\n\nPedimos a gentileza de providenciar a regularização o mais breve possível para evitar demais encargos.\n\nCaso tenha alguma dúvida ou dificuldade, entre em contato conosco pelos nossos canais oficiais.\n\nAtenciosamente,\n*Egg & Nunes Advogados*`;
+    collectionMessage = `Olá, *${firstName}*! 👋\n\nGostaríamos de informar que consta em nosso sistema um pagamento pendente no valor de *${formattedAmount}*, com *${daysOverdue} dias em atraso*.\n\nPedimos a gentileza de providenciar a regularização o mais breve possível para evitar demais encargos.\n\nCaso tenha alguma dúvida ou dificuldade, entre em contato conosco pelos nossos canais oficiais.\n\nAtenciosamente,\n*Egg Nunes Advogados Associados*`;
   } else {
-    collectionMessage = `Prezado(a) *${firstName}*,\n\nInformamos que consta em nosso sistema uma pendência financeira no valor de *${formattedAmount}*, com *${daysOverdue} dias em atraso*.\n\nSolicitamos a regularização urgente desta pendência.\n\nPara tratar sobre esta questão, entre em contato conosco através dos nossos canais oficiais.\n\nAtenciosamente,\n*Egg & Nunes Advogados*`;
+    collectionMessage = `Prezado(a) *${firstName}*,\n\nInformamos que consta em nosso sistema uma pendência financeira no valor de *${formattedAmount}*, com *${daysOverdue} dias em atraso*.\n\nSolicitamos a regularização urgente desta pendência.\n\nPara tratar sobre esta questão, entre em contato conosco através dos nossos canais oficiais.\n\nAtenciosamente,\n*Egg Nunes Advogados Associados*`;
   }
 
   // Append footer

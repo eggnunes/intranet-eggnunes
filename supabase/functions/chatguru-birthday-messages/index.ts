@@ -9,7 +9,7 @@ const corsHeaders = {
 const BRAZILIAN_PHONE_REGEX = /^55[1-9][0-9]9?[0-9]{8}$/;
 
 const WHATSAPP_OFICIAL = '553132268742';
-const FOOTER_AVISO = `\n\n⚠️ *Este número é exclusivo para envio de avisos e informativos do escritório Egg & Nunes Advogados.*\nPara entrar em contato conosco, utilize nosso canal oficial:\n📞 WhatsApp Oficial: https://wa.me/${WHATSAPP_OFICIAL}\n\n_Não responda esta mensagem._`;
+const FOOTER_AVISO = `\n\n⚠️ *Este número é exclusivo para envio de avisos e informativos do escritório Egg Nunes Advogados Associados.*\nPara entrar em contato conosco, utilize nosso canal oficial:\n📞 WhatsApp Oficial: https://wa.me/${WHATSAPP_OFICIAL}\n\n_Não responda esta mensagem._`;
 
 // Interval between messages: 3 minutes (180000ms)
 const BULK_INTERVAL_MS = 3 * 60 * 1000;
@@ -63,7 +63,7 @@ async function sendWhatsAppMessageViaZAPI(phone: string, customerName: string): 
 
   // Build birthday message
   const firstName = customerName.split(' ')[0];
-  const birthdayMessage = `🎂 *Feliz Aniversário, ${firstName}!* 🎉\n\nO escritório *Egg & Nunes Advogados* deseja a você um dia repleto de alegrias, realizações e muita saúde!\n\nQue este novo ciclo traga conquistas incríveis. Parabéns! 🥳` + FOOTER_AVISO;
+  const birthdayMessage = `🎂 *Feliz Aniversário, ${firstName}!* 🎉\n\nO escritório *Egg Nunes Advogados Associados* deseja a você um dia repleto de alegrias, realizações e muita saúde!\n\nQue este novo ciclo traga conquistas incríveis. Parabéns! 🥳` + FOOTER_AVISO;
 
   const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-text`;
 
