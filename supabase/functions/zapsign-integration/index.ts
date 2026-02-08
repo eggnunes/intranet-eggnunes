@@ -414,12 +414,12 @@ serve(async (req) => {
 
         if (ZAPI_INSTANCE_ID && ZAPI_TOKEN_ENV && ZAPI_CLIENT_TOKEN) {
           const WHATSAPP_OFICIAL = '553132268742';
-          const FOOTER_AVISO = `\n\n⚠️ *Este número é exclusivo para envio de avisos e informativos do escritório Egg & Nunes Advogados.*\nPara entrar em contato conosco, utilize nosso canal oficial:\n📞 WhatsApp Oficial: https://wa.me/${WHATSAPP_OFICIAL}\n\n_Não responda esta mensagem._`;
+          const FOOTER_AVISO = `\n\n⚠️ *Este número é exclusivo para envio de avisos e informativos do escritório Egg Nunes Advogados Associados.*\nPara entrar em contato conosco, utilize nosso canal oficial:\n📞 WhatsApp Oficial: https://wa.me/${WHATSAPP_OFICIAL}\n\n_Não responda esta mensagem._`;
 
           const firstName = body.clientName.split(' ')[0];
           const docTypeLabel = body.documentType === 'contrato' ? 'Contrato de Honorários' : 'Procuração';
 
-          const whatsappMessage = `Olá, *${firstName}*! 👋\n\nO escritório *Egg & Nunes Advogados* enviou um documento para sua assinatura digital.\n\n📄 *Documento:* ${docTypeLabel}\n📝 *Nome:* ${body.documentName}\n\n*Como assinar:*\n1️⃣ Clique no link abaixo para acessar o documento\n2️⃣ Leia atentamente todo o conteúdo\n3️⃣ Siga as instruções na tela para assinar digitalmente\n4️⃣ Você precisará tirar uma selfie e uma foto do seu documento de identificação para validação\n\n🔗 *Acesse e assine aqui:*\n${clientSignUrl}\n\n⏰ Por favor, assine o documento o mais breve possível para dar andamento ao seu processo.\n\nEm caso de dúvidas, entre em contato conosco pelo nosso canal oficial.` + FOOTER_AVISO;
+          const whatsappMessage = `Olá, *${firstName}*! 👋\n\nO escritório *Egg Nunes Advogados Associados* enviou um documento para sua assinatura digital.\n\n📄 *Documento:* ${docTypeLabel}\n📝 *Nome:* ${body.documentName}\n\n*Como assinar:*\n1️⃣ Clique no link abaixo para acessar o documento\n2️⃣ Leia atentamente todo o conteúdo\n3️⃣ Siga as instruções na tela para assinar digitalmente\n4️⃣ Você precisará tirar uma selfie e uma foto do seu documento de identificação para validação\n\n🔗 *Acesse e assine aqui:*\n${clientSignUrl}\n\n⏰ Por favor, assine o documento o mais breve possível para dar andamento ao seu processo.\n\nEm caso de dúvidas, entre em contato conosco pelo nosso canal oficial.` + FOOTER_AVISO;
 
           // Format phone for Z-API
           let zapiPhone = phoneNumber.replace(/\D/g, '');
