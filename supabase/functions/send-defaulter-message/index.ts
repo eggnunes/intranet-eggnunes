@@ -118,6 +118,20 @@ serve(async (req) => {
     const { customerId, customerName, customerPhone, amount, daysOverdue } = await req.json();
     console.log('[Z-API] Sending defaulter message:', { customerId, customerName, customerPhone, amount, daysOverdue });
 
+    // === Z-API SUSPENSO TEMPORARIAMENTE ===
+    // O número de WhatsApp de avisos foi restrito pela Meta.
+    // Envio suspenso até aquecimento do número. Aguardando reativação.
+    console.log('⚠️ [SUSPENSO] Envio de mensagens de cobrança via Z-API está temporariamente suspenso.');
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Envio de mensagens de cobrança está temporariamente suspenso. O número de WhatsApp de avisos está em processo de aquecimento.',
+        suspended: true,
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+    // === FIM DA SUSPENSÃO ===
+
     // Verify Z-API credentials
     const ZAPI_INSTANCE_ID = (Deno.env.get('ZAPI_INSTANCE_ID') || '').trim();
     const ZAPI_TOKEN = (Deno.env.get('ZAPI_TOKEN') || '').trim();
