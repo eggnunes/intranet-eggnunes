@@ -241,6 +241,13 @@ export default function TarefasAdvbox() {
 
       setTasks(tasksData);
       
+      // If DB is empty, trigger initial sync
+      if (tasksData.length === 0) {
+        console.log('No tasks in DB, triggering initial sync...');
+        handleSyncTasks();
+        return;
+      }
+      
       // Set last update from most recent synced_at
       if (dbTasks && dbTasks.length > 0) {
         const mostRecent = dbTasks.reduce((max: any, t: any) => 
