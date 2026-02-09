@@ -140,3 +140,6 @@ verify_jwt = false
 
 [functions.process-scheduled-whatsapp]
 verify_jwt = false
+
+[functions.check-portuguese]
+verify_jwt = false
