@@ -10,7 +10,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { 
   User, Calendar, Briefcase, DollarSign, TrendingUp, CheckSquare, 
   FileText, Phone, MapPin, Mail, IdCard, Award, Cake, CalendarCheck,
-  ArrowLeft, Clock, FileSignature, Palmtree, Heart, MessageSquare, Plus
+  ArrowLeft, Clock, FileSignature, Palmtree, Heart, MessageSquare, Plus, Camera
 } from 'lucide-react';
 import { useStartConversation } from '@/hooks/useStartConversation';
 import { supabase } from '@/integrations/supabase/client';
