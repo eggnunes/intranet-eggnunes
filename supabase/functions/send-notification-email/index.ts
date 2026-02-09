@@ -50,7 +50,7 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
           ${data.description ? `<p>${data.description}</p>` : ''}
           <a href="${data.actionUrl}" class="button">Ver Tarefa</a>
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
 
@@ -67,7 +67,7 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
           <p>Esta tarefa está próxima do prazo de entrega. Não se esqueça de concluí-la!</p>
           <a href="${data.actionUrl}" class="button">Ver Tarefa</a>
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
 
@@ -84,7 +84,7 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
           <p>Esta tarefa está atrasada. Por favor, verifique e atualize o status.</p>
           <a href="${data.actionUrl}" class="button">Ver Tarefa</a>
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
 
@@ -103,7 +103,7 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
           </div>
           <a href="${data.actionUrl}" class="button">Revisar Solicitação</a>
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
 
@@ -120,7 +120,7 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
           ${data.comments ? `<p><strong>Comentários:</strong> ${data.comments}</p>` : ''}
           <a href="${data.actionUrl}" class="button">Ver Detalhes</a>
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
 
@@ -137,7 +137,7 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
           ${data.reason ? `<p><strong>Motivo:</strong> ${data.reason}</p>` : ''}
           <a href="${data.actionUrl}" class="button">Ver Detalhes</a>
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
 
@@ -155,7 +155,7 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
           </div>
           <a href="${data.actionUrl}" class="button">Ver Lançamento</a>
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
 
@@ -173,7 +173,7 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
           <p>${data.content}</p>
           <a href="${data.actionUrl}" class="button">Ver Comunicado</a>
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
 
@@ -191,7 +191,7 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
           </div>
           <a href="${data.actionUrl}" class="button">Ver Detalhes</a>
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
 
@@ -208,7 +208,7 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
           ${data.reason ? `<p><strong>Motivo:</strong> ${data.reason}</p>` : ''}
           <a href="${data.actionUrl}" class="button">Ver Detalhes</a>
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
 
@@ -226,7 +226,7 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
           </div>
           <a href="${data.actionUrl}" class="button">Revisar Solicitação</a>
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
 
@@ -237,11 +237,11 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
         <div class="header" style="background: linear-gradient(135deg, #ec4899 0%, #f472b6 100%);"><h1>🎂 Feliz Aniversário!</h1></div>
         <div class="content">
           <p style="font-size: 18px;">Olá <strong>${data.userName}</strong>,</p>
-          <p style="font-size: 16px;">Hoje é um dia muito especial! Toda a equipe do Egg Nunes Advogados deseja a você um feliz aniversário!</p>
+          <p style="font-size: 16px;">Hoje é um dia muito especial! Toda a equipe do Egg Nunes Advogados Associados deseja a você um feliz aniversário!</p>
           <p>Que este novo ano de vida seja repleto de conquistas, alegrias e realizações!</p>
           <p style="font-size: 24px; text-align: center;">🎉🎈🎁</p>
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
 
@@ -259,7 +259,7 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
           </div>
           <a href="${data.actionUrl}" class="button">Ver Resposta</a>
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
 
@@ -276,7 +276,7 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
           </div>
           <a href="${data.actionUrl}" class="button">Ver Mensagem</a>
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
 
@@ -294,7 +294,7 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
           </div>
           <a href="${data.actionUrl}" class="button">Ver Negócio</a>
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
 
@@ -312,7 +312,7 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
           ${data.notes ? `<p><strong>Notas:</strong> ${data.notes}</p>` : ''}
           <a href="${data.actionUrl}" class="button">Ver Follow-up</a>
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
 
@@ -326,7 +326,7 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
           <p>${data.message}</p>
           ${data.actionUrl ? `<a href="${data.actionUrl}" class="button">Ver Mais</a>` : ''}
         </div>
-        <div class="footer">Egg Nunes Advogados - Sistema de Gestão Interna</div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
   };
