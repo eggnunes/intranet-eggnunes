@@ -4,11 +4,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MessageCircle, Clock, FileText, Tag } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 import { ConversationList } from '@/components/whatsapp/ConversationList';
 import { ChatArea, InternalComment } from '@/components/whatsapp/ChatArea';
 import { ScheduledMessages } from '@/components/whatsapp/ScheduledMessages';
 import { TemplatesManager } from '@/components/whatsapp/TemplatesManager';
 import { TagsManager } from '@/components/whatsapp/TagsManager';
+import { ZapiConnectionBanner } from '@/components/whatsapp/ZapiConnectionBanner';
+import { useZapiConnection } from '@/hooks/useZapiConnection';
 
 interface Conversation {
   id: string;
@@ -41,12 +44,14 @@ interface Message {
 
 export default function WhatsAppAvisos() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [comments, setComments] = useState<InternalComment[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const zapiConnection = useZapiConnection();
 
   const fetchConversations = useCallback(async () => {
     const { data, error } = await supabase
@@ -175,6 +180,15 @@ export default function WhatsAppAvisos() {
   ) => {
     if (!selectedConversation) return;
 
+    // Warn if disconnected but don't block
+    if (zapiConnection.connected === false) {
+      toast({
+        title: 'Z-API desconectada',
+        description: 'A mensagem será enviada, mas pode não ser entregue. Verifique a conexão.',
+        variant: 'destructive',
+      });
+    }
+
     const bodyMap: Record<string, any> = {
       text: { action: 'send-message', phone: selectedConversation.phone, message: content, skipFooter: true },
       audio: { action: 'send-audio', phone: selectedConversation.phone, audioUrl: mediaUrl },
@@ -191,7 +205,7 @@ export default function WhatsAppAvisos() {
     await fetchMessages(selectedConversation.id);
     await fetchConversations();
     return data;
-  }, [selectedConversation, fetchMessages, fetchConversations]);
+  }, [selectedConversation, fetchMessages, fetchConversations, zapiConnection.connected, toast]);
 
   const handleCommentSent = useCallback(() => {
     if (selectedConversation) {
@@ -241,6 +255,15 @@ export default function WhatsAppAvisos() {
           <p className="text-muted-foreground text-sm">Gerencie mensagens WhatsApp com clientes</p>
         </div>
 
+        <ZapiConnectionBanner
+          connected={zapiConnection.connected}
+          loading={zapiConnection.loading}
+          error={zapiConnection.error}
+          settingUpWebhooks={zapiConnection.settingUpWebhooks}
+          onRefresh={zapiConnection.checkConnection}
+          onSetupWebhooks={zapiConnection.setupWebhooks}
+        />
+
         <Tabs defaultValue="conversas" className="w-full">
           <TabsList>
             <TabsTrigger value="conversas" className="gap-2">
@@ -282,6 +305,7 @@ export default function WhatsAppAvisos() {
                   userId={user?.id || ''}
                   onCommentSent={handleCommentSent}
                   onConversationUpdated={handleConversationUpdated}
+                  zapiConnected={zapiConnection.connected}
                 />
               </div>
             </div>
