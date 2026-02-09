@@ -1,189 +1,90 @@
 
-# Comentarios Internos, Tags, Responsaveis e Filtros no WhatsApp Avisos
+# Correção do Envio de Mensagens e Diagnóstico Z-API
 
-## Resumo
-Adicionar ao modulo WhatsApp Avisos: comentarios internos visiveis apenas para colaboradores (com marcacao de colegas via @), sistema de tags coloridas por contato, edicao de nome do contato, atribuicao de responsaveis e setores, filtros avancados na lista de conversas, e notificacoes em tempo real quando alguem for mencionado.
+## Problema Identificado
+A Z-API aceita a chamada da API e retorna sucesso (HTTP 200), mas a mensagem nao e de fato entregue ao destinatario. A tabela de eventos de webhook esta completamente vazia e a funcao webhook nunca foi acionada, o que indica que:
+1. A instancia Z-API pode estar com o WhatsApp desconectado (sem sessao ativa)
+2. Os webhooks nunca foram registrados na instancia Z-API
+3. Nao existe nenhum indicador visual para o usuario saber se a Z-API esta conectada ou nao
 
----
+## Solucao
 
-## 1. Banco de Dados - Novas Tabelas e Colunas
+### 1. Adicionar Painel de Diagnostico e Status da Conexao Z-API
+Criar um componente `AdvboxDataStatus`-like para a Z-API que:
+- Ao abrir a pagina WhatsApp Avisos, executa automaticamente o `test-connection`
+- Exibe um banner no topo da pagina indicando:
+  - **Verde**: "Z-API conectada" (quando `connected: true`)
+  - **Vermelho**: "Z-API desconectada - mensagens nao serao entregues" (quando `connected: false`)
+  - **Amarelo**: "Verificando conexao..." (durante o carregamento)
+- Se desconectada, exibe instrucoes para o usuario reconectar no painel da Z-API
 
-### Tabela `whatsapp_internal_comments`
-Armazena comentarios internos que aparecem na timeline da conversa, mas nao sao enviados ao cliente.
+### 2. Adicionar Botao "Configurar Webhooks"
+No painel de diagnostico, adicionar um botao que:
+- Chama a action `setup-webhooks` da edge function `zapi-send-message`
+- Registra os webhooks necessarios na instancia Z-API
+- Mostra resultado (quantos webhooks configurados com sucesso)
+- Isso garante que eventos de entrega/leitura cheguem ao sistema
 
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | uuid (PK) | Identificador |
-| conversation_id | uuid (FK -> whatsapp_conversations) | Conversa relacionada |
-| author_id | uuid (FK -> profiles) | Quem escreveu o comentario |
-| content | text | Texto do comentario |
-| created_at | timestamptz | Data/hora |
+### 3. Validar Conexao Antes de Enviar Mensagem
+Modificar o fluxo de envio para:
+- Verificar o status da conexao antes de tentar enviar
+- Se a Z-API estiver desconectada, mostrar aviso ao usuario antes de enviar (mas permitir o envio se ele quiser)
+- Adicionar feedback visual mais claro sobre o status de entrega
 
-### Tabela `whatsapp_comment_mentions`
-Registra quais colaboradores foram marcados em cada comentario (para gerar notificacoes).
-
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | uuid (PK) | Identificador |
-| comment_id | uuid (FK -> whatsapp_internal_comments) | Comentario |
-| mentioned_user_id | uuid (FK -> profiles) | Colaborador mencionado |
-| created_at | timestamptz | Data/hora |
-
-### Tabela `whatsapp_tags`
-Cadastro global de tags reutilizaveis.
-
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | uuid (PK) | Identificador |
-| name | text (unique) | Nome da tag (ex: "VIP", "Urgente") |
-| color | text | Cor em hex (ex: "#FF5733") |
-| created_by | uuid | Quem criou |
-| created_at | timestamptz | Data/hora |
-
-### Tabela `whatsapp_conversation_tags`
-Relacao N:N entre conversas e tags.
-
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | uuid (PK) | Identificador |
-| conversation_id | uuid (FK -> whatsapp_conversations) | Conversa |
-| tag_id | uuid (FK -> whatsapp_tags) | Tag |
-| created_at | timestamptz | Data/hora |
-| UNIQUE(conversation_id, tag_id) | | Sem duplicatas |
-
-### Tabela `whatsapp_conversation_assignees`
-Colaboradores responsaveis pela conversa (pode ter mais de um).
-
-| Coluna | Tipo | Descricao |
-|--------|------|-----------|
-| id | uuid (PK) | Identificador |
-| conversation_id | uuid (FK -> whatsapp_conversations) | Conversa |
-| user_id | uuid (FK -> profiles) | Colaborador responsavel |
-| created_at | timestamptz | Data/hora |
-| UNIQUE(conversation_id, user_id) | | Sem duplicatas |
-
-### Coluna nova em `whatsapp_conversations`
-- `sector` text (nullable) - Setor responsavel: 'comercial', 'operacional', 'financeiro' ou null
-
-### Configuracao
-- RLS habilitado em todas as tabelas (acesso para usuarios autenticados)
-- Realtime habilitado para `whatsapp_internal_comments` (comentarios aparecem em tempo real)
+### 4. Melhorar Feedback de Entrega
+- Apos enviar uma mensagem, se o status nao mudar de "sent" para "delivered" em 30 segundos, mostrar um alerta discreto
+- Usar polling como fallback para verificar status das mensagens recentes, ja que os webhooks podem nao estar configurados
 
 ---
 
-## 2. Notificacoes em Tempo Real
-
-### Mecanismo
-Quando um comentario interno e criado com mencoes (@usuario), o sistema:
-1. Insere o comentario em `whatsapp_internal_comments`
-2. Insere registros em `whatsapp_comment_mentions` para cada usuario mencionado
-3. Insere notificacoes na tabela `user_notifications` existente para cada mencionado
-4. O hook `useNotifications` ja existente captura as novas notificacoes via Realtime e exibe o toast
-
-### Trigger no banco de dados
-Um trigger `AFTER INSERT` na tabela `whatsapp_comment_mentions` criara automaticamente uma notificacao em `user_notifications` para o colaborador mencionado, com:
-- `title`: "Voce foi mencionado no WhatsApp"
-- `message`: Trecho do comentario + nome do contato
-- `action_url`: "/whatsapp-avisos"
-- `type`: "whatsapp_mention"
-
-Isso tambem sera aplicado ao sistema de mensagens internas (tabela `messages`): um trigger similar detectara mencoes com "@" no conteudo da mensagem e gerara notificacoes em `user_notifications`.
-Nas mensagens internas, o usuário será notificado não só quando for selecionado o @ dele, mas também quando receber uma mensagem direcionada a ele. Nesse caso, as notificações poderiam o ocorrer como um pop-up que aparece por alguns segundos no canto inferior direito da tela, inclusive quando a janela estiver minimizada. 
-
----
-
-## 3. Frontend - Novos Componentes
-
-### 3.1 Painel Lateral de Detalhes do Contato
-Novo componente `ContactDetailsPanel.tsx` que abre ao clicar no header da conversa:
-- **Editar nome do contato** (campo editavel inline)
-- **Setor**: Dropdown com opcoes Comercial, Operacional, Financeiro
-- **Responsaveis**: Multi-select de colaboradores (busca na tabela `profiles`)
-- **Tags**: Exibicao das tags atuais + adicionar/remover tags existentes + criar nova tag inline
-
-### 3.2 Bolha de Comentario Interno
-No `ChatArea.tsx`, alem das mensagens normais, exibir comentarios internos intercalados na timeline por data/hora. A bolha tera:
-- Fundo bege/amarelo claro (`bg-amber-50 dark:bg-amber-900/20`) com borda (`border-amber-200`)
-- Icone de cadeado ou etiqueta "Interno"
-- Nome do autor
-- Conteudo com mencoes destacadas em azul
-- Nao tem status de entrega (nao e mensagem real)
-
-### 3.3 Input de Comentario Interno
-Botao no `MessageInput.tsx` (icone de nota/comentario) que alterna o modo de envio entre "mensagem" e "comentario interno". Quando ativado:
-- O campo de texto muda a borda para amarelo/bege
-- Placeholder muda para "Escrever comentario interno..."
-- Ao digitar "@", aparece lista de colaboradores para mencao
-- O envio salva em `whatsapp_internal_comments` (nao envia via Z-API)
-
-### 3.4 Aba de Tags
-Nova aba "Tags" nas tabs do WhatsApp Avisos:
-- Lista todas as tags cadastradas com nome, cor e contagem de uso
-- Botao para criar nova tag (nome + seletor de cor)
-- Botao para editar e excluir tags
-
-### 3.5 Filtros na Lista de Conversas
-No `ConversationList.tsx`, adicionar icone de filtro que expande um painel com:
-- **Responsavel**: Dropdown multi-select de colaboradores
-- **Setor**: Checkbox para Comercial, Operacional, Financeiro
-- **Tag**: Multi-select de tags disponiveis
-- **Telefone**: Campo de busca (ja existe, manter)
-- **Nome do cliente**: Campo de busca (ja existe, manter)
-- **Status**: Com/sem mensagens nao lidas
-- Badge indicando quantos filtros estao ativos
-
-### 3.6 Exibicao de Tags e Responsaveis na Lista de Conversas
-Cada card de conversa na lista lateral exibira:
-- Badges coloridos das tags atribuidas (compactos)
-- Avatar pequeno dos responsaveis atribuidos
-
----
-
-## 4. Arquivos a Criar
-
-| Arquivo | Descricao |
-|---------|-----------|
-| `src/components/whatsapp/ContactDetailsPanel.tsx` | Painel lateral com detalhes, edicao de nome, setor, responsaveis e tags |
-| `src/components/whatsapp/TagsManager.tsx` | Aba de gestao de tags (CRUD) |
-| `src/components/whatsapp/ConversationFilters.tsx` | Painel de filtros avancados |
-| `src/components/whatsapp/InternalCommentInput.tsx` | Input alternativo para comentarios internos com @mencoes |
-| 1 migration SQL | Todas as tabelas, colunas, RLS, triggers e realtime |
-
-## 5. Arquivos a Modificar
+## Arquivos a Modificar
 
 | Arquivo | Mudancas |
 |---------|----------|
-| `src/components/whatsapp/ChatArea.tsx` | Exibir comentarios internos intercalados, header clicavel para abrir detalhes |
-| `src/components/whatsapp/MessageInput.tsx` | Botao para alternar modo comentario, integracao com @mencoes |
-| `src/components/whatsapp/ConversationList.tsx` | Exibir tags/responsaveis, integrar filtros, receber props de filtro |
-| `src/pages/WhatsAppAvisos.tsx` | Nova aba "Tags", carregar dados de tags/responsaveis, passar filtros, carregar comentarios junto com mensagens |
+| `src/pages/WhatsAppAvisos.tsx` | Adicionar verificacao de status da conexao ao carregar pagina, banner de status, botao de configurar webhooks |
+| `src/components/whatsapp/ChatArea.tsx` | Exibir alerta quando Z-API esta desconectada no header do chat |
+| `src/components/whatsapp/MessageInput.tsx` | Receber prop de status da conexao e exibir aviso se desconectada |
 
-## 6. Notificacoes nas Mensagens Internas
-
-Para o sistema de mensagens internas entre colaboradores (pagina Mensagens):
-- Criar um trigger no banco que detecta mencoes "@nome" em mensagens da tabela `messages`
-- Resolver o nome mencionado para o user_id correspondente na tabela `profiles`
-- Inserir notificacao em `user_notifications` com `action_url` apontando para `/mensagens`
-- O sistema de notificacoes existente ja cuida de exibir o toast em tempo real
+### Nenhum arquivo novo necessario
+As mudancas serao integradas aos componentes existentes.
 
 ---
 
 ## Detalhes Tecnicos
 
-### Consulta combinada de mensagens + comentarios
-No `WhatsAppAvisos.tsx`, ao carregar mensagens de uma conversa:
-1. Buscar `whatsapp_messages` filtrado por `conversation_id`
-2. Buscar `whatsapp_internal_comments` filtrado por `conversation_id`, com join em `profiles` para nome do autor
-3. Unificar em uma lista ordenada por `created_at` com um campo `_type: 'message' | 'comment'`
-4. Renderizar cada item com a bolha adequada
+### Verificacao de Conexao (WhatsAppAvisos.tsx)
+Ao montar a pagina, chamar:
+```text
+supabase.functions.invoke('zapi-send-message', {
+  body: { action: 'test-connection' }
+})
+```
 
-### Mencoes com "@"
-- Ao digitar "@" no input de comentario, buscar colaboradores ativos da tabela `profiles`
-- Exibir dropdown flutuante filtrado pelo texto apos "@"
-- Ao selecionar, inserir o nome formatado no texto: `@NomeCompleto`
-- Ao salvar, extrair mencoes do texto e inserir em `whatsapp_comment_mentions`
+Armazenar o resultado em estado:
+- `zapiConnected: boolean | null` (null = verificando)
+- `zapiStatus: object` (dados completos do status)
 
-### Filtros
-- Os filtros serao aplicados no frontend combinando os dados carregados
-- Para tags e responsaveis, carregar as relacoes junto com as conversas via queries separadas (evitar joins complexos que podem falhar no PostgREST)
-- Manter estado dos filtros no componente pai `WhatsAppAvisos.tsx`
+### Banner de Status
+Exibido acima das tabs:
+- Se `zapiConnected === null`: "Verificando conexao com Z-API..."
+- Se `zapiConnected === false`: "Z-API desconectada. Mensagens nao serao entregues. Reconecte no painel da Z-API e clique em 'Configurar Webhooks'."
+- Se `zapiConnected === true`: Exibir discretamente ou ocultar
+
+### Botao Setup Webhooks
+Visivel sempre, chama:
+```text
+supabase.functions.invoke('zapi-send-message', {
+  body: { action: 'setup-webhooks' }
+})
+```
+Exibe toast com resultado.
+
+### Validacao Pre-Envio
+No `handleSendMessage`, verificar `zapiConnected`:
+- Se `false`, exibir toast de aviso (mas nao bloquear o envio)
+- Se `null` (nao verificado), enviar normalmente
+
+### Polling de Status (fallback)
+Implementar um intervalo de 60 segundos que verifica o status da conexao:
+- Se estava conectado e desconectou, mostrar alerta
+- Atualizar o banner em tempo real
