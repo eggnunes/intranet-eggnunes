@@ -49,32 +49,33 @@ function formatDate(dateStr: string): string {
   return dateStr;
 }
 
-function buildReminderMessage(customerName: string, value: number, dueDate: string, reminderType: string): string {
+function buildReminderMessage(customerName: string, value: number, dueDate: string, reminderType: string, invoiceUrl?: string): string {
   const firstName = customerName.split(' ')[0];
   const formattedValue = formatCurrency(value);
   const formattedDate = formatDate(dueDate);
+  const linkPagamento = invoiceUrl ? `\n\nSegue o link para pagamento: ${invoiceUrl}` : '';
 
   switch (reminderType) {
     case 'before_10':
-      return `Olá, *${firstName}*! 👋\n\nEste é um aviso do escritório *Egg Nunes Advogados Associados*.\n\nInformamos que você possui um boleto no valor de *${formattedValue}* com vencimento previsto para *${formattedDate}* (daqui a 10 dias).\n\nPara sua comodidade, sugerimos o pagamento antecipado para evitar contratempos.\n\nCaso já tenha efetuado o pagamento, desconsidere esta mensagem.\n\nAtenciosamente,\n*Egg Nunes Advogados Associados*`;
+      return `Olá, *${firstName}*! 👋\n\nEste é um aviso do escritório *Egg Nunes Advogados Associados*.\n\nInformamos que você possui um boleto no valor de *${formattedValue}* com vencimento previsto para *${formattedDate}* (daqui a 10 dias).${linkPagamento}\n\nCaso já tenha efetuado o pagamento, desconsidere esta mensagem.\n\nAtenciosamente,\n*Egg Nunes Advogados Associados*`;
 
     case 'before_5':
-      return `Olá, *${firstName}*! 👋\n\nLembrete do escritório *Egg Nunes Advogados Associados*:\n\nSeu boleto no valor de *${formattedValue}* vence em *${formattedDate}* (daqui a 5 dias).\n\nPedimos a gentileza de providenciar o pagamento até a data de vencimento para evitar encargos adicionais.\n\nSe já efetuou o pagamento, desconsidere esta mensagem.\n\nAtenciosamente,\n*Egg Nunes Advogados Associados*`;
+      return `Olá, *${firstName}*! 👋\n\nLembrete do escritório *Egg Nunes Advogados Associados*:\n\nSeu boleto no valor de *${formattedValue}* vence em *${formattedDate}* (daqui a 5 dias).${linkPagamento}\n\nSe já efetuou o pagamento, desconsidere esta mensagem.\n\nAtenciosamente,\n*Egg Nunes Advogados Associados*`;
 
     case 'due_date':
-      return `Olá, *${firstName}*! 👋\n\n⚠️ *Lembrete Importante* - *Egg Nunes Advogados Associados*\n\nSeu boleto no valor de *${formattedValue}* vence *hoje* (*${formattedDate}*).\n\nPedimos que providencie o pagamento para evitar juros e multa por atraso.\n\nCaso já tenha efetuado o pagamento, desconsidere esta mensagem.\n\nAtenciosamente,\n*Egg Nunes Advogados Associados*`;
+      return `Olá, *${firstName}*! 👋\n\n*Lembrete* - *Egg Nunes Advogados Associados*\n\nSeu boleto no valor de *${formattedValue}* vence *hoje* (*${formattedDate}*).${linkPagamento}\n\nCaso já tenha efetuado o pagamento, desconsidere esta mensagem.\n\nAtenciosamente,\n*Egg Nunes Advogados Associados*`;
 
     case 'after_2':
-      return `Olá, *${firstName}*! 👋\n\nInformamos que consta em nosso sistema um boleto no valor de *${formattedValue}* que venceu em *${formattedDate}* e encontra-se com *2 dias em atraso*.\n\nCaso já tenha efetuado o pagamento, por favor desconsidere esta mensagem. Caso contrário, pedimos a gentileza de regularizar o quanto antes para evitar encargos adicionais.\n\nAgradecemos a compreensão! 🙏\n\nAtenciosamente,\n*Egg Nunes Advogados Associados*`;
+      return `Olá, *${firstName}*! 👋\n\nInformamos que consta em nosso sistema um boleto no valor de *${formattedValue}* que venceu em *${formattedDate}* e encontra-se com *2 dias em atraso*.\n\nCaso já tenha efetuado o pagamento, por favor desconsidere esta mensagem. Caso contrário, pedimos a gentileza de regularizar o quanto antes para evitar encargos adicionais.${linkPagamento}\n\nAgradecemos a compreensão! 🙏\n\nAtenciosamente,\n*Egg Nunes Advogados Associados*`;
 
     case 'after_5':
-      return `Olá, *${firstName}*! 👋\n\nGostaríamos de informar que consta em nosso sistema um boleto pendente no valor de *${formattedValue}*, vencido em *${formattedDate}*, com *5 dias em atraso*.\n\nPedimos a gentileza de providenciar a regularização o mais breve possível para evitar demais encargos.\n\nCaso tenha alguma dúvida ou dificuldade, entre em contato conosco pelos nossos canais oficiais.\n\nAtenciosamente,\n*Egg Nunes Advogados Associados*`;
+      return `Olá, *${firstName}*! 👋\n\nGostaríamos de informar que consta em nosso sistema um boleto pendente no valor de *${formattedValue}*, vencido em *${formattedDate}*, com *5 dias em atraso*.\n\nPedimos a gentileza de providenciar a regularização o mais breve possível para evitar demais encargos.${linkPagamento}\n\nCaso tenha alguma dúvida ou dificuldade, entre em contato conosco pelos nossos canais oficiais.\n\nAtenciosamente,\n*Egg Nunes Advogados Associados*`;
 
     case 'after_10':
-      return `Prezado(a) *${firstName}*,\n\nInformamos que consta em nosso sistema uma pendência financeira referente ao boleto no valor de *${formattedValue}*, vencido em *${formattedDate}*, com *10 dias em atraso*.\n\nSolicitamos a regularização urgente desta pendência para evitar medidas administrativas adicionais.\n\nPara tratar sobre esta questão, entre em contato conosco através dos nossos canais oficiais.\n\nAtenciosamente,\n*Egg Nunes Advogados Associados*`;
+      return `Prezado(a) *${firstName}*,\n\nInformamos que consta em nosso sistema uma pendência financeira referente ao boleto no valor de *${formattedValue}*, vencido em *${formattedDate}*, com *10 dias em atraso*.\n\nSolicitamos a regularização urgente desta pendência para evitar medidas administrativas adicionais.${linkPagamento}\n\nPara tratar sobre esta questão, entre em contato conosco através dos nossos canais oficiais.\n\nAtenciosamente,\n*Egg Nunes Advogados Associados*`;
 
     default:
-      return `Olá, *${firstName}*! Este é um aviso do escritório *Egg Nunes Advogados Associados* sobre seu boleto no valor de *${formattedValue}* com vencimento em *${formattedDate}*.`;
+      return `Olá, *${firstName}*! Este é um aviso do escritório *Egg Nunes Advogados Associados* sobre seu boleto no valor de *${formattedValue}* com vencimento em *${formattedDate}*.${linkPagamento}`;
   }
 }
 
@@ -311,7 +312,8 @@ Deno.serve(async (req) => {
             customerName,
             payment.value,
             payment.dueDate,
-            reminderType
+            reminderType,
+            payment.invoiceUrl
           );
 
           const result = await sendZAPIMessage(payment.customerPhone, message);

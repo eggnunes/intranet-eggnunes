@@ -243,7 +243,7 @@ serve(async (req) => {
               ` : ''}
               
               <p style="margin-top: 20px; font-size: 12px; color: #999;">
-                Este é um email automático do Sistema Financeiro da Egg Nunes Advocacia.
+                Este é um email automático do Sistema Financeiro da Egg Nunes Advogados Associados.
               </p>
             </div>
           </div>
@@ -260,7 +260,7 @@ serve(async (req) => {
               Authorization: `Bearer ${RESEND_API_KEY}`,
             },
             body: JSON.stringify({
-              from: `Egg Nunes Financeiro <${FROM_EMAIL}>`,
+              from: `Egg Nunes Advogados Associados - Financeiro <${FROM_EMAIL}>`,
               to: [profile.email],
               subject: `📊 Resumo Financeiro - ${summaryData.periodo}`,
               html,
