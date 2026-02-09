@@ -60,53 +60,78 @@ async function saveMessageAndUpdateConversation(
   mediaUrl: string | null, mediaMimeType: string | null, mediaFilename: string | null,
   zapiResult: any, userId: string, appendFooter: boolean
 ) {
-  const cleanPhone = validateBrazilianPhone(phone);
-  const zapiMessageId = zapiResult?.zaapId || zapiResult?.messageId || null;
+  try {
+    const cleanPhone = validateBrazilianPhone(phone);
+    const zapiMessageId = zapiResult?.zaapId || zapiResult?.messageId || null;
 
-  // Upsert conversation
-  const { data: existingConv } = await supabase
-    .from('whatsapp_conversations')
-    .select('id')
-    .eq('phone', cleanPhone)
-    .maybeSingle();
+    console.log(`[Z-API] saveMessage: phone=${cleanPhone}, type=${messageType}, zapiId=${zapiMessageId}`);
 
-  let conversationId: string;
-  const preview = content?.substring(0, 100) || `[${messageType}]`;
+    // Upsert conversation
+    const { data: existingConv, error: convError } = await supabase
+      .from('whatsapp_conversations')
+      .select('id')
+      .eq('phone', cleanPhone)
+      .maybeSingle();
 
-  if (existingConv) {
-    conversationId = existingConv.id;
-    await supabase.from('whatsapp_conversations').update({
-      last_message_text: preview,
-      last_message_at: new Date().toISOString(),
-    }).eq('id', conversationId);
-  } else {
-    const { data: newConv } = await supabase.from('whatsapp_conversations').insert({
+    if (convError) {
+      console.error(`[Z-API] Error finding conversation: ${JSON.stringify(convError)}`);
+    }
+
+    let conversationId: string;
+    const preview = content?.substring(0, 100) || `[${messageType}]`;
+
+    if (existingConv) {
+      conversationId = existingConv.id;
+      const { error: updateError } = await supabase.from('whatsapp_conversations').update({
+        last_message_text: preview,
+        last_message_at: new Date().toISOString(),
+      }).eq('id', conversationId);
+      if (updateError) {
+        console.error(`[Z-API] Error updating conversation: ${JSON.stringify(updateError)}`);
+      }
+    } else {
+      const { data: newConv, error: insertConvError } = await supabase.from('whatsapp_conversations').insert({
+        phone: cleanPhone,
+        last_message_text: preview,
+        last_message_at: new Date().toISOString(),
+        unread_count: 0,
+      }).select('id').single();
+      if (insertConvError) {
+        console.error(`[Z-API] Error creating conversation: ${JSON.stringify(insertConvError)}`);
+      }
+      conversationId = newConv?.id;
+    }
+
+    if (!conversationId) {
+      console.error(`[Z-API] No conversation ID found for phone ${cleanPhone}`);
+      return;
+    }
+
+    console.log(`[Z-API] Inserting message into conversation ${conversationId}`);
+
+    const { error: msgError } = await supabase.from('whatsapp_messages').insert({
+      conversation_id: conversationId,
       phone: cleanPhone,
-      last_message_text: preview,
-      last_message_at: new Date().toISOString(),
-      unread_count: 0,
-    }).select('id').single();
-    conversationId = newConv?.id;
+      direction: 'outbound',
+      message_type: messageType,
+      content: content,
+      media_url: mediaUrl,
+      media_mime_type: mediaMimeType,
+      media_filename: mediaFilename,
+      zapi_message_id: zapiMessageId,
+      status: 'sent',
+      sent_by: userId,
+      is_from_me: true,
+    });
+
+    if (msgError) {
+      console.error(`[Z-API] Error inserting message: ${JSON.stringify(msgError)}`);
+    } else {
+      console.log(`[Z-API] ✓ Message saved to whatsapp_messages for ${cleanPhone}`);
+    }
+  } catch (err) {
+    console.error(`[Z-API] saveMessage exception: ${err instanceof Error ? err.message : String(err)}`);
   }
-
-  if (!conversationId) return;
-
-  await supabase.from('whatsapp_messages').insert({
-    conversation_id: conversationId,
-    phone: cleanPhone,
-    direction: 'outbound',
-    message_type: messageType,
-    content: content,
-    media_url: mediaUrl,
-    media_mime_type: mediaMimeType,
-    media_filename: mediaFilename,
-    zapi_message_id: zapiMessageId,
-    status: 'sent',
-    sent_by: userId,
-    is_from_me: true,
-  });
-
-  console.log(`[Z-API] ✓ Message saved to whatsapp_messages for ${cleanPhone}`);
 }
 
 serve(async (req) => {
