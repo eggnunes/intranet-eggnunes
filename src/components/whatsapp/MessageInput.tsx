@@ -313,7 +313,7 @@ export function MessageInput({ onSendMessage, conversationPhone, onToggleComment
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip"
+          accept="*/*"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
