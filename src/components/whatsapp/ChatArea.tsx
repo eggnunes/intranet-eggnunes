@@ -66,6 +66,7 @@ interface ChatAreaProps {
   userId: string;
   onCommentSent: () => void;
   onConversationUpdated: (conv: Partial<Conversation>) => void;
+  zapiConnected?: boolean | null;
 }
 
 function formatPhone(phone: string): string {
@@ -418,7 +419,7 @@ function GlobalSearch({ onSelectConversation }: { onSelectConversation: (convId:
   );
 }
 
-export function ChatArea({ conversation, messages, comments, loading, onSendMessage, userId, onCommentSent, onConversationUpdated }: ChatAreaProps) {
+export function ChatArea({ conversation, messages, comments, loading, onSendMessage, userId, onCommentSent, onConversationUpdated, zapiConnected }: ChatAreaProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -505,14 +506,23 @@ export function ChatArea({ conversation, messages, comments, loading, onSendMess
             onClick={() => setShowDetails(true)}
             className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
           >
-            <div className="h-10 w-10 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
-              <MessageCircle className="h-5 w-5 text-green-600" />
+            <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+              zapiConnected === false ? 'bg-red-500/20' : 'bg-green-500/20'
+            }`}>
+              <MessageCircle className={`h-5 w-5 ${
+                zapiConnected === false ? 'text-red-600' : 'text-green-600'
+              }`} />
             </div>
             <div className="min-w-0 flex-1">
               <p className="font-medium text-sm truncate text-foreground">
                 {conversation.contact_name || formatPhone(conversation.phone)}
               </p>
-              <p className="text-xs text-muted-foreground">{formatPhone(conversation.phone)}</p>
+              <p className="text-xs text-muted-foreground">
+                {formatPhone(conversation.phone)}
+                {zapiConnected === false && (
+                  <span className="ml-1.5 text-red-500">• Desconectada</span>
+                )}
+              </p>
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           </button>
