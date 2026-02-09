@@ -5,11 +5,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Dialog ID do template de aniversário aprovado pela Meta no ChatGuru
+const BIRTHDAY_DIALOG_ID = '6977a8b42fc8f7656b256f9b';
+
 // Brazilian phone validation regex: country code (55) + DDD (2 digits, 11-99) + number (8-9 digits)
 const BRAZILIAN_PHONE_REGEX = /^55[1-9][0-9]9?[0-9]{8}$/;
-
-const WHATSAPP_OFICIAL = '553132268742';
-const FOOTER_AVISO = `\n\n⚠️ *Este número é exclusivo para envio de avisos e informativos do escritório Egg Nunes Advogados Associados.*\nPara entrar em contato conosco, utilize nosso canal oficial:\n📞 WhatsApp Oficial: https://wa.me/${WHATSAPP_OFICIAL}\n\n_Não responda esta mensagem._`;
 
 // Interval between messages: 3 minutes (180000ms)
 const BULK_INTERVAL_MS = 3 * 60 * 1000;
@@ -26,7 +26,7 @@ function getSafeErrorMessage(error: Error | unknown): string {
   if (errorMessage.includes('telefone inválido') || errorMessage.includes('formato')) {
     return 'Número de telefone inválido';
   }
-  if (errorMessage.includes('Z-API') || errorMessage.includes('API') || errorMessage.includes('comunicação')) {
+  if (errorMessage.includes('ChatGuru') || errorMessage.includes('API') || errorMessage.includes('comunicação')) {
     return 'Erro ao enviar mensagem';
   }
   if (errorMessage.includes('credentials') || errorMessage.includes('Credenciais')) {
@@ -47,53 +47,128 @@ function validateBrazilianPhone(phone: string): string {
   return fullPhone;
 }
 
-async function sendWhatsAppMessageViaZAPI(phone: string, customerName: string): Promise<{ zaapId?: string; success: boolean }> {
-  const ZAPI_INSTANCE_ID = (Deno.env.get('ZAPI_INSTANCE_ID') || '').trim();
-  const ZAPI_TOKEN = (Deno.env.get('ZAPI_TOKEN') || '').trim();
-  const ZAPI_CLIENT_TOKEN = (Deno.env.get('ZAPI_CLIENT_TOKEN') || '').trim();
+async function setChatStatusToAttending(phone: string): Promise<boolean> {
+  const CHATGURU_API_KEY = Deno.env.get('CHATGURU_API_KEY');
+  const CHATGURU_ACCOUNT_ID = Deno.env.get('CHATGURU_ACCOUNT_ID');
+  const CHATGURU_PHONE_ID = Deno.env.get('CHATGURU_PHONE_ID');
 
-  console.log(`[Z-API] Credentials debug - Instance ID length: ${ZAPI_INSTANCE_ID.length}, Token length: ${ZAPI_TOKEN.length}, Client Token length: ${ZAPI_CLIENT_TOKEN.length}`);
+  console.log(`[ChatGuru] Setting chat status to "em atendimento" for ${phone}`);
 
-  if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN || !ZAPI_CLIENT_TOKEN) {
-    throw new Error('Credenciais da Z-API não configuradas');
+  const params = new URLSearchParams({
+    key: CHATGURU_API_KEY!,
+    account_id: CHATGURU_ACCOUNT_ID!,
+    phone_id: CHATGURU_PHONE_ID!,
+    action: 'chat_edit',
+    chat_number: phone,
+    status: 'em atendimento',
+  });
+
+  const url = `https://s17.chatguru.app/api/v1?${params.toString()}`;
+
+  try {
+    const response = await fetch(url, { method: 'POST' });
+    const responseText = await response.text();
+    console.log('[ChatGuru] chat_edit (status) response:', responseText);
+
+    const data = JSON.parse(responseText);
+    if (data.result === 'success') {
+      console.log('[ChatGuru] Chat status changed to "em atendimento" successfully');
+      return true;
+    }
+    console.warn('[ChatGuru] Failed to change chat status:', data);
+    return false;
+  } catch (error) {
+    console.error('[ChatGuru] Error changing chat status:', error);
+    return false;
+  }
+}
+
+async function sendBirthdayViaDialog(phone: string, customerName: string): Promise<{ messageId?: string; success: boolean }> {
+  const CHATGURU_API_KEY = Deno.env.get('CHATGURU_API_KEY');
+  const CHATGURU_ACCOUNT_ID = Deno.env.get('CHATGURU_ACCOUNT_ID');
+  const CHATGURU_PHONE_ID = Deno.env.get('CHATGURU_PHONE_ID');
+
+  if (!CHATGURU_API_KEY || !CHATGURU_ACCOUNT_ID || !CHATGURU_PHONE_ID) {
+    throw new Error('Credenciais do ChatGuru não configuradas');
   }
 
   const fullPhone = validateBrazilianPhone(phone);
-  console.log(`[Z-API] Sending birthday message to ${fullPhone} for ${customerName}`);
+  console.log(`[ChatGuru] Sending birthday dialog to ${fullPhone} for ${customerName} (dialog_id: ${BIRTHDAY_DIALOG_ID})`);
 
-  // Build birthday message
-  const firstName = customerName.split(' ')[0];
-  const birthdayMessage = `🎂 *Feliz Aniversário, ${firstName}!* 🎉\n\nO escritório *Egg Nunes Advogados Associados* deseja a você um dia repleto de alegrias, realizações e muita saúde!\n\nQue este novo ciclo traga conquistas incríveis. Parabéns! 🥳` + FOOTER_AVISO;
-
-  const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-text`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Client-Token': ZAPI_CLIENT_TOKEN,
-    },
-    body: JSON.stringify({
-      phone: fullPhone,
-      message: birthdayMessage,
-    }),
+  // Step 1: Try dialog_execute for existing chats
+  console.log('[ChatGuru] Attempting dialog_execute for existing chat...');
+  const dialogParams = new URLSearchParams({
+    key: CHATGURU_API_KEY,
+    account_id: CHATGURU_ACCOUNT_ID,
+    phone_id: CHATGURU_PHONE_ID,
+    action: 'dialog_execute',
+    chat_number: fullPhone,
+    dialog_id: BIRTHDAY_DIALOG_ID,
   });
 
-  const responseText = await response.text();
-  console.log(`[Z-API] Response status: ${response.status}, body: ${responseText}`);
+  const dialogUrl = `https://s17.chatguru.app/api/v1?${dialogParams.toString()}`;
+  console.log('[ChatGuru] Full URL (redacted key):', dialogUrl.replace(CHATGURU_API_KEY, 'REDACTED'));
 
-  if (!response.ok) {
-    throw new Error(`Z-API error (${response.status}): ${responseText}`);
-  }
+  const dialogResponse = await fetch(dialogUrl, { method: 'POST' });
+  const dialogResponseText = await dialogResponse.text();
+  console.log('[ChatGuru] dialog_execute response:', dialogResponseText);
 
-  let data;
+  let dialogData;
   try {
-    data = JSON.parse(responseText);
+    dialogData = JSON.parse(dialogResponseText);
   } catch {
+    console.error('[ChatGuru] Failed to parse dialog response:', dialogResponseText.substring(0, 200));
     throw new Error('Erro de comunicação com serviço de mensagens');
   }
 
-  return { zaapId: data.zaapId || data.messageId, success: true };
+  if (dialogData.result === 'success') {
+    console.log('[ChatGuru] Message sent successfully via dialog_execute');
+    await setChatStatusToAttending(fullPhone);
+    return { messageId: dialogData.message_id, success: true };
+  }
+
+  // Step 2: If chat not found, try chat_add with dialog_id
+  if (dialogData.description?.includes('Chat não encontrado') || dialogData.code === 400) {
+    console.log('[ChatGuru] Chat not found, attempting chat_add with dialog_id...');
+
+    const chatAddParams = new URLSearchParams({
+      key: CHATGURU_API_KEY,
+      account_id: CHATGURU_ACCOUNT_ID,
+      phone_id: CHATGURU_PHONE_ID,
+      action: 'chat_add',
+      chat_number: fullPhone,
+      name: customerName,
+      text: 'aniversario_cliente',
+      dialog_id: BIRTHDAY_DIALOG_ID,
+    });
+
+    const chatAddUrl = `https://s17.chatguru.app/api/v1?${chatAddParams.toString()}`;
+    console.log('[ChatGuru] chat_add URL (redacted key):', chatAddUrl.replace(CHATGURU_API_KEY, 'REDACTED'));
+
+    const chatAddResponse = await fetch(chatAddUrl, { method: 'POST' });
+    const chatAddResponseText = await chatAddResponse.text();
+    console.log('[ChatGuru] chat_add response:', chatAddResponseText);
+
+    let chatAddData;
+    try {
+      chatAddData = JSON.parse(chatAddResponseText);
+    } catch {
+      console.error('[ChatGuru] Failed to parse chat_add response:', chatAddResponseText.substring(0, 200));
+      throw new Error('Erro de comunicação com serviço de mensagens');
+    }
+
+    if (chatAddData.result === 'success') {
+      console.log('[ChatGuru] Chat created and dialog scheduled successfully');
+      await setChatStatusToAttending(fullPhone);
+      return { messageId: chatAddData.message_id, success: true };
+    }
+
+    console.error('[ChatGuru] chat_add error:', chatAddData);
+    throw new Error('Falha ao criar conversa no WhatsApp');
+  }
+
+  console.error('[ChatGuru] API error:', dialogData);
+  throw new Error('Falha ao enviar mensagem via WhatsApp');
 }
 
 Deno.serve(async (req) => {
@@ -102,7 +177,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('Starting birthday message automation via Z-API...');
+    console.log('Starting birthday message automation via ChatGuru...');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -143,29 +218,15 @@ Deno.serve(async (req) => {
 
     console.log('Admin verification passed for user:', user.id);
 
-    // === Z-API SUSPENSO TEMPORARIAMENTE ===
-    // O número de WhatsApp de avisos foi restrito pela Meta.
-    // Envio suspenso até aquecimento do número. Aguardando reativação.
-    console.log('⚠️ [SUSPENSO] Envio de mensagens de aniversário via Z-API está temporariamente suspenso.');
-    return new Response(
-      JSON.stringify({
-        success: false,
-        message: 'Envio de mensagens de aniversário está temporariamente suspenso. O número de WhatsApp de avisos está em processo de aquecimento. As mensagens serão reativadas em breve.',
-        suspended: true,
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-    );
-    // === FIM DA SUSPENSÃO ===
+    // Verify ChatGuru credentials
+    const CHATGURU_API_KEY = Deno.env.get('CHATGURU_API_KEY');
+    const CHATGURU_ACCOUNT_ID = Deno.env.get('CHATGURU_ACCOUNT_ID');
+    const CHATGURU_PHONE_ID = Deno.env.get('CHATGURU_PHONE_ID');
 
-    // Verify Z-API credentials
-    const ZAPI_INSTANCE_ID = (Deno.env.get('ZAPI_INSTANCE_ID') || '').trim();
-    const ZAPI_TOKEN = (Deno.env.get('ZAPI_TOKEN') || '').trim();
-    const ZAPI_CLIENT_TOKEN = (Deno.env.get('ZAPI_CLIENT_TOKEN') || '').trim();
-
-    if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN || !ZAPI_CLIENT_TOKEN) {
-      throw new Error('Credenciais da Z-API não configuradas');
+    if (!CHATGURU_API_KEY || !CHATGURU_ACCOUNT_ID || !CHATGURU_PHONE_ID) {
+      throw new Error('Credenciais do ChatGuru não configuradas');
     }
-    console.log('[Z-API] Credentials verified');
+    console.log('[ChatGuru] Credentials verified');
 
     // Get today's date
     const today = new Date();
@@ -265,28 +326,16 @@ Deno.serve(async (req) => {
       try {
         console.log(`[${i + 1}/${customersToMessage.length}] Sending birthday message to ${customer.name} (${customer.phone})`);
 
-        const zapiResponse = await sendWhatsAppMessageViaZAPI(customer.phone!, customer.name);
+        const chatguruResponse = await sendBirthdayViaDialog(customer.phone!, customer.name);
 
         // Log in birthday log table
         await supabase.from('chatguru_birthday_messages_log').insert({
           customer_id: customer.id,
           customer_name: customer.name,
           customer_phone: customer.phone,
-          message_text: `Mensagem de aniversário enviada via Z-API para ${customer.name}`,
+          message_text: `Mensagem de aniversário enviada via ChatGuru (template) para ${customer.name}`,
           status: 'sent',
-          chatguru_message_id: zapiResponse.zaapId || null,
-        });
-
-        // Also log in Z-API log table
-        await supabase.from('zapi_messages_log').insert({
-          customer_id: customer.id,
-          customer_name: customer.name,
-          customer_phone: customer.phone!.replace(/\D/g, ''),
-          message_text: `Mensagem de aniversário para ${customer.name}`,
-          message_type: 'aniversario',
-          status: 'sent',
-          zapi_message_id: zapiResponse.zaapId || null,
-          sent_by: user.id,
+          chatguru_message_id: chatguruResponse.messageId || null,
         });
 
         results.sent++;
@@ -310,17 +359,6 @@ Deno.serve(async (req) => {
           error_message: safeError,
         });
 
-        await supabase.from('zapi_messages_log').insert({
-          customer_id: customer.id,
-          customer_name: customer.name,
-          customer_phone: customer.phone!.replace(/\D/g, ''),
-          message_text: `Falha no envio de aniversário para ${customer.name}`,
-          message_type: 'aniversario',
-          status: 'failed',
-          error_message: safeError,
-          sent_by: user.id,
-        });
-
         results.failed++;
         results.errors.push({ customer: customer.name, error: safeError });
 
@@ -336,7 +374,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Automação de mensagens de aniversário concluída (via Z-API)',
+        message: 'Automação de mensagens de aniversário concluída (via ChatGuru)',
         results,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
