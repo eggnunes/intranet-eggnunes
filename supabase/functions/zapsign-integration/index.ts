@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 const ZAPSIGN_API_URL = 'https://api.zapsign.com.br/api/v1';
@@ -290,9 +290,26 @@ serve(async (req) => {
 
     if (!response.ok) {
       console.error('Erro na API ZapSign:', responseText);
+      
+      let userMessage = 'Erro inesperado na API do ZapSign. Tente novamente.';
+      if (response.status === 402) {
+        userMessage = 'O plano de API do ZapSign está inativo ou expirado. Acesse o painel do ZapSign em Configurações > Planos e Preços para verificar/renovar o plano.';
+      } else if (response.status === 401) {
+        userMessage = 'Token de API do ZapSign inválido ou expirado. Verifique a configuração do token.';
+      } else if (response.status === 400) {
+        userMessage = 'Dados inválidos enviados para o ZapSign. Verifique as informações do documento e tente novamente.';
+      } else if (response.status === 429) {
+        userMessage = 'Limite de requisições da API do ZapSign atingido. Aguarde alguns minutos e tente novamente.';
+      }
+      
       return new Response(
-        JSON.stringify({ error: 'Erro ao criar documento no ZapSign', details: responseText, status: response.status }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          error: 'Erro ao criar documento no ZapSign', 
+          details: responseText, 
+          zapSignStatus: response.status,
+          userMessage,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
