@@ -60,7 +60,8 @@ export default function TarefasAdvbox() {
   const [loadingTaskTypes, setLoadingTaskTypes] = useState(false);
   const [loadingAdvboxUsers, setLoadingAdvboxUsers] = useState(false);
   const [metadata, setMetadata] = useState<any>(null);
-  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(initialCache?.lastUpdate);
+  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
+  const [syncing, setSyncing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [assignedFilter, setAssignedFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
