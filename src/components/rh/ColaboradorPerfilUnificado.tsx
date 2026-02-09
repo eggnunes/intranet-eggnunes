@@ -195,18 +195,37 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
       if (!pagamentosRes.error) {
         const pags = pagamentosRes.data as Pagamento[];
         setPagamentos(pags);
+
+        // Buscar reembolsos para cada pagamento
+        const pagIds = pags.map(p => p.id);
+        let reembolsosMap: Record<string, number> = {};
+        if (pagIds.length > 0) {
+          const { data: reembolsosData } = await supabase
+            .from('rh_pagamento_itens')
+            .select('pagamento_id, valor')
+            .eq('rubrica_id', '47d8ce78-a5c8-4eb4-8799-420a97e144db')
+            .in('pagamento_id', pagIds);
+          
+          (reembolsosData || []).forEach((item: any) => {
+            reembolsosMap[item.pagamento_id] = (reembolsosMap[item.pagamento_id] || 0) + (item.valor || 0);
+          });
+        }
+        setReembolsosPorPagamento(reembolsosMap);
         
-        // Preparar dados para gráfico
+        // Preparar dados para gráfico (já com reembolsos abatidos)
         const startDate = format(subMonths(new Date(), 12), 'yyyy-MM-dd');
         const pagamentosRecentes = pags.filter(p => p.mes_referencia >= startDate);
         const pagamentosFormatados = pagamentosRecentes
           .sort((a, b) => a.mes_referencia.localeCompare(b.mes_referencia))
-          .map(p => ({
-            mes: formatMesReferencia(p.mes_referencia, 'MMM/yy'),
-            total_liquido: p.total_liquido,
-            total_vantagens: p.total_vantagens,
-            total_descontos: p.total_descontos
-          }));
+          .map(p => {
+            const reembolso = reembolsosMap[p.id] || 0;
+            return {
+              mes: formatMesReferencia(p.mes_referencia, 'MMM/yy'),
+              total_liquido: p.total_liquido - reembolso,
+              total_vantagens: p.total_vantagens - reembolso,
+              total_descontos: p.total_descontos
+            };
+          });
         setPagamentosGrafico(pagamentosFormatados);
       }
 
