@@ -54,32 +54,48 @@ export default function RelatoriosProdutividadeTarefas() {
   const fetchTasks = async (forceRefresh = false) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('advbox-integration/tasks', {
-        body: { force_refresh: forceRefresh },
-      });
+      if (forceRefresh) {
+        // Trigger sync first
+        await supabase.functions.invoke('sync-advbox-tasks', {
+          body: { sync_type: 'full' },
+        });
+      }
 
-      if (error) throw error;
+      // Fetch from database
+      const { data: dbTasks, error: dbError } = await supabase
+        .from('advbox_tasks')
+        .select('advbox_id, title, description, due_date, completed_at, status, assigned_users, process_number, points, synced_at')
+        .order('due_date', { ascending: false });
 
-      // A resposta vem como: { data: { data: { data: [...], offset, limit, totalCount } } }
-      const apiResponse = data?.data || data;
-      const tasksData = apiResponse?.data || [];
+      if (dbError) throw dbError;
 
-      // Buscar prioridades do banco
+      // Fetch priorities
       const { data: priorities } = await supabase
         .from('task_priorities')
         .select('task_id, priority');
 
-      const tasksWithPriorities = tasksData.map((task: Task) => {
-        const priorityData = priorities?.find((p) => p.task_id === task.id);
+      const tasksData: Task[] = (dbTasks || []).map((t: any) => {
+        const priorityData = priorities?.find((p) => p.task_id === String(t.advbox_id));
         return {
-          ...task,
+          id: String(t.advbox_id),
+          title: t.title || 'Sem título',
+          description: t.description || '',
+          due_date: t.due_date,
+          status: t.status || 'pending',
+          assigned_to: t.assigned_users || '',
+          completed_at: t.completed_at,
           priority: priorityData?.priority as 'alta' | 'media' | 'baixa' | undefined,
         };
       });
       
-      setTasks(Array.isArray(tasksWithPriorities) ? tasksWithPriorities : []);
-      setMetadata(data?.metadata);
-      setLastUpdate(new Date());
+      setTasks(tasksData);
+      setMetadata({ fromCache: false });
+
+      if (dbTasks && dbTasks.length > 0) {
+        const mostRecent = dbTasks.reduce((max: any, t: any) => 
+          !max || (t.synced_at && t.synced_at > max) ? t.synced_at : max, null);
+        if (mostRecent) setLastUpdate(new Date(mostRecent));
+      }
 
       if (forceRefresh) {
         toast({
@@ -92,7 +108,7 @@ export default function RelatoriosProdutividadeTarefas() {
       setTasks([]);
       toast({
         title: 'Erro ao carregar tarefas',
-        description: 'Não foi possível carregar as tarefas do Advbox.',
+        description: 'Não foi possível carregar as tarefas.',
         variant: 'destructive',
       });
     } finally {

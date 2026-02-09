@@ -569,20 +569,11 @@ export default function TarefasAdvbox() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={() => {
-                // Limpar cache local
-                localStorage.removeItem(CACHE_KEY);
-                localStorage.removeItem(CACHE_TIMESTAMP_KEY);
-                setTasks([]);
-                toast({
-                  title: 'Cache limpo',
-                  description: 'Buscando dados atualizados...',
-                });
-                fetchTasks(true);
-              }}
+              onClick={handleSyncTasks}
+              disabled={syncing}
             >
               <Flag className="h-4 w-4 mr-2" />
-              Atualizar dados
+              {syncing ? 'Sincronizando...' : 'Atualizar dados'}
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={(open) => {

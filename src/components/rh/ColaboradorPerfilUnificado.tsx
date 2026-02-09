@@ -229,39 +229,33 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
 
   const fetchPontuacaoAdvbox = async (colaboradorData: Colaborador) => {
     try {
-      const { data: tasksData, error } = await supabase.functions.invoke('advbox-integration/tasks', {
-        body: { force_refresh: false }
-      });
+      const colaboradorNome = colaboradorData.full_name || '';
+      if (!colaboradorNome) return;
+
+      // Query tasks from database filtered by collaborator name
+      const { data: tasks, error } = await supabase
+        .from('advbox_tasks')
+        .select('due_date, status, points, assigned_users')
+        .ilike('assigned_users', `%${colaboradorNome.split(' ')[0]}%`);
 
       if (error) {
         console.error('Erro ao buscar tarefas ADVBOX:', error);
         return;
       }
 
-      const tasks = tasksData?.data || tasksData || [];
-      
-      // Filtrar tarefas pelo nome do colaborador
-      const colaboradorNome = colaboradorData.full_name?.toLowerCase() || '';
-      const colaboradorTasks = tasks.filter((task: any) => {
-        const assignedTo = (task.assigned_to || task.assigned_users || '').toLowerCase();
-        return assignedTo.includes(colaboradorNome.split(' ')[0]);
-      });
-
-      // Agrupar por mês
+      // Group by month
       const porMes: Record<string, { concluidas: number; total: number }> = {};
       
-      colaboradorTasks.forEach((task: any) => {
-        const dueDate = task.due_date || task.deadline;
-        if (!dueDate) return;
+      (tasks || []).forEach((task: any) => {
+        if (!task.due_date) return;
         
-        const mes = formatMesReferencia(dueDate.substring(0, 10), 'MMM/yy');
+        const mes = formatMesReferencia(task.due_date.substring(0, 10), 'MMM/yy');
         if (!porMes[mes]) {
           porMes[mes] = { concluidas: 0, total: 0 };
         }
         porMes[mes].total++;
         
-        const status = (task.status || '').toLowerCase();
-        if (status === 'concluída' || status === 'completed' || status === 'done') {
+        if (task.status === 'completed') {
           porMes[mes].concluidas++;
         }
       });
