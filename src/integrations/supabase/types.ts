@@ -424,6 +424,111 @@ export type Database = {
         }
         Relationships: []
       }
+      advbox_tasks: {
+        Row: {
+          advbox_id: number
+          assigned_user_ids: Json | null
+          assigned_users: string | null
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          lawsuit_id: number | null
+          points: number
+          process_number: string | null
+          raw_data: Json | null
+          status: string
+          synced_at: string
+          task_type: string | null
+          task_type_id: number | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          advbox_id: number
+          assigned_user_ids?: Json | null
+          assigned_users?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          lawsuit_id?: number | null
+          points?: number
+          process_number?: string | null
+          raw_data?: Json | null
+          status?: string
+          synced_at?: string
+          task_type?: string | null
+          task_type_id?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          advbox_id?: number
+          assigned_user_ids?: Json | null
+          assigned_users?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          lawsuit_id?: number | null
+          points?: number
+          process_number?: string | null
+          raw_data?: Json | null
+          status?: string
+          synced_at?: string
+          task_type?: string | null
+          task_type_id?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      advbox_tasks_sync_status: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          last_offset: number | null
+          started_at: string | null
+          status: string
+          sync_type: string
+          total_count: number | null
+          total_synced: number | null
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          last_offset?: number | null
+          started_at?: string | null
+          status?: string
+          sync_type?: string
+          total_count?: number | null
+          total_synced?: number | null
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          last_offset?: number | null
+          started_at?: string | null
+          status?: string
+          sync_type?: string
+          total_count?: number | null
+          total_synced?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ai_agent_favorites: {
         Row: {
           agent_url: string

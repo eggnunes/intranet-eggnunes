@@ -44,32 +44,11 @@ interface Task {
   notes?: string;
 }
 
-const CACHE_KEY = 'advbox-tarefas-cache';
-const CACHE_TIMESTAMP_KEY = 'advbox-tarefas-cache-timestamp';
-
-const loadFromCache = () => {
-  try {
-    const cached = localStorage.getItem(CACHE_KEY);
-    const timestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
-    if (cached && timestamp) {
-      const data = JSON.parse(cached);
-      return {
-        tasks: data,
-        lastUpdate: new Date(timestamp)
-      };
-    }
-  } catch (error) {
-    console.error('Error loading tasks from cache:', error);
-  }
-  return null;
-};
-
-// Carregar cache FORA do componente para evitar recálculos
-const initialCache = loadFromCache();
+// Removed localStorage cache - data now comes from database
 
 export default function TarefasAdvbox() {
-  const [tasks, setTasks] = useState<Task[]>(initialCache?.tasks || []);
-  const [loading, setLoading] = useState(!initialCache);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
@@ -81,7 +60,8 @@ export default function TarefasAdvbox() {
   const [loadingTaskTypes, setLoadingTaskTypes] = useState(false);
   const [loadingAdvboxUsers, setLoadingAdvboxUsers] = useState(false);
   const [metadata, setMetadata] = useState<any>(null);
-  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(initialCache?.lastUpdate);
+  const [lastUpdate, setLastUpdate] = useState<Date | undefined>(undefined);
+  const [syncing, setSyncing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [assignedFilter, setAssignedFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
@@ -225,105 +205,109 @@ export default function TarefasAdvbox() {
     }
   };
 
-  const fetchTasks = async (forceRefresh = false) => {
-    // Só mostrar loading se não tiver dados
+  const fetchTasks = async () => {
     if (tasks.length === 0) {
       setLoading(true);
     }
     
     try {
-      const { data, error } = await supabase.functions.invoke('advbox-integration/tasks', {
-        body: { force_refresh: forceRefresh },
-      });
+      // Fetch tasks from the database (instant)
+      const { data: dbTasks, error: dbError } = await supabase
+        .from('advbox_tasks')
+        .select('advbox_id, title, description, due_date, completed_at, status, assigned_users, process_number, task_type, points, synced_at')
+        .order('due_date', { ascending: false });
 
-      if (error) throw error;
+      if (dbError) throw dbError;
 
-      // A resposta vem como: { data: { data: { data: [...], offset, limit, totalCount } } }
-      const apiResponse = data?.data || data;
-      const rawTasksData = apiResponse?.data || [];
-
-      // Se não recebeu dados válidos mas tinha cache, manter o cache
-      if (rawTasksData.length === 0 && tasks.length > 0 && !forceRefresh) {
-        console.log('No new data received, keeping cached tasks');
-        setMetadata(data?.metadata);
-        setLoading(false);
-        return;
-      }
-
-      // Mapear campos da API para o formato esperado pelo frontend
-      const tasksData = rawTasksData.map((apiTask: any) => {
-        // Extrair responsáveis do array de users
-        const assignedUsers = apiTask.users?.map((u: any) => u.name).filter(Boolean) || [];
-        const assignedTo = assignedUsers.join(', ');
-        
-        // Usar date_deadline se disponível, senão date
-        const dueDate = apiTask.date_deadline || apiTask.date || null;
-        
-        // Extrair número do processo
-        const processNumber = apiTask.lawsuit?.process_number || null;
-        
-        // Determinar status baseado em se algum usuário completou
-        const hasCompleted = apiTask.users?.some((u: any) => u.completed !== null);
-        const status = hasCompleted ? 'completed' : 'pending';
-        
-        return {
-          id: String(apiTask.id),
-          title: apiTask.task || 'Sem título',
-          description: apiTask.notes || '',
-          due_date: dueDate,
-          status: status,
-          assigned_to: assignedTo,
-          process_number: processNumber,
-          category: '', // Será detectado automaticamente pelo calendário
-        };
-      });
-
-      // Buscar prioridades do banco
+      // Fetch priorities
       const { data: priorities } = await supabase
         .from('task_priorities')
         .select('task_id, priority');
 
-      const tasksWithPriorities = tasksData.map((task: Task) => {
-        const priorityData = priorities?.find((p) => p.task_id === task.id);
+      const tasksData: Task[] = (dbTasks || []).map((t: any) => {
+        const priorityData = priorities?.find((p) => p.task_id === String(t.advbox_id));
         return {
-          ...task,
+          id: String(t.advbox_id),
+          title: t.title || 'Sem título',
+          description: t.description || '',
+          due_date: t.due_date,
+          status: t.status || 'pending',
+          assigned_to: t.assigned_users || '',
+          process_number: t.process_number || '',
+          category: '',
           priority: priorityData?.priority as 'alta' | 'media' | 'baixa' | undefined,
         };
       });
-      
-      if (tasksWithPriorities.length > 0) {
-        setTasks(tasksWithPriorities);
-        // Salvar no cache
-        localStorage.setItem(CACHE_KEY, JSON.stringify(tasksWithPriorities));
-        localStorage.setItem(CACHE_TIMESTAMP_KEY, new Date().toISOString());
-      }
-      
-      setMetadata(data?.metadata);
-      setLastUpdate(new Date());
 
-      if (forceRefresh) {
-        toast({
-          title: 'Dados atualizados',
-          description: 'As tarefas foram recarregadas.',
-        });
+      setTasks(tasksData);
+      
+      // If DB is empty, trigger initial sync
+      if (tasksData.length === 0) {
+        console.log('No tasks in DB, triggering initial sync...');
+        handleSyncTasks();
+        return;
       }
+      
+      // Set last update from most recent synced_at
+      if (dbTasks && dbTasks.length > 0) {
+        const mostRecent = dbTasks.reduce((max: any, t: any) => 
+          !max || (t.synced_at && t.synced_at > max) ? t.synced_at : max, null);
+        if (mostRecent) setLastUpdate(new Date(mostRecent));
+      }
+      
+      setMetadata({ fromCache: false });
     } catch (error) {
-      console.error('Error fetching tasks:', error);
-      // Manter dados em cache em caso de erro
+      console.error('Error fetching tasks from DB:', error);
       if (tasks.length === 0) {
         toast({
           title: 'Erro ao carregar tarefas',
-          description: 'Não foi possível carregar as tarefas do Advbox.',
+          description: 'Não foi possível carregar as tarefas.',
           variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'Usando dados em cache',
-          description: 'Não foi possível atualizar. Mostrando dados salvos anteriormente.',
         });
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSyncTasks = async () => {
+    setSyncing(true);
+    toast({
+      title: 'Sincronizando tarefas',
+      description: 'Buscando atualizações do ADVBox...',
+    });
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-advbox-tasks', {
+        body: { sync_type: 'full' },
+      });
+
+      if (error) throw error;
+      
+      if (data?.error) {
+        toast({
+          title: 'Sincronização parcial',
+          description: `${data.partial_count || 0} tarefas processadas. Erro: ${data.error}`,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Sincronização concluída',
+          description: `${data?.total_upserted || 0} tarefas atualizadas.`,
+        });
+      }
+
+      // Refetch from DB
+      await fetchTasks();
+    } catch (error) {
+      console.error('Error syncing tasks:', error);
+      toast({
+        title: 'Erro na sincronização',
+        description: 'Não foi possível sincronizar com o ADVBox.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -592,20 +576,11 @@ export default function TarefasAdvbox() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={() => {
-                // Limpar cache local
-                localStorage.removeItem(CACHE_KEY);
-                localStorage.removeItem(CACHE_TIMESTAMP_KEY);
-                setTasks([]);
-                toast({
-                  title: 'Cache limpo',
-                  description: 'Buscando dados atualizados...',
-                });
-                fetchTasks(true);
-              }}
+              onClick={handleSyncTasks}
+              disabled={syncing}
             >
               <Flag className="h-4 w-4 mr-2" />
-              Atualizar dados
+              {syncing ? 'Sincronizando...' : 'Atualizar dados'}
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={(open) => {
