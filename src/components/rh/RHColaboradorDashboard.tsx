@@ -127,7 +127,7 @@ export function RHColaboradorDashboard() {
       const [pagamentosRes, promocoesRes] = await Promise.all([
         supabase
           .from('rh_pagamentos')
-          .select('mes_referencia, total_liquido, total_vantagens, total_descontos')
+          .select('id, mes_referencia, total_liquido, total_vantagens, total_descontos')
           .eq('colaborador_id', colaboradorId)
           .gte('mes_referencia', startDate)
           .order('mes_referencia', { ascending: true }),
@@ -141,13 +141,33 @@ export function RHColaboradorDashboard() {
       if (pagamentosRes.error) throw pagamentosRes.error;
       if (promocoesRes.error) throw promocoesRes.error;
 
-      // Formatar pagamentos para o gráfico
-      const pagamentosFormatados = (pagamentosRes.data || []).map(p => ({
-        mes: format(new Date(p.mes_referencia), 'MMM/yy', { locale: ptBR }),
-        total_liquido: p.total_liquido,
-        total_vantagens: p.total_vantagens,
-        total_descontos: p.total_descontos
-      }));
+      // Buscar reembolsos
+      const pagIds = (pagamentosRes.data || []).map((p: any) => p.id);
+      let reembolsosMap: Record<string, number> = {};
+      if (pagIds.length > 0) {
+        const { data: reembolsosData } = await supabase
+          .from('rh_pagamento_itens')
+          .select('pagamento_id, valor')
+          .eq('rubrica_id', '47d8ce78-a5c8-4eb4-8799-420a97e144db')
+          .in('pagamento_id', pagIds);
+        
+        (reembolsosData || []).forEach((item: any) => {
+          reembolsosMap[item.pagamento_id] = (reembolsosMap[item.pagamento_id] || 0) + (item.valor || 0);
+        });
+      }
+      setReembolsosPorPagamento(reembolsosMap);
+
+      // Formatar pagamentos para o gráfico (com reembolsos abatidos)
+      const pagamentosFormatados = (pagamentosRes.data || []).map((p: any) => {
+        const reembolso = reembolsosMap[p.id] || 0;
+        return {
+          id: p.id,
+          mes: format(new Date(p.mes_referencia), 'MMM/yy', { locale: ptBR }),
+          total_liquido: p.total_liquido - reembolso,
+          total_vantagens: p.total_vantagens - reembolso,
+          total_descontos: p.total_descontos
+        };
+      });
 
       setPagamentosMensais(pagamentosFormatados);
       setPromocoes(promocoesRes.data || []);
