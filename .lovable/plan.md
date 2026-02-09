@@ -1,129 +1,52 @@
 
+# Alteracao de Foto pelo Admin + Abater Reembolsos no Historico
 
-# Corretor de Portugues - Ferramenta de Revisao Gramatical
+## 1. Permitir Admin Alterar Foto do Colaborador
 
-## Resumo
+**Arquivo:** `src/components/rh/ColaboradorPerfilUnificado.tsx`
 
-Criar uma ferramenta no menu "Inteligencia Artificial" que permite upload de PDF/DOCX, analisa o texto com IA (Lovable AI / Gemini) e apresenta um relatorio detalhado de erros de portugues, sem gerar documento corrigido.
+No cabecalho do perfil, onde aparece o Avatar (linhas 347-352), adicionar um botao de "Alterar Foto" visivel apenas para admins/socios. Ao clicar:
+- Abre um input de arquivo (imagem, max 5MB)
+- Faz upload para o storage `avatars` (mesmo bucket usado em Profile.tsx)
+- Atualiza o `avatar_url` no perfil do colaborador via `supabase.from('profiles').update()`
+- Atualiza o estado local para refletir a nova foto imediatamente
 
----
+Logica de upload identica a ja existente em `src/pages/Profile.tsx` (linhas 577-606): upload para `avatars/{colaboradorId}/{timestamp}.{ext}`, obter URL publica, salvar no perfil.
 
-## Arquivos a Criar
-
-### 1. `src/components/corretor/types.ts`
-Tipos TypeScript para a feature:
-- `ErroPortugues`: trecho, erro, tipo (ortografia | concordancia | regencia | pontuacao | crase | acentuacao | coesao | outro), sugestao, localizacao
-- `AnaliseResult`: lista de erros, resumo por categoria, total
-
-### 2. `src/components/corretor/CorretorUpload.tsx`
-Componente de upload com drag-and-drop:
-- Aceita apenas PDF e DOCX (max 20MB)
-- Converte arquivo para base64 ao selecionar
-- Botao "Analisar" que dispara a edge function
-- Barra de progresso durante processamento (componente Progress existente)
-
-### 3. `src/components/corretor/CorretorReport.tsx`
-Relatorio de erros encontrados:
-- Resumo geral com badges coloridos por categoria (ex: vermelho para ortografia, amarelo para pontuacao)
-- Tabela/lista detalhada com: trecho, descricao do erro, sugestao, localizacao
-- Filtro por tipo de erro
-- Botao de exportar relatorio (CSV ou texto)
-
-### 4. `src/pages/CorretorPortugues.tsx`
-Pagina principal usando Layout existente:
-- Titulo e descricao
-- CorretorUpload para selecao do arquivo
-- CorretorReport para exibicao dos resultados
-- Estados: idle, uploading, analyzing, done, error
-
-### 5. `supabase/functions/check-portuguese/index.ts`
-Edge function com dois passos:
-1. **Extracao de texto**: Envia o arquivo base64 para `google/gemini-2.5-flash` pedindo para extrair todo o texto do documento
-2. **Analise gramatical**: Envia o texto extraido para `google/gemini-2.5-pro` com prompt especializado em revisao de portugues brasileiro (norma culta), usando **tool calling** para retornar JSON estruturado
-
-O prompt instruira o modelo a:
-- Atuar como revisor especialista em lingua portuguesa brasileira
-- Categorizar erros em: ortografia, concordancia, regencia, pontuacao, crase, acentuacao, coesao, outro
-- Ignorar nomes proprios, termos juridicos tecnicos e citacoes legais
-- Indicar localizacao aproximada (paragrafo, pagina)
-- NAO corrigir, apenas listar erros
-
-Tratamento de erros 429 (rate limit) e 402 (creditos) com mensagens amigaveis.
+Visualmente: um icone de camera ou botao "Alterar Foto" sobreposto ao avatar, visivel apenas quando `isAdmin || isSocio`.
 
 ---
 
-## Arquivos a Modificar
+## 2. Abater Reembolsos do Historico de Pagamentos e Dashboard
 
-### 6. `src/components/AppSidebar.tsx`
-Adicionar item no grupo "INTELIGENCIA ARTIFICIAL":
-```text
-{ icon: SpellCheck, path: '/corretor-portugues', label: 'Corretor de Portugues' }
-```
+**Contexto:** A rubrica "Reembolso" tem ID `47d8ce78-a5c8-4eb4-8799-420a97e144db` e tipo `vantagem`. Quando um pagamento inclui essa rubrica, o valor do reembolso esta somado ao `total_liquido`, inflando o valor real pago ao colaborador.
 
-### 7. `src/App.tsx`
-Adicionar rota protegida:
-```text
-/corretor-portugues -> CorretorPortugues (dentro de ProtectedRoute)
-```
+**Solucao:** Nos locais onde se exibe o historico de pagamentos e metricas financeiras do colaborador, buscar os itens de pagamento que usam a rubrica de Reembolso e subtrair esse valor do total exibido.
 
-### 8. `supabase/config.toml`
-Registrar a nova edge function:
-```text
-[functions.check-portuguese]
-verify_jwt = false
-```
+### Arquivos a modificar:
+
+**a) `src/components/rh/ColaboradorPerfilUnificado.tsx`**
+
+- Ao buscar pagamentos (linha 153-158), tambem buscar `rh_pagamento_itens` filtrados pela rubrica de Reembolso para cada pagamento
+- Criar uma query adicional: `SELECT pagamento_id, SUM(valor) as total_reembolso FROM rh_pagamento_itens WHERE rubrica_id = '47d8ce78-...' AND pagamento_id IN (...) GROUP BY pagamento_id`
+- Subtrair `total_reembolso` do `total_liquido` e `total_vantagens` ao exibir na tabela (linha 615) e no grafico (linhas 196-207)
+- Ajustar o calculo de `totalPago` e `mediaMensal` (linha 336-337) para usar os valores ajustados
+
+**b) `src/components/rh/RHColaboradorDashboard.tsx`**
+
+- Mesma logica: ao buscar pagamentos (linhas 126-131), buscar tambem itens de reembolso
+- Subtrair reembolsos dos valores exibidos no grafico de evolucao e no card "Total Pago (12 meses)"
+
+### Importante:
+- Isso **NAO** altera os dados salvos no banco -- apenas a exibicao
+- A folha de pagamento em `RHPagamentos.tsx` continua mostrando o valor completo (com reembolso), pois la e o registro contabil real
+- Apenas o historico no perfil do colaborador e o dashboard individual abatam reembolsos da visualizacao
 
 ---
 
-## Detalhes Tecnicos
+## Resumo de Alteracoes
 
-### Tool Calling (Structured Output)
-A edge function usara tool calling para garantir resposta JSON tipada:
-
-```text
-tools: [{
-  type: "function",
-  function: {
-    name: "report_errors",
-    parameters: {
-      type: "object",
-      properties: {
-        erros: {
-          type: "array",
-          items: {
-            properties: {
-              trecho: { type: "string" },
-              erro: { type: "string" },
-              tipo: { type: "string", enum: [...] },
-              sugestao: { type: "string" },
-              localizacao: { type: "string" }
-            }
-          }
-        }
-      }
-    }
-  }
-}]
-```
-
-### Fluxo de Dados
-
-```text
-Usuario -> Upload PDF/DOCX (base64)
-  -> Edge Function check-portuguese
-    -> Gemini Flash: extrai texto
-    -> Gemini Pro: analisa erros (tool calling)
-  -> Retorna JSON com lista de erros
-  -> Frontend renderiza relatorio
-```
-
-### Cores dos Badges por Tipo
-- Ortografia: vermelho
-- Concordancia: laranja
-- Regencia: amarelo
-- Pontuacao: azul
-- Crase: roxo
-- Acentuacao: rosa
-- Coesao: verde
-- Outro: cinza
-
+| Arquivo | Mudanca |
+|---|---|
+| `ColaboradorPerfilUnificado.tsx` | Botao de alterar foto (admin/socio); Subtrair reembolsos do historico e grafico de pagamentos |
+| `RHColaboradorDashboard.tsx` | Subtrair reembolsos do grafico e metricas de pagamentos |
