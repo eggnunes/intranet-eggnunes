@@ -24,6 +24,7 @@ import {
   Sparkles,
   Search as SearchIcon,
   FileText,
+  SpellCheck,
   Briefcase,
   Cake,
   MessageCircle,
