@@ -7383,6 +7383,7 @@ export type Database = {
           quoted_message_id: string | null
           sent_by: string | null
           status: string
+          transcription: string | null
           zapi_message_id: string | null
         }
         Insert: {
@@ -7400,6 +7401,7 @@ export type Database = {
           quoted_message_id?: string | null
           sent_by?: string | null
           status?: string
+          transcription?: string | null
           zapi_message_id?: string | null
         }
         Update: {
@@ -7417,6 +7419,7 @@ export type Database = {
           quoted_message_id?: string | null
           sent_by?: string | null
           status?: string
+          transcription?: string | null
           zapi_message_id?: string | null
         }
         Relationships: [
