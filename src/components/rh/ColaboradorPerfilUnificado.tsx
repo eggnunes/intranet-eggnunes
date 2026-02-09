@@ -355,7 +355,7 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
     );
   }
 
-  const totalPago = pagamentos.reduce((acc, p) => acc + p.total_liquido, 0);
+  const totalPago = pagamentos.reduce((acc, p) => acc + p.total_liquido - (reembolsosPorPagamento[p.id] || 0), 0);
   const mediaMensal = pagamentos.length > 0 ? totalPago / pagamentos.length : 0;
   const totalTarefasConcluidas = pontuacaoAdvbox.reduce((acc, p) => acc + p.tarefas_concluidas, 0);
   const totalTarefas = pontuacaoAdvbox.reduce((acc, p) => acc + p.tarefas_atribuidas, 0);
