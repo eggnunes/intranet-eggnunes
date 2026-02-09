@@ -366,12 +366,64 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col md:flex-row items-start gap-6">
-            <Avatar className="h-24 w-24 border-4 border-primary/30">
-              <AvatarImage src={colaborador.avatar_url || undefined} />
-              <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-3xl">
-                {colaborador.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+            <div className="relative group">
+              <Avatar className="h-24 w-24 border-4 border-primary/30">
+                <AvatarImage src={colaborador.avatar_url || undefined} />
+                <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-3xl">
+                  {colaborador.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              {canEditPhoto && (
+                <>
+                  <input
+                    type="file"
+                    id={`avatar-upload-${colaboradorId}`}
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 5 * 1024 * 1024) {
+                        toast.error('A imagem deve ter no máximo 5MB');
+                        return;
+                      }
+                      setUploadingPhoto(true);
+                      try {
+                        const ext = file.name.split('.').pop();
+                        const filePath = `${colaboradorId}/${Date.now()}.${ext}`;
+                        const { error: uploadError } = await supabase.storage
+                          .from('avatars')
+                          .upload(filePath, file, { upsert: true });
+                        if (uploadError) throw uploadError;
+                        const { data: urlData } = supabase.storage
+                          .from('avatars')
+                          .getPublicUrl(filePath);
+                        const { error: updateError } = await supabase
+                          .from('profiles')
+                          .update({ avatar_url: urlData.publicUrl })
+                          .eq('id', colaboradorId);
+                        if (updateError) throw updateError;
+                        setColaborador(prev => prev ? { ...prev, avatar_url: urlData.publicUrl } : prev);
+                        toast.success('Foto atualizada com sucesso!');
+                      } catch (err: any) {
+                        toast.error('Erro ao atualizar foto: ' + err.message);
+                      } finally {
+                        setUploadingPhoto(false);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById(`avatar-upload-${colaboradorId}`)?.click()}
+                    disabled={uploadingPhoto}
+                    className="absolute bottom-0 right-0 bg-primary text-primary-foreground rounded-full p-1.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                    title="Alterar foto"
+                  >
+                    <Camera className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+            </div>
             <div className="flex-1">
               <h2 className="text-3xl font-bold">{colaborador.full_name}</h2>
               <p className="text-muted-foreground flex items-center gap-2 mt-1">
