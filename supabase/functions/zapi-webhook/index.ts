@@ -7,6 +7,21 @@ const corsHeaders = {
 };
 
 function extractEventType(payload: any): string {
+  // Filter out Z-API system callbacks - these are NOT actual messages
+  const systemCallbackTypes = ['ReceivedCallback', 'ConnectedCallback', 'DeliveryCallback', 'DisconnectedCallback', 'BatteryLevelCallback'];
+  if (payload.type && systemCallbackTypes.includes(payload.type)) {
+    if (payload.type === 'ConnectedCallback') return 'connection';
+    if (payload.type === 'DisconnectedCallback') return 'disconnection';
+    if (payload.type === 'BatteryLevelCallback') return 'battery_level';
+    if (payload.type === 'DeliveryCallback') return 'message_status';
+    if (payload.type === 'ReceivedCallback') {
+      // ReceivedCallback with notification field is a system notification, not a message
+      if (payload.notification) return 'system_notification';
+      return 'message_status';
+    }
+    return 'system_callback';
+  }
+
   if (payload.connected !== undefined && payload.smartphoneConnected !== undefined) {
     return payload.connected ? 'connection' : 'disconnection';
   }
@@ -116,6 +131,12 @@ async function syncToWhatsApp(supabase: any, eventType: string, payload: any) {
   const mediaFilename = extractMediaFilename(payload);
   const messageType = extractMessageType(payload) || 'text';
   const isFromMe = payload.fromMe === true;
+
+  // Don't save messages that have no content and no media - these are likely system events
+  if (!messageText && !mediaUrl) {
+    console.log(`[Z-API Webhook] Skipping ${direction} message for ${phone}: no content or media`);
+    return;
+  }
   const direction = isFromMe ? 'outbound' : 'inbound';
   const contactName = payload.senderName || payload.pushName || payload.notifyName || payload.chatName || null;
   const zapiMessageId = payload.messageId || payload.id?._serialized || payload.id?.id || null;
