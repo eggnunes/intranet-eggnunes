@@ -10,7 +10,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { 
   User, Calendar, Briefcase, DollarSign, TrendingUp, CheckSquare, 
   FileText, Phone, MapPin, Mail, IdCard, Award, Cake, CalendarCheck,
-  ArrowLeft, Clock, FileSignature, Palmtree, Heart, MessageSquare, Plus
+  ArrowLeft, Clock, FileSignature, Palmtree, Heart, MessageSquare, Plus, Camera
 } from 'lucide-react';
 import { useStartConversation } from '@/hooks/useStartConversation';
 import { supabase } from '@/integrations/supabase/client';
@@ -117,8 +117,11 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
   const [pontuacaoAdvbox, setPontuacaoAdvbox] = useState<PontuacaoAdvbox[]>([]);
   const [ferias, setFerias] = useState<Ferias[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [reembolsosPorPagamento, setReembolsosPorPagamento] = useState<Record<string, number>>({});
   
   const canManagePromocoes = isAdmin || isSocio;
+  const canEditPhoto = isAdmin || isSocio;
 
   useEffect(() => {
     fetchColaboradorCompleto();
@@ -192,18 +195,37 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
       if (!pagamentosRes.error) {
         const pags = pagamentosRes.data as Pagamento[];
         setPagamentos(pags);
+
+        // Buscar reembolsos para cada pagamento
+        const pagIds = pags.map(p => p.id);
+        let reembolsosMap: Record<string, number> = {};
+        if (pagIds.length > 0) {
+          const { data: reembolsosData } = await supabase
+            .from('rh_pagamento_itens')
+            .select('pagamento_id, valor')
+            .eq('rubrica_id', '47d8ce78-a5c8-4eb4-8799-420a97e144db')
+            .in('pagamento_id', pagIds);
+          
+          (reembolsosData || []).forEach((item: any) => {
+            reembolsosMap[item.pagamento_id] = (reembolsosMap[item.pagamento_id] || 0) + (item.valor || 0);
+          });
+        }
+        setReembolsosPorPagamento(reembolsosMap);
         
-        // Preparar dados para gráfico
+        // Preparar dados para gráfico (já com reembolsos abatidos)
         const startDate = format(subMonths(new Date(), 12), 'yyyy-MM-dd');
         const pagamentosRecentes = pags.filter(p => p.mes_referencia >= startDate);
         const pagamentosFormatados = pagamentosRecentes
           .sort((a, b) => a.mes_referencia.localeCompare(b.mes_referencia))
-          .map(p => ({
-            mes: formatMesReferencia(p.mes_referencia, 'MMM/yy'),
-            total_liquido: p.total_liquido,
-            total_vantagens: p.total_vantagens,
-            total_descontos: p.total_descontos
-          }));
+          .map(p => {
+            const reembolso = reembolsosMap[p.id] || 0;
+            return {
+              mes: formatMesReferencia(p.mes_referencia, 'MMM/yy'),
+              total_liquido: p.total_liquido - reembolso,
+              total_vantagens: p.total_vantagens - reembolso,
+              total_descontos: p.total_descontos
+            };
+          });
         setPagamentosGrafico(pagamentosFormatados);
       }
 
@@ -333,7 +355,7 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
     );
   }
 
-  const totalPago = pagamentos.reduce((acc, p) => acc + p.total_liquido, 0);
+  const totalPago = pagamentos.reduce((acc, p) => acc + p.total_liquido - (reembolsosPorPagamento[p.id] || 0), 0);
   const mediaMensal = pagamentos.length > 0 ? totalPago / pagamentos.length : 0;
   const totalTarefasConcluidas = pontuacaoAdvbox.reduce((acc, p) => acc + p.tarefas_concluidas, 0);
   const totalTarefas = pontuacaoAdvbox.reduce((acc, p) => acc + p.tarefas_atribuidas, 0);
@@ -344,12 +366,64 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col md:flex-row items-start gap-6">
-            <Avatar className="h-24 w-24 border-4 border-primary/30">
-              <AvatarImage src={colaborador.avatar_url || undefined} />
-              <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-3xl">
-                {colaborador.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+            <div className="relative group">
+              <Avatar className="h-24 w-24 border-4 border-primary/30">
+                <AvatarImage src={colaborador.avatar_url || undefined} />
+                <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-3xl">
+                  {colaborador.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              {canEditPhoto && (
+                <>
+                  <input
+                    type="file"
+                    id={`avatar-upload-${colaboradorId}`}
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 5 * 1024 * 1024) {
+                        toast.error('A imagem deve ter no máximo 5MB');
+                        return;
+                      }
+                      setUploadingPhoto(true);
+                      try {
+                        const ext = file.name.split('.').pop();
+                        const filePath = `${colaboradorId}/${Date.now()}.${ext}`;
+                        const { error: uploadError } = await supabase.storage
+                          .from('avatars')
+                          .upload(filePath, file, { upsert: true });
+                        if (uploadError) throw uploadError;
+                        const { data: urlData } = supabase.storage
+                          .from('avatars')
+                          .getPublicUrl(filePath);
+                        const { error: updateError } = await supabase
+                          .from('profiles')
+                          .update({ avatar_url: urlData.publicUrl })
+                          .eq('id', colaboradorId);
+                        if (updateError) throw updateError;
+                        setColaborador(prev => prev ? { ...prev, avatar_url: urlData.publicUrl } : prev);
+                        toast.success('Foto atualizada com sucesso!');
+                      } catch (err: any) {
+                        toast.error('Erro ao atualizar foto: ' + err.message);
+                      } finally {
+                        setUploadingPhoto(false);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById(`avatar-upload-${colaboradorId}`)?.click()}
+                    disabled={uploadingPhoto}
+                    className="absolute bottom-0 right-0 bg-primary text-primary-foreground rounded-full p-1.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                    title="Alterar foto"
+                  >
+                    <Camera className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+            </div>
             <div className="flex-1">
               <h2 className="text-3xl font-bold">{colaborador.full_name}</h2>
               <p className="text-muted-foreground flex items-center gap-2 mt-1">
@@ -613,7 +687,7 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
                           : '-'}
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {formatCurrency(p.total_liquido)}
+                        {formatCurrency(p.total_liquido - (reembolsosPorPagamento[p.id] || 0))}
                       </TableCell>
                       <TableCell>
                         <Badge className={getStatusColor(p.status)}>
