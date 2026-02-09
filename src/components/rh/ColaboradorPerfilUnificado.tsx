@@ -117,8 +117,11 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
   const [pontuacaoAdvbox, setPontuacaoAdvbox] = useState<PontuacaoAdvbox[]>([]);
   const [ferias, setFerias] = useState<Ferias[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [reembolsosPorPagamento, setReembolsosPorPagamento] = useState<Record<string, number>>({});
   
   const canManagePromocoes = isAdmin || isSocio;
+  const canEditPhoto = isAdmin || isSocio;
 
   useEffect(() => {
     fetchColaboradorCompleto();
