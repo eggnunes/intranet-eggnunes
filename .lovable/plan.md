@@ -1,82 +1,96 @@
 
-# Ajuste das Mensagens de Lembrete de Boleto e Correcao do Nome do Escritorio
+# Correcao do Erro 402 na Integracao ZapSign
 
-## Resumo
-Ajustar o tom das mensagens de lembrete de vencimento de boleto (antes e no dia do vencimento) para serem mais amigaveis, sem mencao a juros e multa. Incluir o link de pagamento do Asaas nas mensagens para facilitar o acesso do cliente. Corrigir o nome do escritorio em todas as funcoes que ainda usam variantes incorretas.
+## Diagnostico
 
----
+O erro **402 (Payment Required)** retornado pela API do ZapSign tem um significado especifico conforme a documentacao oficial:
 
-## 1. Ajuste das Mensagens de Lembrete (antes do vencimento e no dia)
+> **402 PAYMENT REQUIRED** - O cliente nao possui um plano de API ativo. No ambiente de producao, e obrigatorio ter um plano mensal para usar a API. Acesse Configuracoes > Planos e Precos.
 
-### Arquivo: `supabase/functions/asaas-boleto-reminders/index.ts`
+Isso indica que o **plano de API do ZapSign expirou ou nao esta ativo** na conta utilizada. O token de API (`ZAPSIGN_API_TOKEN`) esta configurado corretamente, mas a conta precisa ter um plano de API ativo para criar documentos em producao.
 
-**Mensagem `before_10` (10 dias antes)** - Ajuste leve:
-- Remover: "para evitar contratempos"
-- Manter tom amigavel de simples lembrete
-- Adicionar link de pagamento do Asaas (invoiceUrl)
+**Acao necessaria do usuario:** Acessar o painel do ZapSign em Configuracoes > Planos e Precos e verificar/renovar o plano de API.
 
-**Mensagem `before_5` (5 dias antes)** - Ajuste necessario:
-- Remover: "para evitar encargos adicionais"
-- Trocar por linguagem de simples lembrete
+## Problemas de Codigo Identificados
 
-**Mensagem `due_date` (no dia do vencimento)** - Ajuste principal:
-- Remover: "para evitar juros e multa por atraso"
-- Trocar por linguagem de lembrete amigavel, sem pressao
-
-**Mensagens `after_2`, `after_5`, `after_10` (apos vencimento)** - Manter a linguagem sobre encargos:
-- Estas ja sao mensagens de cobranca e devem mencionar possibilidade de juros e multa
-
-### Exemplo das mensagens ajustadas
-
-**10 dias antes:**
-"Informamos que voce possui um boleto no valor de R$ X com vencimento previsto para DD/MM/AAAA (daqui a 10 dias). Segue o link para pagamento: [link]. Caso ja tenha efetuado o pagamento, desconsidere esta mensagem."
-
-**5 dias antes:**
-"Seu boleto no valor de R$ X vence em DD/MM/AAAA (daqui a 5 dias). Segue o link para facilitar o pagamento: [link]. Se ja efetuou o pagamento, desconsidere esta mensagem."
-
-**No dia do vencimento:**
-"Seu boleto no valor de R$ X vence hoje (DD/MM/AAAA). Segue o link para pagamento: [link]. Caso ja tenha efetuado o pagamento, desconsidere esta mensagem."
-
-**Apos vencimento (manter tom firme):**
-- Manter as referencias a "encargos adicionais" e "medidas administrativas" que ja existem, pois sao mensagens de cobranca
+Alem da questao do plano, existem **3 problemas tecnicos** no codigo que precisam ser corrigidos para melhorar a experiencia e evitar erros futuros:
 
 ---
 
-## 2. Link de Pagamento do Asaas
+## 1. Headers CORS Incompletos
 
-A API do Asaas retorna dois campos uteis em cada cobranca:
-- `invoiceUrl`: Link da fatura online (ex: https://www.asaas.com/i/080225913252) - permite pagamento por boleto, PIX ou cartao
-- `bankSlipUrl`: Link direto do PDF do boleto
+O edge function `zapsign-integration` utiliza headers CORS basicos que nao incluem todos os headers enviados pelo cliente Supabase, o que pode causar falhas intermitentes.
 
-### Implementacao
-- Na funcao `buildReminderMessage`, adicionar um parametro `invoiceUrl` opcional
-- Ao buscar os pagamentos da API do Asaas, capturar o campo `invoiceUrl` de cada payment
-- Incluir o link na mensagem como: "Acesse o link para pagamento: [invoiceUrl]"
-- O `invoiceUrl` ja vem pronto do Asaas, nao precisa de chamada extra
+**Arquivo:** `supabase/functions/zapsign-integration/index.ts`
 
----
+**Atual:**
+```text
+'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+```
 
-## 3. Correcao do Nome do Escritorio
-
-### Ocorrencias encontradas e correcoes:
-
-| Arquivo | Texto atual | Correcao |
-|---------|-------------|----------|
-| `supabase/functions/send-notification-email/index.ts` | "Egg Nunes Advogados - Sistema de Gestao Interna" (17 ocorrencias no footer) | "Egg Nunes Advogados Associados - Sistema de Gestao Interna" |
-| `supabase/functions/send-notification-email/index.ts` | "equipe do Egg Nunes Advogados" (1 ocorrencia) | "equipe do Egg Nunes Advogados Associados" |
-| `supabase/functions/send-financial-summary/index.ts` | "Egg Nunes Advocacia" | "Egg Nunes Advogados Associados" |
-| `supabase/functions/send-financial-summary/index.ts` | "Egg Nunes Financeiro" (remetente email) | "Egg Nunes Advogados Associados - Financeiro" |
-
-**Nota:** As funcoes de WhatsApp (birthday, defaulter, boleto-reminders) ja usam o nome correto "Egg Nunes Advogados Associados".
+**Corrigido:**
+```text
+'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version'
+```
 
 ---
 
-## 4. Arquivos a Modificar
+## 2. Repasse Direto do Status HTTP do ZapSign
 
-| Arquivo | Mudancas |
+Atualmente, quando o ZapSign retorna um erro (como 402), a edge function repassa esse status diretamente ao cliente. O SDK do Supabase interpreta qualquer status diferente de 2xx como erro da funcao, gerando a mensagem generica "Edge Function returned a non-2xx status code" sem mostrar os detalhes uteis do erro.
+
+**Correcao:** Retornar sempre status **200** da edge function, com os detalhes do erro no corpo da resposta em formato JSON. Isso permite que o frontend exiba mensagens especificas e uteis ao usuario.
+
+**Arquivo:** `supabase/functions/zapsign-integration/index.ts`
+
+Exemplo do tratamento melhorado:
+
+```text
+if (!response.ok) {
+  // Em vez de: { status: response.status }
+  // Retornar: { status: 200, com erro detalhado no body }
+  return new Response(
+    JSON.stringify({
+      error: 'Erro ao criar documento no ZapSign',
+      details: responseText,
+      zapSignStatus: response.status,
+      userMessage: response.status === 402
+        ? 'O plano de API do ZapSign esta inativo ou expirado. Verifique o plano em Configuracoes > Planos no painel do ZapSign.'
+        : response.status === 401
+        ? 'Token de API do ZapSign invalido ou expirado.'
+        : 'Erro inesperado na API do ZapSign. Tente novamente.'
+    }),
+    { status: 200, headers: corsHeaders }
+  );
+}
+```
+
+---
+
+## 3. Mensagem de Erro Generica no Frontend
+
+O componente `ZapSignDialog.tsx` exibe apenas a mensagem tecnica do erro sem diferenciar tipos de problema. Precisa tratar especificamente os erros vindos do ZapSign para orientar o usuario.
+
+**Arquivo:** `src/components/ZapSignDialog.tsx`
+
+**Correcao:** Verificar o campo `userMessage` na resposta de erro e exibir mensagem amigavel:
+
+```text
+if (data?.error) {
+  const friendlyMessage = data.userMessage || data.details || data.error;
+  throw new Error(friendlyMessage);
+}
+```
+
+---
+
+## Resumo das Alteracoes
+
+| Arquivo | Alteracao |
 |---------|----------|
-| `supabase/functions/asaas-boleto-reminders/index.ts` | Ajustar textos dos lembretes pre-vencimento, adicionar parametro invoiceUrl, incluir link de pagamento nas mensagens |
-| `supabase/functions/send-notification-email/index.ts` | Corrigir todas as 18 ocorrencias do nome do escritorio para "Egg Nunes Advogados Associados" |
-| `supabase/functions/send-financial-summary/index.ts` | Corrigir nome "Egg Nunes Advocacia" e remetente "Egg Nunes Financeiro" |
+| `supabase/functions/zapsign-integration/index.ts` | Atualizar CORS headers, retornar status 200 com erro detalhado no body, adicionar mensagens amigaveis por codigo HTTP |
+| `src/components/ZapSignDialog.tsx` | Exibir mensagem amigavel (`userMessage`) ao usuario em caso de erro |
 
-Nenhum arquivo novo sera criado. Nenhuma alteracao de banco de dados e necessaria.
+## Importante
+
+Apos aplicar as correcoes de codigo, **voce precisa verificar o plano de API no painel do ZapSign** (Configuracoes > Planos e Precos) para garantir que o plano esta ativo. Sem um plano ativo, o erro 402 continuara ocorrendo independentemente das melhorias no codigo.
