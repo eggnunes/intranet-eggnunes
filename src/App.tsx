@@ -63,6 +63,7 @@ import Asaas from "./pages/Asaas";
 import RH from "./pages/RH";
 import PortaisTribunais from "./pages/PortaisTribunais";
 import WhatsAppAvisos from "./pages/WhatsAppAvisos";
+import CorretorPortugues from "./pages/CorretorPortugues";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient({
