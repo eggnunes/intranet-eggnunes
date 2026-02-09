@@ -47,8 +47,8 @@ interface Task {
 // Removed localStorage cache - data now comes from database
 
 export default function TarefasAdvbox() {
-  const [tasks, setTasks] = useState<Task[]>(initialCache?.tasks || []);
-  const [loading, setLoading] = useState(!initialCache);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
