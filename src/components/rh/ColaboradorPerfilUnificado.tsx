@@ -687,7 +687,7 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
                           : '-'}
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {formatCurrency(p.total_liquido)}
+                        {formatCurrency(p.total_liquido - (reembolsosPorPagamento[p.id] || 0))}
                       </TableCell>
                       <TableCell>
                         <Badge className={getStatusColor(p.status)}>
