@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
         }
 
         console.log(`Fetching tasks offset=${offset}...`);
-        const response = await makeAdvboxRequest(`/tasks?limit=${limit}&offset=${offset}`);
+        const response = await makeAdvboxRequest(`/posts?limit=${limit}&offset=${offset}`);
 
         const items = response.data || [];
         totalCount = response.totalCount || totalCount || items.length;
