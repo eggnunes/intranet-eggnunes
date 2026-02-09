@@ -161,7 +161,8 @@ export const ZapSignDialog = ({
 
       if (data?.error) {
         console.error('Erro retornado pela API:', data);
-        throw new Error(data.details || data.error);
+        const friendlyMessage = data.userMessage || data.details || data.error;
+        throw new Error(friendlyMessage);
       }
 
       console.log('Resposta do ZapSign:', data);
