@@ -44,28 +44,7 @@ interface Task {
   notes?: string;
 }
 
-const CACHE_KEY = 'advbox-tarefas-cache';
-const CACHE_TIMESTAMP_KEY = 'advbox-tarefas-cache-timestamp';
-
-const loadFromCache = () => {
-  try {
-    const cached = localStorage.getItem(CACHE_KEY);
-    const timestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
-    if (cached && timestamp) {
-      const data = JSON.parse(cached);
-      return {
-        tasks: data,
-        lastUpdate: new Date(timestamp)
-      };
-    }
-  } catch (error) {
-    console.error('Error loading tasks from cache:', error);
-  }
-  return null;
-};
-
-// Carregar cache FORA do componente para evitar recálculos
-const initialCache = loadFromCache();
+// Removed localStorage cache - data now comes from database
 
 export default function TarefasAdvbox() {
   const [tasks, setTasks] = useState<Task[]>(initialCache?.tasks || []);
