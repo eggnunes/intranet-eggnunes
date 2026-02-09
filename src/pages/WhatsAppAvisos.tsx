@@ -35,6 +35,8 @@ interface Message {
   is_from_me: boolean;
   created_at: string;
   zapi_message_id: string | null;
+  sent_by?: string | null;
+  transcription?: string | null;
 }
 
 export default function WhatsAppAvisos() {
