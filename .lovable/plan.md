@@ -1,90 +1,82 @@
 
-# Correção do Envio de Mensagens e Diagnóstico Z-API
+# Ajuste das Mensagens de Lembrete de Boleto e Correcao do Nome do Escritorio
 
-## Problema Identificado
-A Z-API aceita a chamada da API e retorna sucesso (HTTP 200), mas a mensagem nao e de fato entregue ao destinatario. A tabela de eventos de webhook esta completamente vazia e a funcao webhook nunca foi acionada, o que indica que:
-1. A instancia Z-API pode estar com o WhatsApp desconectado (sem sessao ativa)
-2. Os webhooks nunca foram registrados na instancia Z-API
-3. Nao existe nenhum indicador visual para o usuario saber se a Z-API esta conectada ou nao
-
-## Solucao
-
-### 1. Adicionar Painel de Diagnostico e Status da Conexao Z-API
-Criar um componente `AdvboxDataStatus`-like para a Z-API que:
-- Ao abrir a pagina WhatsApp Avisos, executa automaticamente o `test-connection`
-- Exibe um banner no topo da pagina indicando:
-  - **Verde**: "Z-API conectada" (quando `connected: true`)
-  - **Vermelho**: "Z-API desconectada - mensagens nao serao entregues" (quando `connected: false`)
-  - **Amarelo**: "Verificando conexao..." (durante o carregamento)
-- Se desconectada, exibe instrucoes para o usuario reconectar no painel da Z-API
-
-### 2. Adicionar Botao "Configurar Webhooks"
-No painel de diagnostico, adicionar um botao que:
-- Chama a action `setup-webhooks` da edge function `zapi-send-message`
-- Registra os webhooks necessarios na instancia Z-API
-- Mostra resultado (quantos webhooks configurados com sucesso)
-- Isso garante que eventos de entrega/leitura cheguem ao sistema
-
-### 3. Validar Conexao Antes de Enviar Mensagem
-Modificar o fluxo de envio para:
-- Verificar o status da conexao antes de tentar enviar
-- Se a Z-API estiver desconectada, mostrar aviso ao usuario antes de enviar (mas permitir o envio se ele quiser)
-- Adicionar feedback visual mais claro sobre o status de entrega
-
-### 4. Melhorar Feedback de Entrega
-- Apos enviar uma mensagem, se o status nao mudar de "sent" para "delivered" em 30 segundos, mostrar um alerta discreto
-- Usar polling como fallback para verificar status das mensagens recentes, ja que os webhooks podem nao estar configurados
+## Resumo
+Ajustar o tom das mensagens de lembrete de vencimento de boleto (antes e no dia do vencimento) para serem mais amigaveis, sem mencao a juros e multa. Incluir o link de pagamento do Asaas nas mensagens para facilitar o acesso do cliente. Corrigir o nome do escritorio em todas as funcoes que ainda usam variantes incorretas.
 
 ---
 
-## Arquivos a Modificar
+## 1. Ajuste das Mensagens de Lembrete (antes do vencimento e no dia)
+
+### Arquivo: `supabase/functions/asaas-boleto-reminders/index.ts`
+
+**Mensagem `before_10` (10 dias antes)** - Ajuste leve:
+- Remover: "para evitar contratempos"
+- Manter tom amigavel de simples lembrete
+- Adicionar link de pagamento do Asaas (invoiceUrl)
+
+**Mensagem `before_5` (5 dias antes)** - Ajuste necessario:
+- Remover: "para evitar encargos adicionais"
+- Trocar por linguagem de simples lembrete
+
+**Mensagem `due_date` (no dia do vencimento)** - Ajuste principal:
+- Remover: "para evitar juros e multa por atraso"
+- Trocar por linguagem de lembrete amigavel, sem pressao
+
+**Mensagens `after_2`, `after_5`, `after_10` (apos vencimento)** - Manter a linguagem sobre encargos:
+- Estas ja sao mensagens de cobranca e devem mencionar possibilidade de juros e multa
+
+### Exemplo das mensagens ajustadas
+
+**10 dias antes:**
+"Informamos que voce possui um boleto no valor de R$ X com vencimento previsto para DD/MM/AAAA (daqui a 10 dias). Segue o link para pagamento: [link]. Caso ja tenha efetuado o pagamento, desconsidere esta mensagem."
+
+**5 dias antes:**
+"Seu boleto no valor de R$ X vence em DD/MM/AAAA (daqui a 5 dias). Segue o link para facilitar o pagamento: [link]. Se ja efetuou o pagamento, desconsidere esta mensagem."
+
+**No dia do vencimento:**
+"Seu boleto no valor de R$ X vence hoje (DD/MM/AAAA). Segue o link para pagamento: [link]. Caso ja tenha efetuado o pagamento, desconsidere esta mensagem."
+
+**Apos vencimento (manter tom firme):**
+- Manter as referencias a "encargos adicionais" e "medidas administrativas" que ja existem, pois sao mensagens de cobranca
+
+---
+
+## 2. Link de Pagamento do Asaas
+
+A API do Asaas retorna dois campos uteis em cada cobranca:
+- `invoiceUrl`: Link da fatura online (ex: https://www.asaas.com/i/080225913252) - permite pagamento por boleto, PIX ou cartao
+- `bankSlipUrl`: Link direto do PDF do boleto
+
+### Implementacao
+- Na funcao `buildReminderMessage`, adicionar um parametro `invoiceUrl` opcional
+- Ao buscar os pagamentos da API do Asaas, capturar o campo `invoiceUrl` de cada payment
+- Incluir o link na mensagem como: "Acesse o link para pagamento: [invoiceUrl]"
+- O `invoiceUrl` ja vem pronto do Asaas, nao precisa de chamada extra
+
+---
+
+## 3. Correcao do Nome do Escritorio
+
+### Ocorrencias encontradas e correcoes:
+
+| Arquivo | Texto atual | Correcao |
+|---------|-------------|----------|
+| `supabase/functions/send-notification-email/index.ts` | "Egg Nunes Advogados - Sistema de Gestao Interna" (17 ocorrencias no footer) | "Egg Nunes Advogados Associados - Sistema de Gestao Interna" |
+| `supabase/functions/send-notification-email/index.ts` | "equipe do Egg Nunes Advogados" (1 ocorrencia) | "equipe do Egg Nunes Advogados Associados" |
+| `supabase/functions/send-financial-summary/index.ts` | "Egg Nunes Advocacia" | "Egg Nunes Advogados Associados" |
+| `supabase/functions/send-financial-summary/index.ts` | "Egg Nunes Financeiro" (remetente email) | "Egg Nunes Advogados Associados - Financeiro" |
+
+**Nota:** As funcoes de WhatsApp (birthday, defaulter, boleto-reminders) ja usam o nome correto "Egg Nunes Advogados Associados".
+
+---
+
+## 4. Arquivos a Modificar
 
 | Arquivo | Mudancas |
 |---------|----------|
-| `src/pages/WhatsAppAvisos.tsx` | Adicionar verificacao de status da conexao ao carregar pagina, banner de status, botao de configurar webhooks |
-| `src/components/whatsapp/ChatArea.tsx` | Exibir alerta quando Z-API esta desconectada no header do chat |
-| `src/components/whatsapp/MessageInput.tsx` | Receber prop de status da conexao e exibir aviso se desconectada |
+| `supabase/functions/asaas-boleto-reminders/index.ts` | Ajustar textos dos lembretes pre-vencimento, adicionar parametro invoiceUrl, incluir link de pagamento nas mensagens |
+| `supabase/functions/send-notification-email/index.ts` | Corrigir todas as 18 ocorrencias do nome do escritorio para "Egg Nunes Advogados Associados" |
+| `supabase/functions/send-financial-summary/index.ts` | Corrigir nome "Egg Nunes Advocacia" e remetente "Egg Nunes Financeiro" |
 
-### Nenhum arquivo novo necessario
-As mudancas serao integradas aos componentes existentes.
-
----
-
-## Detalhes Tecnicos
-
-### Verificacao de Conexao (WhatsAppAvisos.tsx)
-Ao montar a pagina, chamar:
-```text
-supabase.functions.invoke('zapi-send-message', {
-  body: { action: 'test-connection' }
-})
-```
-
-Armazenar o resultado em estado:
-- `zapiConnected: boolean | null` (null = verificando)
-- `zapiStatus: object` (dados completos do status)
-
-### Banner de Status
-Exibido acima das tabs:
-- Se `zapiConnected === null`: "Verificando conexao com Z-API..."
-- Se `zapiConnected === false`: "Z-API desconectada. Mensagens nao serao entregues. Reconecte no painel da Z-API e clique em 'Configurar Webhooks'."
-- Se `zapiConnected === true`: Exibir discretamente ou ocultar
-
-### Botao Setup Webhooks
-Visivel sempre, chama:
-```text
-supabase.functions.invoke('zapi-send-message', {
-  body: { action: 'setup-webhooks' }
-})
-```
-Exibe toast com resultado.
-
-### Validacao Pre-Envio
-No `handleSendMessage`, verificar `zapiConnected`:
-- Se `false`, exibir toast de aviso (mas nao bloquear o envio)
-- Se `null` (nao verificado), enviar normalmente
-
-### Polling de Status (fallback)
-Implementar um intervalo de 60 segundos que verifica o status da conexao:
-- Se estava conectado e desconectou, mostrar alerta
-- Atualizar o banner em tempo real
+Nenhum arquivo novo sera criado. Nenhuma alteracao de banco de dados e necessaria.
