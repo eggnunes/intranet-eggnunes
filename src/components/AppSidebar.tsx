@@ -158,6 +158,7 @@ export function AppSidebar() {
         { icon: SearchIcon, path: '/pesquisa-jurisprudencia', label: 'Pesquisa Jurisprudência' },
         { icon: FileText, path: '/tools/rotadoc', label: 'RotaDoc' },
         { icon: Link2, path: '/gerador-qrcode', label: 'Gerador de QR Code' },
+        { icon: SpellCheck, path: '/corretor-portugues', label: 'Corretor de Português' },
       ],
     },
     {

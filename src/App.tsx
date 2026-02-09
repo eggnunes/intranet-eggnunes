@@ -530,6 +530,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/corretor-portugues"
+              element={
+                <ProtectedRoute>
+                  <CorretorPortugues />
+                </ProtectedRoute>
+              }
+            />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
