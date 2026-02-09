@@ -140,6 +140,22 @@ Deno.serve(async (req) => {
 
     console.log('=== Starting Asaas Boleto Reminders ===');
 
+    // === Z-API SUSPENSO TEMPORARIAMENTE ===
+    // O número de WhatsApp de avisos foi restrito pela Meta.
+    // Envio suspenso até aquecimento do número. Aguardando reativação.
+    console.log('⚠️ [SUSPENSO] Envio de lembretes de boleto via Z-API está temporariamente suspenso.');
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: 'Envio de lembretes de boleto está temporariamente suspenso. O número de WhatsApp de avisos está em processo de aquecimento.',
+        suspended: true,
+        sent: 0,
+        failed: 0,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+    // === FIM DA SUSPENSÃO ===
+
     // Check business hours (08:00-19:00 Brasília time - UTC-3)
     const nowBrasilia = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
     const currentHour = nowBrasilia.getHours();

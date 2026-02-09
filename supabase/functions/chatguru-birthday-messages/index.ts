@@ -143,6 +143,20 @@ Deno.serve(async (req) => {
 
     console.log('Admin verification passed for user:', user.id);
 
+    // === Z-API SUSPENSO TEMPORARIAMENTE ===
+    // O número de WhatsApp de avisos foi restrito pela Meta.
+    // Envio suspenso até aquecimento do número. Aguardando reativação.
+    console.log('⚠️ [SUSPENSO] Envio de mensagens de aniversário via Z-API está temporariamente suspenso.');
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: 'Envio de mensagens de aniversário está temporariamente suspenso. O número de WhatsApp de avisos está em processo de aquecimento. As mensagens serão reativadas em breve.',
+        suspended: true,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+    );
+    // === FIM DA SUSPENSÃO ===
+
     // Verify Z-API credentials
     const ZAPI_INSTANCE_ID = (Deno.env.get('ZAPI_INSTANCE_ID') || '').trim();
     const ZAPI_TOKEN = (Deno.env.get('ZAPI_TOKEN') || '').trim();
