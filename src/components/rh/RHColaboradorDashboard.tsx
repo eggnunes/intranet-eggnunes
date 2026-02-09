@@ -64,6 +64,7 @@ export function RHColaboradorDashboard() {
   const [promocoes, setPromocoes] = useState<Promocao[]>([]);
   const [pontuacaoAdvbox, setPontuacaoAdvbox] = useState<PontuacaoAdvbox[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [reembolsosPorPagamento, setReembolsosPorPagamento] = useState<Record<string, number>>({});
 
   useEffect(() => {
     fetchColaboradores();
