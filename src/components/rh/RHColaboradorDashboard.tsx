@@ -28,6 +28,7 @@ interface Colaborador {
 }
 
 interface PagamentoMensal {
+  id: string;
   mes: string;
   total_liquido: number;
   total_vantagens: number;
