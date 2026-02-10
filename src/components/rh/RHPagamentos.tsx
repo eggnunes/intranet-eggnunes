@@ -150,6 +150,11 @@ export function RHPagamentos() {
   const [editObservacoes, setEditObservacoes] = useState('');
   const [editStatus, setEditStatus] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editItens, setEditItens] = useState<Record<string, PagamentoItem>>({});
+  const [editDisplayValues, setEditDisplayValues] = useState<Record<string, string>>({});
+  const [loadingEditItens, setLoadingEditItens] = useState(false);
+  const [editCargoTipo, setEditCargoTipo] = useState<string | null>(null);
+  const [editCargoId, setEditCargoId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -813,15 +818,150 @@ export function RHPagamentos() {
   };
 
   // Funções de edição de pagamento
-  const handleEditPagamento = (pagamento: Pagamento) => {
+  // Filtra rubricas para o modo de edição baseado no cargo
+  const getVantagensFiltradasByCargo = (cargoTipo: string | null, cargoId: string | null) => {
+    let todasVantagens = rubricas.filter(r => r.tipo === 'vantagem');
+    
+    if (cargoTipo === 'socio') {
+      todasVantagens = todasVantagens.filter(r => !RUBRICAS_OCULTAS_SOCIOS.includes(r.id));
+      todasVantagens = todasVantagens.filter(r => 
+        !RUBRICAS_EXCLUSIVAS_COMERCIAL.includes(r.id) && 
+        r.id !== RUBRICA_UM_TERCO_FERIAS
+      );
+      return todasVantagens;
+    }
+    
+    if (cargoTipo === 'advogado') {
+      todasVantagens = todasVantagens.filter(r => !RUBRICAS_OCULTAS_ADVOGADOS.includes(r.id));
+      todasVantagens = todasVantagens.filter(r => 
+        !RUBRICAS_EXCLUSIVAS_COMERCIAL.includes(r.id) && 
+        r.id !== RUBRICA_UM_TERCO_FERIAS
+      );
+      return todasVantagens;
+    }
+    
+    if (cargoId === CARGO_ASSISTENTE_COMERCIAL) {
+      todasVantagens = todasVantagens.filter(r => !RUBRICAS_EXCLUSIVAS_SOCIOS.includes(r.id));
+      const especificas = todasVantagens.filter(r => COMERCIAL_VANTAGENS.includes(r.id));
+      const outras = todasVantagens.filter(r => !COMERCIAL_VANTAGENS.includes(r.id) && !RUBRICAS_EXCLUSIVAS_COMERCIAL.includes(r.id));
+      return [...especificas, ...outras];
+    }
+    
+    if (cargoTipo === 'clt') {
+      todasVantagens = todasVantagens.filter(r => 
+        !RUBRICAS_EXCLUSIVAS_COMERCIAL.includes(r.id) && 
+        !RUBRICAS_EXCLUSIVAS_SOCIOS.includes(r.id)
+      );
+      return todasVantagens;
+    }
+    
+    todasVantagens = todasVantagens.filter(r => 
+      !RUBRICAS_EXCLUSIVAS_COMERCIAL.includes(r.id) && 
+      !RUBRICAS_EXCLUSIVAS_SOCIOS.includes(r.id) &&
+      r.id !== RUBRICA_UM_TERCO_FERIAS
+    );
+    return todasVantagens;
+  };
+
+  const getDescontosFiltradasByCargo = () => {
+    return rubricas.filter(r => r.tipo === 'desconto');
+  };
+
+  const getRubricaLabelByCargo = (rubrica: Rubrica, cargoTipo: string | null, cargoId: string | null) => {
+    if (rubrica.id === RUBRICA_HONORARIOS_MENSAIS && cargoId === CARGO_ASSISTENTE_COMERCIAL) {
+      return 'Salário Base';
+    }
+    if (rubrica.id === RUBRICA_HONORARIOS_MENSAIS && cargoTipo === 'clt') {
+      return 'Salário';
+    }
+    return rubrica.nome;
+  };
+
+  const handleEditPagamento = async (pagamento: Pagamento) => {
     setEditingPagamento(pagamento);
-    // Fix: Usar substring para evitar bug de timezone ao converter datas
-    // new Date('2025-12-01') em UTC-3 vira '2025-11-30 21:00' local, causando mês errado
     setEditMesReferencia(pagamento.mes_referencia.substring(0, 7));
     setEditDataPagamento(pagamento.data_pagamento || format(new Date(), 'yyyy-MM-dd'));
-    setEditObservacoes('');
+    setEditObservacoes(pagamento.observacoes || '');
     setEditStatus(pagamento.status);
+    setEditDisplayValues({});
+    setLoadingEditItens(true);
     setEditDialogOpen(true);
+
+    try {
+      // Buscar cargo do colaborador
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('cargo_id')
+        .eq('id', pagamento.colaborador_id)
+        .single();
+
+      const cargoId = profileData?.cargo_id || null;
+      const cargo = cargoId ? cargos.find(c => c.id === cargoId) || null : null;
+      setEditCargoTipo(cargo?.tipo || null);
+      setEditCargoId(cargoId);
+
+      // Buscar itens existentes do pagamento
+      const { data: itensData, error } = await supabase
+        .from('rh_pagamento_itens')
+        .select('rubrica_id, valor, observacao')
+        .eq('pagamento_id', pagamento.id);
+
+      if (error) throw error;
+
+      // Popular editItens com todos as rubricas, preenchendo valores existentes
+      const newEditItens: Record<string, PagamentoItem> = {};
+      const newDisplayValues: Record<string, string> = {};
+      const itensMap = new Map((itensData || []).map(i => [i.rubrica_id, i]));
+
+      rubricas.forEach(r => {
+        const existente = itensMap.get(r.id);
+        newEditItens[r.id] = {
+          rubrica_id: r.id,
+          valor: existente?.valor || 0,
+          observacao: existente?.observacao || ''
+        };
+        if (existente?.valor && existente.valor > 0) {
+          newDisplayValues[r.id] = existente.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+      });
+
+      setEditItens(newEditItens);
+      setEditDisplayValues(newDisplayValues);
+    } catch (error: any) {
+      toast.error('Erro ao carregar itens do pagamento: ' + error.message);
+    } finally {
+      setLoadingEditItens(false);
+    }
+  };
+
+  const handleEditValorInput = (rubricaId: string, inputValue: string) => {
+    const maskedValue = maskCurrency(inputValue);
+    setEditDisplayValues(prev => ({ ...prev, [rubricaId]: maskedValue }));
+    const numericValue = parseCurrency(maskedValue);
+    setEditItens(prev => ({
+      ...prev,
+      [rubricaId]: { ...prev[rubricaId], rubrica_id: rubricaId, valor: numericValue }
+    }));
+  };
+
+  const getEditDisplayValue = (rubricaId: string): string => {
+    if (editDisplayValues[rubricaId] !== undefined) return editDisplayValues[rubricaId];
+    const valor = editItens[rubricaId]?.valor;
+    if (valor === undefined || valor === 0) return '';
+    return valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const calcularTotaisEdit = () => {
+    let vantagens = 0;
+    let descontos = 0;
+    Object.entries(editItens).forEach(([rubricaId, item]) => {
+      const rubrica = rubricas.find(r => r.id === rubricaId);
+      if (rubrica && item.valor > 0) {
+        if (rubrica.tipo === 'vantagem') vantagens += item.valor;
+        else descontos += item.valor;
+      }
+    });
+    return { vantagens, descontos, liquido: vantagens - descontos };
   };
 
   const handleSaveEdit = async () => {
@@ -829,6 +969,34 @@ export function RHPagamentos() {
     
     setSavingEdit(true);
     try {
+      const totaisEdit = calcularTotaisEdit();
+
+      // Deletar itens antigos
+      const { error: deleteError } = await supabase
+        .from('rh_pagamento_itens')
+        .delete()
+        .eq('pagamento_id', editingPagamento.id);
+
+      if (deleteError) throw deleteError;
+
+      // Inserir novos itens
+      const itensToInsert = Object.entries(editItens)
+        .filter(([_, item]) => item.valor > 0)
+        .map(([rubricaId, item]) => ({
+          pagamento_id: editingPagamento.id,
+          rubrica_id: rubricaId,
+          valor: item.valor,
+          observacao: item.observacao || null
+        }));
+
+      if (itensToInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('rh_pagamento_itens')
+          .insert(itensToInsert);
+        if (insertError) throw insertError;
+      }
+
+      // Atualizar pagamento com novos totais
       const { error } = await supabase
         .from('rh_pagamentos')
         .update({
@@ -836,11 +1004,29 @@ export function RHPagamentos() {
           data_pagamento: editDataPagamento,
           status: editStatus,
           observacoes: editObservacoes || editingPagamento.observacoes,
+          total_vantagens: totaisEdit.vantagens,
+          total_descontos: totaisEdit.descontos,
+          total_liquido: totaisEdit.liquido,
           updated_at: new Date().toISOString()
         })
         .eq('id', editingPagamento.id);
 
       if (error) throw error;
+
+      // Atualizar sugestões para próximos pagamentos
+      const sugestoesToUpsert = Object.entries(editItens)
+        .filter(([_, item]) => item.valor > 0)
+        .map(([rubricaId, item]) => ({
+          colaborador_id: editingPagamento.colaborador_id,
+          rubrica_id: rubricaId,
+          valor_sugerido: item.valor
+        }));
+
+      for (const sug of sugestoesToUpsert) {
+        await supabase
+          .from('rh_sugestoes_valores')
+          .upsert(sug, { onConflict: 'colaborador_id,rubrica_id' });
+      }
 
       toast.success('Pagamento atualizado com sucesso!');
       setEditDialogOpen(false);
@@ -1309,72 +1495,145 @@ export function RHPagamentos() {
         </CardContent>
       </Card>
 
-      {/* Dialog de Edição */}
+      {/* Dialog de Edição Detalhada */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-3xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Editar Pagamento</DialogTitle>
           </DialogHeader>
           {editingPagamento && (
-            <div className="space-y-4">
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="font-medium">{editingPagamento.profiles.full_name}</p>
-                <p className="text-sm text-muted-foreground">
-                  Valor líquido: {formatCurrency(editingPagamento.total_liquido)}
-                </p>
-              </div>
+            <ScrollArea className="max-h-[70vh]">
+              <div className="space-y-4 px-4 pb-6">
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="font-medium">{editingPagamento.profiles.full_name}</p>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Mês Referência</Label>
-                <Input
-                  type="month"
-                  value={editMesReferencia}
-                  onChange={(e) => setEditMesReferencia(e.target.value)}
-                />
-              </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Mês Referência</Label>
+                    <Input
+                      type="month"
+                      value={editMesReferencia}
+                      onChange={(e) => setEditMesReferencia(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Data do Pagamento</Label>
+                    <Input
+                      type="date"
+                      value={editDataPagamento}
+                      onChange={(e) => setEditDataPagamento(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select value={editStatus} onValueChange={setEditStatus}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="processado">Processado</SelectItem>
+                        <SelectItem value="pago">Pago</SelectItem>
+                        <SelectItem value="cancelado">Cancelado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Data do Pagamento</Label>
-                <Input
-                  type="date"
-                  value={editDataPagamento}
-                  onChange={(e) => setEditDataPagamento(e.target.value)}
-                />
-              </div>
+                <Separator />
 
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select value={editStatus} onValueChange={setEditStatus}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="processado">Processado</SelectItem>
-                    <SelectItem value="pago">Pago</SelectItem>
-                    <SelectItem value="cancelado">Cancelado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                {loadingEditItens ? (
+                  <div className="flex items-center justify-center p-8 text-muted-foreground">
+                    Carregando rubricas...
+                  </div>
+                ) : (
+                  <>
+                    {/* Vantagens */}
+                    <div>
+                      <h4 className="font-semibold text-green-600 mb-3">Vantagens</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        {getVantagensFiltradasByCargo(editCargoTipo, editCargoId).map(rubrica => (
+                          <div key={rubrica.id} className="flex items-center gap-2">
+                            <Label className="w-40 text-sm truncate" title={getRubricaLabelByCargo(rubrica, editCargoTipo, editCargoId)}>
+                              {getRubricaLabelByCargo(rubrica, editCargoTipo, editCargoId)}
+                            </Label>
+                            <Input
+                              type="text"
+                              placeholder="0,00"
+                              value={getEditDisplayValue(rubrica.id)}
+                              onChange={(e) => handleEditValorInput(rubrica.id, e.target.value)}
+                              className="w-28"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
 
-              <div className="space-y-2">
-                <Label>Observações</Label>
-                <Textarea
-                  placeholder="Adicionar observações..."
-                  value={editObservacoes}
-                  onChange={(e) => setEditObservacoes(e.target.value)}
-                  rows={3}
-                />
-              </div>
+                    <Separator />
 
-              <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button onClick={handleSaveEdit} disabled={savingEdit}>
-                  {savingEdit ? 'Salvando...' : 'Salvar Alterações'}
-                </Button>
+                    {/* Descontos */}
+                    <div>
+                      <h4 className="font-semibold text-red-600 mb-3">Descontos</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        {getDescontosFiltradasByCargo().map(rubrica => (
+                          <div key={rubrica.id} className="flex items-center gap-2">
+                            <Label className="w-40 text-sm truncate">{rubrica.nome}</Label>
+                            <Input
+                              type="text"
+                              placeholder="0,00"
+                              value={getEditDisplayValue(rubrica.id)}
+                              onChange={(e) => handleEditValorInput(rubrica.id, e.target.value)}
+                              className="w-28"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Totais */}
+                    <div className="bg-muted p-4 rounded-lg">
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                          <div className="text-sm text-muted-foreground">Total Vantagens</div>
+                          <div className="text-lg font-bold text-green-600">{formatCurrency(calcularTotaisEdit().vantagens)}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Total Descontos</div>
+                          <div className="text-lg font-bold text-red-600">{formatCurrency(calcularTotaisEdit().descontos)}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Valor Líquido</div>
+                          <div className="text-xl font-bold">{formatCurrency(calcularTotaisEdit().liquido)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <Label>Observações</Label>
+                  <Textarea
+                    placeholder="Adicionar observações..."
+                    value={editObservacoes}
+                    onChange={(e) => setEditObservacoes(e.target.value)}
+                    rows={2}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleSaveEdit} disabled={savingEdit || loadingEditItens}>
+                    {savingEdit ? 'Salvando...' : 'Salvar Alterações'}
+                  </Button>
+                </div>
               </div>
-            </div>
+            </ScrollArea>
           )}
         </DialogContent>
       </Dialog>
