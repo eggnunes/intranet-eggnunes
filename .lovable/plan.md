@@ -1,52 +1,70 @@
 
-# Alteracao de Foto pelo Admin + Abater Reembolsos no Historico
+# Edição Completa de Pagamentos - Rubricas Detalhadas
 
-## 1. Permitir Admin Alterar Foto do Colaborador
+## Problema Atual
+O botão "Editar" nos pagamentos abre um dialog simples que permite alterar apenas mês de referência, data, status e observações. Não é possível visualizar ou editar as rubricas individuais (vantagens e descontos) de um pagamento já registrado.
 
-**Arquivo:** `src/components/rh/ColaboradorPerfilUnificado.tsx`
-
-No cabecalho do perfil, onde aparece o Avatar (linhas 347-352), adicionar um botao de "Alterar Foto" visivel apenas para admins/socios. Ao clicar:
-- Abre um input de arquivo (imagem, max 5MB)
-- Faz upload para o storage `avatars` (mesmo bucket usado em Profile.tsx)
-- Atualiza o `avatar_url` no perfil do colaborador via `supabase.from('profiles').update()`
-- Atualiza o estado local para refletir a nova foto imediatamente
-
-Logica de upload identica a ja existente em `src/pages/Profile.tsx` (linhas 577-606): upload para `avatars/{colaboradorId}/{timestamp}.{ext}`, obter URL publica, salvar no perfil.
-
-Visualmente: um icone de camera ou botao "Alterar Foto" sobreposto ao avatar, visivel apenas quando `isAdmin || isSocio`.
+## Solução
+Expandir o dialog de edição para carregar todas as rubricas do pagamento (`rh_pagamento_itens`) e permitir alteração completa dos valores, com recálculo automático dos totais.
 
 ---
 
-## 2. Abater Reembolsos do Historico de Pagamentos e Dashboard
+## Arquivo a Modificar
 
-**Contexto:** A rubrica "Reembolso" tem ID `47d8ce78-a5c8-4eb4-8799-420a97e144db` e tipo `vantagem`. Quando um pagamento inclui essa rubrica, o valor do reembolso esta somado ao `total_liquido`, inflando o valor real pago ao colaborador.
+### `src/components/rh/RHPagamentos.tsx`
 
-**Solucao:** Nos locais onde se exibe o historico de pagamentos e metricas financeiras do colaborador, buscar os itens de pagamento que usam a rubrica de Reembolso e subtrair esse valor do total exibido.
+**Mudanças:**
 
-### Arquivos a modificar:
+1. **Novos estados para edição detalhada:**
+   - `editItens`: Record com os itens de pagamento carregados (rubrica_id -> valor/observação)
+   - `editDisplayValues`: Valores formatados para inputs
+   - `loadingEditItens`: Loading ao carregar itens
 
-**a) `src/components/rh/ColaboradorPerfilUnificado.tsx`**
+2. **Função `handleEditPagamento` atualizada:**
+   - Ao abrir o dialog de edição, buscar `rh_pagamento_itens` do pagamento selecionado junto com as rubricas
+   - Popular o estado `editItens` com os valores atuais
+   - Detectar o cargo do colaborador para filtrar rubricas corretamente (reutilizar lógica existente de `getVantagensFiltradas`/`getDescontosFiltrados`)
 
-- Ao buscar pagamentos (linha 153-158), tambem buscar `rh_pagamento_itens` filtrados pela rubrica de Reembolso para cada pagamento
-- Criar uma query adicional: `SELECT pagamento_id, SUM(valor) as total_reembolso FROM rh_pagamento_itens WHERE rubrica_id = '47d8ce78-...' AND pagamento_id IN (...) GROUP BY pagamento_id`
-- Subtrair `total_reembolso` do `total_liquido` e `total_vantagens` ao exibir na tabela (linha 615) e no grafico (linhas 196-207)
-- Ajustar o calculo de `totalPago` e `mediaMensal` (linha 336-337) para usar os valores ajustados
+3. **Função `handleSaveEdit` atualizada:**
+   - Recalcular `total_vantagens`, `total_descontos` e `total_liquido` com base nos itens editados
+   - Deletar itens antigos: `DELETE FROM rh_pagamento_itens WHERE pagamento_id = X`
+   - Inserir novos itens com valores atualizados
+   - Atualizar totais no `rh_pagamentos`
 
-**b) `src/components/rh/RHColaboradorDashboard.tsx`**
-
-- Mesma logica: ao buscar pagamentos (linhas 126-131), buscar tambem itens de reembolso
-- Subtrair reembolsos dos valores exibidos no grafico de evolucao e no card "Total Pago (12 meses)"
-
-### Importante:
-- Isso **NAO** altera os dados salvos no banco -- apenas a exibicao
-- A folha de pagamento em `RHPagamentos.tsx` continua mostrando o valor completo (com reembolso), pois la e o registro contabil real
-- Apenas o historico no perfil do colaborador e o dashboard individual abatam reembolsos da visualizacao
+4. **Dialog de edição expandido:**
+   - Usar `max-w-3xl` (mesmo tamanho do dialog de criação)
+   - Adicionar ScrollArea para conteúdo longo
+   - Mostrar seção "Vantagens" com inputs para cada rubrica (valor + observação)
+   - Mostrar seção "Descontos" com inputs para cada rubrica
+   - Mostrar totais calculados em tempo real (vantagens, descontos, líquido)
+   - Manter os campos existentes (mês ref., data pagamento, status, observações)
 
 ---
 
-## Resumo de Alteracoes
+## Detalhes Técnicos
 
-| Arquivo | Mudanca |
-|---|---|
-| `ColaboradorPerfilUnificado.tsx` | Botao de alterar foto (admin/socio); Subtrair reembolsos do historico e grafico de pagamentos |
-| `RHColaboradorDashboard.tsx` | Subtrair reembolsos do grafico e metricas de pagamentos |
+### Fluxo de Edição
+
+```text
+1. Admin clica "Editar" no pagamento
+2. Sistema busca rh_pagamento_itens + rh_rubricas do pagamento
+3. Dialog abre com todos os campos e rubricas preenchidos
+4. Admin altera valores das rubricas (ex: muda "13o Salário" para "Reembolso")
+5. Totais recalculam automaticamente
+6. Ao salvar:
+   a. Deleta itens antigos (rh_pagamento_itens)
+   b. Insere novos itens com valores atualizados
+   c. Atualiza totais no rh_pagamentos
+```
+
+### Queries
+
+- Carregar itens: `SELECT * FROM rh_pagamento_itens WHERE pagamento_id = ?`
+- Carregar rubricas: já disponível no estado `rubricas`
+- Detectar cargo: buscar `profiles.cargo_id` do colaborador do pagamento
+- Salvar: DELETE + INSERT nos itens, UPDATE nos totais
+
+### Reutilização de Código
+- Os inputs de valor usarão a mesma lógica de `maskCurrency` / `parseCurrency` já existente
+- A filtragem de rubricas por tipo de cargo reutiliza `getVantagensFiltradas` e `getDescontosFiltrados` (ajustados para aceitar o cargo como parâmetro)
+- O layout dos inputs seguirá o mesmo padrão visual do dialog de criação
