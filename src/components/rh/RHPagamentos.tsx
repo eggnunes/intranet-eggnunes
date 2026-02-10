@@ -150,6 +150,11 @@ export function RHPagamentos() {
   const [editObservacoes, setEditObservacoes] = useState('');
   const [editStatus, setEditStatus] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editItens, setEditItens] = useState<Record<string, PagamentoItem>>({});
+  const [editDisplayValues, setEditDisplayValues] = useState<Record<string, string>>({});
+  const [loadingEditItens, setLoadingEditItens] = useState(false);
+  const [editCargoTipo, setEditCargoTipo] = useState<string | null>(null);
+  const [editCargoId, setEditCargoId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
