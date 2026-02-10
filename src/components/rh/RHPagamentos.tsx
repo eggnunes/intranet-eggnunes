@@ -1495,72 +1495,145 @@ export function RHPagamentos() {
         </CardContent>
       </Card>
 
-      {/* Dialog de Edição */}
+      {/* Dialog de Edição Detalhada */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-3xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Editar Pagamento</DialogTitle>
           </DialogHeader>
           {editingPagamento && (
-            <div className="space-y-4">
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="font-medium">{editingPagamento.profiles.full_name}</p>
-                <p className="text-sm text-muted-foreground">
-                  Valor líquido: {formatCurrency(editingPagamento.total_liquido)}
-                </p>
-              </div>
+            <ScrollArea className="max-h-[70vh]">
+              <div className="space-y-4 px-4 pb-6">
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="font-medium">{editingPagamento.profiles.full_name}</p>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Mês Referência</Label>
-                <Input
-                  type="month"
-                  value={editMesReferencia}
-                  onChange={(e) => setEditMesReferencia(e.target.value)}
-                />
-              </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Mês Referência</Label>
+                    <Input
+                      type="month"
+                      value={editMesReferencia}
+                      onChange={(e) => setEditMesReferencia(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Data do Pagamento</Label>
+                    <Input
+                      type="date"
+                      value={editDataPagamento}
+                      onChange={(e) => setEditDataPagamento(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select value={editStatus} onValueChange={setEditStatus}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="processado">Processado</SelectItem>
+                        <SelectItem value="pago">Pago</SelectItem>
+                        <SelectItem value="cancelado">Cancelado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Data do Pagamento</Label>
-                <Input
-                  type="date"
-                  value={editDataPagamento}
-                  onChange={(e) => setEditDataPagamento(e.target.value)}
-                />
-              </div>
+                <Separator />
 
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select value={editStatus} onValueChange={setEditStatus}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="processado">Processado</SelectItem>
-                    <SelectItem value="pago">Pago</SelectItem>
-                    <SelectItem value="cancelado">Cancelado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                {loadingEditItens ? (
+                  <div className="flex items-center justify-center p-8 text-muted-foreground">
+                    Carregando rubricas...
+                  </div>
+                ) : (
+                  <>
+                    {/* Vantagens */}
+                    <div>
+                      <h4 className="font-semibold text-green-600 mb-3">Vantagens</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        {getVantagensFiltradasByCargo(editCargoTipo, editCargoId).map(rubrica => (
+                          <div key={rubrica.id} className="flex items-center gap-2">
+                            <Label className="w-40 text-sm truncate" title={getRubricaLabelByCargo(rubrica, editCargoTipo, editCargoId)}>
+                              {getRubricaLabelByCargo(rubrica, editCargoTipo, editCargoId)}
+                            </Label>
+                            <Input
+                              type="text"
+                              placeholder="0,00"
+                              value={getEditDisplayValue(rubrica.id)}
+                              onChange={(e) => handleEditValorInput(rubrica.id, e.target.value)}
+                              className="w-28"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
 
-              <div className="space-y-2">
-                <Label>Observações</Label>
-                <Textarea
-                  placeholder="Adicionar observações..."
-                  value={editObservacoes}
-                  onChange={(e) => setEditObservacoes(e.target.value)}
-                  rows={3}
-                />
-              </div>
+                    <Separator />
 
-              <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button onClick={handleSaveEdit} disabled={savingEdit}>
-                  {savingEdit ? 'Salvando...' : 'Salvar Alterações'}
-                </Button>
+                    {/* Descontos */}
+                    <div>
+                      <h4 className="font-semibold text-red-600 mb-3">Descontos</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        {getDescontosFiltradasByCargo().map(rubrica => (
+                          <div key={rubrica.id} className="flex items-center gap-2">
+                            <Label className="w-40 text-sm truncate">{rubrica.nome}</Label>
+                            <Input
+                              type="text"
+                              placeholder="0,00"
+                              value={getEditDisplayValue(rubrica.id)}
+                              onChange={(e) => handleEditValorInput(rubrica.id, e.target.value)}
+                              className="w-28"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Totais */}
+                    <div className="bg-muted p-4 rounded-lg">
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                          <div className="text-sm text-muted-foreground">Total Vantagens</div>
+                          <div className="text-lg font-bold text-green-600">{formatCurrency(calcularTotaisEdit().vantagens)}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Total Descontos</div>
+                          <div className="text-lg font-bold text-red-600">{formatCurrency(calcularTotaisEdit().descontos)}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Valor Líquido</div>
+                          <div className="text-xl font-bold">{formatCurrency(calcularTotaisEdit().liquido)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <Label>Observações</Label>
+                  <Textarea
+                    placeholder="Adicionar observações..."
+                    value={editObservacoes}
+                    onChange={(e) => setEditObservacoes(e.target.value)}
+                    rows={2}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleSaveEdit} disabled={savingEdit || loadingEditItens}>
+                    {savingEdit ? 'Salvando...' : 'Salvar Alterações'}
+                  </Button>
+                </div>
               </div>
-            </div>
+            </ScrollArea>
           )}
         </DialogContent>
       </Dialog>
