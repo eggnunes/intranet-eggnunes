@@ -31,6 +31,7 @@ import TarefasAdvbox from "./pages/TarefasAdvbox";
 import RelatoriosFinanceiros from "./pages/RelatoriosFinanceiros";
 import AdvboxConfig from "./pages/AdvboxConfig";
 import AdvboxAnalytics from "./pages/AdvboxAnalytics";
+import MovimentacoesAdvbox from "./pages/MovimentacoesAdvbox";
 // RelatoriosProdutividadeTarefas moved into TarefasAdvbox as a tab
 import Ferias from "./pages/Ferias";
 import SolicitacoesAdministrativas from "./pages/SolicitacoesAdministrativas";
@@ -270,7 +271,15 @@ const App = () => (
               path="/advbox-analytics"
               element={
                 <ProtectedRoute>
-                  <AdvboxAnalytics />
+                  <Navigate to="/processos" replace />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/movimentacoes-advbox"
+              element={
+                <ProtectedRoute>
+                  <MovimentacoesAdvbox />
                 </ProtectedRoute>
               }
             />

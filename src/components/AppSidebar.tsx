@@ -63,6 +63,7 @@ import {
   LogOut,
   UserCircle,
   History,
+  AlertCircle,
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
@@ -183,10 +184,10 @@ export function AppSidebar() {
       label: '📦 ADVBOX',
       items: [
         { icon: Briefcase, path: '/processos', label: 'Processos' },
+        { icon: AlertCircle, path: '/movimentacoes-advbox', label: 'Movimentações' },
         { icon: Bell, path: '/publicacoes', label: 'Publicações' },
         { icon: CheckSquare, path: '/tarefas-advbox', label: 'Tarefas', badgeCount: criticalTasksCount },
         { icon: DollarSign, path: '/relatorios-financeiros', label: 'Financeiro' },
-        { icon: TrendingUp, path: '/advbox-analytics', label: 'Analytics' },
         { icon: Cake, path: '/aniversarios-clientes', label: 'Aniversários Clientes' },
       ],
     },
