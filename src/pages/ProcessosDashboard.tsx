@@ -120,7 +120,7 @@ export default function ProcessosDashboard() {
   const [lastUpdate, setLastUpdate] = useState<Date | undefined>(cachedData?.lastUpdate);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [selectedMovement, setSelectedMovement] = useState<Movement | null>(null);
-  const [isLoadingFullData, setIsLoadingFullData] = useState(false);
+  const [isLoadingFullData] = useState(false);
   const [hasCompleteData, setHasCompleteData] = useState(cachedData?.isComplete || false);
   const [sendingDocRequest, setSendingDocRequest] = useState<number | null>(null);
   const [messageDialogLawsuit, setMessageDialogLawsuit] = useState<Lawsuit | null>(null);
@@ -706,8 +706,6 @@ export default function ProcessosDashboard() {
 
   useEffect(() => {
     fetchData();
-    // Carregar movimentações completas automaticamente ao montar
-    loadFullMovements();
   }, []);
 
   // Filtrar processos locais quando dados carregam (para período padrão de 30 dias)
@@ -727,18 +725,14 @@ export default function ProcessosDashboard() {
     }
   }, [lawsuits.length]);
 
-  const fetchData = async (forceRefresh = false, loadFullData = false) => {
+  const fetchData = async (forceRefresh = false) => {
     try {
       const refreshParam = forceRefresh ? '?force_refresh=true' : '';
       
-      // Se solicitado, buscar dados completos com paginação
-      const lawsuitsEndpoint = loadFullData 
-        ? `advbox-integration/lawsuits-full${refreshParam}`
-        : `advbox-integration/lawsuits${refreshParam}`;
-      
+      // Sempre buscar dados completos (todos os processos e movimentações)
       const [lawsuitsRes, movementsRes] = await Promise.all([
-        supabase.functions.invoke(lawsuitsEndpoint),
-        supabase.functions.invoke(`advbox-integration/last-movements${refreshParam}`),
+        supabase.functions.invoke(`advbox-integration/lawsuits-full${refreshParam}`),
+        supabase.functions.invoke(`advbox-integration/movements-full${refreshParam}`),
       ]);
 
       if (lawsuitsRes.error) throw lawsuitsRes.error;
@@ -877,13 +871,9 @@ export default function ProcessosDashboard() {
       setTotalLawsuits(lawsuitsTotal);
       setTotalMovements(movementsTotal);
       
-      // Verificar se temos dados completos
-      const isComplete = (rawLawsuits as any)?.isComplete === true || finalLawsuits.length >= lawsuitsTotal;
-      setHasCompleteData(isComplete);
-      
-      if (isComplete) {
-        console.log('Complete data loaded:', finalLawsuits.length, 'of', lawsuitsTotal);
-      }
+      // Dados completos sempre (usando lawsuits-full)
+      setHasCompleteData(true);
+      console.log('Complete data loaded:', finalLawsuits.length, 'lawsuits,', finalMovements.length, 'movements');
 
       // Atualizar cache apenas quando tivermos dados de processos
       try {
@@ -910,7 +900,7 @@ export default function ProcessosDashboard() {
             totalLawsuits: lawsuitsTotal,
             totalMovements: movementsTotal,
             metadata: rootMetadata || null,
-            isComplete,
+            isComplete: true,
             isMinimalCache: finalLawsuits.length > 5000,
           };
           
@@ -937,7 +927,7 @@ export default function ProcessosDashboard() {
               totalLawsuits: lawsuitsTotal,
               totalMovements: movementsTotal,
               metadata: null,
-              isComplete,
+              isComplete: true,
               isMinimalCache: true,
             };
             
@@ -970,20 +960,18 @@ export default function ProcessosDashboard() {
       }
     } finally {
       setLoading(false);
-      setIsLoadingFullData(false);
     }
   };
   
-  // Função para carregar todos os processos
+  // Função para forçar recarregamento completo
   const loadFullData = async () => {
-    setIsLoadingFullData(true);
     toast({
-      title: 'Carregando todos os processos',
-      description: 'Isso pode levar alguns minutos devido às limitações da API do Advbox...',
+      title: 'Recarregando todos os processos',
+      description: 'Isso pode levar alguns minutos...',
     });
-    await fetchData(true, true);
+    await fetchData(true);
     toast({
-      title: hasCompleteData ? 'Dados completos carregados!' : 'Carregamento concluído',
+      title: 'Dados carregados!',
       description: `${lawsuits.length.toLocaleString()} processos carregados.`,
     });
   };
@@ -993,14 +981,10 @@ export default function ProcessosDashboard() {
   const [recentLawsuits, setRecentLawsuits] = useState<Lawsuit[]>([]);
   const [recentLawsuitsStartDate, setRecentLawsuitsStartDate] = useState<string | null>(null);
   
-  // Estado para movimentações completas (inicializa com cache se disponível)
-  const [fullMovements, setFullMovements] = useState<Movement[]>(cachedMovements || []);
-  const [hasFullMovements, setHasFullMovements] = useState(!!cachedMovements && cachedMovements.length > 100);
-
+  
   // Função auxiliar para salvar movimentações no cache
   const saveMovementsToCache = (movementsData: Movement[]) => {
     try {
-      // Salvar apenas campos essenciais para evitar quota exceeded
       const minimalMovements = movementsData.map(m => ({
         lawsuit_id: m.lawsuit_id,
         date: m.date,
@@ -1015,45 +999,12 @@ export default function ProcessosDashboard() {
       console.log(`[Movements Cache] Saved ${minimalMovements.length} movements to cache`);
     } catch (error) {
       console.warn('Error saving movements to cache:', error);
-      // Se exceder quota, limpar e tentar novamente com menos dados
       try {
         localStorage.removeItem(MOVEMENTS_CACHE_KEY);
         localStorage.removeItem(MOVEMENTS_CACHE_TIMESTAMP_KEY);
       } catch {
         // Ignorar erro de limpeza
       }
-    }
-  };
-
-  // Função para buscar TODAS as movimentações
-  const loadFullMovements = async () => {
-    console.log('[Movements] Loading all movements...');
-    try {
-      const { data, error } = await supabase.functions.invoke(
-        'advbox-integration/movements-full'
-      );
-
-      if (error) throw error;
-
-      const movementsData = data?.data || [];
-      console.log(`[Movements] Loaded ${movementsData.length} movements`);
-      
-      setFullMovements(movementsData);
-      setHasFullMovements(true);
-      
-      // Atualizar também o estado principal se tiver mais dados
-      if (movementsData.length > movements.length) {
-        setMovements(movementsData);
-        setTotalMovements(movementsData.length);
-      }
-      
-      // Salvar no cache local
-      saveMovementsToCache(movementsData);
-      
-      return movementsData;
-    } catch (error) {
-      console.error('Error fetching full movements:', error);
-      return movements; // Fallback para movimentações existentes
     }
   };
 
@@ -1064,18 +1015,13 @@ export default function ProcessosDashboard() {
     
     toast({
       title: `Buscando dados dos últimos ${days} dias`,
-      description: `Carregando processos e movimentações desde ${startDate}...`,
+      description: `Carregando processos desde ${startDate}...`,
     });
 
     try {
-      // Buscar processos e movimentações em paralelo
-      const [lawsuitsResult, movementsResult] = await Promise.all([
-        supabase.functions.invoke(
-          `advbox-integration/lawsuits-recent?start_date=${startDate}&force_refresh=true`
-        ),
-        // Buscar todas as movimentações apenas se ainda não temos (e não temos cache)
-        !hasFullMovements ? supabase.functions.invoke('advbox-integration/movements-full') : Promise.resolve({ data: { data: fullMovements } })
-      ]);
+      const lawsuitsResult = await supabase.functions.invoke(
+        `advbox-integration/lawsuits-recent?start_date=${startDate}&force_refresh=true`
+      );
 
       if (lawsuitsResult.error) throw lawsuitsResult.error;
 
@@ -1083,36 +1029,13 @@ export default function ProcessosDashboard() {
       const totalFound = lawsuitsResult.data?.totalCount || recentData.length;
       
       console.log(`[Recent Lawsuits] Found ${recentData.length} processes from ${startDate}`);
-      
-      // Log sample para debug
-      if (recentData.length > 0) {
-        console.log('[Recent Lawsuits] Sample:', recentData.slice(0, 3).map((l: any) => ({
-          id: l.id,
-          process_date: l.process_date,
-          created_at: l.created_at,
-        })));
-      }
 
       setRecentLawsuits(recentData);
       setRecentLawsuitsStartDate(startDate);
-      
-      // Processar movimentações se vieram novas
-      if (movementsResult.data?.data && movementsResult.data.data.length > 0 && !hasFullMovements) {
-        const movementsData = movementsResult.data.data;
-        setFullMovements(movementsData);
-        setHasFullMovements(true);
-        if (movementsData.length > movements.length) {
-          setMovements(movementsData);
-          setTotalMovements(movementsData.length);
-        }
-        // Salvar no cache local
-        saveMovementsToCache(movementsData);
-        console.log(`[Movements] Loaded and cached ${movementsData.length} movements`);
-      }
 
       toast({
         title: 'Dados carregados',
-        description: `${totalFound} processos novos e ${hasFullMovements || movementsResult.data?.data?.length ? (movementsResult.data?.data?.length || fullMovements.length) : movements.length} movimentações carregadas.`,
+        description: `${totalFound} processos novos e ${movements.length} movimentações carregadas.`,
       });
     } catch (error) {
       console.error('Error fetching recent data:', error);
@@ -1134,15 +1057,13 @@ export default function ProcessosDashboard() {
     localStorage.removeItem(MOVEMENTS_CACHE_TIMESTAMP_KEY);
     setLawsuits([]);
     setMovements([]);
-    setFullMovements([]);
-    setHasFullMovements(false);
     setHasCompleteData(false);
     toast({
       title: 'Cache limpo',
       description: 'Recarregando dados do Advbox...',
     });
     setLoading(true);
-    await fetchData(false, false);
+    await fetchData(false);
   };
 
   if (loading) {
@@ -1239,60 +1160,8 @@ export default function ProcessosDashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              {!hasCompleteData && (
-                <div className="flex flex-col gap-3 mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-                      <p className="text-xs text-amber-700">
-                        Dados parciais: {lawsuits.length.toLocaleString()} de {totalLawsuits?.toLocaleString() || '?'} processos carregados.
-                        <span className="block mt-1">Use o filtro de período acima para buscar processos novos diretamente pela API.</span>
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={loadFullData}
-                      disabled={isLoadingFullData}
-                      className="shrink-0 text-xs"
-                    >
-                      {isLoadingFullData ? 'Carregando...' : 'Carregar Todos'}
-                    </Button>
-                  </div>
-                  
-                  {recentLawsuits.length > 0 && recentLawsuitsStartDate && (
-                    <div className="text-xs text-green-700 bg-green-500/10 p-2 rounded flex items-center justify-between">
-                      <span>
-                        Processos novos (desde {format(new Date(recentLawsuitsStartDate), 'dd/MM/yyyy')}): 
-                        <strong> {recentLawsuits.length}</strong> encontrados via API
-                      </span>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-6 text-xs text-green-600"
-                        onClick={() => {
-                          setRecentLawsuits([]);
-                          setRecentLawsuitsStartDate(null);
-                          setEvolutionPeriod('all');
-                        }}
-                      >
-                        Limpar
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-              {hasCompleteData && (
-                <div className="flex items-center gap-2 mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                  <Briefcase className="h-4 w-4 text-green-600 shrink-0" />
-                  <p className="text-xs text-green-700">
-                    Dados completos: {lawsuits.length.toLocaleString()} processos carregados. 
-                    Os contadores de "Processos Novos" refletem dados reais.
-                  </p>
-                </div>
-              )}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                {/* PROCESSOS ATIVOS - Sempre mostra o total real, independente do período */}
+                {/* PROCESSOS ATIVOS */}
                 <div className="text-center p-4 bg-primary/5 rounded-lg">
                   <div className="text-3xl font-bold text-primary">
                     {searchTerm || !showAllResponsibles 
@@ -1307,14 +1176,10 @@ export default function ProcessosDashboard() {
                   </div>
                 </div>
                 
-                {/* MOVIMENTAÇÕES NO PERÍODO - Filtra das movimentações completas */}
-                <div className="text-center p-4 bg-blue-500/5 rounded-lg">
-                  <div className="text-3xl font-bold text-blue-600 flex items-center justify-center gap-2">
+                {/* MOVIMENTAÇÕES NO PERÍODO */}
+                <div className="text-center p-4 bg-accent/50 rounded-lg">
+                  <div className="text-3xl font-bold text-primary flex items-center justify-center gap-2">
                     {(() => {
-                      // Usar fullMovements se disponível, senão usar movements
-                      const movementsToUse = hasFullMovements && fullMovements.length > 0 ? fullMovements : movements;
-                      
-                      // Filtrar pelo período de evolução selecionado
                       const getEvolutionDateFilter = () => {
                         const now = new Date();
                         switch (evolutionPeriod) {
@@ -1331,48 +1196,41 @@ export default function ProcessosDashboard() {
                       const evolutionDateFilter = getEvolutionDateFilter();
                       
                       if (evolutionDateFilter) {
-                        const filteredByEvolution = movementsToUse.filter(m => {
+                        const filteredByEvolution = movements.filter(m => {
                           const movementDate = new Date(m.date);
                           return !isBefore(movementDate, evolutionDateFilter);
                         });
                         return filteredByEvolution.length;
                       }
-                      return totalMovements ?? movementsToUse.length;
+                      return totalMovements ?? movements.length;
                     })()}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
-                    Movimentações {evolutionPeriod !== 'all' ? 'no Período' : 'Recentes'}
+                    Movimentações {evolutionPeriod !== 'all' ? 'no Período' : 'Total'}
                   </div>
                   {evolutionPeriod !== 'all' && (
                     <div className="text-xs text-muted-foreground/60 mt-0.5">
                       Últimos {evolutionPeriod} dias
-                      {hasFullMovements && <span className="ml-1 text-green-600">(cache local)</span>}
                     </div>
                   )}
                 </div>
-                <div className="text-center p-4 bg-green-500/5 rounded-lg border-2 border-green-500/20">
-                  <div className="text-3xl font-bold text-green-600">
-                    {recentLawsuits.length > 0 ? (
-                      recentLawsuits.length
-                    ) : evolutionPeriod === 'all' ? (
-                      hasCompleteData ? evolutionMetrics.newProcesses : '—'
-                    ) : (
-                      '—'
-                    )}
+                {/* PROCESSOS NOVOS */}
+                <div className="text-center p-4 bg-accent/50 rounded-lg border-2 border-primary/20">
+                  <div className="text-3xl font-bold text-primary">
+                    {evolutionMetrics.newProcesses}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
                     Processos Novos
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
-                    {recentLawsuits.length > 0 && recentLawsuitsStartDate
-                      ? `Desde ${format(new Date(recentLawsuitsStartDate), 'dd/MM')} (cache local)`
-                      : evolutionPeriod === 'all' 
-                        ? (hasCompleteData ? 'Total geral' : 'Selecione um período') 
-                        : `Últimos ${evolutionPeriod} dias`}
+                    {evolutionPeriod === 'all' 
+                      ? 'Total geral' 
+                      : `Últimos ${evolutionPeriod} dias`}
                   </div>
                 </div>
-                <div className="text-center p-4 bg-purple-500/5 rounded-lg">
-                  <div className="text-3xl font-bold text-purple-600">
+                {/* PROCESSOS ARQUIVADOS */}
+                <div className="text-center p-4 bg-secondary/50 rounded-lg">
+                  <div className="text-3xl font-bold text-secondary-foreground">
                     {evolutionMetrics.archivedProcesses}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
@@ -1380,22 +1238,15 @@ export default function ProcessosDashboard() {
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
                     {evolutionPeriod === 'all' 
-                      ? (hasCompleteData ? 'Total geral' : 'Na amostra carregada') 
+                      ? 'Total geral' 
                       : `Últimos ${evolutionPeriod} dias`}
                   </div>
                 </div>
-                <div className={`text-center p-4 rounded-lg ${recentLawsuits.length > 0 ? (recentLawsuits.length - evolutionMetrics.archivedProcesses >= 0 ? 'bg-emerald-500/5' : 'bg-red-500/5') : (netGrowth >= 0 ? 'bg-emerald-500/5' : 'bg-red-500/5')}`}>
-                  <div className={`text-3xl font-bold ${recentLawsuits.length > 0 ? (recentLawsuits.length - evolutionMetrics.archivedProcesses >= 0 ? 'text-emerald-600' : 'text-red-600') : (netGrowth >= 0 ? 'text-emerald-600' : 'text-red-600')} flex items-center justify-center gap-1`}>
-                    {recentLawsuits.length > 0 ? (
-                      <>
-                        {recentLawsuits.length - evolutionMetrics.archivedProcesses >= 0 ? '+' : ''}{recentLawsuits.length - evolutionMetrics.archivedProcesses}
-                      </>
-                    ) : (
-                      <>
-                        {netGrowth >= 0 ? '+' : ''}{netGrowth}
-                      </>
-                    )}
-                    {(recentLawsuits.length > 0 ? (recentLawsuits.length - evolutionMetrics.archivedProcesses >= 0) : (netGrowth >= 0)) ? (
+                {/* CRESCIMENTO LÍQUIDO */}
+                <div className={`text-center p-4 rounded-lg ${netGrowth >= 0 ? 'bg-accent/50' : 'bg-destructive/5'}`}>
+                  <div className={`text-3xl font-bold ${netGrowth >= 0 ? 'text-primary' : 'text-destructive'} flex items-center justify-center gap-1`}>
+                    {netGrowth >= 0 ? '+' : ''}{netGrowth}
+                    {netGrowth >= 0 ? (
                       <TrendingUp className="h-5 w-5" />
                     ) : (
                       <TrendingUp className="h-5 w-5 rotate-180" />
