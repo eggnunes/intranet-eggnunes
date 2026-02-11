@@ -490,7 +490,7 @@ export const TaskNotificationSettings = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="max-h-[400px]">
+            <ScrollArea className="h-auto max-h-[600px]">
               <div className="space-y-4">
                 {adminUsers.length === 0 ? (
                   <p className="text-muted-foreground text-center py-4">
