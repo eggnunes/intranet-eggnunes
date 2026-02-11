@@ -34,7 +34,7 @@ interface Message {
   message_template?: string;
 }
 
-export default function HistoricoMensagensAniversario() {
+export default function HistoricoMensagensAniversario({ embedded = false, defaultTypeFilter = 'all' }: { embedded?: boolean; defaultTypeFilter?: string }) {
   const navigate = useNavigate();
   const { isAdmin, loading: roleLoading } = useUserRole();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -42,22 +42,22 @@ export default function HistoricoMensagensAniversario() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<string>(defaultTypeFilter);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
-    if (!roleLoading && !isAdmin) {
+    if (!embedded && !roleLoading && !isAdmin) {
       navigate('/');
       toast.error('Acesso negado. Apenas administradores podem acessar esta página.');
     }
-  }, [isAdmin, roleLoading, navigate]);
+  }, [isAdmin, roleLoading, navigate, embedded]);
 
   useEffect(() => {
-    if (isAdmin) {
+    if (embedded || isAdmin) {
       fetchAllMessages();
     }
-  }, [isAdmin]);
+  }, [isAdmin, embedded]);
 
   useEffect(() => {
     applyFilters();
@@ -218,16 +218,16 @@ export default function HistoricoMensagensAniversario() {
   };
 
   if (roleLoading || loading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-muted-foreground">Carregando...</div>
-        </div>
-      </Layout>
+    const loadingContent = (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-muted-foreground">Carregando...</div>
+      </div>
     );
+    if (embedded) return loadingContent;
+    return <Layout>{loadingContent}</Layout>;
   }
 
-  if (!isAdmin) {
+  if (!embedded && !isAdmin) {
     return null;
   }
 
@@ -237,9 +237,9 @@ export default function HistoricoMensagensAniversario() {
   const collectionCount = filteredMessages.filter((m) => m.type === 'collection').length;
   const documentsCount = filteredMessages.filter((m) => m.type === 'documents').length;
 
-  return (
-    <Layout>
-      <div className="container mx-auto p-6 space-y-6">
+  const content = (
+    <div className={embedded ? "space-y-6" : "container mx-auto p-6 space-y-6"}>
+      {!embedded && (
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <MessageSquare className="h-8 w-8 text-primary" />
@@ -249,8 +249,7 @@ export default function HistoricoMensagensAniversario() {
             Acompanhe todas as mensagens enviadas via WhatsApp (aniversário, cobrança e documentos)
           </p>
         </div>
-
-        {/* Estatísticas */}
+      )}
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
           <Card>
             <CardHeader className="pb-2">
@@ -510,6 +509,8 @@ export default function HistoricoMensagensAniversario() {
           </CardContent>
         </Card>
       </div>
-    </Layout>
   );
+
+  if (embedded) return content;
+  return <Layout>{content}</Layout>;
 }

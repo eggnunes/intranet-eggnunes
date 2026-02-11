@@ -185,11 +185,9 @@ export function AppSidebar() {
         { icon: Briefcase, path: '/processos', label: 'Processos' },
         { icon: Bell, path: '/publicacoes', label: 'Publicações' },
         { icon: CheckSquare, path: '/tarefas-advbox', label: 'Tarefas', badgeCount: criticalTasksCount },
-        { icon: ClipboardList, path: '/relatorios-produtividade-tarefas', label: 'Produtividade' },
         { icon: DollarSign, path: '/relatorios-financeiros', label: 'Financeiro' },
         { icon: TrendingUp, path: '/advbox-analytics', label: 'Analytics' },
         { icon: Cake, path: '/aniversarios-clientes', label: 'Aniversários Clientes' },
-        { icon: MessageCircle, path: '/historico-mensagens-aniversario', label: 'Histórico Mensagens' },
       ],
     },
     {

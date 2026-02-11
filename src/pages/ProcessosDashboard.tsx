@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -16,12 +16,11 @@ import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
 import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
 import { TaskCreationDialog } from '@/components/TaskCreationDialog';
 import { TaskSuggestionsPanel } from '@/components/TaskSuggestionsPanel';
-import { TribunalLinksCards } from '@/components/processos/TribunalLinksCards';
-import { TribunalLinksAdmin } from '@/components/processos/TribunalLinksAdmin';
+// TribunalLinksCards and TribunalLinksAdmin removed - available via Gestão Processual
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
 import { format, subDays, subMonths, isAfter, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Briefcase, TrendingUp, BarChart, Search, Filter, AlertCircle, Calendar, ListTodo, RefreshCw, MessageSquare, Send, X, Sparkles, Scale, Settings } from 'lucide-react';
+import { Briefcase, TrendingUp, BarChart, Search, Filter, AlertCircle, Calendar, ListTodo, RefreshCw, MessageSquare, Send, X, Sparkles, Settings } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -1413,295 +1412,245 @@ export default function ProcessosDashboard() {
             </CardContent>
           </Card>
 
-          {/* Seções Expansíveis */}
+          {/* Tabs Dashboard / Movimentações */}
           <div className="lg:col-span-3">
-            <Accordion type="multiple" className="space-y-4">
+            <Tabs defaultValue="dashboard" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+                <TabsTrigger value="movimentacoes">Movimentações</TabsTrigger>
+              </TabsList>
 
-              {/* Timeline de Movimentações */}
-              {filteredMovements.length > 0 && (
-                <AccordionItem value="timeline" className="border rounded-lg px-4">
-                  <AccordionTrigger className="hover:no-underline">
-                    <div className="flex items-center gap-2">
-                      <BarChart className="h-5 w-5" />
-                      <span className="font-semibold">Timeline de Movimentações</span>
-                      <span className="text-sm text-muted-foreground ml-2">(Últimos 30 dias)</span>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="pt-4">
+              {/* Aba Dashboard */}
+              <TabsContent value="dashboard" className="space-y-4">
+                {/* Timeline de Movimentações */}
+                {filteredMovements.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart className="h-5 w-5" />
+                        Timeline de Movimentações
+                        <span className="text-sm text-muted-foreground ml-2">(Últimos 30 dias)</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
                       <ResponsiveContainer width="100%" height={300}>
                         <RechartsBarChart data={getTimelineData()}>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                          <XAxis 
-                            dataKey="date" 
-                            tick={{ fontSize: 12 }}
-                            className="text-muted-foreground"
-                          />
-                          <YAxis 
-                            tick={{ fontSize: 12 }}
-                            className="text-muted-foreground"
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: 'hsl(var(--card))',
-                              border: '1px solid hsl(var(--border))',
-                              borderRadius: '8px'
-                            }}
-                          />
-                          <Bar 
-                            dataKey="movimentações" 
-                            fill="hsl(var(--primary))"
-                            radius={[8, 8, 0, 0]}
-                          />
+                          <XAxis dataKey="date" tick={{ fontSize: 12 }} className="text-muted-foreground" />
+                          <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
+                          <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} />
+                          <Bar dataKey="movimentações" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
                         </RechartsBarChart>
                       </ResponsiveContainer>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              )}
+                    </CardContent>
+                  </Card>
+                )}
 
-              {/* Processos Ativos - Lista */}
-              <AccordionItem value="processos-lista" className="border rounded-lg px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <div className="flex items-center gap-2">
-                    <Briefcase className="h-5 w-5" />
-                    <span className="font-semibold">Processos Ativos</span>
-                    <span className="text-sm text-muted-foreground ml-2">
-                      ({filteredLawsuits.length} {searchTerm || !showAllResponsibles ? 'filtrados' : 'total'})
-                    </span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="pt-4 space-y-3">
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          placeholder="Buscar processos..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-9"
-                        />
+                {/* Processos Ativos - Lista */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Briefcase className="h-5 w-5" />
+                      Processos Ativos
+                      <span className="text-sm text-muted-foreground ml-2">
+                        ({filteredLawsuits.length} {searchTerm || !showAllResponsibles ? 'filtrados' : 'total'})
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Buscar processos..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-9"
+                          />
+                        </div>
+                        
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" size="icon">
+                              <Filter className="h-4 w-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80">
+                            <div className="space-y-4">
+                              <h4 className="font-medium">Filtrar por Responsável</h4>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="all-process-responsibles"
+                                  checked={showAllResponsibles}
+                                  onCheckedChange={(checked) => {
+                                    setShowAllResponsibles(checked as boolean);
+                                    if (checked) setSelectedResponsibles([]);
+                                  }}
+                                />
+                                <label htmlFor="all-process-responsibles" className="text-sm font-medium cursor-pointer">
+                                  Todos os responsáveis
+                                </label>
+                              </div>
+                              <div className="border-t pt-2 space-y-2 max-h-60 overflow-y-auto">
+                                {responsibles.map((responsible) => (
+                                  <div key={responsible} className="flex items-center space-x-2">
+                                    <Checkbox
+                                      id={`process-${responsible}`}
+                                      checked={selectedResponsibles.includes(responsible)}
+                                      disabled={showAllResponsibles}
+                                      onCheckedChange={(checked) => {
+                                        if (checked) {
+                                          setSelectedResponsibles([...selectedResponsibles, responsible]);
+                                          setShowAllResponsibles(false);
+                                        } else {
+                                          setSelectedResponsibles(selectedResponsibles.filter(r => r !== responsible));
+                                        }
+                                      }}
+                                    />
+                                    <label htmlFor={`process-${responsible}`} className="text-sm cursor-pointer">
+                                      {responsible}
+                                    </label>
+                                  </div>
+                                ))}
+                              </div>
+                              {!showAllResponsibles && selectedResponsibles.length > 0 && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  onClick={() => { setSelectedResponsibles([]); setShowAllResponsibles(true); }}
+                                  className="w-full"
+                                >
+                                  Limpar Filtros
+                                </Button>
+                              )}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                       </div>
-                      
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" size="icon">
-                            <Filter className="h-4 w-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-80">
-                          <div className="space-y-4">
-                            <h4 className="font-medium">Filtrar por Responsável</h4>
-                            
-                            <div className="flex items-center space-x-2">
-                              <Checkbox
-                                id="all-process-responsibles"
-                                checked={showAllResponsibles}
-                                onCheckedChange={(checked) => {
-                                  setShowAllResponsibles(checked as boolean);
-                                  if (checked) setSelectedResponsibles([]);
-                                }}
-                              />
-                              <label htmlFor="all-process-responsibles" className="text-sm font-medium cursor-pointer">
-                                Todos os responsáveis
-                              </label>
-                            </div>
-                            
-                            <div className="border-t pt-2 space-y-2 max-h-60 overflow-y-auto">
-                              {responsibles.map((responsible) => (
-                                <div key={responsible} className="flex items-center space-x-2">
-                                  <Checkbox
-                                    id={`process-${responsible}`}
-                                    checked={selectedResponsibles.includes(responsible)}
-                                    disabled={showAllResponsibles}
-                                    onCheckedChange={(checked) => {
-                                      if (checked) {
-                                        setSelectedResponsibles([...selectedResponsibles, responsible]);
-                                        setShowAllResponsibles(false);
-                                      } else {
-                                        setSelectedResponsibles(selectedResponsibles.filter(r => r !== responsible));
-                                      }
-                                    }}
-                                  />
-                                  <label htmlFor={`process-${responsible}`} className="text-sm cursor-pointer">
-                                    {responsible}
-                                  </label>
-                                </div>
-                              ))}
-                            </div>
-                            
-                            {!showAllResponsibles && selectedResponsibles.length > 0 && (
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => {
-                                  setSelectedResponsibles([]);
-                                  setShowAllResponsibles(true);
-                                }}
-                                className="w-full"
-                              >
-                                Limpar Filtros
-                              </Button>
-                            )}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+
+                      <ScrollArea className="h-[400px]">
+                        <div className="space-y-3">
+                          {filteredLawsuits.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-8">
+                              {searchTerm || !showAllResponsibles ? 'Nenhum processo encontrado com os filtros aplicados' : 'Nenhum processo encontrado'}
+                            </p>
+                          ) : (
+                            filteredLawsuits.map((lawsuit) => (
+                              <Card key={lawsuit.id} className="hover:shadow-md transition-shadow">
+                                <CardContent className="p-4">
+                                  <div className="space-y-3">
+                                    <div className="flex items-start justify-between gap-4">
+                                      <div className="flex-1">
+                                        <p className="font-semibold text-sm mb-1">{lawsuit.process_number}</p>
+                                        {lawsuit.customers && (
+                                          <p className="text-xs text-muted-foreground mb-2">
+                                            Cliente: <span className="font-medium text-foreground">{getCustomerName(lawsuit.customers as Lawsuit['customers'])}</span>
+                                          </p>
+                                        )}
+                                        <div className="flex gap-2 mt-2">
+                                          <Badge variant="outline" className="text-xs">{lawsuit.type}</Badge>
+                                          <Badge variant="secondary" className="text-xs">{lawsuit.group}</Badge>
+                                        </div>
+                                      </div>
+                                      <div className="flex gap-2 shrink-0">
+                                        <Button size="sm" variant="outline" onClick={() => openMessageDialog(lawsuit)} disabled={sendingDocRequest === lawsuit.id}>
+                                          <MessageSquare className="h-4 w-4 mr-1" />
+                                          {sendingDocRequest === lawsuit.id ? 'Enviando...' : 'Enviar Mensagem'}
+                                        </Button>
+                                        <Button size="sm" variant="outline" onClick={() => openTaskDialogFromLawsuit(lawsuit)}>
+                                          <ListTodo className="h-4 w-4 mr-1" />
+                                          Criar Tarefa
+                                        </Button>
+                                        <Button size="sm" variant="outline" onClick={() => setPetitionDialogLawsuit(lawsuit)} title="Sugestão de petição por IA">
+                                          <Sparkles className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                    {lawsuit.responsible && (
+                                      <div className="text-xs">
+                                        <span className="text-muted-foreground">Responsável: </span>
+                                        <span className="font-medium">{lawsuit.responsible}</span>
+                                      </div>
+                                    )}
+                                    {lawsuit.folder && (
+                                      <div className="text-xs">
+                                        <span className="text-muted-foreground">Pasta: </span>
+                                        <span>{lawsuit.folder}</span>
+                                      </div>
+                                    )}
+                                    <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t">
+                                      {lawsuit.created_at && (
+                                        <div>
+                                          <span className="text-muted-foreground">Criado: </span>
+                                          <span>{new Date(lawsuit.created_at).toLocaleDateString('pt-BR')}</span>
+                                        </div>
+                                      )}
+                                      {lawsuit.status_closure && (
+                                        <div>
+                                          <span className="text-muted-foreground">Encerrado: </span>
+                                          <span>{new Date(lawsuit.status_closure).toLocaleDateString('pt-BR')}</span>
+                                        </div>
+                                      )}
+                                      {lawsuit.exit_production && (
+                                        <div>
+                                          <span className="text-muted-foreground">Saída produção: </span>
+                                          <span>{new Date(lawsuit.exit_production).toLocaleDateString('pt-BR')}</span>
+                                        </div>
+                                      )}
+                                      {lawsuit.process_date && (
+                                        <div>
+                                          <span className="text-muted-foreground">Data processo: </span>
+                                          <span>{new Date(lawsuit.process_date).toLocaleDateString('pt-BR')}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {(lawsuit.fees_expec || lawsuit.fees_money || lawsuit.contingency) && (
+                                      <div className="grid grid-cols-3 gap-2 text-xs pt-2 border-t">
+                                        {lawsuit.fees_expec && (
+                                          <div>
+                                            <span className="text-muted-foreground">Honorários Esperados: </span>
+                                            <span className="font-medium">{lawsuit.fees_expec.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                          </div>
+                                        )}
+                                        {lawsuit.fees_money && (
+                                          <div>
+                                            <span className="text-muted-foreground">Honorários: </span>
+                                            <span className="font-medium">{lawsuit.fees_money.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                          </div>
+                                        )}
+                                        {lawsuit.contingency && (
+                                          <div>
+                                            <span className="text-muted-foreground">Contingência: </span>
+                                            <span className="font-medium">{lawsuit.contingency.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))
+                          )}
+                        </div>
+                      </ScrollArea>
                     </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-                    <ScrollArea className="h-[400px]">
-                      <div className="space-y-3">
-                      {filteredLawsuits.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-8">
-                          {searchTerm || !showAllResponsibles ? 'Nenhum processo encontrado com os filtros aplicados' : 'Nenhum processo encontrado'}
-                        </p>
-                      ) : (
-                        filteredLawsuits.map((lawsuit) => (
-                          <Card key={lawsuit.id} className="hover:shadow-md transition-shadow">
-                            <CardContent className="p-4">
-                          <div className="space-y-3">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1">
-                                <p className="font-semibold text-sm mb-1">{lawsuit.process_number}</p>
-                                {lawsuit.customers && (
-                                  <p className="text-xs text-muted-foreground mb-2">
-                                    Cliente: <span className="font-medium text-foreground">{getCustomerName(lawsuit.customers as Lawsuit['customers'])}</span>
-                                  </p>
-                                )}
-                                <div className="flex gap-2 mt-2">
-                                  <Badge variant="outline" className="text-xs">
-                                    {lawsuit.type}
-                                  </Badge>
-                                  <Badge variant="secondary" className="text-xs">
-                                    {lawsuit.group}
-                                  </Badge>
-                                </div>
-                              </div>
-                              <div className="flex gap-2 shrink-0">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openMessageDialog(lawsuit)}
-                                  disabled={sendingDocRequest === lawsuit.id}
-                                >
-                                  <MessageSquare className="h-4 w-4 mr-1" />
-                                  {sendingDocRequest === lawsuit.id ? 'Enviando...' : 'Enviar Mensagem'}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openTaskDialogFromLawsuit(lawsuit)}
-                                >
-                                  <ListTodo className="h-4 w-4 mr-1" />
-                                  Criar Tarefa
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => setPetitionDialogLawsuit(lawsuit)}
-                                  title="Sugestão de petição por IA"
-                                >
-                                  <Sparkles className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                            
-                            {lawsuit.responsible && (
-                              <div className="text-xs">
-                                <span className="text-muted-foreground">Responsável: </span>
-                                <span className="font-medium">{lawsuit.responsible}</span>
-                              </div>
-                            )}
-                            
-                            {lawsuit.folder && (
-                              <div className="text-xs">
-                                <span className="text-muted-foreground">Pasta: </span>
-                                <span>{lawsuit.folder}</span>
-                              </div>
-                            )}
-                            
-                            <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t">
-                              {lawsuit.created_at && (
-                                <div>
-                                  <span className="text-muted-foreground">Criado: </span>
-                                  <span>{new Date(lawsuit.created_at).toLocaleDateString('pt-BR')}</span>
-                                </div>
-                              )}
-                              {lawsuit.status_closure && (
-                                <div>
-                                  <span className="text-muted-foreground">Encerrado: </span>
-                                  <span>{new Date(lawsuit.status_closure).toLocaleDateString('pt-BR')}</span>
-                                </div>
-                              )}
-                              {lawsuit.exit_production && (
-                                <div>
-                                  <span className="text-muted-foreground">Saída produção: </span>
-                                  <span>{new Date(lawsuit.exit_production).toLocaleDateString('pt-BR')}</span>
-                                </div>
-                              )}
-                              {lawsuit.process_date && (
-                                <div>
-                                  <span className="text-muted-foreground">Data processo: </span>
-                                  <span>{new Date(lawsuit.process_date).toLocaleDateString('pt-BR')}</span>
-                                </div>
-                              )}
-                            </div>
-                            
-                            {(lawsuit.fees_expec || lawsuit.fees_money || lawsuit.contingency) && (
-                              <div className="grid grid-cols-3 gap-2 text-xs pt-2 border-t">
-                                {lawsuit.fees_expec && (
-                                  <div>
-                                    <span className="text-muted-foreground">Honorários Esperados: </span>
-                                    <span className="font-medium">
-                                      {lawsuit.fees_expec.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                    </span>
-                                  </div>
-                                )}
-                                {lawsuit.fees_money && (
-                                  <div>
-                                    <span className="text-muted-foreground">Honorários: </span>
-                                    <span className="font-medium">
-                                      {lawsuit.fees_money.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                    </span>
-                                  </div>
-                                )}
-                                {lawsuit.contingency && (
-                                  <div>
-                                    <span className="text-muted-foreground">Contingência: </span>
-                                    <span className="font-medium">
-                                      {lawsuit.contingency.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                        ))
-                      )}
-                      </div>
-                    </ScrollArea>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-
-              {/* Movimentações Recentes */}
-              <AccordionItem value="movimentacoes" className="border rounded-lg px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="h-5 w-5" />
-                    <span className="font-semibold">Movimentações Recentes</span>
-                    <span className="text-sm text-muted-foreground ml-2">
-                      ({filteredMovements.length})
-                    </span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="pt-4 space-y-3">
-                  <CardDescription>Últimas atualizações dos processos</CardDescription>
-                </div>
-                
+              {/* Aba Movimentações */}
+              <TabsContent value="movimentacoes" className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <AlertCircle className="h-5 w-5" />
+                      Movimentações
+                      <span className="text-sm text-muted-foreground ml-2">({filteredMovements.length})</span>
+                    </CardTitle>
+                    <CardDescription>Últimas atualizações dos processos</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
                     <div className="flex gap-2 flex-wrap">
                       <div className="relative flex-1 min-w-[200px]">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1739,23 +1688,17 @@ export default function ProcessosDashboard() {
                         <PopoverContent className="w-64" align="end">
                           <div className="space-y-4">
                             <h4 className="font-medium text-sm">Filtrar por Status</h4>
-                            
                             <div className="flex items-center space-x-2">
                               <Checkbox
                                 id="all-statuses"
                                 checked={showAllStatuses}
                                 onCheckedChange={(checked) => {
                                   setShowAllStatuses(!!checked);
-                                  if (checked) {
-                                    setSelectedStatuses([]);
-                                  }
+                                  if (checked) setSelectedStatuses([]);
                                 }}
                               />
-                              <label htmlFor="all-statuses" className="text-sm font-medium cursor-pointer">
-                                Todos os Status
-                              </label>
+                              <label htmlFor="all-statuses" className="text-sm font-medium cursor-pointer">Todos os Status</label>
                             </div>
-                            
                             <div className="space-y-2 max-h-[300px] overflow-y-auto">
                               {lawsuitStatuses.map((status) => (
                                 <div key={status} className="flex items-center space-x-2">
@@ -1764,33 +1707,16 @@ export default function ProcessosDashboard() {
                                     checked={selectedStatuses.includes(status)}
                                     disabled={showAllStatuses}
                                     onCheckedChange={(checked) => {
-                                      if (checked) {
-                                        setSelectedStatuses([...selectedStatuses, status]);
-                                        setShowAllStatuses(false);
-                                      } else {
-                                        setSelectedStatuses(selectedStatuses.filter(s => s !== status));
-                                      }
+                                      if (checked) { setSelectedStatuses([...selectedStatuses, status]); setShowAllStatuses(false); }
+                                      else { setSelectedStatuses(selectedStatuses.filter(s => s !== status)); }
                                     }}
                                   />
-                                  <label htmlFor={`status-${status}`} className="text-sm cursor-pointer">
-                                    {status}
-                                  </label>
+                                  <label htmlFor={`status-${status}`} className="text-sm cursor-pointer">{status}</label>
                                 </div>
                               ))}
                             </div>
-                            
                             {!showAllStatuses && selectedStatuses.length > 0 && (
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => {
-                                  setSelectedStatuses([]);
-                                  setShowAllStatuses(true);
-                                }}
-                                className="w-full"
-                              >
-                                Limpar Filtros
-                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => { setSelectedStatuses([]); setShowAllStatuses(true); }} className="w-full">Limpar Filtros</Button>
                             )}
                           </div>
                         </PopoverContent>
@@ -1809,7 +1735,6 @@ export default function ProcessosDashboard() {
                         <PopoverContent className="w-80">
                           <div className="space-y-4">
                             <h4 className="font-medium">Filtrar por Responsável</h4>
-                            
                             <div className="flex items-center space-x-2">
                               <Checkbox
                                 id="all-movement-responsibles"
@@ -1819,11 +1744,8 @@ export default function ProcessosDashboard() {
                                   if (checked) setSelectedMovementResponsibles([]);
                                 }}
                               />
-                              <label htmlFor="all-movement-responsibles" className="text-sm font-medium cursor-pointer">
-                                Todos os responsáveis
-                              </label>
+                              <label htmlFor="all-movement-responsibles" className="text-sm font-medium cursor-pointer">Todos os responsáveis</label>
                             </div>
-                            
                             <div className="border-t pt-2 space-y-2 max-h-60 overflow-y-auto">
                               {movementResponsibles.map((responsible) => (
                                 <div key={responsible} className="flex items-center space-x-2">
@@ -1832,33 +1754,16 @@ export default function ProcessosDashboard() {
                                     checked={selectedMovementResponsibles.includes(responsible)}
                                     disabled={showAllMovementResponsibles}
                                     onCheckedChange={(checked) => {
-                                      if (checked) {
-                                        setSelectedMovementResponsibles([...selectedMovementResponsibles, responsible]);
-                                        setShowAllMovementResponsibles(false);
-                                      } else {
-                                        setSelectedMovementResponsibles(selectedMovementResponsibles.filter(r => r !== responsible));
-                                      }
+                                      if (checked) { setSelectedMovementResponsibles([...selectedMovementResponsibles, responsible]); setShowAllMovementResponsibles(false); }
+                                      else { setSelectedMovementResponsibles(selectedMovementResponsibles.filter(r => r !== responsible)); }
                                     }}
                                   />
-                                  <label htmlFor={`movement-${responsible}`} className="text-sm cursor-pointer">
-                                    {responsible}
-                                  </label>
+                                  <label htmlFor={`movement-${responsible}`} className="text-sm cursor-pointer">{responsible}</label>
                                 </div>
                               ))}
                             </div>
-                            
                             {!showAllMovementResponsibles && selectedMovementResponsibles.length > 0 && (
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => {
-                                  setSelectedMovementResponsibles([]);
-                                  setShowAllMovementResponsibles(true);
-                                }}
-                                className="w-full"
-                              >
-                                Limpar Filtros
-                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => { setSelectedMovementResponsibles([]); setShowAllMovementResponsibles(true); }} className="w-full">Limpar Filtros</Button>
                             )}
                           </div>
                         </PopoverContent>
@@ -1877,87 +1782,45 @@ export default function ProcessosDashboard() {
                       lawsuits={lawsuits}
                     />
 
-                    <ScrollArea className="h-[400px]">
+                    <ScrollArea className="h-[600px]">
                       <div className="space-y-3">
-                  {filteredMovements.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">
-                      {movementSearchTerm || !showAllMovementResponsibles ? 'Nenhuma movimentação encontrada com os filtros aplicados' : 'Nenhuma movimentação encontrada'}
-                    </p>
-                  ) : (
-                    filteredMovements.map((movement, index) => (
-                      <div key={`${movement.lawsuit_id}-${index}`} className="border-l-2 border-primary/30 pl-3 pb-4 mb-3">
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <Badge variant="outline" className="text-xs">
-                            {new Date(movement.date).toLocaleDateString('pt-BR')}
-                          </Badge>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openTaskDialog(movement)}
-                          >
-                            <ListTodo className="h-4 w-4 mr-1" />
-                            Criar Tarefa
-                          </Button>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <div>
-                            <p className="text-xs font-semibold text-primary mb-1">
-                              {movement.process_number}
-                            </p>
-                            {movement.customers && (
-                              <p className="text-xs text-muted-foreground">
-                                Cliente: {getCustomerName(movement.customers)}
-                              </p>
-                            )}
-                          </div>
-                          
-                          <div className="bg-muted/30 p-2 rounded">
-                            <p className="text-xs font-medium mb-1">{movement.title}</p>
-                            {movement.header && (
-                              <p className="text-xs text-muted-foreground">{movement.header}</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
+                        {filteredMovements.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-8">
+                            {movementSearchTerm || !showAllMovementResponsibles ? 'Nenhuma movimentação encontrada com os filtros aplicados' : 'Nenhuma movimentação encontrada'}
+                          </p>
+                        ) : (
+                          filteredMovements.map((movement, index) => (
+                            <div key={`${movement.lawsuit_id}-${index}`} className="border-l-2 border-primary/30 pl-3 pb-4 mb-3">
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <Badge variant="outline" className="text-xs">
+                                  {new Date(movement.date).toLocaleDateString('pt-BR')}
+                                </Badge>
+                                <Button size="sm" variant="outline" onClick={() => openTaskDialog(movement)}>
+                                  <ListTodo className="h-4 w-4 mr-1" />
+                                  Criar Tarefa
+                                </Button>
+                              </div>
+                              <div className="space-y-2">
+                                <div>
+                                  <p className="text-xs font-semibold text-primary mb-1">{movement.process_number}</p>
+                                  {movement.customers && (
+                                    <p className="text-xs text-muted-foreground">Cliente: {getCustomerName(movement.customers)}</p>
+                                  )}
+                                </div>
+                                <div className="bg-muted/30 p-2 rounded">
+                                  <p className="text-xs font-medium mb-1">{movement.title}</p>
+                                  {movement.header && <p className="text-xs text-muted-foreground">{movement.header}</p>}
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
                       </div>
                     </ScrollArea>
-                </AccordionContent>
-              </AccordionItem>
-
-              {/* Portais de Tribunais */}
-              <AccordionItem value="portais-tribunais" className="border rounded-lg px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <div className="flex items-center gap-2">
-                    <Scale className="h-5 w-5" />
-                    <span className="font-semibold">Portais de Tribunais</span>
-                    <span className="text-sm text-muted-foreground ml-2">
-                      (Acesso rápido aos sistemas processuais)
-                    </span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="pt-4 space-y-6">
-                    {/* Cards de links */}
-                    <TribunalLinksCards />
-                    
-                    {/* Painel Admin - apenas para admins */}
-                    {isAdmin && (
-                      <div className="mt-8 pt-6 border-t">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Settings className="h-5 w-5" />
-                          <h3 className="font-semibold">Gerenciamento (Admin)</h3>
-                        </div>
-                        <TribunalLinksAdmin />
-                      </div>
-                    )}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-
-            </Accordion>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
 

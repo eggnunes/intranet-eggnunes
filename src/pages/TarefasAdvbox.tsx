@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X, Edit, History, Calendar, List, Settings, BarChart3, Lightbulb, Lock } from 'lucide-react';
+import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X, Edit, History, Calendar, List, Settings, BarChart3, Lightbulb, Lock, TrendingUp } from 'lucide-react';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { TaskCalendarView } from '@/components/TaskCalendarView';
 import { TaskNotificationSettings } from '@/components/TaskNotificationSettings';
@@ -30,6 +31,7 @@ import { TaskComments } from '@/components/TaskComments';
 import { TaskAttachments } from '@/components/TaskAttachments';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TaskStatusHistory } from '@/components/TaskStatusHistory';
+import RelatoriosProdutividadeTarefas from './RelatoriosProdutividadeTarefas';
 
 interface Task {
   id: string;
@@ -47,6 +49,8 @@ interface Task {
 // Removed localStorage cache - data now comes from database
 
 export default function TarefasAdvbox() {
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') === 'produtividade' ? 'produtividade' : 'list';
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -71,7 +75,7 @@ export default function TarefasAdvbox() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedPriority, setSelectedPriority] = useState<'alta' | 'media' | 'baixa'>('media');
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [viewTab, setViewTab] = useState<string>('list');
+  const [viewTab, setViewTab] = useState<string>(initialTab);
   const [dataLoaded, setDataLoaded] = useState(false);
   const { toast } = useToast();
   const { isAdmin, profile, loading: roleLoading } = useUserRole();
@@ -703,7 +707,7 @@ export default function TarefasAdvbox() {
 
         {/* Tabs de Visualização */}
         <Tabs value={viewTab} onValueChange={setViewTab} className="space-y-4">
-          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-5' : 'grid-cols-3'} lg:w-auto`}>
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-6' : 'grid-cols-4'} lg:w-auto`}>
             <TabsTrigger value="list" className="gap-2">
               <List className="h-4 w-4" />
               <span className="hidden sm:inline">Lista</span>
@@ -727,6 +731,10 @@ export default function TarefasAdvbox() {
             <TabsTrigger value="settings" className="gap-2">
               <Settings className="h-4 w-4" />
               <span className="hidden sm:inline">Notificações</span>
+            </TabsTrigger>
+            <TabsTrigger value="produtividade" className="gap-2">
+              <TrendingUp className="h-4 w-4" />
+              <span className="hidden sm:inline">Produtividade</span>
             </TabsTrigger>
           </TabsList>
 
@@ -936,6 +944,11 @@ export default function TarefasAdvbox() {
           {/* Aba Configurações de Notificação */}
           <TabsContent value="settings">
             <TaskNotificationSettings />
+          </TabsContent>
+
+          {/* Aba Produtividade */}
+          <TabsContent value="produtividade">
+            <RelatoriosProdutividadeTarefas embedded />
           </TabsContent>
         </Tabs>
 
