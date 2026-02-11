@@ -3,8 +3,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   TrendingUp, 
@@ -68,8 +66,8 @@ interface DashboardData {
   asaasBalance: number | null;
 }
 
-// Patterns to exclude from operational expenses
-const REPASSE_PATTERNS = [
+// Patterns for internal records (not real income or expense)
+const REGISTRO_INTERNO_PATTERNS = [
   'REPASSE',
   'DISTRIBUIÇÃO DE LUCRO',
   'DISTRIBUICAO DE LUCRO',
@@ -79,10 +77,10 @@ const REPASSE_PATTERNS = [
 
 const HONORARIOS_SOCIO_PATTERN = /HONOR[AÁ]RIOS?\s+(S[OÓ]CIO|S[OÓ]CIA|S[OÓ]CIOS)/i;
 
-function isRepasseOrDistribuicao(descricao: string | null): boolean {
+function isRegistroInterno(descricao: string | null): boolean {
   if (!descricao) return false;
   const upper = descricao.toUpperCase().trim();
-  if (REPASSE_PATTERNS.some(p => upper.includes(p))) return true;
+  if (REGISTRO_INTERNO_PATTERNS.some(p => upper.includes(p))) return true;
   if (HONORARIOS_SOCIO_PATTERN.test(descricao)) return true;
   return false;
 }
@@ -90,7 +88,7 @@ function isRepasseOrDistribuicao(descricao: string | null): boolean {
 export function FinanceiroExecutivoDashboard() {
   const [periodo, setPeriodo] = useState('mes_atual');
   const [loading, setLoading] = useState(true);
-  const [excluirRepasses, setExcluirRepasses] = useState(true);
+  
   const [data, setData] = useState<DashboardData>({
     totalReceitas: 0,
     totalDespesas: 0,
@@ -195,14 +193,10 @@ export function FinanceiroExecutivoDashboard() {
         .eq('reembolsada', false)
         .is('deleted_at', null);
 
-      // Filter function for operational expenses
+      // Filter out internal records (REPASSE, DISTRIBUIÇÃO DE LUCRO) from both income and expenses
       const filterOperacional = (items: any[] | null) => {
         if (!items) return [];
-        if (!excluirRepasses) return items;
-        return items.filter(l => {
-          if (l.tipo !== 'despesa') return true;
-          return !isRepasseOrDistribuicao(l.descricao);
-        });
+        return items.filter(l => !isRegistroInterno(l.descricao));
       };
 
       // Apply operational filter
@@ -438,7 +432,7 @@ export function FinanceiroExecutivoDashboard() {
 
   useEffect(() => {
     fetchData();
-  }, [periodo, excluirRepasses]);
+  }, [periodo]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -500,26 +494,6 @@ export function FinanceiroExecutivoDashboard() {
             </SelectContent>
           </Select>
 
-          <div className="flex items-center gap-2">
-            <Switch
-              id="excluir-repasses"
-              checked={excluirRepasses}
-              onCheckedChange={setExcluirRepasses}
-            />
-            <Label htmlFor="excluir-repasses" className="text-sm cursor-pointer">
-              Excluir repasses e distribuições
-            </Label>
-            <TooltipProvider>
-              <UITooltip>
-                <TooltipTrigger asChild>
-                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[300px]">
-                  <p>Exclui das despesas os lançamentos de REPASSE, DISTRIBUIÇÃO DE LUCRO e HONORÁRIOS de sócios, mostrando o resultado operacional real do escritório.</p>
-                </TooltipContent>
-              </UITooltip>
-            </TooltipProvider>
-          </div>
         </div>
         <Button variant="outline" onClick={fetchData} disabled={loading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -550,9 +524,7 @@ export function FinanceiroExecutivoDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">
-              Despesas{excluirRepasses ? ' (operacionais)' : ''}
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Despesas</CardTitle>
             <ArrowDownCircle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
@@ -702,10 +674,7 @@ export function FinanceiroExecutivoDashboard() {
         <CardHeader>
           <CardTitle className="text-lg">Evolução Financeira</CardTitle>
           <CardDescription>
-            Receitas, Despesas e Lucro nos últimos 6 meses
-            {excluirRepasses && (
-              <span className="ml-1 text-xs">(excluindo repasses e distribuições)</span>
-            )}
+            Receitas, Despesas e Lucro nos últimos 6 meses (registros internos como repasses e distribuições são excluídos automaticamente)
           </CardDescription>
         </CardHeader>
         <CardContent>
