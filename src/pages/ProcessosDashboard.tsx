@@ -771,12 +771,12 @@ export default function ProcessosDashboard() {
       const movementsFullPromise = Promise.race([
         supabase.functions.invoke(`advbox-integration/movements-full${refreshParam}`),
         new Promise<{ data: null; error: Error }>((_, reject) => 
-          setTimeout(() => reject(new Error('movements-full timeout')), 90000)
+          setTimeout(() => reject(new Error('movements-full timeout')), 180000)
         ),
       ]).catch(async (err) => {
-        console.warn('movements-full failed/timed out, falling back to regular movements:', err.message);
-        // Fallback: usar endpoint normal (últimas 100 movimentações)
-        return supabase.functions.invoke(`advbox-integration/movements${refreshParam}`);
+        console.warn('movements-full failed/timed out, falling back to last-movements:', err.message);
+        // Fallback: usar endpoint last-movements (últimas 100 movimentações + totalCount)
+        return supabase.functions.invoke(`advbox-integration/last-movements${refreshParam}`);
       });
 
       const [lawsuitsRes, movementsRes] = await Promise.all([
