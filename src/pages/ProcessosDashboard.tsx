@@ -863,7 +863,9 @@ export default function ProcessosDashboard() {
       const finalLawsuits: Lawsuit[] =
         lawsuitsArray.length === 0 && lawsuits.length > 0 ? lawsuits : lawsuitsArray;
 
-      const finalMovements: Movement[] = movementsArray;
+      // Para movimentações: se a API retornou vazio mas temos dados em cache, manter cache
+      const finalMovements: Movement[] = 
+        movementsArray.length === 0 && movements.length > 0 ? movements : movementsArray;
 
       setLawsuits(finalLawsuits);
       setMovements(finalMovements);
@@ -1277,7 +1279,7 @@ export default function ProcessosDashboard() {
                 </div>
                 
                 {/* MOVIMENTAÇÕES NO PERÍODO */}
-                <div className="text-center p-4 bg-accent/50 rounded-lg">
+                <div className="text-center p-4 bg-primary/5 rounded-lg">
                   <div className="text-3xl font-bold text-primary flex items-center justify-center gap-2">
                     {(() => {
                       const getEvolutionDateFilter = () => {
@@ -1315,7 +1317,7 @@ export default function ProcessosDashboard() {
                   )}
                 </div>
                 {/* PROCESSOS NOVOS */}
-                <div className="text-center p-4 bg-accent/50 rounded-lg border-2 border-primary/20">
+                <div className="text-center p-4 bg-primary/5 rounded-lg border border-primary/20">
                   <div className="text-3xl font-bold text-primary">
                     {evolutionMetrics.newProcesses}
                   </div>
@@ -1329,7 +1331,7 @@ export default function ProcessosDashboard() {
                   </div>
                 </div>
                 {/* PROCESSOS ARQUIVADOS */}
-                <div className="text-center p-4 bg-secondary/50 rounded-lg">
+                <div className="text-center p-4 bg-secondary rounded-lg">
                   <div className="text-3xl font-bold text-secondary-foreground">
                     {evolutionMetrics.archivedProcesses}
                   </div>
@@ -1343,7 +1345,7 @@ export default function ProcessosDashboard() {
                   </div>
                 </div>
                 {/* CRESCIMENTO LÍQUIDO */}
-                <div className={`text-center p-4 rounded-lg ${netGrowth >= 0 ? 'bg-accent/50' : 'bg-destructive/5'}`}>
+                <div className={`text-center p-4 rounded-lg ${netGrowth >= 0 ? 'bg-primary/5' : 'bg-destructive/5'}`}>
                   <div className={`text-3xl font-bold ${netGrowth >= 0 ? 'text-primary' : 'text-destructive'} flex items-center justify-center gap-1`}>
                     {netGrowth >= 0 ? '+' : ''}{netGrowth}
                     {netGrowth >= 0 ? (
@@ -1545,164 +1547,7 @@ export default function ProcessosDashboard() {
               </Card>
             </div>
 
-            {/* Processos Ativos - Lista */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Briefcase className="h-5 w-5" />
-                  Processos Ativos
-                  <span className="text-sm text-muted-foreground ml-2">
-                    ({filteredLawsuits.length} {searchTerm || !showAllResponsibles ? 'filtrados' : 'total'})
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input placeholder="Buscar processos..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
-                    </div>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="icon"><Filter className="h-4 w-4" /></Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-80">
-                        <div className="space-y-4">
-                          <h4 className="font-medium">Filtrar por Responsável</h4>
-                          <div className="flex items-center space-x-2">
-                            <Checkbox id="all-process-responsibles" checked={showAllResponsibles}
-                              onCheckedChange={(checked) => { setShowAllResponsibles(checked as boolean); if (checked) setSelectedResponsibles([]); }} />
-                            <label htmlFor="all-process-responsibles" className="text-sm font-medium cursor-pointer">Todos os responsáveis</label>
-                          </div>
-                          <div className="border-t pt-2 space-y-2 max-h-60 overflow-y-auto">
-                            {responsibles.map((responsible) => (
-                              <div key={responsible} className="flex items-center space-x-2">
-                                <Checkbox id={`process-${responsible}`} checked={selectedResponsibles.includes(responsible)} disabled={showAllResponsibles}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) { setSelectedResponsibles([...selectedResponsibles, responsible]); setShowAllResponsibles(false); }
-                                    else { setSelectedResponsibles(selectedResponsibles.filter(r => r !== responsible)); }
-                                  }} />
-                                <label htmlFor={`process-${responsible}`} className="text-sm cursor-pointer">{responsible}</label>
-                              </div>
-                            ))}
-                          </div>
-                          {!showAllResponsibles && selectedResponsibles.length > 0 && (
-                            <Button variant="outline" size="sm" onClick={() => { setSelectedResponsibles([]); setShowAllResponsibles(true); }} className="w-full">Limpar Filtros</Button>
-                          )}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <ScrollArea className="h-[400px]">
-                    <div className="space-y-3">
-                      {filteredLawsuits.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-8">
-                          {searchTerm || !showAllResponsibles ? 'Nenhum processo encontrado com os filtros aplicados' : 'Nenhum processo encontrado'}
-                        </p>
-                      ) : (
-                        filteredLawsuits.map((lawsuit) => (
-                          <Card key={lawsuit.id} className="hover:shadow-md transition-shadow">
-                            <CardContent className="p-4">
-                              <div className="space-y-3">
-                                <div className="flex items-start justify-between gap-4">
-                                  <div className="flex-1">
-                                    <p className="font-semibold text-sm mb-1">{lawsuit.process_number}</p>
-                                    {lawsuit.customers && (
-                                      <p className="text-xs text-muted-foreground mb-2">
-                                        Cliente: <span className="font-medium text-foreground">{getCustomerName(lawsuit.customers as Lawsuit['customers'])}</span>
-                                      </p>
-                                    )}
-                                    <div className="flex gap-2 mt-2">
-                                      <Badge variant="outline" className="text-xs">{lawsuit.type}</Badge>
-                                      <Badge variant="secondary" className="text-xs">{lawsuit.group}</Badge>
-                                    </div>
-                                  </div>
-                                  <div className="flex gap-2 shrink-0">
-                                    <Button size="sm" variant="outline" onClick={() => openMessageDialog(lawsuit)} disabled={sendingDocRequest === lawsuit.id}>
-                                      <MessageSquare className="h-4 w-4 mr-1" />
-                                      {sendingDocRequest === lawsuit.id ? 'Enviando...' : 'Enviar Mensagem'}
-                                    </Button>
-                                    <Button size="sm" variant="outline" onClick={() => openTaskDialogFromLawsuit(lawsuit)}>
-                                      <ListTodo className="h-4 w-4 mr-1" />
-                                      Criar Tarefa
-                                    </Button>
-                                    <Button size="sm" variant="outline" onClick={() => setPetitionDialogLawsuit(lawsuit)} title="Sugestão de petição por IA">
-                                      <Sparkles className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-                                {lawsuit.responsible && (
-                                  <div className="text-xs">
-                                    <span className="text-muted-foreground">Responsável: </span>
-                                    <span className="font-medium">{lawsuit.responsible}</span>
-                                  </div>
-                                )}
-                                {lawsuit.folder && (
-                                  <div className="text-xs">
-                                    <span className="text-muted-foreground">Pasta: </span>
-                                    <span>{lawsuit.folder}</span>
-                                  </div>
-                                )}
-                                <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t">
-                                  {lawsuit.created_at && (
-                                    <div>
-                                      <span className="text-muted-foreground">Criado: </span>
-                                      <span>{new Date(lawsuit.created_at).toLocaleDateString('pt-BR')}</span>
-                                    </div>
-                                  )}
-                                  {lawsuit.status_closure && (
-                                    <div>
-                                      <span className="text-muted-foreground">Encerrado: </span>
-                                      <span>{new Date(lawsuit.status_closure).toLocaleDateString('pt-BR')}</span>
-                                    </div>
-                                  )}
-                                  {lawsuit.exit_production && (
-                                    <div>
-                                      <span className="text-muted-foreground">Saída produção: </span>
-                                      <span>{new Date(lawsuit.exit_production).toLocaleDateString('pt-BR')}</span>
-                                    </div>
-                                  )}
-                                  {lawsuit.process_date && (
-                                    <div>
-                                      <span className="text-muted-foreground">Data processo: </span>
-                                      <span>{new Date(lawsuit.process_date).toLocaleDateString('pt-BR')}</span>
-                                    </div>
-                                  )}
-                                </div>
-                                {(lawsuit.fees_expec || lawsuit.fees_money || lawsuit.contingency) && (
-                                  <div className="grid grid-cols-3 gap-2 text-xs pt-2 border-t">
-                                    {lawsuit.fees_expec && (
-                                      <div>
-                                        <span className="text-muted-foreground">Honorários Esperados: </span>
-                                        <span className="font-medium">{lawsuit.fees_expec.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                      </div>
-                                    )}
-                                    {lawsuit.fees_money && (
-                                      <div>
-                                        <span className="text-muted-foreground">Honorários: </span>
-                                        <span className="font-medium">{lawsuit.fees_money.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                      </div>
-                                    )}
-                                    {lawsuit.contingency && (
-                                      <div>
-                                        <span className="text-muted-foreground">Contingência: </span>
-                                        <span className="font-medium">{lawsuit.contingency.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))
-                      )}
-                    </div>
-                  </ScrollArea>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Lista de processos removida - agora disponível em /processos-ativos */}
           </div>
         </div>
 
