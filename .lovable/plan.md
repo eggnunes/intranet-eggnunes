@@ -1,93 +1,92 @@
 
-# Reorganizacao do ADVBox - Dashboard, Abas e Correcoes
+# Reorganizacao ADVBox - Movimentacoes como Submenu + Analytics Integrado ao Dashboard
 
-## Resumo das Mudancas
+## Resumo
 
-1. **Remover "Portais de Tribunais"** do ProcessosDashboard (ja existe em Gestao Processual)
-2. **Reorganizar a pagina de Processos** em abas: Dashboard | Movimentacoes
-3. **Mover "Produtividade" para dentro de "Tarefas"** no menu lateral
-4. **Mover "Historico Mensagens" para dentro de "Aniversarios Clientes"** no menu lateral (e tambem no Financeiro se houver mensagens financeiras)
-5. **Corrigir KPIs do Dashboard** (Processos Novos, Arquivados, Crescimento Liquido mostrando "---" ou 0)
-6. **Remover limite de 100** movimentacoes - usar movimentacoes completas desde o inicio
-
----
-
-## Detalhes Tecnicos
-
-### 1. ProcessosDashboard.tsx - Reorganizar em Abas
-
-**Estrutura atual:** Tudo em uma unica pagina com Accordions (Visao Geral, Timeline, Processos Ativos, Movimentacoes Recentes, Portais de Tribunais).
-
-**Nova estrutura com Tabs:**
-
-```text
-[Dashboard]  [Movimentacoes]
-```
-
-- **Aba "Dashboard"**: KPIs (Processos Ativos, Movimentacoes no Periodo, Processos Novos, Processos Arquivados, Crescimento Liquido) + graficos de evolucao + distribuicao por tipo/responsavel + processos ativos (lista)
-- **Aba "Movimentacoes"**: Timeline de movimentacoes + filtros + busca + lista completa de movimentacoes (o conteudo que hoje esta nos accordions de Timeline e Movimentacoes Recentes)
-- **Remover**: Accordion de "Portais de Tribunais" completamente
-
-### 2. Correcao dos KPIs
-
-**Problema:** Com dados parciais (100 de 11.816), os KPIs de "Processos Novos", "Arquivados" e "Crescimento Liquido" mostram "---" ou 0 porque so temos 100 processos carregados e nenhum deles cai no periodo dos ultimos 30 dias.
-
-**Solucao:**
-- Na aba Dashboard, carregar automaticamente `lawsuits-full` (todos os processos) ao inves de apenas a primeira pagina (`lawsuits`). Isso ja existe como funcao `loadFullData`, mas hoje so e acionada manualmente pelo botao "Carregar Todos"
-- Mudar a chamada inicial `fetchData()` para usar o endpoint `lawsuits-full` por padrao
-- Remover o alerta de "Dados parciais" e o botao "Carregar Todos" uma vez que sempre buscamos tudo
-- Se a busca completa for lenta, mostrar um loading adequado com progresso
-
-### 3. Remover limite de 100 movimentacoes
-
-- O endpoint `last-movements` busca apenas a primeira pagina (100 itens)
-- Mudar para chamar `movements-full` desde o inicio ao inves de `last-movements` + `loadFullMovements` separado
-- Remover a logica separada de `fullMovements` vs `movements` - usar apenas uma lista unica
-
-### 4. Menu Lateral (AppSidebar.tsx)
-
-**Mudancas no grupo ADVBOX:**
-- Remover "Produtividade" como item separado (`/relatorios-produtividade-tarefas`)
-- Remover "Historico Mensagens" como item separado (`/historico-mensagens-aniversario`)
-
-**Resultado:**
-```text
-ADVBOX:
-  - Processos (com abas Dashboard/Movimentacoes)
-  - Publicacoes
-  - Tarefas (com Produtividade integrada)
-  - Financeiro
-  - Analytics
-  - Aniversarios Clientes (com Historico Mensagens integrado)
-```
-
-### 5. TarefasAdvbox.tsx - Integrar Produtividade
-
-- Adicionar uma nova aba "Produtividade" dentro da pagina de Tarefas
-- Incorporar o conteudo de `RelatoriosProdutividadeTarefas` como componente dentro dessa aba
-- Manter a rota `/relatorios-produtividade-tarefas` funcionando (redirect ou render direto) para nao quebrar links existentes
-
-### 6. AniversariosClientes.tsx - Integrar Historico de Mensagens
-
-- Adicionar uma nova aba "Historico" dentro da pagina de Aniversarios Clientes
-- Incorporar o conteudo de `HistoricoMensagensAniversario` filtrado por tipo `birthday` como componente dentro dessa aba
-- O historico de mensagens de cobranca (`collection`/`documents`) ja esta vinculado ao financeiro via `CollectionManagement`; se nao estiver, adicionar la tambem
-
-### 7. Rotas (App.tsx)
-
-- Manter rotas existentes para compatibilidade, mas redirecionar `/relatorios-produtividade-tarefas` para `/tarefas-advbox?tab=produtividade`
-- Manter `/historico-mensagens-aniversario` funcionando mas redirecionar para `/aniversarios-clientes?tab=historico`
+1. **Separar Movimentacoes** como pagina propria no menu do ADVBox (entre Processos e Publicacoes)
+2. **Remover aba "Movimentacoes"** de dentro de ProcessosDashboard - deixar so o Dashboard
+3. **Remover Analytics** como item separado e integrar seus graficos ao Dashboard de Processos
+4. **Aplicar stale-while-revalidate** no Analytics integrado (dados do cache primeiro, refresh em background)
+5. **Adicionar mais filtros e graficos** ao Dashboard de Processos
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Mudanca |
-|---|---|
-| `src/pages/ProcessosDashboard.tsx` | Reorganizar em Tabs (Dashboard/Movimentacoes); Remover Portais de Tribunais; Usar lawsuits-full e movements-full desde inicio; Corrigir KPIs |
-| `src/components/AppSidebar.tsx` | Remover Produtividade e Historico Mensagens do menu |
-| `src/pages/TarefasAdvbox.tsx` | Adicionar aba "Produtividade" com conteudo do RelatoriosProdutividadeTarefas |
-| `src/pages/AniversariosClientes.tsx` | Adicionar aba "Historico" com conteudo do HistoricoMensagensAniversario (filtrado por birthday) |
-| `src/pages/RelatoriosProdutividadeTarefas.tsx` | Extrair logica principal para componente reutilizavel ou redirecionar |
-| `src/pages/HistoricoMensagensAniversario.tsx` | Extrair logica para componente reutilizavel ou redirecionar |
-| `src/App.tsx` | Adicionar redirects das rotas antigas |
+### 1. `src/pages/MovimentacoesAdvbox.tsx` (NOVO)
+
+Pagina dedicada para Movimentacoes, extraida da aba atual do ProcessosDashboard:
+- Conteudo completo da aba "Movimentacoes" atual (busca, filtros de periodo/status/responsavel, lista de movimentacoes, TaskSuggestionsPanel)
+- Adicionar filtros extras: filtro por tipo de acao, filtro por area/grupo, filtro por data especifica (date range picker)
+- Usa mesma logica de cache (localStorage) para carregar instantaneamente
+- Refresh silencioso em background (stale-while-revalidate)
+- Timeline grafico de movimentacoes por dia
+
+### 2. `src/pages/ProcessosDashboard.tsx`
+
+- **Remover** a estrutura de Tabs (Dashboard/Movimentacoes) - pagina vira apenas Dashboard
+- **Integrar graficos do Analytics**: Evolucao de Processos (Novos vs Arquivados 12 meses), Taxa de Crescimento Mensal (%), Evolucao por Tipo de Acao (Top 5), Top 10 Tipos de Acao, Processos por Responsavel, Processos por Area
+- **Sem chamadas API extras**: Reutilizar os dados de `lawsuits` ja carregados para calcular os graficos do Analytics (mesmo dataset)
+- **Adicionar filtros extras ao Dashboard**: Filtro por tipo de acao, filtro por area/grupo (alem dos que ja existem por responsavel)
+- **Manter exportacao PDF/Excel** (trazer do Analytics a funcionalidade de exportacao)
+- Remover import de Tabs/TabsList/TabsTrigger/TabsContent se nao for mais necessario
+
+### 3. `src/components/AppSidebar.tsx`
+
+Menu ADVBOX atualizado:
+```text
+ADVBOX:
+  - Processos         (/processos)
+  - Movimentacoes     (/movimentacoes-advbox)  <-- NOVO
+  - Publicacoes       (/publicacoes)
+  - Tarefas           (/tarefas-advbox)
+  - Financeiro        (/relatorios-financeiros)
+  - Aniversarios Clientes (/aniversarios-clientes)
+```
+- Remover "Analytics" (`/advbox-analytics`)
+- Adicionar "Movimentacoes" com icone `AlertCircle` ou `FileText`
+
+### 4. `src/App.tsx`
+
+- Adicionar rota `/movimentacoes-advbox` -> `MovimentacoesAdvbox`
+- Redirecionar `/advbox-analytics` -> `/processos` (compatibilidade)
+- Import do novo componente
+
+---
+
+## Detalhes Tecnicos
+
+### Graficos integrados ao Dashboard (vindos do Analytics)
+
+Os graficos do Analytics serao calculados a partir do array `lawsuits` que ja esta carregado no Dashboard. Nao ha chamada API adicional. Os graficos serao:
+
+1. **Evolucao de Processos** (LineChart - Novos vs Arquivados, ultimos 12 meses)
+2. **Taxa de Crescimento Mensal %** (LineChart)
+3. **Evolucao por Tipo de Acao Top 5** (LineChart - ultimos 6 meses)
+4. **Top 10 Tipos de Acao** (BarChart horizontal)
+5. **Processos por Responsavel** (BarChart)
+6. **Processos por Area** (BarChart horizontal)
+7. **Exportar Relatorio** (botao PDF/Excel - trazido do Analytics)
+
+### Cache e Performance (MovimentacoesAdvbox)
+
+```text
+1. Abrir pagina -> Carrega movimentacoes do localStorage (MOVEMENTS_CACHE_KEY)
+2. Exibe dados imediatamente (loading = false se cache existe)
+3. Em background, chama movements-full para atualizar
+4. Atualiza lista e cache quando resposta chegar
+5. Indicador "Atualizando dados..." durante refresh
+```
+
+### Filtros adicionais na pagina de Movimentacoes
+
+- Filtro por **tipo de acao** do processo associado
+- Filtro por **area/grupo** do processo associado
+- Filtro por **cliente** (busca textual)
+- Filtros existentes mantidos: periodo, status, responsavel, busca textual
+
+### Filtros adicionais no Dashboard de Processos
+
+- Filtro por **tipo de acao** (checkbox multi-select)
+- Filtro por **area/grupo** (checkbox multi-select)
+- Filtros existentes mantidos: busca, responsavel
