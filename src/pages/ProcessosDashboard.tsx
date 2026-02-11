@@ -767,17 +767,9 @@ export default function ProcessosDashboard() {
       // Para movimentações, tentar full primeiro, fallback para endpoint normal se timeout
       const lawsuitsPromise = supabase.functions.invoke(`advbox-integration/lawsuits-full${refreshParam}`);
       
-      // Wrap movements-full with timeout (90s) to prevent eternal loading
-      const movementsFullPromise = Promise.race([
-        supabase.functions.invoke(`advbox-integration/movements-full${refreshParam}`),
-        new Promise<{ data: null; error: Error }>((_, reject) => 
-          setTimeout(() => reject(new Error('movements-full timeout')), 180000)
-        ),
-      ]).catch(async (err) => {
-        console.warn('movements-full failed/timed out, falling back to last-movements:', err.message);
-        // Fallback: usar endpoint last-movements (últimas 100 movimentações + totalCount)
-        return supabase.functions.invoke(`advbox-integration/last-movements${refreshParam}`);
-      });
+      // Buscar movimentações: usar last-movements que retorna totalCount + últimas 100
+      // Não tentar movements-full que carrega 9500+ registros e causa timeout
+      const movementsFullPromise = supabase.functions.invoke(`advbox-integration/last-movements${refreshParam}`);
 
       const [lawsuitsRes, movementsRes] = await Promise.all([
         lawsuitsPromise,
@@ -1298,43 +1290,17 @@ export default function ProcessosDashboard() {
                   </div>
                 </div>
                 
-                {/* MOVIMENTAÇÕES NO PERÍODO */}
+                {/* MOVIMENTAÇÕES TOTAL */}
                 <div className="text-center p-4 bg-primary/5 rounded-lg">
                   <div className="text-3xl font-bold text-primary flex items-center justify-center gap-2">
-                    {(() => {
-                      const getEvolutionDateFilter = () => {
-                        const now = new Date();
-                        switch (evolutionPeriod) {
-                          case '7':
-                            return startOfDay(subDays(now, 7));
-                          case '30':
-                            return startOfDay(subDays(now, 30));
-                          case '90':
-                            return startOfDay(subMonths(now, 3));
-                          default:
-                            return null;
-                        }
-                      };
-                      const evolutionDateFilter = getEvolutionDateFilter();
-                      
-                      if (evolutionDateFilter) {
-                        const filteredByEvolution = movements.filter(m => {
-                          const movementDate = new Date(m.date);
-                          return !isBefore(movementDate, evolutionDateFilter);
-                        });
-                        return filteredByEvolution.length;
-                      }
-                      return totalMovements ?? movements.length;
-                    })()}
+                    {(totalMovements ?? movements.length).toLocaleString('pt-BR')}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
-                    Movimentações {evolutionPeriod !== 'all' ? 'no Período' : 'Total'}
+                    Movimentações Total
                   </div>
-                  {evolutionPeriod !== 'all' && (
-                    <div className="text-xs text-muted-foreground/60 mt-0.5">
-                      Últimos {evolutionPeriod} dias
-                    </div>
-                  )}
+                  <div className="text-xs text-muted-foreground/60 mt-0.5">
+                    Total no Advbox
+                  </div>
                 </div>
                 {/* PROCESSOS NOVOS */}
                 <div className="text-center p-4 bg-primary/5 rounded-lg">
