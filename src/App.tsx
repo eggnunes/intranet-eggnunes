@@ -31,10 +31,10 @@ import TarefasAdvbox from "./pages/TarefasAdvbox";
 import RelatoriosFinanceiros from "./pages/RelatoriosFinanceiros";
 import AdvboxConfig from "./pages/AdvboxConfig";
 import AdvboxAnalytics from "./pages/AdvboxAnalytics";
-import RelatoriosProdutividadeTarefas from "./pages/RelatoriosProdutividadeTarefas";
+// RelatoriosProdutividadeTarefas moved into TarefasAdvbox as a tab
 import Ferias from "./pages/Ferias";
 import SolicitacoesAdministrativas from "./pages/SolicitacoesAdministrativas";
-import HistoricoMensagensAniversario from "./pages/HistoricoMensagensAniversario";
+// HistoricoMensagensAniversario moved into AniversariosClientes as a tab
 import CollectionManagement from "./pages/CollectionManagement";
 import CopaCozinha from "./pages/CopaCozinha";
 import HomeOffice from "./pages/HomeOffice";
@@ -278,7 +278,7 @@ const App = () => (
               path="/relatorios-produtividade-tarefas"
               element={
                 <ProtectedRoute>
-                  <RelatoriosProdutividadeTarefas />
+                  <Navigate to="/tarefas-advbox?tab=produtividade" replace />
                 </ProtectedRoute>
               }
             />
@@ -302,7 +302,7 @@ const App = () => (
               path="/historico-mensagens-aniversario"
               element={
                 <ProtectedRoute>
-                  <HistoricoMensagensAniversario />
+                  <Navigate to="/aniversarios-clientes?tab=historico" replace />
                 </ProtectedRoute>
               }
             />

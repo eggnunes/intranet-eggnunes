@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,13 +9,16 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Cake, Calendar, Copy, Download, Ban, Eye, EyeOff, Send } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Cake, Calendar, Copy, Download, Ban, Eye, EyeOff, Send, History } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AdvboxCacheAlert } from '@/components/AdvboxCacheAlert';
 import { AdvboxDataStatus } from '@/components/AdvboxDataStatus';
+import { useUserRole } from '@/hooks/useUserRole';
+import HistoricoMensagensAniversario from './HistoricoMensagensAniversario';
 
 interface Customer {
   id: string;
@@ -36,6 +40,10 @@ interface CustomerExclusion {
 type FilterType = 'dia' | 'semana' | 'mes';
 
 export default function AniversariosClientes() {
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') === 'historico' ? 'historico' : 'aniversarios';
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const { isAdmin } = useUserRole();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
   const [exclusions, setExclusions] = useState<CustomerExclusion[]>([]);
@@ -500,9 +508,25 @@ export default function AniversariosClientes() {
               <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
             </div>
           </div>
-          </div>
+        </div>
 
         {metadata && <AdvboxCacheAlert metadata={metadata} />}
+
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="aniversarios" className="gap-2">
+              <Cake className="h-4 w-4" />
+              Aniversários
+            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="historico" className="gap-2">
+                <History className="h-4 w-4" />
+                Histórico de Mensagens
+              </TabsTrigger>
+            )}
+          </TabsList>
+
+          <TabsContent value="aniversarios" className="space-y-4">
 
         {/* Filtros e Ações */}
         <div className="flex flex-col gap-4">
@@ -665,6 +689,14 @@ export default function AniversariosClientes() {
             </ScrollArea>
           </CardContent>
         </Card>
+          </TabsContent>
+
+          {isAdmin && (
+            <TabsContent value="historico">
+              <HistoricoMensagensAniversario embedded defaultTypeFilter="birthday" />
+            </TabsContent>
+          )}
+        </Tabs>
       </div>
 
       {/* Dialog de Exclusão */}

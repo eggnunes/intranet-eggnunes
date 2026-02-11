@@ -31,7 +31,7 @@ interface Task {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658'];
 
-export default function RelatoriosProdutividadeTarefas() {
+export default function RelatoriosProdutividadeTarefas({ embedded = false }: { embedded?: boolean }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [metadata, setMetadata] = useState<any>(null);
@@ -340,17 +340,16 @@ export default function RelatoriosProdutividadeTarefas() {
   }, [filteredTasks]);
 
   if (loading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-muted-foreground">Carregando relatório...</div>
-        </div>
-      </Layout>
+    const loadingContent = (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-muted-foreground">Carregando relatório...</div>
+      </div>
     );
+    if (embedded) return loadingContent;
+    return <Layout>{loadingContent}</Layout>;
   }
 
-  return (
-    <Layout>
+  const content = (
       <div className="space-y-6">
         <div className="flex items-start justify-between">
           <div>
@@ -758,6 +757,8 @@ export default function RelatoriosProdutividadeTarefas() {
           </CardContent>
         </Card>
       </div>
-    </Layout>
   );
+
+  if (embedded) return content;
+  return <Layout>{content}</Layout>;
 }
