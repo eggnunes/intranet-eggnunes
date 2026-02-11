@@ -1,44 +1,66 @@
 
-## Plan: Fix ADVBox Processes, Movements Filters, and Dashboard Chart
 
-### Issues Identified
+## Plano: Corrigir Dashboard Executivo Financeiro
 
-1. **Processos page showing incomplete data for recent processes**: The dashboard cache strips `customers` and `folder` fields when there are more than 5,000 lawsuits (to save localStorage space). The Processos page reads from this same cache on initial load, so it shows incomplete records until the background refresh completes.
+### Problemas Identificados
 
-2. **Movimentacoes - period filter changes the graph instead of filtering the list**: Both the graph and list use the same `filteredMovements` array, so period filtering affects both. However, only 100 movements are loaded (from `last-movements` endpoint), meaning period filters on the list show near-empty results. The real problem is the system fetches `movements-full` which tries to download all 55,000+ records and times out, falling back to only 100.
-
-3. **Movimentacoes - "Tipo de Acao" and "Area" checkboxes show "prohibited" symbol**: The individual checkboxes have `disabled={showAllActionTypes}` / `disabled={showAllAreas}`, which disables them when "Todos" is checked. This is confusing UX -- when clicking an individual item, it should automatically uncheck "Todos" and enable selection.
-
-4. **Movimentacoes - "Responsavel" filter shows only "Todos"**: The `responsibles` list is derived from `lawsuits` loaded from cache. If the cache is minimal (stripped fields) or empty, no responsible names are available to populate the filter.
-
-5. **Dashboard "Processos por Responsavel" chart shows one big green block**: The `responsible` field IS in the cache, but when most lawsuits don't have a `responsible` value (or it's stripped during caching), they all map to "Sem responsavel", creating one massive bar. More likely, the chart's `XAxis` with `angle={-45}` and many entries causes rendering issues -- the label text overlaps into a solid green block.
+Após análise detalhada do banco de dados e do código, identifiquei as seguintes causas raiz:
 
 ---
 
-### Technical Changes
+### Problema 1: Saldo por Conta mostrando valores irreais
 
-**File 1: `src/pages/ProcessosDashboard.tsx`** (cache fix)
-- Add `customers` and `folder` to the minimal cache fields (lines 949-961). Even for >5000 records, these fields are essential for the Processos page display. If localStorage quota is exceeded, fallback gracefully.
+**Causa**: Todas as 4 contas (Investimentos, Asaas, Caixa Local, Banco Itaú) têm `saldo_inicial = R$ 0,00`. O sistema possui um trigger que recalcula `saldo_atual = saldo_inicial + SUM(lançamentos)`, porém **99,8% dos lançamentos** (15.226 de 15.260) vindos do ADVBox **não têm conta associada** (`conta_origem_id = NULL`). Apenas ~34 lançamentos manuais estão vinculados a contas, gerando saldos errados como Banco Itaú -R$ 98.303,83.
 
-**File 2: `src/pages/MovimentacoesAdvbox.tsx`** (multiple filter fixes)
-- **Fix disabled checkboxes**: Change the `disabled={showAllActionTypes}` / `disabled={showAllAreas}` / `disabled={showAllResponsibles}` / `disabled={showAllStatuses}` logic on individual checkboxes. Instead of disabling, clicking an individual checkbox should automatically set `showAll*` to `false` and add the item to the selected list. This removes the "prohibited" cursor.
-- **Fix Responsavel filter being empty**: The `responsibles` array is derived from `lawsuits` which come from cache. Ensure the cache includes `responsible` field (it does in ProcessosDashboard, but MovimentacoesAdvbox's `loadLawsuitsFromCache` extracts `lawsuits` array which may be minimal). Add a fallback: also derive responsibles from the movements' associated lawsuits fetched in the background refresh.
-- **Fix period filter behavior**: The period filter currently filters both the graph and the list. Make the period filter apply ONLY to the movements list, not the timeline chart. The chart should always show the last 30 days of data regardless of the list filter.
-- **Fix Status filter**: Currently `statuses` is set to `lawsuits.map(l => l.group)` (same as areas). This should be actual process status (Ativo/Inativo) or the `group` field needs to be labeled differently. Since the API doesn't provide a separate "status" concept beyond active/inactive, change the Status filter to filter by Ativo/Inativo based on whether the associated lawsuit has a closure date.
+Conforme a regra de negócio já documentada: *"Saldos de contas bancárias não são calculados automaticamente pela sincronização do ADVBox. O saldo deve vir de extratos bancários carregados pelo usuário."*
 
-**File 3: `src/pages/ProcessosDashboard.tsx`** (Responsavel chart fix)
-- The "Processos por Responsavel" chart renders as a solid green block because there are potentially hundreds of responsibles and the vertical bar chart with rotated X-axis labels creates visual overlap.
-- Fix: Switch to a **horizontal bar chart** (like the "Top 10 Tipos de Acao" chart) showing only the **top 15 responsibles**, with the Y-axis showing names. This prevents label overlap and makes the chart readable.
+**Solução**: No Dashboard Executivo, mostrar o saldo da conta **somente** quando o usuário configurou o saldo inicial (`saldo_inicial != 0`) OU quando a conta tem conciliação bancária feita. Contas sem configuração exibirão "Saldo não configurado" ao invés de valores calculados incorretamente. A exceção é a conta Asaas, que busca o saldo em tempo real via API.
 
 ---
 
-### Summary of Changes
+### Problema 2: Evolução Financeira mostrando prejuízo de R$ 595.000 em dezembro
 
-| Issue | File | Fix |
-|-------|------|-----|
-| Incomplete process data | ProcessosDashboard.tsx | Add `customers`, `folder` to minimal cache |
-| Disabled filter checkboxes | MovimentacoesAdvbox.tsx | Remove `disabled` prop, auto-uncheck "Todos" on selection |
-| Empty Responsavel filter | MovimentacoesAdvbox.tsx | Ensure lawsuits with `responsible` field are loaded |
-| Period filter affects graph | MovimentacoesAdvbox.tsx | Separate graph data from list filter |
-| Status filter = Area filter | MovimentacoesAdvbox.tsx | Change Status to Ativo/Inativo logic |
-| Responsavel chart broken | ProcessosDashboard.tsx | Switch to horizontal bar, top 15 |
+**Causa**: TODOS os 432 lançamentos de dezembro/2025 vieram da sincronização do ADVBox. As despesas totalizam R$ 798.775, mas isso inclui:
+- **R$ 492.597 em "REPASSE"** (valores repassados a clientes -- dinheiro que apenas transita pelo escritório)
+- **R$ 90.000 em "DISTRIBUIÇÃO DE LUCRO"** (não é despesa operacional)
+- **R$ 46.013 em "HONORÁRIOS sócios"** (retirada, não despesa operacional)
+
+Esses lançamentos de repasse e distribuição de lucros inflam artificialmente as despesas, fazendo parecer que houve prejuízo quando na realidade houve lucro operacional.
+
+**Solução**: Criar filtro inteligente no gráfico de Evolução Financeira que exclui por padrão lançamentos de "REPASSE", "DISTRIBUIÇÃO DE LUCRO" e "HONORÁRIOS [sócio]" do cálculo de despesas. Adicionar um toggle visível para o usuário poder incluir/excluir essas categorias. Isso mostrará o resultado operacional real do escritório.
+
+---
+
+### Alterações Técnicas
+
+**Arquivo: `src/components/financeiro/FinanceiroExecutivoDashboard.tsx`**
+
+1. **Saldo por Conta (linhas 200-205 e 640-665)**:
+   - Modificar a lógica de `contasSaldo` para verificar se `saldo_inicial != 0` antes de exibir o valor
+   - Para contas com `saldo_inicial = 0` e sem conciliação, mostrar "Não configurado" com um ícone informativo
+   - Manter a lógica especial da conta Asaas (saldo via API)
+   - Recalcular "Saldo Total em Caixa" usando apenas contas com saldo configurado
+
+2. **Evolução Financeira (linhas 234-268 e 612-638)**:
+   - Adicionar um estado `excluirRepasses` (padrão: `true`)
+   - Na query de evolução mensal, filtrar lançamentos cujo `descricao` contenha "REPASSE", "DISTRIBUIÇÃO DE LUCRO" quando o toggle estiver ativo
+   - Adicionar um Switch/Toggle acima do gráfico: "Excluir repasses e distribuições"
+   - Aplicar o mesmo filtro nos cards de Receitas/Despesas/Lucro para consistência
+
+3. **Cards principais (linhas 132-156)**:
+   - Aplicar o mesmo filtro de exclusão de repasses na query principal de lançamentos do período
+   - Garantir que os valores dos cards sejam consistentes com o gráfico
+
+---
+
+### Resumo do Impacto
+
+| Elemento | Antes | Depois |
+|----------|-------|--------|
+| Saldo Banco Itaú | -R$ 98.303,83 (errado) | "Não configurado" |
+| Saldo Caixa Local | -R$ 26.559,11 (errado) | "Não configurado" |
+| Saldo Investimentos | -R$ 17.385,02 (errado) | "Não configurado" |
+| Saldo Asaas | R$ 34.655,50 (correto via API) | R$ 34.655,50 (mantido) |
+| Despesas Dez/25 | R$ 798.775 (inflado) | ~R$ 170.164 (operacional real) |
+| Lucro Dez/25 | -R$ 595.063 (prejuízo falso) | ~R$ 33.547 (lucro real) |
+
