@@ -222,7 +222,8 @@ export function AppSidebar() {
     {
       label: '📦 ADVBOX',
       items: [
-        { icon: Briefcase, path: '/processos', label: 'Processos' },
+        { icon: Briefcase, path: '/processos', label: 'Dashboard' },
+        { icon: Briefcase, path: '/processos-ativos', label: 'Processos' },
         { icon: AlertCircle, path: '/movimentacoes-advbox', label: 'Movimentações' },
         { icon: Bell, path: '/publicacoes', label: 'Publicações' },
         { icon: CheckSquare, path: '/tarefas-advbox', label: 'Tarefas', badgeCount: criticalTasksCount },

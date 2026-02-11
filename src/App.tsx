@@ -32,6 +32,7 @@ import RelatoriosFinanceiros from "./pages/RelatoriosFinanceiros";
 import AdvboxConfig from "./pages/AdvboxConfig";
 import AdvboxAnalytics from "./pages/AdvboxAnalytics";
 import MovimentacoesAdvbox from "./pages/MovimentacoesAdvbox";
+import ProcessosAtivos from "./pages/ProcessosAtivos";
 // RelatoriosProdutividadeTarefas moved into TarefasAdvbox as a tab
 import Ferias from "./pages/Ferias";
 import SolicitacoesAdministrativas from "./pages/SolicitacoesAdministrativas";
@@ -232,6 +233,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <ProcessosDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/processos-ativos"
+              element={
+                <ProtectedRoute>
+                  <ProcessosAtivos />
                 </ProtectedRoute>
               }
             />
