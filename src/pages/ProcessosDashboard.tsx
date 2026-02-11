@@ -103,7 +103,8 @@ export default function ProcessosDashboard() {
   
   const [lawsuits, setLawsuits] = useState<Lawsuit[]>(cachedData?.lawsuits || []);
   const [movements, setMovements] = useState<Movement[]>(cachedMovements || cachedData?.movements || []);
-  const [loading, setLoading] = useState(!cachedData); // Não mostra loading se tem cache
+  const [loading, setLoading] = useState(!cachedData && !cachedMovements); // Só mostra loading se NÃO tem cache
+  const [isRefreshing, setIsRefreshing] = useState(false); // Atualização em background
   const [searchTerm, setSearchTerm] = useState('');
   const [movementSearchTerm, setMovementSearchTerm] = useState('');
   const [selectedResponsibles, setSelectedResponsibles] = useState<string[]>([]);
@@ -705,7 +706,13 @@ export default function ProcessosDashboard() {
   };
 
   useEffect(() => {
-    fetchData();
+    // Se tem cache, faz refresh silencioso em background
+    if (cachedData || cachedMovements) {
+      setIsRefreshing(true);
+      fetchData().finally(() => setIsRefreshing(false));
+    } else {
+      fetchData();
+    }
   }, []);
 
   // Filtrar processos locais quando dados carregam (para período padrão de 30 dias)
@@ -1089,8 +1096,14 @@ export default function ProcessosDashboard() {
               <p className="text-muted-foreground mt-2">
                 Acompanhe seus processos e movimentações em tempo real
               </p>
-              <div className="mt-2">
+              <div className="mt-2 flex items-center gap-3">
                 <AdvboxDataStatus lastUpdate={lastUpdate} fromCache={metadata?.fromCache} />
+                {isRefreshing && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground animate-pulse">
+                    <RefreshCw className="h-3 w-3 animate-spin" />
+                    Atualizando dados...
+                  </div>
+                )}
               </div>
             </div>
             <Button
