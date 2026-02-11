@@ -754,6 +754,44 @@ Deno.serve(async (req) => {
         }
       }
       
+      // Dedicated count-only endpoint - returns ONLY the total count, no data
+      case 'movements-count': {
+        console.log('Fetching movements count only (limit=1)...');
+        const cacheKey = 'movements-count';
+        const cached = cache.get(cacheKey);
+        const now = Date.now();
+        const COUNT_CACHE_TTL = 3 * 60 * 1000; // 3 minutes for count
+
+        if (!forceRefresh && cached && (now - cached.timestamp) < COUNT_CACHE_TTL) {
+          console.log(`[movements-count] Cache hit: totalCount=${cached.data.totalCount}`);
+          return new Response(JSON.stringify({ totalCount: cached.data.totalCount }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        try {
+          const response = await makeAdvboxRequest({ endpoint: '/last_movements?limit=1&offset=0' });
+          const totalCount = typeof response.totalCount === 'number' ? response.totalCount : 0;
+          console.log(`[movements-count] API returned totalCount: ${totalCount}`);
+          
+          cache.set(cacheKey, { data: { totalCount }, timestamp: now });
+          
+          return new Response(JSON.stringify({ totalCount }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          console.error('[movements-count] Error:', error);
+          if (cached) {
+            return new Response(JSON.stringify({ totalCount: cached.data.totalCount, fromCache: true }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          return new Response(JSON.stringify({ totalCount: null, error: 'Failed to fetch count' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
       case 'last-movements': {
         console.log('Fetching movements first page with totalCount...');
         const rawResult = await getCachedOrFetch(
