@@ -75,6 +75,7 @@ export function AppSidebar() {
   const collapsed = state === 'collapsed';
   const sidebarContentRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef(0);
+  const isRestoringScroll = useRef(false);
   
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
   const [criticalTasksCount, setCriticalTasksCount] = useState(0);
@@ -143,36 +144,39 @@ export function AppSidebar() {
 
   const isActive = (path: string) => location.pathname === path;
 
-  // Save scroll position before navigation, restore after render
-  const handleNavigate = useCallback((path: string) => {
-    if (sidebarContentRef.current) {
+  // Continuously track scroll position via onScroll
+  const handleSidebarScroll = useCallback(() => {
+    if (!isRestoringScroll.current && sidebarContentRef.current) {
       scrollPositionRef.current = sidebarContentRef.current.scrollTop;
     }
+  }, []);
+
+  // Save scroll position before navigation, restore after render
+  const handleNavigate = useCallback((path: string) => {
     navigate(path);
   }, [navigate]);
 
   // Restore sidebar scroll position after route change
   useEffect(() => {
     if (scrollPositionRef.current > 0) {
-      // Use multiple attempts to ensure scroll is restored after DOM settles
+      isRestoringScroll.current = true;
+      
       const restoreScroll = () => {
         if (sidebarContentRef.current) {
           sidebarContentRef.current.scrollTop = scrollPositionRef.current;
         }
       };
       
-      // Immediate attempt
       restoreScroll();
-      
-      // After React render cycle
       requestAnimationFrame(() => {
         restoreScroll();
-        // After layout recalculation
         requestAnimationFrame(restoreScroll);
       });
       
-      // Fallback for delayed content rendering (collapsibles)
-      const timer = setTimeout(restoreScroll, 100);
+      const timer = setTimeout(() => {
+        restoreScroll();
+        isRestoringScroll.current = false;
+      }, 150);
       return () => clearTimeout(timer);
     }
   }, [location.pathname]);
@@ -305,7 +309,7 @@ export function AppSidebar() {
         ) : null}
       </SidebarHeader>
 
-      <SidebarContent ref={sidebarContentRef} className="overflow-y-auto">
+      <SidebarContent ref={sidebarContentRef} onScroll={handleSidebarScroll} className="overflow-y-auto">
         {menuGroups.map((group) => (
           <Collapsible key={group.label} defaultOpen className="group/collapsible">
             <SidebarGroup>
