@@ -771,6 +771,8 @@ Deno.serve(async (req) => {
         const items = extractItems(rawResult.data);
         const totalCount = extractTotalCount(rawResult.data, items.length);
 
+        console.log(`[last-movements] Returning ${items.length} items, totalCount: ${totalCount}`);
+
         return new Response(JSON.stringify({
           data: items,
           metadata: rawResult.metadata,

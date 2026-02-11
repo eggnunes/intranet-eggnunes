@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Badge } from '@/components/ui/badge';
@@ -66,6 +66,9 @@ import {
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
+
+// Module-level persistent scroll storage (survives re-renders)
+const sidebarScrollPositions = new Map<string, number>();
 
 export function AppSidebar() {
   const navigate = useNavigate();
@@ -147,37 +150,53 @@ export function AppSidebar() {
   // Continuously track scroll position via onScroll
   const handleSidebarScroll = useCallback(() => {
     if (!isRestoringScroll.current && sidebarContentRef.current) {
-      scrollPositionRef.current = sidebarContentRef.current.scrollTop;
+      const pos = sidebarContentRef.current.scrollTop;
+      scrollPositionRef.current = pos;
+      // Also persist to module-level Map as backup
+      sidebarScrollPositions.set('sidebar', pos);
     }
   }, []);
 
   // Save scroll position before navigation, restore after render
   const handleNavigate = useCallback((path: string) => {
+    // Snapshot current scroll before navigating
+    if (sidebarContentRef.current) {
+      const pos = sidebarContentRef.current.scrollTop;
+      scrollPositionRef.current = pos;
+      sidebarScrollPositions.set('sidebar', pos);
+    }
     navigate(path);
   }, [navigate]);
 
-  // Restore sidebar scroll position after route change
-  useEffect(() => {
-    if (scrollPositionRef.current > 0) {
+  // Restore sidebar scroll position after route change (useLayoutEffect = before paint)
+  useLayoutEffect(() => {
+    const savedPos = scrollPositionRef.current || sidebarScrollPositions.get('sidebar') || 0;
+    if (savedPos > 0) {
       isRestoringScroll.current = true;
       
       const restoreScroll = () => {
         if (sidebarContentRef.current) {
-          sidebarContentRef.current.scrollTop = scrollPositionRef.current;
+          sidebarContentRef.current.scrollTop = savedPos;
         }
       };
       
+      // Immediate restore (before paint)
       restoreScroll();
-      requestAnimationFrame(() => {
-        restoreScroll();
-        requestAnimationFrame(restoreScroll);
-      });
-      
-      const timer = setTimeout(() => {
+      // After first frame (Collapsible might not be open yet)
+      requestAnimationFrame(restoreScroll);
+      // After animations settle
+      const t1 = setTimeout(restoreScroll, 100);
+      const t2 = setTimeout(restoreScroll, 250);
+      const t3 = setTimeout(() => {
         restoreScroll();
         isRestoringScroll.current = false;
-      }, 150);
-      return () => clearTimeout(timer);
+      }, 500);
+      
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
     }
   }, [location.pathname]);
 
