@@ -640,9 +640,9 @@ Deno.serve(async (req) => {
 
       // ========== MOVIMENTAÇÕES ==========
       
-      // Endpoint para buscar TODAS as movimentações com paginação completa
+      // Endpoint para buscar TODAS as movimentações com paginação completa (paralelo)
       case 'movements-full': {
-        console.log('Fetching ALL movements with complete pagination...');
+        console.log('Fetching ALL movements with PARALLEL pagination...');
         const cacheKey = 'movements-full';
         
         const cached = cache.get(cacheKey);
@@ -668,19 +668,62 @@ Deno.serve(async (req) => {
         }
         
         try {
-          // Buscar TODAS as movimentações com paginação completa (até 100 páginas = 10.000 movimentações)
-          const result = await fetchAllPaginatedComplete('/last_movements', cacheKey, 100, 100);
+          // Primeiro, buscar a primeira página para descobrir o totalCount
+          const firstPage = await makeAdvboxRequest({ endpoint: '/last_movements?limit=100&offset=0' });
+          const firstItems = firstPage.data || [];
+          const totalCount = firstPage.totalCount || firstItems.length;
+          
+          console.log(`movements-full: totalCount=${totalCount}, first page=${firstItems.length}`);
+          
+          let allItems = [...firstItems];
+          
+          if (firstItems.length >= 100 && allItems.length < totalCount) {
+            // Calcular todas as páginas restantes
+            const remainingPages: number[] = [];
+            for (let offset = 100; offset < totalCount && remainingPages.length < 200; offset += 100) {
+              remainingPages.push(offset);
+            }
+            
+            // Buscar em lotes paralelos de 5
+            const BATCH_SIZE = 5;
+            for (let i = 0; i < remainingPages.length; i += BATCH_SIZE) {
+              const batch = remainingPages.slice(i, i + BATCH_SIZE);
+              
+              const batchPromises = batch.map(offset =>
+                makeAdvboxRequest({ endpoint: `/last_movements?limit=100&offset=${offset}` })
+                  .then(res => res.data || [])
+                  .catch(err => {
+                    console.warn(`Failed to fetch movements offset=${offset}:`, err.message);
+                    return [];
+                  })
+              );
+              
+              const batchResults = await Promise.all(batchPromises);
+              for (const items of batchResults) {
+                allItems = allItems.concat(items);
+              }
+              
+              console.log(`movements-full: loaded ${allItems.length}/${totalCount} (batch ${Math.floor(i/BATCH_SIZE)+1})`);
+              
+              // Small delay between batches to avoid rate limiting
+              if (i + BATCH_SIZE < remainingPages.length) {
+                await sleep(1000);
+              }
+            }
+          }
+          
+          console.log(`movements-full: COMPLETE - ${allItems.length} items loaded`);
           
           cache.set(cacheKey, { 
-            data: { items: result.items, totalCount: result.totalCount },
+            data: { items: allItems, totalCount },
             timestamp: now,
           });
           
           return new Response(JSON.stringify({
-            data: result.items,
-            totalCount: result.totalCount,
-            pagesLoaded: result.pagesLoaded,
-            isComplete: result.items.length >= result.totalCount,
+            data: allItems,
+            totalCount,
+            pagesLoaded: Math.ceil(allItems.length / 100),
+            isComplete: allItems.length >= totalCount,
             metadata: {
               fromCache: false,
               rateLimited: false,
