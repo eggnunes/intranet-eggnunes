@@ -788,6 +788,12 @@ export default function ProcessosDashboard() {
       const rawLawsuits = lawsuitsRes.data as any;
       const rawMovements = movementsRes.data as any;
 
+      // DEBUG: Log raw response structures to find totalCount
+      console.log('[DEBUG] rawMovements keys:', rawMovements ? Object.keys(rawMovements) : 'null');
+      console.log('[DEBUG] rawMovements.totalCount:', rawMovements?.totalCount);
+      console.log('[DEBUG] typeof rawMovements.totalCount:', typeof rawMovements?.totalCount);
+      console.log('[DEBUG] rawMovements full structure:', JSON.stringify(rawMovements, null, 2).substring(0, 500));
+
       const lawsuitsPayload = Array.isArray(rawLawsuits)
         ? { data: rawLawsuits }
         : (rawLawsuits || {});
@@ -904,15 +910,32 @@ export default function ProcessosDashboard() {
           ? (lawsuitsPayload as any).totalCount
           : undefined;
 
-      const movementsTotalFromApi =
-        typeof (rawMovements as any)?.totalCount === 'number'
-          ? (rawMovements as any).totalCount
-          : typeof (movementsPayload as any)?.totalCount === 'number'
-          ? (movementsPayload as any).totalCount
-          : undefined;
+      // Deep extraction of totalCount - search in all possible locations
+      const findTotalCount = (obj: any): number | undefined => {
+        if (!obj || typeof obj !== 'object') return undefined;
+        // Direct property
+        if (typeof obj.totalCount === 'number') return obj.totalCount;
+        if (typeof obj.total_count === 'number') return obj.total_count;
+        if (typeof obj.total === 'number' && !Array.isArray(obj)) return obj.total;
+        // String that looks like a number
+        if (typeof obj.totalCount === 'string' && !isNaN(Number(obj.totalCount))) return Number(obj.totalCount);
+        if (typeof obj.total_count === 'string' && !isNaN(Number(obj.total_count))) return Number(obj.total_count);
+        // Nested in metadata
+        if (obj.metadata && typeof obj.metadata === 'object') {
+          const fromMeta = findTotalCount(obj.metadata);
+          if (fromMeta !== undefined) return fromMeta;
+        }
+        return undefined;
+      };
+
+      const movementsTotalFromApi = findTotalCount(rawMovements) ?? findTotalCount(movementsPayload);
+      
+      console.log('[DEBUG] movementsTotalFromApi extracted:', movementsTotalFromApi);
 
       const lawsuitsTotal = lawsuitsTotalFromApi ?? finalLawsuits.length;
       const movementsTotal = movementsTotalFromApi ?? finalMovements.length;
+
+      console.log('[DEBUG] Final movementsTotal:', movementsTotal, '(from API:', movementsTotalFromApi, ', fallback:', finalMovements.length, ')');
 
       setTotalLawsuits(lawsuitsTotal);
       setTotalMovements(movementsTotal);
