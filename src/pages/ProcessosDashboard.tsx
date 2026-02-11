@@ -950,7 +950,7 @@ export default function ProcessosDashboard() {
             ? finalLawsuits.map(l => ({
                 id: l.id,
                 created_at: l.created_at,
-                process_date: l.process_date, // Data real do processo - CRÍTICO para métricas
+                process_date: l.process_date,
                 status_closure: l.status_closure,
                 exit_production: l.exit_production,
                 exit_execution: l.exit_execution,
@@ -958,6 +958,10 @@ export default function ProcessosDashboard() {
                 type: l.type,
                 process_number: l.process_number,
                 responsible: l.responsible,
+                customers: l.customers,
+                folder: l.folder,
+                protocol_number: l.protocol_number,
+                responsible_id: l.responsible_id,
               }))
             : finalLawsuits;
           
@@ -983,12 +987,14 @@ export default function ProcessosDashboard() {
               lawsuits: finalLawsuits.map(l => ({
                 id: l.id,
                 created_at: l.created_at,
-                process_date: l.process_date, // Data real do processo - CRÍTICO
+                process_date: l.process_date,
                 status_closure: l.status_closure,
                 exit_production: l.exit_production,
                 exit_execution: l.exit_execution,
                 group: l.group,
                 type: l.type,
+                process_number: l.process_number,
+                responsible: l.responsible,
               })),
               movements: [],
               totalLawsuits: lawsuitsTotal,
@@ -1503,15 +1509,15 @@ export default function ProcessosDashboard() {
                         acc[r] = (acc[r] || 0) + 1;
                         return acc;
                       }, {} as Record<string, number>)
-                    ).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+                    ).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 15);
                     return (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <RechartsBarChart data={respData}>
+                      <ResponsiveContainer width="100%" height={Math.max(300, respData.length * 28)}>
+                        <RechartsBarChart data={respData} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} fontSize={12} />
-                          <YAxis />
+                          <XAxis type="number" />
+                          <YAxis dataKey="name" type="category" width={180} fontSize={11} />
                           <Tooltip />
-                          <Bar dataKey="value" fill="#10b981" />
+                          <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
                         </RechartsBarChart>
                       </ResponsiveContainer>
                     );

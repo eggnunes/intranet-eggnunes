@@ -111,7 +111,7 @@ export default function MovimentacoesAdvbox() {
   const responsibles = Array.from(new Set(lawsuits.map(l => l.responsible).filter(Boolean)));
   const actionTypes = Array.from(new Set(lawsuits.map(l => l.type).filter(Boolean)));
   const areas = Array.from(new Set(lawsuits.map(l => l.group).filter(Boolean)));
-  const statuses = Array.from(new Set(lawsuits.map(l => l.group).filter(Boolean)));
+  const statuses = ['Ativo', 'Inativo'];
 
   const getCustomerName = (customers: Movement['customers']): string => {
     if (!customers) return '';
@@ -152,8 +152,10 @@ export default function MovimentacoesAdvbox() {
 
     const matchesPeriod = !dateFilter || !isBefore(new Date(movement.date), dateFilter);
 
+    const isActive = associatedLawsuit ? !associatedLawsuit.status_closure : true;
+    const lawsuitStatus = isActive ? 'Ativo' : 'Inativo';
     const matchesStatus = showAllStatuses ||
-      (movementArea && selectedStatuses.includes(movementArea));
+      selectedStatuses.includes(lawsuitStatus);
 
     const matchesActionType = showAllActionTypes ||
       (movementType && selectedActionTypes.includes(movementType));
@@ -164,10 +166,32 @@ export default function MovimentacoesAdvbox() {
     return matchesSearch && matchesResponsible && matchesPeriod && matchesStatus && matchesActionType && matchesArea;
   });
 
-  // Timeline chart data
+  // Timeline chart data - always uses ALL movements (not filtered by period)
   const getTimelineData = () => {
     const dateCounts: Record<string, number> = {};
-    filteredMovements.forEach(m => {
+    // Use all movements for the chart, only apply non-period filters
+    const chartMovements = movements.filter(movement => {
+      const customerName = getCustomerName(movement.customers);
+      const associatedLawsuit = lawsuitMap.get(movement.lawsuit_id);
+      const movementResponsible = associatedLawsuit?.responsible;
+      const movementType = associatedLawsuit?.type;
+      const movementArea = associatedLawsuit?.group;
+      const isActive = associatedLawsuit ? !associatedLawsuit.status_closure : true;
+      const lawsuitStatus = isActive ? 'Ativo' : 'Inativo';
+
+      const matchesSearch = !searchTerm ||
+        movement.process_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        movement.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        movement.header?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesResponsible = showAllResponsibles || (movementResponsible && selectedResponsibles.includes(movementResponsible));
+      const matchesStatus = showAllStatuses || selectedStatuses.includes(lawsuitStatus);
+      const matchesActionType = showAllActionTypes || (movementType && selectedActionTypes.includes(movementType));
+      const matchesArea = showAllAreas || (movementArea && selectedAreas.includes(movementArea));
+
+      return matchesSearch && matchesResponsible && matchesStatus && matchesActionType && matchesArea;
+    });
+    chartMovements.forEach(m => {
       const dateKey = format(new Date(m.date), 'dd/MM', { locale: ptBR });
       dateCounts[dateKey] = (dateCounts[dateKey] || 0) + 1;
     });
@@ -359,8 +383,8 @@ export default function MovimentacoesAdvbox() {
                     <div className="space-y-2 max-h-[300px] overflow-y-auto">
                       {statuses.map(s => (
                         <div key={s} className="flex items-center space-x-2">
-                          <Checkbox id={`st-${s}`} checked={selectedStatuses.includes(s)} disabled={showAllStatuses}
-                            onCheckedChange={(c) => { if (c) { setSelectedStatuses([...selectedStatuses, s]); setShowAllStatuses(false); } else setSelectedStatuses(selectedStatuses.filter(x => x !== s)); }} />
+                          <Checkbox id={`st-${s}`} checked={selectedStatuses.includes(s)}
+                            onCheckedChange={(c) => { if (c) { setSelectedStatuses([...selectedStatuses, s]); setShowAllStatuses(false); } else { const next = selectedStatuses.filter(x => x !== s); setSelectedStatuses(next); if (next.length === 0) setShowAllStatuses(true); } }} />
                           <label htmlFor={`st-${s}`} className="text-sm cursor-pointer">{s}</label>
                         </div>
                       ))}
@@ -388,8 +412,8 @@ export default function MovimentacoesAdvbox() {
                     <div className="border-t pt-2 space-y-2 max-h-60 overflow-y-auto">
                       {responsibles.map(r => (
                         <div key={r} className="flex items-center space-x-2">
-                          <Checkbox id={`resp-${r}`} checked={selectedResponsibles.includes(r)} disabled={showAllResponsibles}
-                            onCheckedChange={(c) => { if (c) { setSelectedResponsibles([...selectedResponsibles, r]); setShowAllResponsibles(false); } else setSelectedResponsibles(selectedResponsibles.filter(x => x !== r)); }} />
+                          <Checkbox id={`resp-${r}`} checked={selectedResponsibles.includes(r)}
+                            onCheckedChange={(c) => { if (c) { setSelectedResponsibles([...selectedResponsibles, r]); setShowAllResponsibles(false); } else { const next = selectedResponsibles.filter(x => x !== r); setSelectedResponsibles(next); if (next.length === 0) setShowAllResponsibles(true); } }} />
                           <label htmlFor={`resp-${r}`} className="text-sm cursor-pointer">{r}</label>
                         </div>
                       ))}
@@ -417,8 +441,8 @@ export default function MovimentacoesAdvbox() {
                     <div className="border-t pt-2 space-y-2 max-h-60 overflow-y-auto">
                       {actionTypes.map(t => (
                         <div key={t} className="flex items-center space-x-2">
-                          <Checkbox id={`type-${t}`} checked={selectedActionTypes.includes(t)} disabled={showAllActionTypes}
-                            onCheckedChange={(c) => { if (c) { setSelectedActionTypes([...selectedActionTypes, t]); setShowAllActionTypes(false); } else setSelectedActionTypes(selectedActionTypes.filter(x => x !== t)); }} />
+                          <Checkbox id={`type-${t}`} checked={selectedActionTypes.includes(t)}
+                            onCheckedChange={(c) => { if (c) { setSelectedActionTypes([...selectedActionTypes, t]); setShowAllActionTypes(false); } else { const next = selectedActionTypes.filter(x => x !== t); setSelectedActionTypes(next); if (next.length === 0) setShowAllActionTypes(true); } }} />
                           <label htmlFor={`type-${t}`} className="text-sm cursor-pointer">{t}</label>
                         </div>
                       ))}
@@ -446,8 +470,8 @@ export default function MovimentacoesAdvbox() {
                     <div className="border-t pt-2 space-y-2 max-h-60 overflow-y-auto">
                       {areas.map(a => (
                         <div key={a} className="flex items-center space-x-2">
-                          <Checkbox id={`area-${a}`} checked={selectedAreas.includes(a)} disabled={showAllAreas}
-                            onCheckedChange={(c) => { if (c) { setSelectedAreas([...selectedAreas, a]); setShowAllAreas(false); } else setSelectedAreas(selectedAreas.filter(x => x !== a)); }} />
+                          <Checkbox id={`area-${a}`} checked={selectedAreas.includes(a)}
+                            onCheckedChange={(c) => { if (c) { setSelectedAreas([...selectedAreas, a]); setShowAllAreas(false); } else { const next = selectedAreas.filter(x => x !== a); setSelectedAreas(next); if (next.length === 0) setShowAllAreas(true); } }} />
                           <label htmlFor={`area-${a}`} className="text-sm cursor-pointer">{a}</label>
                         </div>
                       ))}
