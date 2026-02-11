@@ -737,14 +737,32 @@ export default function ProcessosDashboard() {
     try {
       const refreshParam = forceRefresh ? '?force_refresh=true' : '';
       
-      // Sempre buscar dados completos (todos os processos e movimentações)
-      const [lawsuitsRes, movementsRes] = await Promise.all([
-        supabase.functions.invoke(`advbox-integration/lawsuits-full${refreshParam}`),
+      // Buscar processos e movimentações em paralelo
+      // Para movimentações, tentar full primeiro, fallback para endpoint normal se timeout
+      const lawsuitsPromise = supabase.functions.invoke(`advbox-integration/lawsuits-full${refreshParam}`);
+      
+      // Wrap movements-full with timeout (90s) to prevent eternal loading
+      const movementsFullPromise = Promise.race([
         supabase.functions.invoke(`advbox-integration/movements-full${refreshParam}`),
+        new Promise<{ data: null; error: Error }>((_, reject) => 
+          setTimeout(() => reject(new Error('movements-full timeout')), 90000)
+        ),
+      ]).catch(async (err) => {
+        console.warn('movements-full failed/timed out, falling back to regular movements:', err.message);
+        // Fallback: usar endpoint normal (últimas 100 movimentações)
+        return supabase.functions.invoke(`advbox-integration/movements${refreshParam}`);
+      });
+
+      const [lawsuitsRes, movementsRes] = await Promise.all([
+        lawsuitsPromise,
+        movementsFullPromise,
       ]);
 
       if (lawsuitsRes.error) throw lawsuitsRes.error;
-      if (movementsRes.error) throw movementsRes.error;
+      if ((movementsRes as any)?.error) {
+        console.warn('Movements fetch error, using cached data if available');
+        // Don't throw - continue with empty movements or cached
+      }
 
       // A resposta pode vir como:
       // 1) { data: [...], metadata: {...}, totalCount?: number }

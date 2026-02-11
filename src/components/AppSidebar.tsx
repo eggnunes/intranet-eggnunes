@@ -153,8 +153,27 @@ export function AppSidebar() {
 
   // Restore sidebar scroll position after route change
   useEffect(() => {
-    if (sidebarContentRef.current && scrollPositionRef.current > 0) {
-      sidebarContentRef.current.scrollTop = scrollPositionRef.current;
+    if (scrollPositionRef.current > 0) {
+      // Use multiple attempts to ensure scroll is restored after DOM settles
+      const restoreScroll = () => {
+        if (sidebarContentRef.current) {
+          sidebarContentRef.current.scrollTop = scrollPositionRef.current;
+        }
+      };
+      
+      // Immediate attempt
+      restoreScroll();
+      
+      // After React render cycle
+      requestAnimationFrame(() => {
+        restoreScroll();
+        // After layout recalculation
+        requestAnimationFrame(restoreScroll);
+      });
+      
+      // Fallback for delayed content rendering (collapsibles)
+      const timer = setTimeout(restoreScroll, 100);
+      return () => clearTimeout(timer);
     }
   }, [location.pathname]);
 
