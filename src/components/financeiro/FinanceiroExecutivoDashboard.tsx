@@ -3,6 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   TrendingUp, 
@@ -19,7 +21,8 @@ import {
   ArrowUp,
   ArrowDown,
   Minus,
-  CreditCard
+  CreditCard,
+  Info
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -27,13 +30,22 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   BarChart, Bar, Cell, Legend, ComposedChart, Line 
 } from 'recharts';
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
+interface ContaSaldo {
+  nome: string;
+  saldo: number;
+  cor: string;
+  isAsaas?: boolean;
+  saldoConfigurado: boolean;
+}
 
 interface DashboardData {
   totalReceitas: number;
   totalDespesas: number;
   lucro: number;
   margemLucro: number;
-  contasSaldo: { nome: string; saldo: number; cor: string }[];
+  contasSaldo: ContaSaldo[];
   despesasReembolsar: number;
   receitasPorCategoria: { nome: string; valor: number; cor: string }[];
   despesasPorCategoria: { nome: string; valor: number; cor: string }[];
@@ -56,9 +68,29 @@ interface DashboardData {
   asaasBalance: number | null;
 }
 
+// Patterns to exclude from operational expenses
+const REPASSE_PATTERNS = [
+  'REPASSE',
+  'DISTRIBUIÇÃO DE LUCRO',
+  'DISTRIBUICAO DE LUCRO',
+  'DISTRIBUIÇÃO DE LUCROS',
+  'DISTRIBUICAO DE LUCROS',
+];
+
+const HONORARIOS_SOCIO_PATTERN = /HONOR[AÁ]RIOS?\s+(S[OÓ]CIO|S[OÓ]CIA|S[OÓ]CIOS)/i;
+
+function isRepasseOrDistribuicao(descricao: string | null): boolean {
+  if (!descricao) return false;
+  const upper = descricao.toUpperCase().trim();
+  if (REPASSE_PATTERNS.some(p => upper.includes(p))) return true;
+  if (HONORARIOS_SOCIO_PATTERN.test(descricao)) return true;
+  return false;
+}
+
 export function FinanceiroExecutivoDashboard() {
   const [periodo, setPeriodo] = useState('mes_atual');
   const [loading, setLoading] = useState(true);
+  const [excluirRepasses, setExcluirRepasses] = useState(true);
   const [data, setData] = useState<DashboardData>({
     totalReceitas: 0,
     totalDespesas: 0,
@@ -128,7 +160,7 @@ export function FinanceiroExecutivoDashboard() {
         .select('*')
         .eq('ativa', true);
 
-      // Fetch lançamentos do período
+      // Fetch lançamentos do período (include descricao for filtering)
       const { data: lancamentos } = await supabase
         .from('fin_lancamentos')
         .select(`*, categoria:fin_categorias(nome, cor)`)
@@ -137,19 +169,19 @@ export function FinanceiroExecutivoDashboard() {
         .eq('status', 'pago')
         .is('deleted_at', null);
 
-      // Lançamentos mês atual
+      // Lançamentos mês atual (include descricao)
       const { data: lancMesAtual } = await supabase
         .from('fin_lancamentos')
-        .select('tipo, valor')
+        .select('tipo, valor, descricao')
         .gte('data_lancamento', format(mesAtualInicio, 'yyyy-MM-dd'))
         .lte('data_lancamento', format(mesAtualFim, 'yyyy-MM-dd'))
         .eq('status', 'pago')
         .is('deleted_at', null);
 
-      // Lançamentos mês anterior
+      // Lançamentos mês anterior (include descricao)
       const { data: lancMesAnterior } = await supabase
         .from('fin_lancamentos')
-        .select('tipo, valor')
+        .select('tipo, valor, descricao')
         .gte('data_lancamento', format(mesAnteriorInicio, 'yyyy-MM-dd'))
         .lte('data_lancamento', format(mesAnteriorFim, 'yyyy-MM-dd'))
         .eq('status', 'pago')
@@ -163,25 +195,40 @@ export function FinanceiroExecutivoDashboard() {
         .eq('reembolsada', false)
         .is('deleted_at', null);
 
+      // Filter function for operational expenses
+      const filterOperacional = (items: any[] | null) => {
+        if (!items) return [];
+        if (!excluirRepasses) return items;
+        return items.filter(l => {
+          if (l.tipo !== 'despesa') return true;
+          return !isRepasseOrDistribuicao(l.descricao);
+        });
+      };
+
+      // Apply operational filter
+      const lancamentosFiltered = filterOperacional(lancamentos);
+      const lancMesAtualFiltered = filterOperacional(lancMesAtual);
+      const lancMesAnteriorFiltered = filterOperacional(lancMesAnterior);
+
       // Calcular totais
-      const totalReceitas = lancamentos?.filter(l => l.tipo === 'receita')
-        .reduce((acc, l) => acc + Number(l.valor), 0) || 0;
+      const totalReceitas = lancamentosFiltered.filter(l => l.tipo === 'receita')
+        .reduce((acc, l) => acc + Number(l.valor), 0);
       
-      const totalDespesas = lancamentos?.filter(l => l.tipo === 'despesa')
-        .reduce((acc, l) => acc + Number(l.valor), 0) || 0;
+      const totalDespesas = lancamentosFiltered.filter(l => l.tipo === 'despesa')
+        .reduce((acc, l) => acc + Number(l.valor), 0);
 
       const lucro = totalReceitas - totalDespesas;
       const margemLucro = totalReceitas > 0 ? (lucro / totalReceitas) * 100 : 0;
 
       // Comparativo mês a mês
-      const receitasMesAtual = lancMesAtual?.filter(l => l.tipo === 'receita')
-        .reduce((acc, l) => acc + Number(l.valor), 0) || 0;
-      const despesasMesAtual = lancMesAtual?.filter(l => l.tipo === 'despesa')
-        .reduce((acc, l) => acc + Number(l.valor), 0) || 0;
-      const receitasMesAnterior = lancMesAnterior?.filter(l => l.tipo === 'receita')
-        .reduce((acc, l) => acc + Number(l.valor), 0) || 0;
-      const despesasMesAnterior = lancMesAnterior?.filter(l => l.tipo === 'despesa')
-        .reduce((acc, l) => acc + Number(l.valor), 0) || 0;
+      const receitasMesAtual = lancMesAtualFiltered.filter(l => l.tipo === 'receita')
+        .reduce((acc, l) => acc + Number(l.valor), 0);
+      const despesasMesAtual = lancMesAtualFiltered.filter(l => l.tipo === 'despesa')
+        .reduce((acc, l) => acc + Number(l.valor), 0);
+      const receitasMesAnterior = lancMesAnteriorFiltered.filter(l => l.tipo === 'receita')
+        .reduce((acc, l) => acc + Number(l.valor), 0);
+      const despesasMesAnterior = lancMesAnteriorFiltered.filter(l => l.tipo === 'despesa')
+        .reduce((acc, l) => acc + Number(l.valor), 0);
 
       const variacaoReceitas = receitasMesAnterior > 0 
         ? ((receitasMesAtual - receitasMesAnterior) / receitasMesAnterior) * 100 
@@ -196,20 +243,26 @@ export function FinanceiroExecutivoDashboard() {
         ? ((lucroMesAtual - lucroMesAnterior) / Math.abs(lucroMesAnterior)) * 100 
         : 0;
 
-      // Saldo por conta - preparar lista inicial
-      let contasSaldo = contas?.map(c => ({
-        nome: c.nome,
-        saldo: Number(c.saldo_atual) || 0,
-        cor: c.cor || '#3B82F6',
-        isAsaas: c.nome?.toLowerCase().includes('asaas') || c.tipo === 'pagamentos'
-      })) || [];
+      // Saldo por conta - check saldo_inicial
+      let contasSaldo: ContaSaldo[] = contas?.map(c => {
+        const isAsaas = c.nome?.toLowerCase().includes('asaas') || c.tipo === 'pagamentos';
+        const saldoInicial = Number(c.saldo_inicial) || 0;
+        const saldoConfigurado = isAsaas || saldoInicial !== 0;
+        return {
+          nome: c.nome,
+          saldo: Number(c.saldo_atual) || 0,
+          cor: c.cor || '#3B82F6',
+          isAsaas,
+          saldoConfigurado
+        };
+      }) || [];
 
       // Despesas a reembolsar
       const despesasReembolsar = reembolsos?.reduce((acc, r) => acc + Number(r.valor), 0) || 0;
 
       // Receitas por categoria
       const receitasMap = new Map<string, { valor: number; cor: string }>();
-      lancamentos?.filter(l => l.tipo === 'receita').forEach(l => {
+      lancamentosFiltered.filter(l => l.tipo === 'receita').forEach(l => {
         const nome = l.categoria?.nome || 'Sem categoria';
         const cor = l.categoria?.cor || '#10B981';
         const atual = receitasMap.get(nome) || { valor: 0, cor };
@@ -221,7 +274,7 @@ export function FinanceiroExecutivoDashboard() {
 
       // Despesas por categoria
       const despesasMap = new Map<string, { valor: number; cor: string }>();
-      lancamentos?.filter(l => l.tipo === 'despesa').forEach(l => {
+      lancamentosFiltered.filter(l => l.tipo === 'despesa').forEach(l => {
         const nome = l.categoria?.nome || 'Sem categoria';
         const cor = l.categoria?.cor || '#EF4444';
         const atual = despesasMap.get(nome) || { valor: 0, cor };
@@ -243,16 +296,18 @@ export function FinanceiroExecutivoDashboard() {
         
         const { data: mesLancamentos } = await supabase
           .from('fin_lancamentos')
-          .select('tipo, valor')
+          .select('tipo, valor, descricao')
           .gte('data_lancamento', format(mesInicio, 'yyyy-MM-dd'))
           .lte('data_lancamento', format(mesFim, 'yyyy-MM-dd'))
           .eq('status', 'pago')
           .is('deleted_at', null);
 
-        const mesReceitas = mesLancamentos?.filter(l => l.tipo === 'receita')
-          .reduce((acc, l) => acc + Number(l.valor), 0) || 0;
-        const mesDespesas = mesLancamentos?.filter(l => l.tipo === 'despesa')
-          .reduce((acc, l) => acc + Number(l.valor), 0) || 0;
+        const mesLancFiltered = filterOperacional(mesLancamentos);
+
+        const mesReceitas = mesLancFiltered.filter(l => l.tipo === 'receita')
+          .reduce((acc, l) => acc + Number(l.valor), 0);
+        const mesDespesas = mesLancFiltered.filter(l => l.tipo === 'despesa')
+          .reduce((acc, l) => acc + Number(l.valor), 0);
 
         evolucaoMensal.push({
           mes: format(mesData, 'MMM/yy', { locale: ptBR }),
@@ -285,7 +340,6 @@ export function FinanceiroExecutivoDashboard() {
       try {
         console.log('Buscando saldo do Asaas (Executivo Dashboard)...');
         
-        // Tentar via supabase.functions.invoke
         const { data: asaasData, error: asaasError } = await supabase.functions.invoke('asaas-integration', {
           body: { action: 'get_balance' }
         });
@@ -295,7 +349,6 @@ export function FinanceiroExecutivoDashboard() {
         if (!asaasError && asaasData?.balance !== undefined) {
           asaasBalance = Number(asaasData.balance) || 0;
         } else {
-          // Fallback: tentar com fetch direto usando anon key
           try {
             const response = await fetch(
               `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/asaas-integration`,
@@ -330,18 +383,18 @@ export function FinanceiroExecutivoDashboard() {
             if (conta.isAsaas || conta.nome.toLowerCase().includes('asaas')) {
               console.log(`Atualizando saldo da conta "${conta.nome}" para:`, asaasBalance);
               asaasAtualizado = true;
-              return { ...conta, saldo: asaasBalance! };
+              return { ...conta, saldo: asaasBalance!, saldoConfigurado: true };
             }
             return conta;
           });
           
-          // Se não encontrou nenhuma conta Asaas mas temos saldo, adicionar uma virtual
           if (!asaasAtualizado && asaasBalance > 0) {
             contasSaldo.push({
               nome: 'Asaas',
               saldo: asaasBalance,
               cor: '#9D5CFF',
-              isAsaas: true
+              isAsaas: true,
+              saldoConfigurado: true
             });
           }
         }
@@ -385,7 +438,7 @@ export function FinanceiroExecutivoDashboard() {
 
   useEffect(() => {
     fetchData();
-  }, [periodo]);
+  }, [periodo, excluirRepasses]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -423,22 +476,51 @@ export function FinanceiroExecutivoDashboard() {
       : <TrendingDown className="h-5 w-5 text-red-500" />;
   };
 
+  // Only sum accounts that have configured balances
+  const saldoTotalConfigurado = data.contasSaldo
+    .filter(c => c.saldoConfigurado)
+    .reduce((acc, c) => acc + c.saldo, 0);
+  const contasConfiguradas = data.contasSaldo.filter(c => c.saldoConfigurado).length;
+
   return (
     <div className="space-y-6">
       {/* Filtros */}
-      <div className="flex items-center justify-between">
-        <Select value={periodo} onValueChange={setPeriodo}>
-          <SelectTrigger className="w-[200px]">
-            <Calendar className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Selecione o período" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="mes_atual">Mês Atual</SelectItem>
-            <SelectItem value="mes_anterior">Mês Anterior</SelectItem>
-            <SelectItem value="trimestre">Último Trimestre</SelectItem>
-            <SelectItem value="ano">Ano Atual</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          <Select value={periodo} onValueChange={setPeriodo}>
+            <SelectTrigger className="w-[200px]">
+              <Calendar className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Selecione o período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="mes_atual">Mês Atual</SelectItem>
+              <SelectItem value="mes_anterior">Mês Anterior</SelectItem>
+              <SelectItem value="trimestre">Último Trimestre</SelectItem>
+              <SelectItem value="ano">Ano Atual</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <div className="flex items-center gap-2">
+            <Switch
+              id="excluir-repasses"
+              checked={excluirRepasses}
+              onCheckedChange={setExcluirRepasses}
+            />
+            <Label htmlFor="excluir-repasses" className="text-sm cursor-pointer">
+              Excluir repasses e distribuições
+            </Label>
+            <TooltipProvider>
+              <UITooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[300px]">
+                  <p>Exclui das despesas os lançamentos de REPASSE, DISTRIBUIÇÃO DE LUCRO e HONORÁRIOS de sócios, mostrando o resultado operacional real do escritório.</p>
+                </TooltipContent>
+              </UITooltip>
+            </TooltipProvider>
+          </div>
+        </div>
         <Button variant="outline" onClick={fetchData} disabled={loading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           Atualizar
@@ -468,7 +550,9 @@ export function FinanceiroExecutivoDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Despesas</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Despesas{excluirRepasses ? ' (operacionais)' : ''}
+            </CardTitle>
             <ArrowDownCircle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
@@ -561,9 +645,13 @@ export function FinanceiroExecutivoDashboard() {
               <Wallet className="h-5 w-5 text-primary" />
               <div>
                 <p className="text-lg font-bold">
-                  {formatCurrency(data.contasSaldo.reduce((acc, c) => acc + c.saldo, 0))}
+                  {contasConfiguradas > 0 ? formatCurrency(saldoTotalConfigurado) : 'Não configurado'}
                 </p>
-                <p className="text-xs text-muted-foreground">{data.contasSaldo.length} conta(s) ativa(s)</p>
+                <p className="text-xs text-muted-foreground">
+                  {contasConfiguradas > 0 
+                    ? `${contasConfiguradas} conta(s) configurada(s)` 
+                    : 'Configure o saldo inicial das contas'}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -613,7 +701,12 @@ export function FinanceiroExecutivoDashboard() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Evolução Financeira</CardTitle>
-          <CardDescription>Receitas, Despesas e Lucro nos últimos 6 meses</CardDescription>
+          <CardDescription>
+            Receitas, Despesas e Lucro nos últimos 6 meses
+            {excluirRepasses && (
+              <span className="ml-1 text-xs">(excluindo repasses e distribuições)</span>
+            )}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-[350px]">
@@ -642,6 +735,9 @@ export function FinanceiroExecutivoDashboard() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Saldo por Conta</CardTitle>
+            <CardDescription>
+              Contas sem saldo inicial configurado exibem "Não configurado"
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -655,9 +751,25 @@ export function FinanceiroExecutivoDashboard() {
                     <Wallet className="h-4 w-4" style={{ color: conta.cor }} />
                     <span className="font-medium">{conta.nome}</span>
                   </div>
-                  <span className="text-lg font-bold">
-                    {formatCurrency(conta.saldo)}
-                  </span>
+                  {conta.saldoConfigurado ? (
+                    <span className="text-lg font-bold">
+                      {formatCurrency(conta.saldo)}
+                    </span>
+                  ) : (
+                    <TooltipProvider>
+                      <UITooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-sm text-muted-foreground flex items-center gap-1 cursor-help">
+                            <Info className="h-3.5 w-3.5" />
+                            Não configurado
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Configure o saldo inicial desta conta ou faça a conciliação bancária para exibir o saldo real.</p>
+                        </TooltipContent>
+                      </UITooltip>
+                    </TooltipProvider>
+                  )}
                 </div>
               ))}
             </div>
