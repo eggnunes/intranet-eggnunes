@@ -1,55 +1,38 @@
 
 
-## Plan: Fix Movement Count (Limited to 100) and Sidebar Scroll Reset
+## Plan: Fix "Movimentações no Período" Showing 100 Instead of Real Count
 
-### Problem 1: Movements Showing 100 Instead of Real Count
+### Root Cause Analysis
 
-**Root Cause**: The ADVBox API has **55,722 total movements**. The current code calls the `last-movements` endpoint which returns only the first 100 items plus a `totalCount` metadata field. However, the `totalCount` is not being reliably extracted because of how the response is parsed through multiple layers (`rawMovements -> movementsPayload -> extractTotalCount`).
+After tracing through the complete data flow (edge function -> supabase.functions.invoke -> dashboard parsing), the problem is a combination of:
 
-The code does:
-```
-const movementsTotalFromApi =
-  typeof (rawMovements as any)?.totalCount === 'number'
-    ? (rawMovements as any).totalCount
-    : typeof (movementsPayload as any)?.totalCount === 'number'
-    ? (movementsPayload as any).totalCount
-    : undefined;
-```
+1. **The `last-movements` endpoint** fetches 100 items + a `totalCount` from the API metadata, but the multi-layer wrapping (`getCachedOrFetch` wrapper -> JSON response -> `supabase.functions.invoke` wrapper -> dashboard parsing with `findTotalCount`) makes extraction unreliable
+2. **Edge function logs** show `movements-full` being called (which tries to download all 55,000+ records and gets rate-limited/times out) rather than `last-movements`, suggesting the deployed code may still be calling the wrong endpoint
+3. **Fallback cascade**: when `totalCount` extraction fails at any layer, it falls back to `movements.length` which is 100 (first page only)
 
-When `movementsTotalFromApi` is `undefined`, it falls back to `movements.length` which is 100 (the first page only).
+### Solution: Dedicated Count-Only Endpoint
 
-**Fix**:
-1. In `ProcessosDashboard.tsx`, add explicit logging and robust extraction of `totalCount` from the API response at multiple levels
-2. Add a direct fallback: if `totalCount` is found anywhere in the raw response, use it
-3. Ensure the card label says "Movimentações no Período" with period filtering when a period is selected -- BUT since we only have 100 items locally and cannot filter 55K records client-side, we should clearly label it as "Movimentações Total (Advbox)" and show the API's `totalCount`
-4. Remove the dependency on having all movements downloaded locally for counting
-
-### Problem 2: Sidebar Scroll Resets on Navigation
-
-**Root Cause**: The current scroll restoration in `AppSidebar.tsx` uses `useEffect` (which runs after paint) and `requestAnimationFrame`, but this is unreliable because:
-- The `Collapsible` components with `defaultOpen` may re-mount/animate after the scroll restoration runs
-- The scroll position ref can be overwritten by the scroll event handler firing during restoration
-- The `useLayoutEffect` in `Layout.tsx` (line 44) sets `document.body.style.overflowY = 'scroll'` on every route change, which can interfere
-
-**Fix**:
-1. In `AppSidebar.tsx`, use `useLayoutEffect` instead of `useEffect` for scroll restoration (runs before paint)
-2. Add a longer guard period for `isRestoringScroll` to prevent the `onScroll` handler from overwriting the saved position during restoration
-3. Add multiple restoration attempts with increasing delays to handle Collapsible animation timing
-4. Save scroll position to `sessionStorage` as a backup in case the ref is lost during component re-renders
-
----
+Instead of trying to extract `totalCount` from a complex nested response, create a simple dedicated endpoint that returns ONLY the count -- fast, lightweight, and impossible to misparse.
 
 ### Technical Changes
 
-**File 1: `src/pages/ProcessosDashboard.tsx`**
-- Add more robust `totalCount` extraction with deep inspection of the response object
-- Add console logs for debugging the exact response structure
-- Ensure `setTotalMovements` is called with the correct value from API metadata
-- Show "Movimentações Total" with the API `totalCount`, since period-filtering 55K records client-side is not feasible
+**File 1: `supabase/functions/advbox-integration/index.ts`**
+- Add a new case `'movements-count'` in the switch block
+- This endpoint calls the ADVBox API with `limit=1&offset=0` (minimal data transfer)
+- Returns ONLY `{ totalCount: number }` -- a flat, simple response
+- Has its own cache key with short TTL
 
-**File 2: `src/components/AppSidebar.tsx`**
-- Switch from `useEffect` to `useLayoutEffect` for scroll restoration
-- Extend the `isRestoringScroll` guard timeout from 150ms to 500ms
-- Add additional restoration attempts at 200ms and 400ms to handle Collapsible animations
-- Store scroll position in a module-level `Map` keyed by pathname as backup
+**File 2: `src/pages/ProcessosDashboard.tsx`**
+- Add a **separate, parallel** call to `advbox-integration/movements-count`
+- Parse the simple `{ totalCount }` response directly
+- Use this value for the "Movimentacoes" card instead of trying to extract it from the movements data response
+- Keep the existing `last-movements` call for the actual movement items (for display in lists/charts)
+- Remove the complex `findTotalCount` recursive function -- no longer needed for this card
+- Fallback: if the count endpoint fails, show "N/A" or the cached value, never show 100 as if it were the real total
+
+### Why This Approach Works
+- The count endpoint returns a flat `{ totalCount: 55733 }` -- no nesting, no arrays, no ambiguity
+- The API call uses `limit=1`, so it completes in under 1 second (no pagination, no rate limiting)
+- Completely independent from the movements data fetch, so timeouts on data loading don't affect the count
+- Easy to debug: if count is wrong, there's only one place to look
 
