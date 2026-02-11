@@ -733,6 +733,32 @@ export default function ProcessosDashboard() {
     }
   }, [lawsuits.length]);
 
+  // Função auxiliar para salvar movimentações no cache
+  const saveMovementsToCache = (movementsData: Movement[]) => {
+    try {
+      const minimalMovements = movementsData.map(m => ({
+        lawsuit_id: m.lawsuit_id,
+        date: m.date,
+        title: m.title,
+        header: m.header,
+        process_number: m.process_number,
+        protocol_number: m.protocol_number,
+        customers: m.customers,
+      }));
+      localStorage.setItem(MOVEMENTS_CACHE_KEY, JSON.stringify(minimalMovements));
+      localStorage.setItem(MOVEMENTS_CACHE_TIMESTAMP_KEY, new Date().toISOString());
+      console.log(`[Movements Cache] Saved ${minimalMovements.length} movements to cache`);
+    } catch (error) {
+      console.warn('Error saving movements to cache:', error);
+      try {
+        localStorage.removeItem(MOVEMENTS_CACHE_KEY);
+        localStorage.removeItem(MOVEMENTS_CACHE_TIMESTAMP_KEY);
+      } catch {
+        // Ignorar erro de limpeza
+      }
+    }
+  };
+
   const fetchData = async (forceRefresh = false) => {
     try {
       const refreshParam = forceRefresh ? '?force_refresh=true' : '';
@@ -903,6 +929,11 @@ export default function ProcessosDashboard() {
       setHasCompleteData(true);
       console.log('Complete data loaded:', finalLawsuits.length, 'lawsuits,', finalMovements.length, 'movements');
 
+      // Salvar movimentações em cache separado (não depende do cache principal)
+      if (finalMovements.length > 0) {
+        saveMovementsToCache(finalMovements);
+      }
+
       // Atualizar cache apenas quando tivermos dados de processos
       try {
         if (finalLawsuits.length > 0) {
@@ -1009,32 +1040,8 @@ export default function ProcessosDashboard() {
   const [recentLawsuits, setRecentLawsuits] = useState<Lawsuit[]>([]);
   const [recentLawsuitsStartDate, setRecentLawsuitsStartDate] = useState<string | null>(null);
   
-  
-  // Função auxiliar para salvar movimentações no cache
-  const saveMovementsToCache = (movementsData: Movement[]) => {
-    try {
-      const minimalMovements = movementsData.map(m => ({
-        lawsuit_id: m.lawsuit_id,
-        date: m.date,
-        title: m.title,
-        header: m.header,
-        process_number: m.process_number,
-        protocol_number: m.protocol_number,
-        customers: m.customers,
-      }));
-      localStorage.setItem(MOVEMENTS_CACHE_KEY, JSON.stringify(minimalMovements));
-      localStorage.setItem(MOVEMENTS_CACHE_TIMESTAMP_KEY, new Date().toISOString());
-      console.log(`[Movements Cache] Saved ${minimalMovements.length} movements to cache`);
-    } catch (error) {
-      console.warn('Error saving movements to cache:', error);
-      try {
-        localStorage.removeItem(MOVEMENTS_CACHE_KEY);
-        localStorage.removeItem(MOVEMENTS_CACHE_TIMESTAMP_KEY);
-      } catch {
-        // Ignorar erro de limpeza
-      }
-    }
-  };
+
+
 
   // Função para buscar processos recentes usando filtro de data da API
   const loadRecentLawsuits = async (days: number) => {
@@ -1262,19 +1269,32 @@ export default function ProcessosDashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                {/* PROCESSOS ATIVOS */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* TOTAL DE PROCESSOS */}
                 <div className="text-center p-4 bg-primary/5 rounded-lg">
                   <div className="text-3xl font-bold text-primary">
                     {searchTerm || !showAllResponsibles 
                       ? filteredLawsuits.length 
-                      : (totalLawsuits ?? filteredLawsuits.length)}
+                      : (totalLawsuits ?? lawsuits.length)}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
-                    {searchTerm || !showAllResponsibles ? 'Processos Filtrados' : 'Processos Ativos'}
+                    {searchTerm || !showAllResponsibles ? 'Processos Filtrados' : 'Total de Processos'}
                   </div>
                   <div className="text-xs text-muted-foreground/60 mt-0.5">
-                    Total atual no Advbox
+                    Ativos e inativos no Advbox
+                  </div>
+                </div>
+
+                {/* PROCESSOS ATIVOS */}
+                <div className="text-center p-4 bg-primary/5 rounded-lg">
+                  <div className="text-3xl font-bold text-primary">
+                    {evolutionMetrics.activeProcesses}
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Processos Ativos
+                  </div>
+                  <div className="text-xs text-muted-foreground/60 mt-0.5">
+                    Sem data de arquivamento
                   </div>
                 </div>
                 
@@ -1317,7 +1337,7 @@ export default function ProcessosDashboard() {
                   )}
                 </div>
                 {/* PROCESSOS NOVOS */}
-                <div className="text-center p-4 bg-primary/5 rounded-lg border border-primary/20">
+                <div className="text-center p-4 bg-primary/5 rounded-lg">
                   <div className="text-3xl font-bold text-primary">
                     {evolutionMetrics.newProcesses}
                   </div>
@@ -1331,8 +1351,8 @@ export default function ProcessosDashboard() {
                   </div>
                 </div>
                 {/* PROCESSOS ARQUIVADOS */}
-                <div className="text-center p-4 bg-secondary rounded-lg">
-                  <div className="text-3xl font-bold text-secondary-foreground">
+                <div className="text-center p-4 bg-primary/5 rounded-lg">
+                  <div className="text-3xl font-bold text-primary">
                     {evolutionMetrics.archivedProcesses}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
@@ -1345,7 +1365,7 @@ export default function ProcessosDashboard() {
                   </div>
                 </div>
                 {/* CRESCIMENTO LÍQUIDO */}
-                <div className={`text-center p-4 rounded-lg ${netGrowth >= 0 ? 'bg-primary/5' : 'bg-destructive/5'}`}>
+                <div className="text-center p-4 bg-primary/5 rounded-lg">
                   <div className={`text-3xl font-bold ${netGrowth >= 0 ? 'text-primary' : 'text-destructive'} flex items-center justify-center gap-1`}>
                     {netGrowth >= 0 ? '+' : ''}{netGrowth}
                     {netGrowth >= 0 ? (
