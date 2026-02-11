@@ -763,17 +763,16 @@ export default function ProcessosDashboard() {
     try {
       const refreshParam = forceRefresh ? '?force_refresh=true' : '';
       
-      // Buscar processos e movimentações em paralelo
-      // Para movimentações, tentar full primeiro, fallback para endpoint normal se timeout
+      // Buscar processos, movimentações e contagem em paralelo
       const lawsuitsPromise = supabase.functions.invoke(`advbox-integration/lawsuits-full${refreshParam}`);
-      
-      // Buscar movimentações: usar last-movements que retorna totalCount + últimas 100
-      // Não tentar movements-full que carrega 9500+ registros e causa timeout
       const movementsFullPromise = supabase.functions.invoke(`advbox-integration/last-movements${refreshParam}`);
+      // Dedicated count endpoint - simple flat response, impossible to misparse
+      const movementsCountPromise = supabase.functions.invoke(`advbox-integration/movements-count${refreshParam}`);
 
-      const [lawsuitsRes, movementsRes] = await Promise.all([
+      const [lawsuitsRes, movementsRes, movementsCountRes] = await Promise.all([
         lawsuitsPromise,
         movementsFullPromise,
+        movementsCountPromise,
       ]);
 
       if (lawsuitsRes.error) throw lawsuitsRes.error;
@@ -910,32 +909,26 @@ export default function ProcessosDashboard() {
           ? (lawsuitsPayload as any).totalCount
           : undefined;
 
-      // Deep extraction of totalCount - search in all possible locations
-      const findTotalCount = (obj: any): number | undefined => {
-        if (!obj || typeof obj !== 'object') return undefined;
-        // Direct property
-        if (typeof obj.totalCount === 'number') return obj.totalCount;
-        if (typeof obj.total_count === 'number') return obj.total_count;
-        if (typeof obj.total === 'number' && !Array.isArray(obj)) return obj.total;
-        // String that looks like a number
-        if (typeof obj.totalCount === 'string' && !isNaN(Number(obj.totalCount))) return Number(obj.totalCount);
-        if (typeof obj.total_count === 'string' && !isNaN(Number(obj.total_count))) return Number(obj.total_count);
-        // Nested in metadata
-        if (obj.metadata && typeof obj.metadata === 'object') {
-          const fromMeta = findTotalCount(obj.metadata);
-          if (fromMeta !== undefined) return fromMeta;
+      // Use dedicated movements-count endpoint for accurate total
+      let movementsTotalFromApi: number | undefined;
+      if (!movementsCountRes.error && movementsCountRes.data) {
+        const countData = movementsCountRes.data as any;
+        if (typeof countData.totalCount === 'number') {
+          movementsTotalFromApi = countData.totalCount;
+          console.log('[movements-count] Got dedicated count:', movementsTotalFromApi);
         }
-        return undefined;
-      };
-
-      const movementsTotalFromApi = findTotalCount(rawMovements) ?? findTotalCount(movementsPayload);
+      }
       
-      console.log('[DEBUG] movementsTotalFromApi extracted:', movementsTotalFromApi);
+      // Fallback: try extracting from last-movements response
+      if (movementsTotalFromApi === undefined) {
+        movementsTotalFromApi = typeof rawMovements?.totalCount === 'number' ? rawMovements.totalCount : undefined;
+        console.log('[movements-count] Fallback from last-movements:', movementsTotalFromApi);
+      }
 
       const lawsuitsTotal = lawsuitsTotalFromApi ?? finalLawsuits.length;
       const movementsTotal = movementsTotalFromApi ?? finalMovements.length;
 
-      console.log('[DEBUG] Final movementsTotal:', movementsTotal, '(from API:', movementsTotalFromApi, ', fallback:', finalMovements.length, ')');
+      console.log('[DEBUG] Final movementsTotal:', movementsTotal, '(from dedicated count:', movementsTotalFromApi, ', fallback:', finalMovements.length, ')');
 
       setTotalLawsuits(lawsuitsTotal);
       setTotalMovements(movementsTotal);
