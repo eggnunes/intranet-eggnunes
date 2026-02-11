@@ -78,32 +78,38 @@ export const WeeklyTaskReport = ({ tasks }: WeeklyTaskReportProps) => {
     const today = startOfDay(new Date());
 
     weeklyTasks.forEach((task) => {
-      const responsible = task.assigned_to || 'Não atribuído';
-      
-      if (!stats[responsible]) {
-        stats[responsible] = {
-          name: responsible,
-          total: 0,
-          completed: 0,
-          pending: 0,
-          overdue: 0,
-          completionRate: 0,
-        };
-      }
-
-      stats[responsible].total++;
+      // Split comma-separated assigned_to into individual names to avoid duplicates
+      const rawResponsible = task.assigned_to || 'Não atribuído';
+      const responsibles = rawResponsible.includes(',')
+        ? rawResponsible.split(',').map((name) => name.trim()).filter(Boolean)
+        : [rawResponsible];
 
       const isCompleted = task.status?.toLowerCase() === 'completed' || task.status?.toLowerCase() === 'concluída';
       const taskDate = task.due_date ? parseISO(task.due_date) : null;
       const isOverdue = taskDate && isBefore(taskDate, today) && !isCompleted;
 
-      if (isCompleted) {
-        stats[responsible].completed++;
-      } else if (isOverdue) {
-        stats[responsible].overdue++;
-      } else {
-        stats[responsible].pending++;
-      }
+      responsibles.forEach((responsible) => {
+        if (!stats[responsible]) {
+          stats[responsible] = {
+            name: responsible,
+            total: 0,
+            completed: 0,
+            pending: 0,
+            overdue: 0,
+            completionRate: 0,
+          };
+        }
+
+        stats[responsible].total++;
+
+        if (isCompleted) {
+          stats[responsible].completed++;
+        } else if (isOverdue) {
+          stats[responsible].overdue++;
+        } else {
+          stats[responsible].pending++;
+        }
+      });
     });
 
     // Calcular taxa de conclusão
