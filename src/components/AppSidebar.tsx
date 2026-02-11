@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { useEffect } from 'react';
 import {
   Sidebar,
   SidebarContent,
@@ -74,6 +73,8 @@ export function AppSidebar() {
   const { isAdmin, profile } = useUserRole();
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
+  const sidebarContentRef = useRef<HTMLDivElement>(null);
+  const scrollPositionRef = useRef(0);
   
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
   const [criticalTasksCount, setCriticalTasksCount] = useState(0);
@@ -141,6 +142,21 @@ export function AppSidebar() {
   };
 
   const isActive = (path: string) => location.pathname === path;
+
+  // Save scroll position before navigation, restore after render
+  const handleNavigate = useCallback((path: string) => {
+    if (sidebarContentRef.current) {
+      scrollPositionRef.current = sidebarContentRef.current.scrollTop;
+    }
+    navigate(path);
+  }, [navigate]);
+
+  // Restore sidebar scroll position after route change
+  useEffect(() => {
+    if (sidebarContentRef.current && scrollPositionRef.current > 0) {
+      sidebarContentRef.current.scrollTop = scrollPositionRef.current;
+    }
+  }, [location.pathname]);
 
   // Menu structure based on the document - REORGANIZED ORDER
   const menuGroups = [
@@ -270,7 +286,7 @@ export function AppSidebar() {
         ) : null}
       </SidebarHeader>
 
-      <SidebarContent className="overflow-y-auto">
+      <SidebarContent ref={sidebarContentRef} className="overflow-y-auto">
         {menuGroups.map((group) => (
           <Collapsible key={group.label} defaultOpen className="group/collapsible">
             <SidebarGroup>
@@ -288,7 +304,7 @@ export function AppSidebar() {
                     {group.items.map((item) => (
                       <SidebarMenuItem key={item.path}>
                         <SidebarMenuButton
-                          onClick={() => navigate(item.path)}
+                          onClick={() => handleNavigate(item.path)}
                           isActive={isActive(item.path)}
                           tooltip={collapsed ? item.label : undefined}
                           className="gap-2"
@@ -328,7 +344,7 @@ export function AppSidebar() {
                     {adminMenuGroup.items.map((item) => (
                       <SidebarMenuItem key={item.path}>
                         <SidebarMenuButton
-                          onClick={() => navigate(item.path)}
+                          onClick={() => handleNavigate(item.path)}
                           isActive={isActive(item.path)}
                           tooltip={collapsed ? item.label : undefined}
                           className="gap-2"
