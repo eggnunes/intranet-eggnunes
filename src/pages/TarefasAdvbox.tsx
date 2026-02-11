@@ -215,13 +215,32 @@ export default function TarefasAdvbox() {
     }
     
     try {
-      // Fetch tasks from the database (instant)
-      const { data: dbTasks, error: dbError } = await supabase
-        .from('advbox_tasks')
-        .select('advbox_id, title, description, due_date, completed_at, status, assigned_users, process_number, task_type, points, synced_at')
-        .order('due_date', { ascending: false });
+      // Fetch ALL tasks from the database using pagination to bypass 1000 row limit
+      const allDbTasks: any[] = [];
+      const batchSize = 1000;
+      let offset = 0;
+      let hasMore = true;
 
-      if (dbError) throw dbError;
+      while (hasMore) {
+        const { data: batch, error: batchError } = await supabase
+          .from('advbox_tasks')
+          .select('advbox_id, title, description, due_date, completed_at, status, assigned_users, process_number, task_type, points, synced_at')
+          .order('due_date', { ascending: false })
+          .range(offset, offset + batchSize - 1);
+
+        if (batchError) throw batchError;
+
+        if (batch && batch.length > 0) {
+          allDbTasks.push(...batch);
+          offset += batchSize;
+          hasMore = batch.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const dbTasks = allDbTasks;
+      const dbError = null;
 
       // Fetch priorities
       const { data: priorities } = await supabase
