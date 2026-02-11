@@ -61,13 +61,31 @@ export default function RelatoriosProdutividadeTarefas({ embedded = false }: { e
         });
       }
 
-      // Fetch from database
-      const { data: dbTasks, error: dbError } = await supabase
-        .from('advbox_tasks')
-        .select('advbox_id, title, description, due_date, completed_at, status, assigned_users, process_number, points, synced_at')
-        .order('due_date', { ascending: false });
+      // Fetch ALL tasks from database using pagination to bypass 1000 row limit
+      const allDbTasks: any[] = [];
+      const batchSize = 1000;
+      let offset = 0;
+      let hasMore = true;
 
-      if (dbError) throw dbError;
+      while (hasMore) {
+        const { data: batch, error: batchError } = await supabase
+          .from('advbox_tasks')
+          .select('advbox_id, title, description, due_date, completed_at, status, assigned_users, process_number, points, synced_at')
+          .order('due_date', { ascending: false })
+          .range(offset, offset + batchSize - 1);
+
+        if (batchError) throw batchError;
+
+        if (batch && batch.length > 0) {
+          allDbTasks.push(...batch);
+          offset += batchSize;
+          hasMore = batch.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const dbTasks = allDbTasks;
 
       // Fetch priorities
       const { data: priorities } = await supabase
@@ -130,12 +148,16 @@ export default function RelatoriosProdutividadeTarefas({ embedded = false }: { e
     );
   }, [tasks, isAdmin, profile?.full_name]);
 
-  // Extrair lista de responsáveis (só para admin)
+  // Extrair lista de responsáveis individuais (só para admin)
   const assignedUsers = useMemo(() => {
     const users = new Set<string>();
     visibleTasks.forEach((task) => {
       if (task.assigned_to) {
-        users.add(task.assigned_to);
+        // Split comma-separated names into individual users
+        const names = task.assigned_to.includes(',')
+          ? task.assigned_to.split(',').map((n: string) => n.trim()).filter(Boolean)
+          : [task.assigned_to.trim()];
+        names.forEach((name: string) => users.add(name));
       }
     });
     return Array.from(users).sort();
@@ -145,8 +167,9 @@ export default function RelatoriosProdutividadeTarefas({ embedded = false }: { e
   const filteredTasks = useMemo(() => {
     return visibleTasks.filter((task) => {
       // Filtro por responsável (só para admin)
-      if (isAdmin && selectedUser !== 'all' && task.assigned_to !== selectedUser) {
-        return false;
+      if (isAdmin && selectedUser !== 'all') {
+        const names = task.assigned_to ? task.assigned_to.split(',').map((n: string) => n.trim()) : [];
+        if (!names.includes(selectedUser)) return false;
       }
 
       // Filtro por prioridade
@@ -193,8 +216,9 @@ export default function RelatoriosProdutividadeTarefas({ embedded = false }: { e
 
     return visibleTasks.filter((task) => {
       // Filtro por responsável (só para admin)
-      if (isAdmin && selectedUser !== 'all' && task.assigned_to !== selectedUser) {
-        return false;
+      if (isAdmin && selectedUser !== 'all') {
+        const names = task.assigned_to ? task.assigned_to.split(',').map((n: string) => n.trim()) : [];
+        if (!names.includes(selectedUser)) return false;
       }
 
       // Filtro por prioridade
@@ -271,25 +295,34 @@ export default function RelatoriosProdutividadeTarefas({ embedded = false }: { e
     return { total, completed, pending, inProgress, completionRate };
   }, [comparisonTasks, showComparison]);
 
-  // Dados para gráfico de barras - Tarefas por responsável
+  // Dados para gráfico de barras - Tarefas por responsável (split comma-separated)
   const tasksByUser = useMemo(() => {
     const userMap = new Map<string, { name: string; total: number; concluídas: number; pendentes: number }>();
 
     filteredTasks.forEach((task) => {
-      const user = task.assigned_to || 'Não atribuído';
-      if (!userMap.has(user)) {
-        userMap.set(user, { name: user, total: 0, concluídas: 0, pendentes: 0 });
-      }
-
-      const userData = userMap.get(user)!;
-      userData.total++;
+      const rawUser = task.assigned_to || 'Não atribuído';
+      const users = rawUser.includes(',')
+        ? rawUser.split(',').map((n: string) => n.trim()).filter(Boolean)
+        : [rawUser.trim()];
 
       const status = task.status?.toLowerCase();
-      if (status === 'completed' || status === 'concluída') {
-        userData.concluídas++;
-      } else if (status === 'pending' || status === 'pendente') {
-        userData.pendentes++;
-      }
+      const isCompleted = status === 'completed' || status === 'concluída';
+      const isPending = status === 'pending' || status === 'pendente';
+
+      users.forEach((user: string) => {
+        if (!userMap.has(user)) {
+          userMap.set(user, { name: user, total: 0, concluídas: 0, pendentes: 0 });
+        }
+
+        const userData = userMap.get(user)!;
+        userData.total++;
+
+        if (isCompleted) {
+          userData.concluídas++;
+        } else if (isPending) {
+          userData.pendentes++;
+        }
+      });
     });
 
     return Array.from(userMap.values()).sort((a, b) => b.total - a.total);
@@ -585,10 +618,17 @@ export default function RelatoriosProdutividadeTarefas({ embedded = false }: { e
               <CardDescription>Distribuição de tarefas concluídas e pendentes</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={tasksByUser}>
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart data={tasksByUser} margin={{ bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
+                  <XAxis 
+                    dataKey="name" 
+                    angle={-45} 
+                    textAnchor="end" 
+                    height={140} 
+                    interval={0}
+                    tick={{ fontSize: 10 }}
+                  />
                   <YAxis />
                   <Tooltip />
                   <Legend />
@@ -665,7 +705,11 @@ export default function RelatoriosProdutividadeTarefas({ embedded = false }: { e
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {tasksByUser.slice(0, 5).map((user, index) => (
+                {[...tasksByUser].sort((a, b) => {
+                  const rateA = a.total > 0 ? a.concluídas / a.total : 0;
+                  const rateB = b.total > 0 ? b.concluídas / b.total : 0;
+                  return rateB - rateA || b.concluídas - a.concluídas;
+                }).slice(0, 10).map((user, index) => (
                   <div key={user.name} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
