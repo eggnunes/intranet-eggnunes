@@ -30,6 +30,7 @@ interface Promocao {
     full_name: string;
     avatar_url: string | null;
     position: string;
+    join_date: string | null;
   };
 }
 
@@ -67,11 +68,11 @@ export function RHPromocoes() {
 
       if (error) throw error;
 
-      // Buscar dados dos colaboradores
+      // Buscar dados dos colaboradores incluindo data de ingresso
       const colaboradorIds = [...new Set((data || []).map(p => p.colaborador_id))];
       const { data: colabData } = await supabase
         .from('profiles')
-        .select('id, full_name, avatar_url, position')
+        .select('id, full_name, avatar_url, position, join_date')
         .in('id', colaboradorIds);
 
       const colabMap = new Map((colabData || []).map(c => [c.id, c]));
@@ -227,6 +228,7 @@ export function RHPromocoes() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Colaborador</TableHead>
+                  <TableHead>Data de Ingresso</TableHead>
                   <TableHead>Cargo Anterior</TableHead>
                   <TableHead>Novo Cargo</TableHead>
                   <TableHead>Data</TableHead>
@@ -249,6 +251,11 @@ export function RHPromocoes() {
                           <p className="font-medium">{promocao.colaborador?.full_name || 'Colaborador'}</p>
                         </div>
                       </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {promocao.colaborador?.join_date
+                        ? format(parse(promocao.colaborador.join_date, 'yyyy-MM-dd', new Date()), "dd/MM/yyyy", { locale: ptBR })
+                        : '-'}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{promocao.cargo_anterior_nome}</Badge>
