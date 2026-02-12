@@ -158,30 +158,30 @@ export function FinanceiroExecutivoDashboard() {
         .select('*')
         .eq('ativa', true);
 
-      // Fetch lançamentos do período (include descricao for filtering)
+      // Fetch lançamentos do período - usando data_vencimento (regime de competência)
       const { data: lancamentos } = await supabase
         .from('fin_lancamentos')
         .select(`*, categoria:fin_categorias(nome, cor)`)
-        .gte('data_lancamento', format(dataInicio, 'yyyy-MM-dd'))
-        .lte('data_lancamento', format(dataFim, 'yyyy-MM-dd'))
+        .gte('data_vencimento', format(dataInicio, 'yyyy-MM-dd'))
+        .lte('data_vencimento', format(dataFim, 'yyyy-MM-dd'))
         .eq('status', 'pago')
         .is('deleted_at', null);
 
-      // Lançamentos mês atual (include descricao)
+      // Lançamentos mês atual (regime de competência)
       const { data: lancMesAtual } = await supabase
         .from('fin_lancamentos')
         .select('tipo, valor, descricao')
-        .gte('data_lancamento', format(mesAtualInicio, 'yyyy-MM-dd'))
-        .lte('data_lancamento', format(mesAtualFim, 'yyyy-MM-dd'))
+        .gte('data_vencimento', format(mesAtualInicio, 'yyyy-MM-dd'))
+        .lte('data_vencimento', format(mesAtualFim, 'yyyy-MM-dd'))
         .eq('status', 'pago')
         .is('deleted_at', null);
 
-      // Lançamentos mês anterior (include descricao)
+      // Lançamentos mês anterior (regime de competência)
       const { data: lancMesAnterior } = await supabase
         .from('fin_lancamentos')
         .select('tipo, valor, descricao')
-        .gte('data_lancamento', format(mesAnteriorInicio, 'yyyy-MM-dd'))
-        .lte('data_lancamento', format(mesAnteriorFim, 'yyyy-MM-dd'))
+        .gte('data_vencimento', format(mesAnteriorInicio, 'yyyy-MM-dd'))
+        .lte('data_vencimento', format(mesAnteriorFim, 'yyyy-MM-dd'))
         .eq('status', 'pago')
         .is('deleted_at', null);
 
@@ -291,8 +291,8 @@ export function FinanceiroExecutivoDashboard() {
         const { data: mesLancamentos } = await supabase
           .from('fin_lancamentos')
           .select('tipo, valor, descricao')
-          .gte('data_lancamento', format(mesInicio, 'yyyy-MM-dd'))
-          .lte('data_lancamento', format(mesFim, 'yyyy-MM-dd'))
+          .gte('data_vencimento', format(mesInicio, 'yyyy-MM-dd'))
+          .lte('data_vencimento', format(mesFim, 'yyyy-MM-dd'))
           .eq('status', 'pago')
           .is('deleted_at', null);
 

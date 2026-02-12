@@ -368,16 +368,55 @@ async function processTransactionsBatch(
     // Check if already exists in fin_lancamentos
     const existing = existingMap.get(advboxId);
     if (existing) {
-      // Still save to advbox_financial_sync if not there yet (for backup)
-      if (!existingSyncSet.has(advboxId)) {
-        await supabase.from('advbox_financial_sync').upsert({
-          advbox_transaction_id: advboxId,
-          advbox_data: tx,
-          lancamento_id: existing.id,
-          last_updated: new Date().toISOString()
-        }, { onConflict: 'advbox_transaction_id' });
+      // CORREÇÃO: Comparar e atualizar campos se houve mudança no ADVBox
+      const newPaymentDate = tx.date_payment?.split('T')[0] || null;
+      const isPaidNow = !!(tx.date_payment && tx.date_payment.trim() !== '');
+      const newStatus = isPaidNow ? 'pago' : 'pendente';
+      const newAmount = Math.abs(Number(tx.amount) || 0);
+
+      // Buscar dados atuais do registro local para comparar
+      const { data: currentRecord } = await supabase
+        .from('fin_lancamentos')
+        .select('status, data_pagamento, valor')
+        .eq('id', existing.id)
+        .single();
+
+      const needsUpdate = currentRecord && (
+        currentRecord.status !== newStatus ||
+        currentRecord.data_pagamento !== newPaymentDate ||
+        Number(currentRecord.valor) !== newAmount
+      );
+
+      if (needsUpdate) {
+        const { error: updateError } = await supabase
+          .from('fin_lancamentos')
+          .update({
+            status: newStatus,
+            data_pagamento: newPaymentDate,
+            valor: newAmount,
+            updated_at: new Date().toISOString()
+          } as never)
+          .eq('id', existing.id);
+
+        if (updateError) {
+          console.error(`Update error for ${advboxId}:`, updateError.message);
+          skipped++;
+        } else {
+          console.log(`Updated ${advboxId}: status=${newStatus}, pagamento=${newPaymentDate}, valor=${newAmount}`);
+          updated++;
+        }
+      } else {
+        skipped++;
       }
-      skipped++;
+
+      // Always update advbox_financial_sync for backup
+      await supabase.from('advbox_financial_sync').upsert({
+        advbox_transaction_id: advboxId,
+        advbox_data: tx,
+        lancamento_id: existing.id,
+        last_updated: new Date().toISOString()
+      }, { onConflict: 'advbox_transaction_id' });
+
       continue;
     }
 
@@ -647,17 +686,45 @@ serve(async (req) => {
         completed_at: null
       };
     } else if (syncStatus.status === 'completed') {
-      // Already completed, nothing to do unless force restart
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'Sincronização já foi concluída',
-          total_processed: syncStatus.total_processed,
-          total_created: syncStatus.total_created,
-          status: 'completed'
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      // CORREÇÃO: Iniciar sincronização incremental dos últimos 60 dias
+      console.log('Sync completed previously - starting incremental sync (last 60 days)');
+      const now = new Date();
+      const incrementalStart = new Date(now);
+      incrementalStart.setDate(incrementalStart.getDate() - 60);
+
+      await supabase
+        .from('advbox_sync_status')
+        .update({
+          status: 'running',
+          last_offset: 0,
+          total_processed: 0,
+          total_created: 0,
+          total_updated: 0,
+          total_skipped: 0,
+          start_date: incrementalStart.toISOString().split('T')[0],
+          end_date: now.toISOString().split('T')[0],
+          started_at: new Date().toISOString(),
+          last_run_at: new Date().toISOString(),
+          completed_at: null,
+          error_message: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('sync_type', 'financial');
+
+      syncStatus = {
+        ...syncStatus,
+        status: 'running',
+        last_offset: 0,
+        total_processed: 0,
+        total_created: 0,
+        total_updated: 0,
+        total_skipped: 0,
+        start_date: incrementalStart.toISOString().split('T')[0],
+        end_date: now.toISOString().split('T')[0],
+        error_message: null,
+        last_run_at: new Date().toISOString(),
+        completed_at: null
+      };
     } else if (syncStatus.status === 'running' && !isAutoMode) {
       // Continue from where we left off
       await updateSyncStatus(supabase, { last_run_at: new Date().toISOString() });
