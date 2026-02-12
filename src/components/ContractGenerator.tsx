@@ -1486,7 +1486,16 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
         if (trimmedLine.startsWith('<<<<') && trimmedLine.endsWith('>>>>')) {
           doc.setFontSize(1);
           doc.setTextColor(255, 255, 255); // Branco - invisível
-          doc.text(trimmedLine, marginLeft, yPos);
+          
+          // Posicionar âncora de acordo com o tipo de signatário
+          let anchorX = pageWidth / 2; // Padrão: centralizado (contratados e contratante)
+          if (trimmedLine.includes('testemunha1')) {
+            anchorX = marginLeft + 10; // Esquerda
+          } else if (trimmedLine.includes('testemunha2')) {
+            anchorX = pageWidth / 2 + 10; // Direita
+          }
+          
+          doc.text(trimmedLine, anchorX, yPos);
           doc.setTextColor(0, 0, 0); // Restaurar preto
           doc.setFontSize(9);
           continue;

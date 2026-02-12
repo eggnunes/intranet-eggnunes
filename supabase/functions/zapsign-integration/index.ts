@@ -90,7 +90,7 @@ async function autoSign(
       },
       body: JSON.stringify({
         user_token: userToken,
-        signer_token: signerToken,
+        signer_tokens: [signerToken],
       }),
     });
 
