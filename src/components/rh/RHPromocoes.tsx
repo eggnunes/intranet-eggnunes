@@ -7,12 +7,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Award, Plus, Search, MoreVertical, Trash2, Eye, TrendingUp, Calendar, User } from 'lucide-react';
+import { Award, Plus, Search, MoreVertical, Trash2, Eye, TrendingUp, Calendar, User, Pencil } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { PromocaoDialog } from './PromocaoDialog';
+import { PromocaoDialog, type PromocaoParaEditar } from './PromocaoDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 interface Promocao {
@@ -20,6 +20,8 @@ interface Promocao {
   colaborador_id: string;
   cargo_anterior_nome: string;
   cargo_novo_nome: string;
+  cargo_anterior_id: string | null;
+  cargo_novo_id: string | null;
   data_promocao: string;
   observacoes: string | null;
   created_at: string;
@@ -39,6 +41,7 @@ export function RHPromocoes() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [promocaoToDelete, setPromocaoToDelete] = useState<Promocao | null>(null);
+  const [promocaoParaEditar, setPromocaoParaEditar] = useState<PromocaoParaEditar | null>(null);
 
   useEffect(() => {
     fetchPromocoes();
@@ -54,6 +57,8 @@ export function RHPromocoes() {
           colaborador_id,
           cargo_anterior_nome,
           cargo_novo_nome,
+          cargo_anterior_id,
+          cargo_novo_id,
           data_promocao,
           observacoes,
           created_at
@@ -101,6 +106,25 @@ export function RHPromocoes() {
       fetchPromocoes();
     } catch (error: any) {
       toast.error('Erro ao remover promoção: ' + error.message);
+    }
+  };
+
+  const handleEdit = (promocao: Promocao) => {
+    setPromocaoParaEditar({
+      id: promocao.id,
+      colaborador_id: promocao.colaborador_id,
+      cargo_anterior_id: promocao.cargo_anterior_id,
+      cargo_novo_id: promocao.cargo_novo_id,
+      data_promocao: promocao.data_promocao,
+      observacoes: promocao.observacoes,
+    });
+    setDialogOpen(true);
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      setPromocaoParaEditar(null);
     }
   };
 
@@ -177,7 +201,7 @@ export function RHPromocoes() {
                 Gerencie e registre promoções de colaboradores
               </CardDescription>
             </div>
-            <Button onClick={() => setDialogOpen(true)} className="gap-2">
+            <Button onClick={() => { setPromocaoParaEditar(null); setDialogOpen(true); }} className="gap-2">
               <Plus className="h-4 w-4" />
               Nova Promoção
             </Button>
@@ -250,6 +274,10 @@ export function RHPromocoes() {
                             <Eye className="h-4 w-4 mr-2" />
                             Ver Perfil
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEdit(promocao)}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Editar
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-destructive"
                             onClick={() => {
@@ -279,10 +307,11 @@ export function RHPromocoes() {
         </CardContent>
       </Card>
 
-      {/* Dialog para nova promoção */}
+      {/* Dialog para nova/editar promoção */}
       <PromocaoDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={handleDialogClose}
+        promocaoParaEditar={promocaoParaEditar}
         onSuccess={fetchPromocoes}
       />
 
