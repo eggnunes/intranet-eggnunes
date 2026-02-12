@@ -569,16 +569,20 @@ export default function ProcessosAtivos() {
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <p className="font-semibold text-sm">{lawsuit.process_number}</p>
+                            <p className="font-semibold text-sm">
+                              {lawsuit.process_number || <span className="text-muted-foreground italic font-normal">Sem número</span>}
+                            </p>
                             <Badge variant={active ? 'default' : 'secondary'} className="text-xs">
                               {active ? 'Ativo' : 'Inativo'}
                             </Badge>
                           </div>
-                          {lawsuit.customers && (
-                            <p className="text-xs text-muted-foreground mb-2">
-                              Cliente: <span className="font-medium text-foreground">{getCustomerName(lawsuit.customers)}</span>
-                            </p>
-                          )}
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Cliente: {lawsuit.customers ? (
+                              <span className="font-medium text-foreground">{getCustomerName(lawsuit.customers)}</span>
+                            ) : (
+                              <span className="italic">Cliente não vinculado</span>
+                            )}
+                          </p>
                           <div className="flex gap-2 mt-2 flex-wrap">
                             <Badge variant="outline" className="text-xs">{lawsuit.type}</Badge>
                             <Badge variant="secondary" className="text-xs">{lawsuit.group}</Badge>
@@ -599,12 +603,14 @@ export default function ProcessosAtivos() {
                           </Button>
                         </div>
                       </div>
-                      {lawsuit.responsible && (
-                        <div className="text-xs">
-                          <span className="text-muted-foreground">Responsável: </span>
+                      <div className="text-xs">
+                        <span className="text-muted-foreground">Responsável: </span>
+                        {lawsuit.responsible ? (
                           <span className="font-medium">{lawsuit.responsible}</span>
-                        </div>
-                      )}
+                        ) : (
+                          <span className="text-muted-foreground italic">Sem responsável</span>
+                        )}
+                      </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs pt-2 border-t">
                         {lawsuit.process_date && (
                           <div>
