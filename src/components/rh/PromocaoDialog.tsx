@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { Award, TrendingUp, Calendar, FileText } from 'lucide-react';
+import { Award, TrendingUp, Calendar, FileText, AlertTriangle, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Colaborador {
@@ -25,14 +25,24 @@ interface Cargo {
   valor_base: number;
 }
 
+export interface PromocaoParaEditar {
+  id: string;
+  colaborador_id: string;
+  cargo_anterior_id: string | null;
+  cargo_novo_id: string | null;
+  data_promocao: string;
+  observacoes: string | null;
+}
+
 interface PromocaoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   colaborador?: Colaborador | null;
+  promocaoParaEditar?: PromocaoParaEditar | null;
   onSuccess: () => void;
 }
 
-export function PromocaoDialog({ open, onOpenChange, colaborador, onSuccess }: PromocaoDialogProps) {
+export function PromocaoDialog({ open, onOpenChange, colaborador, promocaoParaEditar, onSuccess }: PromocaoDialogProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [cargos, setCargos] = useState<Cargo[]>([]);
@@ -46,15 +56,33 @@ export function PromocaoDialog({ open, onOpenChange, colaborador, onSuccess }: P
   const [observacoes, setObservacoes] = useState<string>('');
   const [atualizarCargoAtual, setAtualizarCargoAtual] = useState<boolean>(true);
 
+  const isEditMode = !!promocaoParaEditar;
+  const isHistorical = dataPromocao < format(new Date(), 'yyyy-MM-dd');
+
   useEffect(() => {
     if (open) {
       fetchData();
-      if (colaborador) {
+      if (promocaoParaEditar) {
+        // Edit mode: fill form with existing data
+        setSelectedColaboradorId(promocaoParaEditar.colaborador_id);
+        setCargoAnteriorId(promocaoParaEditar.cargo_anterior_id || '');
+        setCargoNovoId(promocaoParaEditar.cargo_novo_id || '');
+        setDataPromocao(promocaoParaEditar.data_promocao);
+        setObservacoes(promocaoParaEditar.observacoes || '');
+        setAtualizarCargoAtual(false); // Default off for edit
+      } else if (colaborador) {
         setSelectedColaboradorId(colaborador.id);
-        setCargoAnteriorId(colaborador.cargo_id || '');
+        // Do NOT auto-fill cargo anterior — user chooses manually
       }
     }
-  }, [open, colaborador]);
+  }, [open, colaborador, promocaoParaEditar]);
+
+  // Auto-toggle: disable "update current cargo" for past dates
+  useEffect(() => {
+    if (isHistorical) {
+      setAtualizarCargoAtual(false);
+    }
+  }, [dataPromocao]);
 
   const fetchData = async () => {
     try {
@@ -84,10 +112,7 @@ export function PromocaoDialog({ open, onOpenChange, colaborador, onSuccess }: P
 
   const handleColaboradorChange = (colabId: string) => {
     setSelectedColaboradorId(colabId);
-    const colab = colaboradores.find(c => c.id === colabId);
-    if (colab) {
-      setCargoAnteriorId(colab.cargo_id || '');
-    }
+    // Do NOT auto-fill cargo anterior — user chooses manually
   };
 
   const handleSubmit = async () => {
@@ -106,21 +131,39 @@ export function PromocaoDialog({ open, onOpenChange, colaborador, onSuccess }: P
       const cargoAnterior = cargos.find(c => c.id === cargoAnteriorId);
       const cargoNovo = cargos.find(c => c.id === cargoNovoId);
 
-      // Registrar promoção
-      const { error: promocaoError } = await supabase
-        .from('rh_promocoes')
-        .insert({
-          colaborador_id: selectedColaboradorId,
-          cargo_anterior_id: cargoAnteriorId || null,
-          cargo_anterior_nome: cargoAnterior?.nome || 'Sem cargo definido',
-          cargo_novo_id: cargoNovoId,
-          cargo_novo_nome: cargoNovo?.nome || '',
-          data_promocao: dataPromocao,
-          observacoes: observacoes || null,
-          registrado_por: user?.id
-        });
+      if (isEditMode) {
+        // UPDATE existing promotion
+        const { error } = await supabase
+          .from('rh_promocoes')
+          .update({
+            colaborador_id: selectedColaboradorId,
+            cargo_anterior_id: cargoAnteriorId || null,
+            cargo_anterior_nome: cargoAnterior?.nome || 'Sem cargo definido',
+            cargo_novo_id: cargoNovoId,
+            cargo_novo_nome: cargoNovo?.nome || '',
+            data_promocao: dataPromocao,
+            observacoes: observacoes || null,
+          })
+          .eq('id', promocaoParaEditar!.id);
 
-      if (promocaoError) throw promocaoError;
+        if (error) throw error;
+      } else {
+        // INSERT new promotion
+        const { error } = await supabase
+          .from('rh_promocoes')
+          .insert({
+            colaborador_id: selectedColaboradorId,
+            cargo_anterior_id: cargoAnteriorId || null,
+            cargo_anterior_nome: cargoAnterior?.nome || 'Sem cargo definido',
+            cargo_novo_id: cargoNovoId,
+            cargo_novo_nome: cargoNovo?.nome || '',
+            data_promocao: dataPromocao,
+            observacoes: observacoes || null,
+            registrado_por: user?.id
+          });
+
+        if (error) throw error;
+      }
 
       // Atualizar cargo atual do colaborador se marcado
       if (atualizarCargoAtual) {
@@ -132,8 +175,8 @@ export function PromocaoDialog({ open, onOpenChange, colaborador, onSuccess }: P
         if (updateError) throw updateError;
       }
 
-      // Registrar no histórico de salário (se houver mudança de valor)
-      if (cargoAnterior && cargoNovo && cargoAnterior.valor_base !== cargoNovo.valor_base) {
+      // Registrar no histórico de salário (se houver mudança de valor) — only for new promotions
+      if (!isEditMode && cargoAnterior && cargoNovo && cargoAnterior.valor_base !== cargoNovo.valor_base) {
         await supabase
           .from('rh_historico_salario')
           .insert({
@@ -145,12 +188,12 @@ export function PromocaoDialog({ open, onOpenChange, colaborador, onSuccess }: P
           });
       }
 
-      toast.success('Promoção registrada com sucesso!');
+      toast.success(isEditMode ? 'Promoção atualizada com sucesso!' : 'Promoção registrada com sucesso!');
       resetForm();
       onOpenChange(false);
       onSuccess();
     } catch (error: any) {
-      toast.error('Erro ao registrar promoção: ' + error.message);
+      toast.error('Erro ao salvar promoção: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -178,11 +221,17 @@ export function PromocaoDialog({ open, onOpenChange, colaborador, onSuccess }: P
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Award className="h-5 w-5 text-green-500" />
-            Registrar Promoção
+            {isEditMode ? (
+              <Pencil className="h-5 w-5 text-blue-500" />
+            ) : (
+              <Award className="h-5 w-5 text-green-500" />
+            )}
+            {isEditMode ? 'Editar Promoção' : 'Registrar Promoção'}
           </DialogTitle>
           <DialogDescription>
-            Registre uma promoção de cargo, incluindo datas retroativas.
+            {isEditMode 
+              ? 'Edite os dados da promoção registrada.'
+              : 'Registre uma promoção de cargo, incluindo datas retroativas.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -193,7 +242,7 @@ export function PromocaoDialog({ open, onOpenChange, colaborador, onSuccess }: P
             <Select 
               value={selectedColaboradorId} 
               onValueChange={handleColaboradorChange}
-              disabled={!!colaborador}
+              disabled={!!colaborador || isEditMode}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione o colaborador" />
@@ -213,7 +262,7 @@ export function PromocaoDialog({ open, onOpenChange, colaborador, onSuccess }: P
             <Label htmlFor="cargoAnterior">Cargo Anterior</Label>
             <Select value={cargoAnteriorId} onValueChange={setCargoAnteriorId}>
               <SelectTrigger>
-                <SelectValue placeholder="Cargo anterior (opcional)" />
+                <SelectValue placeholder="Selecione o cargo anterior" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Sem cargo definido</SelectItem>
@@ -300,7 +349,9 @@ export function PromocaoDialog({ open, onOpenChange, colaborador, onSuccess }: P
                 Atualizar cargo atual do colaborador
               </Label>
               <p className="text-xs text-muted-foreground">
-                O cargo no cadastro será atualizado automaticamente
+                {isHistorical 
+                  ? 'Desativado automaticamente para promoções com data retroativa'
+                  : 'O cargo no cadastro será atualizado automaticamente'}
               </p>
             </div>
             <Switch
@@ -309,6 +360,14 @@ export function PromocaoDialog({ open, onOpenChange, colaborador, onSuccess }: P
               onCheckedChange={setAtualizarCargoAtual}
             />
           </div>
+
+          {/* Historical promotion warning */}
+          {isHistorical && (
+            <div className="flex items-center gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-sm text-yellow-700 dark:text-yellow-400">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>Promoção histórica — o cargo atual do colaborador não será alterado por padrão.</span>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -316,7 +375,7 @@ export function PromocaoDialog({ open, onOpenChange, colaborador, onSuccess }: P
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={loading || !selectedColaboradorId || !cargoNovoId}>
-            {loading ? 'Salvando...' : 'Registrar Promoção'}
+            {loading ? 'Salvando...' : isEditMode ? 'Salvar Alterações' : 'Registrar Promoção'}
           </Button>
         </DialogFooter>
       </DialogContent>
