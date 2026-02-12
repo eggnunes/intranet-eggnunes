@@ -911,11 +911,15 @@ export default function ProcessosDashboard() {
 
       // Use dedicated movements-count endpoint for accurate total
       let movementsTotalFromApi: number | undefined;
-      if (!movementsCountRes.error && movementsCountRes.data) {
+      if (movementsCountRes.error) {
+        console.error('[movements-count] Endpoint error:', movementsCountRes.error);
+      } else if (movementsCountRes.data) {
         const countData = movementsCountRes.data as any;
         if (typeof countData.totalCount === 'number') {
           movementsTotalFromApi = countData.totalCount;
           console.log('[movements-count] Got dedicated count:', movementsTotalFromApi);
+        } else {
+          console.warn('[movements-count] Unexpected response shape:', countData);
         }
       }
       
@@ -923,6 +927,12 @@ export default function ProcessosDashboard() {
       if (movementsTotalFromApi === undefined) {
         movementsTotalFromApi = typeof rawMovements?.totalCount === 'number' ? rawMovements.totalCount : undefined;
         console.log('[movements-count] Fallback from last-movements:', movementsTotalFromApi);
+      }
+
+      // Fallback: use cached totalMovements if available (avoids showing 100 from first page)
+      if (movementsTotalFromApi === undefined && cachedData?.totalMovements && cachedData.totalMovements > finalMovements.length) {
+        movementsTotalFromApi = cachedData.totalMovements;
+        console.log('[movements-count] Using cached totalMovements:', movementsTotalFromApi);
       }
 
       const lawsuitsTotal = lawsuitsTotalFromApi ?? finalLawsuits.length;
