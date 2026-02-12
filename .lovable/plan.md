@@ -1,95 +1,108 @@
 
-## Plano: Análise e Correção Geral do Sistema Financeiro
 
-### Diagnóstico Completo
+## Plano: Corrigir Assinaturas Automáticas e Posicionamento no ZapSign
 
-Após uma análise profunda do banco de dados e do código, identifiquei **3 problemas críticos** que estão fazendo o financeiro não espelhar a realidade:
+### Diagnóstico
 
----
-
-### Problema 1: Sincronização Financeira Parada desde 3 de Fevereiro
-
-**O que acontece**: A sincronização com o ADVBox completou em 03/02/2026 e **nunca mais rodou**. Fevereiro tem apenas 21 registros (3 dias), enquanto Janeiro tem 407. Todas as transações de boleto, cartão e Asaas que entraram no ADVBox após dia 3 não foram importadas.
-
-**Causa raiz**: O cron job automático (a cada 2 minutos) tem uma condição `WHERE status = 'running'`. Como a sincronização terminou com status `completed`, o cron nunca mais dispara. E quando a Edge Function recebe uma chamada com status `completed`, ela retorna imediatamente sem fazer nada.
-
-**Impacto**: R$ 1.014,25 de receita exibida vs. o valor real que deveria ser muito maior.
-
-**Correção no `supabase/functions/sync-advbox-financial/index.ts`**:
-- Quando o status for `completed`, ao invés de retornar sem fazer nada, **iniciar automaticamente uma sincronização incremental** dos últimos 60 dias
-- Resetar offset para 0 e atualizar `start_date` e `end_date` para o período recente
-- Isso permite que o cron continue buscando novas transações continuamente
-
-**Correção no pg_cron**: Alterar a condição do cron job para disparar quando status for `running` **OU** `completed` (já que agora o completed reinicia a sync incremental).
+Após análise do código e da documentação da API do ZapSign, identifiquei **2 problemas distintos**:
 
 ---
 
-### Problema 2: Registros Existentes Nunca São Atualizados
+### Problema 1: Assinaturas automáticas não funcionam
 
-**O que acontece**: Quando o ADVBox marca um boleto como "pago" (ex: via integração Asaas), a sincronização local **ignora** esse registro porque ele já existe (`skipped`). Resultado: 12 receitas de fevereiro estão como "pendente" no sistema mesmo que já tenham sido pagas no ADVBox.
+**Causa raiz**: O código envia o campo `signer_token` (string singular) na chamada de auto-assinatura, porém a API do ZapSign espera o campo `signer_tokens` (array). Por isso, a API ignora o pedido e as assinaturas de Marcos, Rafael, Daniel e Johnny ficam "Pendente".
 
-**Impacto**: O dashboard filtra por `status = 'pago'`, então receitas pagas mas com status desatualizado não aparecem.
+A documentação da API diz:
+- Endpoint: `POST /api/v1/sign/`
+- Campos: `user_token` (string) + `signer_tokens` (array de strings)
 
-**Correção no `supabase/functions/sync-advbox-financial/index.ts`**:
-- No `processTransactionsBatch`, quando um registro já existe, **comparar e atualizar** os campos `status`, `data_pagamento` e `valor` se houve mudança no ADVBox
-- Isso garante que boletos pagos via Asaas tenham o status atualizado automaticamente
+O código atual envia:
+```json
+{ "user_token": "xxx", "signer_token": "yyy" }
+```
 
----
+Deveria enviar:
+```json
+{ "user_token": "xxx", "signer_tokens": ["yyy"] }
+```
 
-### Problema 3: Dashboard Usa `data_lancamento` em Vez de `data_vencimento`
-
-**O que acontece**: O dashboard executivo filtra por `data_lancamento`, mas muitos lançamentos vindos do ADVBox têm `data_lancamento` diferente de `data_vencimento`. Pagamentos de despesas feitos em fevereiro com vencimento em janeiro aparecem no mês errado, distorcendo os valores (ex: R$ 18.737 de despesas "pagas" aparecendo em fevereiro por causa da data de lançamento).
-
-**Correção no `src/components/financeiro/FinanceiroExecutivoDashboard.tsx`**:
-- Usar `data_vencimento` como campo principal de filtro para o período (regime de competência)
-- Alternativamente, oferecer opção regime de caixa (`data_pagamento`) vs. competência (`data_vencimento`)
-
----
-
-### Alterações Técnicas Detalhadas
-
-**Arquivo 1: `supabase/functions/sync-advbox-financial/index.ts`**
-
-1. **Bloco `status === 'completed'` (linhas 649-660)**: Em vez de retornar "já concluída", resetar para uma sincronização incremental dos últimos 60 dias:
-   - Calcular novo `start_date` = hoje - 60 dias
-   - Atualizar `end_date` = hoje
-   - Resetar `last_offset` = 0
-   - Mudar status para `running`
-   - Continuar o fluxo normal
-
-2. **Bloco de processamento existente (linhas 368-382 em `processTransactionsBatch`)**: Quando o registro já existe, verificar se houve mudança:
-   - Se `date_payment` do ADVBox é diferente de `data_pagamento` local, atualizar
-   - Se o status mudou (ex: agora está pago), atualizar `status` e `data_pagamento`
-   - Incrementar `updated` ao invés de `skipped`
-
-**Arquivo 2: Migração SQL (pg_cron)**
-
-- Remover a condição `WHERE EXISTS (... status = 'running')` do cron job
-- O cron agora sempre dispara a cada 2 minutos, e a Edge Function decide internamente o que fazer
-
-**Arquivo 3: `src/components/financeiro/FinanceiroExecutivoDashboard.tsx`**
-
-- Trocar todas as queries de `data_lancamento` para `data_vencimento` (linhas 162-186, 291-296)
-- Isso alinha o dashboard ao regime de competência, que é o padrão contábil
+**Correção no `supabase/functions/zapsign-integration/index.ts`**:
+- Na funcao `autoSign` (linha 91-93), trocar `signer_token` por `signer_tokens` como array
 
 ---
 
-### Resumo do Impacto Esperado
+### Problema 2: Todas as assinaturas ficam no canto esquerdo
+
+**Causa raiz**: No `ContractGenerator.tsx`, todos os textos ancora do ZapSign (`<<<<assinatura_contratado1>>>>`, `<<<<assinatura_contratante>>>>`, etc.) sao renderizados na mesma posicao: `marginLeft` (linha 1489). Como o ZapSign posiciona a assinatura exatamente onde encontra o texto ancora no PDF, todas as assinaturas ficam alinhadas a esquerda.
+
+**Correção no `src/components/ContractGenerator.tsx`** (linhas 1486-1492):
+- Identificar qual ancora esta sendo renderizada e posicionar de acordo:
+  - `assinatura_contratado1`, `assinatura_contratado2`, `assinatura_contratante` → centralizado (`pageWidth / 2`)
+  - `assinatura_testemunha1` → esquerda (`col1X`, aproximadamente `marginLeft + 10`)
+  - `assinatura_testemunha2` → direita (`col2X`, aproximadamente `pageWidth / 2 + 10`)
+
+---
+
+### Alteracoes Tecnicas
+
+**Arquivo 1: `supabase/functions/zapsign-integration/index.ts`**
+
+Funcao `autoSign` (linhas 84-95):
+```typescript
+// ANTES:
+body: JSON.stringify({
+  user_token: userToken,
+  signer_token: signerToken,
+})
+
+// DEPOIS:
+body: JSON.stringify({
+  user_token: userToken,
+  signer_tokens: [signerToken],
+})
+```
+
+**Arquivo 2: `src/components/ContractGenerator.tsx`**
+
+Bloco de renderizacao de ancoras ZapSign (linhas 1486-1492):
+```typescript
+// ANTES:
+if (trimmedLine.startsWith('<<<<') && trimmedLine.endsWith('>>>>')) {
+  doc.setFontSize(1);
+  doc.setTextColor(255, 255, 255);
+  doc.text(trimmedLine, marginLeft, yPos);  // Tudo na esquerda
+  ...
+}
+
+// DEPOIS:
+if (trimmedLine.startsWith('<<<<') && trimmedLine.endsWith('>>>>')) {
+  doc.setFontSize(1);
+  doc.setTextColor(255, 255, 255);
+  
+  // Posicionar ancora de acordo com o tipo de signatario
+  let anchorX = pageWidth / 2; // Padrao: centralizado
+  if (trimmedLine.includes('testemunha1')) {
+    anchorX = marginLeft + 10; // Esquerda
+  } else if (trimmedLine.includes('testemunha2')) {
+    anchorX = pageWidth / 2 + 10; // Direita
+  }
+  
+  doc.text(trimmedLine, anchorX, yPos);
+  ...
+}
+```
+
+---
+
+### Resultado Esperado
 
 | Aspecto | Antes | Depois |
 |---------|-------|--------|
-| Sincronização | Parada desde 03/02 | Incremental contínua a cada 2 min |
-| Registros Fev/26 | 21 registros | Todos os registros do ADVBox |
-| Status de pagamento | Nunca atualizado | Atualizado automaticamente |
-| Receitas Fev/26 | R$ 1.014,25 | Valor real do ADVBox |
-| Base de período | data_lancamento (inconsistente) | data_vencimento (competência) |
+| Auto-assinatura Marcos | Pendente (falha silenciosa) | Assinado automaticamente |
+| Auto-assinatura Rafael | Pendente (falha silenciosa) | Assinado automaticamente |
+| Auto-assinatura testemunhas | Pendente (falha silenciosa) | Assinado automaticamente |
+| Posicao Contratados (1 e 2) | Esquerda | Centralizada |
+| Posicao Contratante (cliente) | Esquerda | Centralizada |
+| Posicao Testemunha 1 | Esquerda | Esquerda (mantida) |
+| Posicao Testemunha 2 | Esquerda | Direita |
 
----
-
-### Ordem de Execução
-
-1. Atualizar a Edge Function `sync-advbox-financial` (sync incremental + atualização de registros)
-2. Fazer deploy da Edge Function
-3. Atualizar o pg_cron para remover condição restritiva
-4. Corrigir queries do Dashboard Executivo para usar `data_vencimento`
-5. Disparar uma sincronização manual para importar os dados faltantes de fevereiro
