@@ -44,16 +44,23 @@ serve(async (req) => {
         result = await syncActivities(rdToken, supabase);
         break;
       case 'full_sync':
+        // Get settings ID once upfront
+        const { data: settingsRow } = await supabase.from('crm_settings').select('id').single();
+        const settingsId = settingsRow?.id;
+
         const pipelinesResult = await syncPipelines(rdToken, supabase);
         const contactsResult = await syncContacts(rdToken, supabase);
         const dealsResult = await syncDeals(rdToken, supabase);
-        const activitiesResult = await syncActivities(rdToken, supabase);
         
-        // Update last sync timestamp
-        await supabase
-          .from('crm_settings')
-          .update({ last_full_sync_at: new Date().toISOString() })
-          .eq('id', (await supabase.from('crm_settings').select('id').single()).data?.id);
+        // Update last sync timestamp BEFORE activities (which can timeout)
+        if (settingsId) {
+          await supabase
+            .from('crm_settings')
+            .update({ last_full_sync_at: new Date().toISOString() })
+            .eq('id', settingsId);
+        }
+
+        const activitiesResult = await syncActivities(rdToken, supabase);
         
         result = {
           pipelines: pipelinesResult,
@@ -769,7 +776,7 @@ async function syncDeals(rdToken: string, supabase: any) {
       value: deal.amount_total || 0,
       expected_close_date: deal.prediction_date || null,
       closed_at: deal.closed_at || null,
-      won: deal.win,
+      won: deal.win === true || deal.win === 'won' || deal.win === 1,
       loss_reason: deal.loss_reason || null,
       product_name: deal.deal_products?.[0]?.name || null,
       campaign_name: deal.campaign?.name || null,
@@ -812,20 +819,25 @@ async function syncDeals(rdToken: string, supabase: any) {
 async function syncActivities(rdToken: string, supabase: any) {
   console.log('Syncing activities from RD Station...');
   
-  // First, get ALL deals with their rd_station_ids to fetch activities per deal
+  // Only fetch activities for deals created/updated in the last 90 days to avoid timeout
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  const cutoffDate = ninetyDaysAgo.toISOString();
+  
   let allDeals: any[] = [];
   let dealPage = 0;
   while (true) {
     const { data: dealsBatch } = await supabase
       .from('crm_deals')
       .select('id, rd_station_id, name, contact_id')
+      .or(`created_at.gte.${cutoffDate},updated_at.gte.${cutoffDate}`)
       .range(dealPage * 1000, (dealPage + 1) * 1000 - 1);
     if (!dealsBatch || dealsBatch.length === 0) break;
     allDeals = [...allDeals, ...dealsBatch];
     if (dealsBatch.length < 1000) break;
     dealPage++;
   }
-  console.log(`Found ${allDeals.length} deals to fetch activities from`);
+  console.log(`Found ${allDeals.length} recent deals (last 90 days) to fetch activities from`);
 
   // Create maps for lookups
   const dealMapByRdId = new Map(allDeals.map((d: any) => [d.rd_station_id, { id: d.id, contact_id: d.contact_id, name: d.name }]));
@@ -857,8 +869,8 @@ async function syncActivities(rdToken: string, supabase: any) {
 
   let allActivities: any[] = [];
   
-  // Fetch activities from EACH deal (most reliable way)
-  console.log('Fetching activities from each deal...');
+  // Fetch activities from each recent deal with delay to avoid rate limiting
+  console.log('Fetching activities from recent deals...');
   let processedDeals = 0;
   for (const deal of allDeals) {
     if (!deal.rd_station_id) continue;
@@ -872,7 +884,6 @@ async function syncActivities(rdToken: string, supabase: any) {
         const data = await response.json();
         const dealActivities = data.activities || [];
         if (dealActivities.length > 0) {
-          // Add deal info directly to each activity for guaranteed mapping
           dealActivities.forEach((a: any) => {
             a._mapped_deal_id = deal.id;
             a._mapped_contact_id = deal.contact_id;
@@ -889,6 +900,9 @@ async function syncActivities(rdToken: string, supabase: any) {
     if (processedDeals % 50 === 0) {
       console.log(`Processed ${processedDeals}/${allDeals.length} deals, found ${allActivities.length} activities`);
     }
+    
+    // Add delay to avoid rate limiting and timeout
+    await new Promise(resolve => setTimeout(resolve, 200));
   }
 
   // Also try the general activities endpoint
