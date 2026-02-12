@@ -5916,6 +5916,41 @@ export type Database = {
           },
         ]
       }
+      rh_cargo_salary_history: {
+        Row: {
+          alterado_por: string | null
+          cargo_id: string
+          created_at: string
+          id: string
+          valor_anterior: number
+          valor_novo: number
+        }
+        Insert: {
+          alterado_por?: string | null
+          cargo_id: string
+          created_at?: string
+          id?: string
+          valor_anterior: number
+          valor_novo: number
+        }
+        Update: {
+          alterado_por?: string | null
+          cargo_id?: string
+          created_at?: string
+          id?: string
+          valor_anterior?: number
+          valor_novo?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rh_cargo_salary_history_cargo_id_fkey"
+            columns: ["cargo_id"]
+            isOneToOne: false
+            referencedRelation: "rh_cargos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rh_cargos: {
         Row: {
           created_at: string
