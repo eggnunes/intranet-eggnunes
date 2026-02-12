@@ -819,25 +819,22 @@ async function syncDeals(rdToken: string, supabase: any) {
 async function syncActivities(rdToken: string, supabase: any) {
   console.log('Syncing activities from RD Station...');
   
-  // Only fetch activities for deals created/updated in the last 90 days to avoid timeout
+  // Only fetch activities for recent deals (last 90 days) - use created_at and closed_at
+  // NOTE: updated_at is unreliable because upsert refreshes it for ALL deals
   const ninetyDaysAgo = new Date();
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
   const cutoffDate = ninetyDaysAgo.toISOString();
+  const MAX_DEALS_FOR_ACTIVITIES = 200;
   
-  let allDeals: any[] = [];
-  let dealPage = 0;
-  while (true) {
-    const { data: dealsBatch } = await supabase
-      .from('crm_deals')
-      .select('id, rd_station_id, name, contact_id')
-      .or(`created_at.gte.${cutoffDate},updated_at.gte.${cutoffDate}`)
-      .range(dealPage * 1000, (dealPage + 1) * 1000 - 1);
-    if (!dealsBatch || dealsBatch.length === 0) break;
-    allDeals = [...allDeals, ...dealsBatch];
-    if (dealsBatch.length < 1000) break;
-    dealPage++;
-  }
-  console.log(`Found ${allDeals.length} recent deals (last 90 days) to fetch activities from`);
+  const { data: recentDeals } = await supabase
+    .from('crm_deals')
+    .select('id, rd_station_id, name, contact_id')
+    .or(`created_at.gte.${cutoffDate},closed_at.gte.${cutoffDate}`)
+    .order('created_at', { ascending: false })
+    .limit(MAX_DEALS_FOR_ACTIVITIES);
+  
+  const allDeals = recentDeals || [];
+  console.log(`Found ${allDeals.length} recent deals (max ${MAX_DEALS_FOR_ACTIVITIES}) to fetch activities from`);
 
   // Create maps for lookups
   const dealMapByRdId = new Map(allDeals.map((d: any) => [d.rd_station_id, { id: d.id, contact_id: d.contact_id, name: d.name }]));
@@ -901,8 +898,8 @@ async function syncActivities(rdToken: string, supabase: any) {
       console.log(`Processed ${processedDeals}/${allDeals.length} deals, found ${allActivities.length} activities`);
     }
     
-    // Add delay to avoid rate limiting and timeout
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // Add delay to avoid rate limiting (100ms × 200 deals = ~20s max)
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
 
   // Also try the general activities endpoint
