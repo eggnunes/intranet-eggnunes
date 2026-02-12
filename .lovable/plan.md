@@ -1,57 +1,95 @@
 
+## Plano: Análise e Correção Geral do Sistema Financeiro
 
-## Plano: Corrigir Dados Incompletos de Processos e Card de Movimentações
+### Diagnóstico Completo
 
-### Problemas Identificados
-
-**1. Processos recentes com dados incompletos**
-
-A API do ADVBox retorna processos recém-criados sem todos os campos preenchidos (sem número de processo, sem cliente vinculado, sem responsável atribuído). Isso não é um problema de cache -- os dados são genuinamente vazios na origem. O sistema atual simplesmente não exibe nada quando esses campos estão vazios, o que confunde o usuário.
-
-**Solução**: Exibir indicadores visuais claros quando campos estiverem vazios:
-- Número do processo vazio: mostrar "Sem número" em itálico
-- Cliente não vinculado: mostrar "Cliente não vinculado"  
-- Responsável não atribuído: mostrar "Sem responsável"
-- Pasta não definida: já está tratado (não mostra badge)
-
-**2. Card de Movimentações mostrando 100 ao invés do total real**
-
-O endpoint dedicado `movements-count` foi criado e está correto no edge function. O código no dashboard também parece correto na extração. Porém, o `supabase.functions.invoke` pode estar falhando silenciosamente (erro de auth, timeout) e caindo no fallback `finalMovements.length` que é 100 (primeira página).
-
-**Solução**: 
-- Adicionar logs mais detalhados para diagnosticar
-- Se `movementsCountRes` tiver erro, logar o erro específico
-- Verificar se o edge function `advbox-integration` está deployado com o case `movements-count`
-- Garantir que o fallback mostre o valor do cache quando disponível (o cache `totalMovements` pode ter o valor correto de execuções anteriores)
+Após uma análise profunda do banco de dados e do código, identifiquei **3 problemas críticos** que estão fazendo o financeiro não espelhar a realidade:
 
 ---
 
-### Alterações Técnicas
+### Problema 1: Sincronização Financeira Parada desde 3 de Fevereiro
 
-**Arquivo 1: `src/pages/ProcessosAtivos.tsx`**
+**O que acontece**: A sincronização com o ADVBox completou em 03/02/2026 e **nunca mais rodou**. Fevereiro tem apenas 21 registros (3 dias), enquanto Janeiro tem 407. Todas as transações de boleto, cartão e Asaas que entraram no ADVBox após dia 3 não foram importadas.
 
-- Linha 572: Quando `lawsuit.process_number` estiver vazio, mostrar "Sem número de processo" em texto cinza/itálico
-- Linhas 577-580: Quando `lawsuit.customers` não existir, mostrar "Cliente não vinculado" em cinza
-- Linhas 602-606: Sempre mostrar a linha de responsável -- quando vazio, exibir "Sem responsável atribuído"
+**Causa raiz**: O cron job automático (a cada 2 minutos) tem uma condição `WHERE status = 'running'`. Como a sincronização terminou com status `completed`, o cron nunca mais dispara. E quando a Edge Function recebe uma chamada com status `completed`, ela retorna imediatamente sem fazer nada.
 
-**Arquivo 2: `src/pages/ProcessosDashboard.tsx`**
+**Impacto**: R$ 1.014,25 de receita exibida vs. o valor real que deveria ser muito maior.
 
-- Linhas 912-931: Melhorar a extração do `movementsCountRes`:
-  - Adicionar log de erro quando `movementsCountRes.error` existir
-  - Antes de usar `finalMovements.length` como fallback final, verificar se o cache (`cachedData?.totalMovements`) tem um valor maior que 100
-  - Isso garante que, mesmo se o endpoint falhar, o valor salvo de uma execução anterior será usado
-- Re-deploy do edge function para garantir que `movements-count` está disponível
+**Correção no `supabase/functions/sync-advbox-financial/index.ts`**:
+- Quando o status for `completed`, ao invés de retornar sem fazer nada, **iniciar automaticamente uma sincronização incremental** dos últimos 60 dias
+- Resetar offset para 0 e atualizar `start_date` e `end_date` para o período recente
+- Isso permite que o cron continue buscando novas transações continuamente
 
-**Arquivo 3: `src/pages/ProcessosDashboard.tsx`** (cards de processos no dashboard, se aplicável)
-
-- Aplicar a mesma lógica de "Sem número" / "Sem responsável" nos cards de processos do dashboard principal
+**Correção no pg_cron**: Alterar a condição do cron job para disparar quando status for `running` **OU** `completed` (já que agora o completed reinicia a sync incremental).
 
 ---
 
-### Resumo
+### Problema 2: Registros Existentes Nunca São Atualizados
 
-| Problema | Causa | Correção |
-|----------|-------|----------|
-| Processos sem número/cliente/responsável | Dados vazios na API do ADVBox para processos novos | Exibir placeholders descritivos |
-| Card movimentações = 100 | Endpoint `movements-count` pode estar falhando, fallback usa `length` | Usar cache como fallback intermediário + logs de diagnóstico |
+**O que acontece**: Quando o ADVBox marca um boleto como "pago" (ex: via integração Asaas), a sincronização local **ignora** esse registro porque ele já existe (`skipped`). Resultado: 12 receitas de fevereiro estão como "pendente" no sistema mesmo que já tenham sido pagas no ADVBox.
 
+**Impacto**: O dashboard filtra por `status = 'pago'`, então receitas pagas mas com status desatualizado não aparecem.
+
+**Correção no `supabase/functions/sync-advbox-financial/index.ts`**:
+- No `processTransactionsBatch`, quando um registro já existe, **comparar e atualizar** os campos `status`, `data_pagamento` e `valor` se houve mudança no ADVBox
+- Isso garante que boletos pagos via Asaas tenham o status atualizado automaticamente
+
+---
+
+### Problema 3: Dashboard Usa `data_lancamento` em Vez de `data_vencimento`
+
+**O que acontece**: O dashboard executivo filtra por `data_lancamento`, mas muitos lançamentos vindos do ADVBox têm `data_lancamento` diferente de `data_vencimento`. Pagamentos de despesas feitos em fevereiro com vencimento em janeiro aparecem no mês errado, distorcendo os valores (ex: R$ 18.737 de despesas "pagas" aparecendo em fevereiro por causa da data de lançamento).
+
+**Correção no `src/components/financeiro/FinanceiroExecutivoDashboard.tsx`**:
+- Usar `data_vencimento` como campo principal de filtro para o período (regime de competência)
+- Alternativamente, oferecer opção regime de caixa (`data_pagamento`) vs. competência (`data_vencimento`)
+
+---
+
+### Alterações Técnicas Detalhadas
+
+**Arquivo 1: `supabase/functions/sync-advbox-financial/index.ts`**
+
+1. **Bloco `status === 'completed'` (linhas 649-660)**: Em vez de retornar "já concluída", resetar para uma sincronização incremental dos últimos 60 dias:
+   - Calcular novo `start_date` = hoje - 60 dias
+   - Atualizar `end_date` = hoje
+   - Resetar `last_offset` = 0
+   - Mudar status para `running`
+   - Continuar o fluxo normal
+
+2. **Bloco de processamento existente (linhas 368-382 em `processTransactionsBatch`)**: Quando o registro já existe, verificar se houve mudança:
+   - Se `date_payment` do ADVBox é diferente de `data_pagamento` local, atualizar
+   - Se o status mudou (ex: agora está pago), atualizar `status` e `data_pagamento`
+   - Incrementar `updated` ao invés de `skipped`
+
+**Arquivo 2: Migração SQL (pg_cron)**
+
+- Remover a condição `WHERE EXISTS (... status = 'running')` do cron job
+- O cron agora sempre dispara a cada 2 minutos, e a Edge Function decide internamente o que fazer
+
+**Arquivo 3: `src/components/financeiro/FinanceiroExecutivoDashboard.tsx`**
+
+- Trocar todas as queries de `data_lancamento` para `data_vencimento` (linhas 162-186, 291-296)
+- Isso alinha o dashboard ao regime de competência, que é o padrão contábil
+
+---
+
+### Resumo do Impacto Esperado
+
+| Aspecto | Antes | Depois |
+|---------|-------|--------|
+| Sincronização | Parada desde 03/02 | Incremental contínua a cada 2 min |
+| Registros Fev/26 | 21 registros | Todos os registros do ADVBox |
+| Status de pagamento | Nunca atualizado | Atualizado automaticamente |
+| Receitas Fev/26 | R$ 1.014,25 | Valor real do ADVBox |
+| Base de período | data_lancamento (inconsistente) | data_vencimento (competência) |
+
+---
+
+### Ordem de Execução
+
+1. Atualizar a Edge Function `sync-advbox-financial` (sync incremental + atualização de registros)
+2. Fazer deploy da Edge Function
+3. Atualizar o pg_cron para remover condição restritiva
+4. Corrigir queries do Dashboard Executivo para usar `data_vencimento`
+5. Disparar uma sincronização manual para importar os dados faltantes de fevereiro
