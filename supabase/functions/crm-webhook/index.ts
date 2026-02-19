@@ -14,16 +14,12 @@ serve(async (req) => {
   try {
     const expectedSecret = Deno.env.get('RD_STATION_WEBHOOK_SECRET');
     
-    // Check Authorization header first (preferred method)
+    // Check Authorization header or X-Webhook-Secret header only (no query params)
     const authHeader = req.headers.get('Authorization');
     const webhookSecretHeader = req.headers.get('X-Webhook-Secret');
     
-    // Also support query parameter for backwards compatibility (deprecated)
-    const url = new URL(req.url);
-    const querySecret = url.searchParams.get('secret');
-    
-    // Validate webhook secret from header or query param
-    const providedSecret = authHeader?.replace('Bearer ', '') || webhookSecretHeader || querySecret;
+    // Validate webhook secret from headers only
+    const providedSecret = authHeader?.replace('Bearer ', '') || webhookSecretHeader;
     
     if (providedSecret !== expectedSecret) {
       console.error('Invalid webhook secret');
@@ -31,11 +27,6 @@ serve(async (req) => {
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
-    }
-    
-    // Log deprecation warning if using query parameter
-    if (querySecret && !authHeader && !webhookSecretHeader) {
-      console.warn('DEPRECATION WARNING: Using secret in query parameter is deprecated. Please use Authorization header instead.');
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

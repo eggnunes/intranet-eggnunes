@@ -29,11 +29,10 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const webhookSecret = Deno.env.get('RD_STATION_WEBHOOK_SECRET');
     
-    // Build webhook URL with secret if configured
-    let webhookUrl = `${supabaseUrl}/functions/v1/rdstation-webhook`;
+    // Build webhook URL - secret is passed via header, not query param
+    const webhookUrl = `${supabaseUrl}/functions/v1/rdstation-webhook`;
     if (webhookSecret) {
-      webhookUrl = `${webhookUrl}?secret=${encodeURIComponent(webhookSecret)}`;
-      console.log('Webhook URL will include security secret');
+      console.log('Webhook URL configured - secret will be sent via X-RD-Webhook-Secret header');
     } else {
       console.warn('RD_STATION_WEBHOOK_SECRET not configured - webhook will be unprotected');
     }
