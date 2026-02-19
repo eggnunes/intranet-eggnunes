@@ -13,6 +13,7 @@ export interface UserNotification {
   metadata: Record<string, any> | null;
   created_at: string;
   read_at: string | null;
+  _source?: 'user_notifications' | 'system_notifications';
 }
 
 export const useNotifications = () => {
@@ -40,8 +41,8 @@ export const useNotifications = () => {
 
       if (userError) throw userError;
 
-      // Fetch from system_notifications
-      const { data: systemNotifs, error: sysError } = await supabase
+      // Fetch from system_notifications (unread only)
+      const { data: systemNotifs } = await supabase
         .from('system_notifications')
         .select('*')
         .eq('user_id', user.id)
@@ -49,7 +50,13 @@ export const useNotifications = () => {
         .order('created_at', { ascending: false })
         .limit(10);
 
-      // Map system notifications to UserNotification format
+      // Map user_notifications with source tag
+      const mappedUserNotifs: UserNotification[] = (userNotifs || []).map((n: any) => ({
+        ...n,
+        _source: 'user_notifications' as const,
+      }));
+
+      // Map system_notifications with source tag
       const mappedSystemNotifs: UserNotification[] = (systemNotifs || []).map((n: any) => ({
         id: n.id,
         user_id: n.user_id,
@@ -61,16 +68,16 @@ export const useNotifications = () => {
         metadata: null,
         created_at: n.created_at,
         read_at: n.read_at,
+        _source: 'system_notifications' as const,
       }));
 
       // Merge and sort by created_at
-      const allNotifications = [...(userNotifs || []), ...mappedSystemNotifs].sort(
+      const allNotifications = [...mappedUserNotifs, ...mappedSystemNotifs].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
 
-      const typedData = allNotifications as UserNotification[];
-      setNotifications(typedData);
-      setUnreadCount(typedData.filter(n => !n.is_read).length);
+      setNotifications(allNotifications);
+      setUnreadCount(allNotifications.filter(n => !n.is_read).length);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     } finally {
@@ -98,7 +105,7 @@ export const useNotifications = () => {
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          const newNotification = payload.new as UserNotification;
+          const newNotification = { ...(payload.new as UserNotification), _source: 'user_notifications' as const };
           setNotifications(prev => [newNotification, ...prev]);
           setUnreadCount(prev => prev + 1);
         }
@@ -111,16 +118,9 @@ export const useNotifications = () => {
           table: 'user_notifications',
           filter: `user_id=eq.${user.id}`
         },
-        (payload) => {
-          const updatedNotification = payload.new as UserNotification;
-          setNotifications(prev => 
-            prev.map(n => n.id === updatedNotification.id ? updatedNotification : n)
-          );
-          // Recalcular unread count
-          setNotifications(prev => {
-            setUnreadCount(prev.filter(n => !n.is_read).length);
-            return prev;
-          });
+        () => {
+          // Refetch to get accurate state
+          fetchNotifications();
         }
       )
       .on(
@@ -133,8 +133,11 @@ export const useNotifications = () => {
         },
         (payload) => {
           const deletedId = (payload.old as { id: string }).id;
-          setNotifications(prev => prev.filter(n => n.id !== deletedId));
-          fetchNotifications(); // Recalcular tudo após delete
+          setNotifications(prev => {
+            const updated = prev.filter(n => n.id !== deletedId);
+            setUnreadCount(updated.filter(n => !n.is_read).length);
+            return updated;
+          });
         }
       )
       .subscribe();
@@ -145,29 +148,46 @@ export const useNotifications = () => {
   }, [user, fetchNotifications]);
 
   const markAsRead = async (notificationId: string) => {
-    try {
-      // Try user_notifications first
-      const { error: userError } = await supabase
-        .from('user_notifications')
-        .update({ is_read: true, read_at: new Date().toISOString() })
-        .eq('id', notificationId);
+    // Find which table the notification came from
+    const notification = notifications.find(n => n.id === notificationId);
+    const source = notification?._source;
 
-      // If not found in user_notifications, try system_notifications
-      if (userError) {
-        const { error: sysError } = await supabase
+    try {
+      if (source === 'system_notifications') {
+        const { error } = await supabase
           .from('system_notifications')
           .update({ lida: true, read_at: new Date().toISOString() })
           .eq('id', notificationId);
-        
-        if (sysError) throw sysError;
-      }
 
-      setNotifications(prev => 
-        prev.map(n => n.id === notificationId ? { ...n, is_read: true, read_at: new Date().toISOString() } : n)
-      );
-      setUnreadCount(prev => Math.max(0, prev - 1));
+        if (error) throw error;
+
+        // Remove from list since we only show unread system notifications
+        setNotifications(prev => {
+          const updated = prev.filter(n => n.id !== notificationId);
+          setUnreadCount(updated.filter(n => !n.is_read).length);
+          return updated;
+        });
+      } else {
+        // Default: user_notifications
+        const { error } = await supabase
+          .from('user_notifications')
+          .update({ is_read: true, read_at: new Date().toISOString() })
+          .eq('id', notificationId);
+
+        if (error) throw error;
+
+        setNotifications(prev => {
+          const updated = prev.map(n =>
+            n.id === notificationId ? { ...n, is_read: true, read_at: new Date().toISOString() } : n
+          );
+          setUnreadCount(updated.filter(n => !n.is_read).length);
+          return updated;
+        });
+      }
     } catch (error) {
       console.error('Error marking notification as read:', error);
+      // Refetch on error to ensure consistent state
+      await fetchNotifications();
     }
   };
 
@@ -175,6 +195,7 @@ export const useNotifications = () => {
     if (!user) return;
 
     try {
+      // Mark all user_notifications as read
       const { error } = await supabase
         .from('user_notifications')
         .update({ is_read: true, read_at: new Date().toISOString() })
@@ -183,27 +204,53 @@ export const useNotifications = () => {
 
       if (error) throw error;
 
-      setNotifications(prev => 
-        prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
-      );
-      setUnreadCount(0);
+      // Mark all system_notifications as read
+      await supabase
+        .from('system_notifications')
+        .update({ lida: true, read_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .eq('lida', false);
+
+      // Refetch to get accurate state (system_notifications disappear when read)
+      await fetchNotifications();
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
     }
   };
 
   const deleteNotification = async (notificationId: string) => {
+    const notification = notifications.find(n => n.id === notificationId);
+    const source = notification?._source;
+
     try {
-      const { error } = await supabase
-        .from('user_notifications')
-        .delete()
-        .eq('id', notificationId);
+      if (source === 'system_notifications') {
+        // For system_notifications, mark as read (they don't have a delete)
+        const { error } = await supabase
+          .from('system_notifications')
+          .update({ lida: true, read_at: new Date().toISOString() })
+          .eq('id', notificationId);
 
-      if (error) throw error;
+        if (error) throw error;
+      } else {
+        // Delete from user_notifications
+        const { error } = await supabase
+          .from('user_notifications')
+          .delete()
+          .eq('id', notificationId);
 
-      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+        if (error) throw error;
+      }
+
+      // Immediately remove from local state
+      setNotifications(prev => {
+        const updated = prev.filter(n => n.id !== notificationId);
+        setUnreadCount(updated.filter(n => !n.is_read).length);
+        return updated;
+      });
     } catch (error) {
       console.error('Error deleting notification:', error);
+      // Refetch on error to ensure consistent state
+      await fetchNotifications();
     }
   };
 
@@ -211,12 +258,18 @@ export const useNotifications = () => {
     if (!user) return;
 
     try {
-      const { error } = await supabase
+      // Delete all user_notifications
+      await supabase
         .from('user_notifications')
         .delete()
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      // Mark all system_notifications as read
+      await supabase
+        .from('system_notifications')
+        .update({ lida: true, read_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .eq('lida', false);
 
       setNotifications([]);
       setUnreadCount(0);
