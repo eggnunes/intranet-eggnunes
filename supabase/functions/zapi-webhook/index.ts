@@ -218,12 +218,11 @@ serve(async (req) => {
   }
 
   try {
-    // Webhook secret validation
+    // Webhook secret validation - headers only, no query params
     const ZAPI_WEBHOOK_SECRET = Deno.env.get('ZAPI_WEBHOOK_SECRET');
     if (ZAPI_WEBHOOK_SECRET) {
       const authToken = req.headers.get('X-Webhook-Secret') || 
-                        req.headers.get('x-webhook-secret') ||
-                        new URL(req.url).searchParams.get('secret');
+                        req.headers.get('x-webhook-secret');
       if (authToken !== ZAPI_WEBHOOK_SECRET) {
         console.error('[Z-API Webhook] Unauthorized: invalid webhook secret');
         return new Response(

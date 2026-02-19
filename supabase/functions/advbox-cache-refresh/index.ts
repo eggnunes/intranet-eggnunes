@@ -12,9 +12,9 @@ Deno.serve(async (req) => {
 
   // Verify that the request comes from an authorized source (cron job with service role key)
   const authHeader = req.headers.get('Authorization');
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const expectedToken = `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`;
   
-  if (!authHeader || !authHeader.includes(serviceRoleKey || '')) {
+  if (authHeader !== expectedToken) {
     console.error('Unauthorized access attempt to advbox-cache-refresh');
     return new Response(
       JSON.stringify({ error: 'Unauthorized' }),

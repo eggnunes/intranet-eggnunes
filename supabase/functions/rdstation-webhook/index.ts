@@ -18,11 +18,11 @@ serve(async (req) => {
     const advboxToken = Deno.env.get('ADVBOX_API_TOKEN');
     const webhookSecret = Deno.env.get('RD_STATION_WEBHOOK_SECRET');
 
-    // Validate webhook secret if configured
+    // Validate webhook secret if configured - headers only, no query params
     if (webhookSecret) {
       const receivedSecret = req.headers.get('X-RD-Webhook-Secret') || 
                              req.headers.get('x-rd-webhook-secret') ||
-                             new URL(req.url).searchParams.get('secret');
+                             req.headers.get('Authorization')?.replace('Bearer ', '');
       
       if (receivedSecret !== webhookSecret) {
         console.error('Invalid webhook secret received');
