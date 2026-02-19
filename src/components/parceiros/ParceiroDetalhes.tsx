@@ -8,11 +8,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Star, Phone, Mail, Building2, Calendar, FileText, DollarSign, Plus } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Star, Phone, Mail, Building2, Calendar, FileText, DollarSign, Plus, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { IndicacaoDialog } from './IndicacaoDialog';
 import { PagamentoParceiroDialog } from './PagamentoParceiroDialog';
+import { useAdminPermissions } from '@/hooks/useAdminPermissions';
+import { useUserRole } from '@/hooks/useUserRole';
 
 interface Parceiro {
   id: string;
@@ -66,6 +69,12 @@ export function ParceiroDetalhes({ open, onOpenChange, parceiro, onRefresh }: Pa
   const [indicacaoDialogOpen, setIndicacaoDialogOpen] = useState(false);
   const [pagamentoDialogOpen, setPagamentoDialogOpen] = useState(false);
   const [selectedIndicacao, setSelectedIndicacao] = useState<Indicacao | null>(null);
+  const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
+  const [savingStatus, setSavingStatus] = useState(false);
+
+  const { isSocioOrRafael } = useAdminPermissions();
+  const { isAdmin, profile } = useUserRole();
+  const podeEditarStatus = isSocioOrRafael || isAdmin || profile?.position === 'comercial';
 
   useEffect(() => {
     if (open && parceiro) {
@@ -104,6 +113,26 @@ export function ParceiroDetalhes({ open, onOpenChange, parceiro, onRefresh }: Pa
       toast.error('Erro ao carregar detalhes do parceiro');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStatusChange = async (indicacaoId: string, newStatus: string) => {
+    setSavingStatus(true);
+    try {
+      const { error } = await supabase
+        .from('parceiros_indicacoes')
+        .update({ status: newStatus })
+        .eq('id', indicacaoId);
+
+      if (error) throw error;
+      toast.success('Status atualizado com sucesso!');
+      setEditingStatusId(null);
+      fetchData();
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
+      toast.error('Erro ao atualizar status');
+    } finally {
+      setSavingStatus(false);
     }
   };
 
@@ -275,9 +304,33 @@ export function ParceiroDetalhes({ open, onOpenChange, parceiro, onRefresh }: Pa
                           <TableCell>{ind.percentual_comissao}%</TableCell>
                           <TableCell>{formatCurrency(ind.valor_comissao)}</TableCell>
                           <TableCell>
-                            <Badge variant={ind.status === 'ativa' ? 'outline' : ind.status === 'fechada' ? 'default' : 'destructive'}>
-                              {ind.status}
-                            </Badge>
+                            {podeEditarStatus && editingStatusId === ind.id ? (
+                              <Select
+                                value={ind.status}
+                                onValueChange={(v) => handleStatusChange(ind.id, v)}
+                                disabled={savingStatus}
+                              >
+                                <SelectTrigger className="w-[130px] h-8">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="ativa">Ativa</SelectItem>
+                                  <SelectItem value="fechada">Fechada</SelectItem>
+                                  <SelectItem value="cancelada">Cancelada</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <Badge variant={ind.status === 'ativa' ? 'outline' : ind.status === 'fechada' ? 'default' : 'destructive'}>
+                                  {ind.status}
+                                </Badge>
+                                {podeEditarStatus && (
+                                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditingStatusId(ind.id)} title="Editar status">
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell>
                             {format(new Date(ind.data_indicacao), "dd/MM/yyyy", { locale: ptBR })}
