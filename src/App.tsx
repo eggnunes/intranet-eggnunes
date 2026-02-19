@@ -67,6 +67,7 @@ import PortaisTribunais from "./pages/PortaisTribunais";
 import WhatsAppAvisos from "./pages/WhatsAppAvisos";
 import CorretorPortugues from "./pages/CorretorPortugues";
 import PublicacoesDJE from "./pages/PublicacoesDJE";
+import ResetPassword from "./pages/ResetPassword";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient({
@@ -93,6 +94,7 @@ const App = () => (
             <ScrollRestoration />
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route
               path="/"
               element={
