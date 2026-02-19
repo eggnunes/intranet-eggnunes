@@ -66,6 +66,7 @@ import RH from "./pages/RH";
 import PortaisTribunais from "./pages/PortaisTribunais";
 import WhatsAppAvisos from "./pages/WhatsAppAvisos";
 import CorretorPortugues from "./pages/CorretorPortugues";
+import PublicacoesDJE from "./pages/PublicacoesDJE";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient({
@@ -553,6 +554,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <CorretorPortugues />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/publicacoes-dje"
+              element={
+                <ProtectedRoute>
+                  <PublicacoesDJE />
                 </ProtectedRoute>
               }
             />

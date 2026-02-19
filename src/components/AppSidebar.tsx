@@ -236,6 +236,7 @@ export function AppSidebar() {
         { icon: Award, path: '/decisoes-favoraveis', label: 'Decisões Favoráveis' },
         { icon: KeyRound, path: '/codigos-autenticacao', label: 'Códigos TOTP' },
         { icon: Briefcase, path: '/portais-tribunais', label: 'Portais de Tribunais' },
+        { icon: FileText, path: '/publicacoes-dje', label: 'Publicações DJE' },
       ],
     },
     {
