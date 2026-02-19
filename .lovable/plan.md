@@ -1,71 +1,112 @@
 
 
-## Plano: Corrigir Timeout na Sincronizacao CRM
+## Plano: Publicacoes DJE - Consulta via API do CNJ
 
-### Diagnostico
+### Contexto
 
-O problema esta na etapa de sincronizacao de atividades. A correcao anterior pretendia filtrar apenas deals dos ultimos 90 dias, mas NAO funciona porque:
+A API de Comunicacoes Processuais do CNJ (comunicaapi.pje.jus.br/api/v1) permite consultar publicacoes do Diario da Justica Eletronica. Para acessar, e necessario:
 
-1. O upsert de deals atualiza o campo `updated_at` de TODOS os 1.742 deals para a data atual
-2. O filtro `.or(created_at.gte.${cutoffDate}, updated_at.gte.${cutoffDate})` retorna TODOS os 1.742 deals (pois todos tem `updated_at` = agora)
-3. Com 200ms de delay entre cada deal, sao ~350 segundos (quase 6 minutos) -- muito alem do timeout da funcao
-4. A funcao e encerrada ("shutdown") apos ~150 segundos e o frontend recebe erro de rede, mostrando "Falha na sincronizacao"
+1. Solicitar credenciais junto ao CNJ (usuario e senha do SSO)
+2. A documentacao oficial esta em: https://app.swaggerhub.com/apis-docs/cnj/pcp/1.0.0
+3. Dois ambientes disponiveis:
+   - Homologacao: https://hcomunicaapi.cnj.jus.br/api/v1
+   - Producao: https://comunicaapi.pje.jus.br/api/v1
 
-A boa noticia: o timestamp `last_full_sync_at` JA esta sendo atualizado corretamente (a correcao anterior funcionou nessa parte). Os deals e contatos tambem estao sincronizados. O problema e apenas a etapa de atividades que causa o timeout.
+### Como obter as credenciais
 
----
+Voce precisa solicitar acesso ao sistema de Comunicacoes Processuais do CNJ. O processo e:
+1. Acessar o portal https://comunica.pje.jus.br
+2. Entrar com certificado digital ou credenciais do PJe
+3. Solicitar acesso a API para seu escritorio (CNPJ)
+4. O CNJ fornecera usuario e senha para autenticacao via SSO
 
-### Correcao
-
-**Arquivo: `supabase/functions/crm-sync/index.ts`**
-
-Trocar o filtro de `updated_at` (que nao funciona) por um filtro baseado no `closed_at` (data de fechamento do deal no RD Station) e `created_at` (data original do RD Station, que e preservada no upsert):
-
-```
-// ANTES (nao funciona - updated_at e sempre "agora"):
-.or(`created_at.gte.${cutoffDate},updated_at.gte.${cutoffDate}`)
-
-// DEPOIS (funciona - usa datas originais do RD Station):
-.or(`created_at.gte.${cutoffDate},closed_at.gte.${cutoffDate}`)
-.not('closed_at', 'is', null) // Priorizar deals fechados recentemente
-```
-
-Porem, como isso ainda pode retornar muitos deals, adicionar um **limite maximo de 200 deals** para garantir que a funcao termine dentro do tempo:
-
-```typescript
-const MAX_DEALS_FOR_ACTIVITIES = 200;
-const recentDeals = allDeals.slice(0, MAX_DEALS_FOR_ACTIVITIES);
-```
-
-Alem disso, reduzir o delay de 200ms para 100ms (suficiente para evitar rate limiting sem desperdicar tempo).
-
-Com 200 deals e 100ms de delay, a etapa de atividades levara no maximo ~40 segundos, bem dentro do limite.
+Os endpoints principais disponiveis sao:
+- GET /api/v1/comunicacoes - listar comunicacoes/publicacoes
+- GET /api/v1/tribunais/{jtr}/comunicacoes - publicacoes por tribunal
+- Filtros por numero de processo, data, tribunal, tipo de comunicacao
 
 ---
 
-### Alteracoes Tecnicas
+### O que sera implementado
 
-**Funcao `syncActivities` (linhas 822-906)**:
+#### 1. Novo item no menu lateral: "Publicacoes DJE"
 
-1. Trocar o filtro:
-   - De: `.or(\`created_at.gte.${cutoffDate},updated_at.gte.${cutoffDate}\`)`
-   - Para: `.or(\`created_at.gte.${cutoffDate},closed_at.gte.${cutoffDate}\`)`
+Localizado dentro do grupo "Gestao Processual" (ao lado de Decisoes Favoraveis, Codigos TOTP e Portais de Tribunais), com o label "Publicacoes DJE".
 
-2. Limitar a quantidade de deals processados:
-   - Adicionar `const MAX_DEALS = 200;`
-   - Usar `.limit(MAX_DEALS)` na query
-   - Ordenar por `created_at desc` para priorizar os mais recentes
+#### 2. Nova pagina: PublicacoesDJE
 
-3. Reduzir delay de 200ms para 100ms
+Interface dedicada com:
+- **Filtros de busca**: por numero de processo (formato CNJ), periodo (data inicio/fim), tribunal (dropdown com tribunais brasileiros), tipo de comunicacao (citacao, intimacao, notificacao)
+- **Tabela de resultados**: data da publicacao, numero do processo, tribunal, tipo de comunicacao, destinatario, conteudo resumido, status (lida/nao lida)
+- **Detalhes expandiveis**: ao clicar em uma publicacao, exibir o conteudo completo em um dialog
+- **Exportacao**: botoes para exportar resultados em CSV e PDF
+- **Status de conexao**: indicador visual mostrando se as credenciais da API estao configuradas
+
+#### 3. Edge Function: pje-publicacoes
+
+Backend function que:
+- Recebe os filtros do frontend (processo, periodo, tribunal)
+- Autentica na API do CNJ via SSO (usando secrets PJE_CNJ_USERNAME e PJE_CNJ_PASSWORD)
+- Consulta o endpoint de comunicacoes
+- Retorna os dados formatados para o frontend
+- Implementa cache local para evitar chamadas repetidas
+
+#### 4. Tabela no banco: publicacoes_dje
+
+Para armazenar publicacoes consultadas e manter historico:
+- id, numero_processo, tribunal, tipo_comunicacao, data_publicacao, conteudo, destinatario
+- Campos de controle: lida (boolean), lida_por, lida_em
+- Indices para busca rapida por processo e data
+
+#### 5. Seguranca
+
+- Credenciais armazenadas como secrets (PJE_CNJ_USERNAME, PJE_CNJ_PASSWORD)
+- RLS habilitado na tabela de publicacoes (usuarios aprovados podem ler)
+- Somente admins podem configurar credenciais da API
 
 ---
 
-### Resultado Esperado
+### Alteracoes tecnicas
 
-| Aspecto | Antes | Depois |
-|---------|-------|--------|
-| Deals para buscar atividades | 1.742 (todos) | Maximo 200 (recentes) |
-| Tempo da etapa de atividades | ~350s (timeout) | ~40s (dentro do limite) |
-| Erro "Falha na sincronizacao" | Aparece sempre | Nao aparece mais |
-| Timestamp ultima sync | Ja atualizado | Continua funcionando |
+**Arquivos novos:**
+- `src/pages/PublicacoesDJE.tsx` - pagina principal com filtros, tabela e detalhes
+- `supabase/functions/pje-publicacoes/index.ts` - edge function para comunicacao com API do CNJ
+
+**Arquivos modificados:**
+- `src/components/AppSidebar.tsx` - adicionar item "Publicacoes DJE" no grupo "Gestao Processual" (linha 236)
+- `src/App.tsx` - adicionar rota /publicacoes-dje
+
+**Migracao SQL:**
+- Criar tabela `publicacoes_dje` com campos para armazenar publicacoes
+- Criar tabela `publicacoes_dje_reads` para marcar leituras por usuario
+- Habilitar RLS com politica para usuarios aprovados
+
+**Secrets necessarias (a configurar quando obtiver credenciais):**
+- PJE_CNJ_USERNAME
+- PJE_CNJ_PASSWORD
+
+---
+
+### Fluxo de uso
+
+1. Usuario acessa "Publicacoes DJE" no menu Gestao Processual
+2. Se credenciais nao configuradas: exibe mensagem orientando o admin a configurar
+3. Se configuradas: usuario aplica filtros (processo, periodo, tribunal) e clica "Buscar"
+4. Edge function consulta API do CNJ e retorna resultados
+5. Resultados exibidos em tabela com opcao de expandir detalhes
+6. Usuario pode marcar como lida, exportar CSV/PDF
+7. Publicacoes ficam salvas no banco para consulta futura sem precisar chamar API novamente
+
+---
+
+### Resultado esperado
+
+| Aspecto | Detalhe |
+|---------|---------|
+| Menu | Novo item "Publicacoes DJE" em Gestao Processual |
+| Busca | Filtros por processo, periodo, tribunal, tipo |
+| Visualizacao | Tabela com resumo + dialog com conteudo completo |
+| Exportacao | CSV e PDF |
+| Cache | Publicacoes salvas no banco apos primeira consulta |
+| Seguranca | Credenciais em secrets, RLS habilitado |
 
