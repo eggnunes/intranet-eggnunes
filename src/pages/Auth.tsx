@@ -391,16 +391,42 @@ export default function Auth() {
               {loading ? 'Processando...' : isLogin ? 'Entrar' : 'Cadastrar'}
             </Button>
           </form>
-          <div className="mt-4 text-center">
-            <Button
-              variant="link"
-              onClick={() => setIsLogin(!isLogin)}
-              disabled={loading}
-            >
-              {isLogin
-                ? 'Não tem conta? Cadastre-se'
-                : 'Já tem conta? Faça login'}
-            </Button>
+          <div className="mt-4 text-center space-y-1">
+            {isLogin && (
+              <Button
+                variant="link"
+                onClick={async () => {
+                  if (!email) {
+                    toast({ title: 'Informe o e-mail', description: 'Digite seu e-mail no campo acima para receber o link de redefinição.', variant: 'destructive' });
+                    return;
+                  }
+                  try {
+                    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                      redirectTo: `${window.location.origin}/reset-password`,
+                    });
+                    if (error) throw error;
+                    toast({ title: 'E-mail enviado!', description: 'Verifique sua caixa de entrada para redefinir sua senha.' });
+                  } catch (error: any) {
+                    toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                  }
+                }}
+                disabled={loading}
+                className="text-muted-foreground"
+              >
+                Esqueceu a senha?
+              </Button>
+            )}
+            <div>
+              <Button
+                variant="link"
+                onClick={() => setIsLogin(!isLogin)}
+                disabled={loading}
+              >
+                {isLogin
+                  ? 'Não tem conta? Cadastre-se'
+                  : 'Já tem conta? Faça login'}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
