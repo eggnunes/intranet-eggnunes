@@ -218,6 +218,21 @@ serve(async (req) => {
   }
 
   try {
+    // Webhook secret validation
+    const ZAPI_WEBHOOK_SECRET = Deno.env.get('ZAPI_WEBHOOK_SECRET');
+    if (ZAPI_WEBHOOK_SECRET) {
+      const authToken = req.headers.get('X-Webhook-Secret') || 
+                        req.headers.get('x-webhook-secret') ||
+                        new URL(req.url).searchParams.get('secret');
+      if (authToken !== ZAPI_WEBHOOK_SECRET) {
+        console.error('[Z-API Webhook] Unauthorized: invalid webhook secret');
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
