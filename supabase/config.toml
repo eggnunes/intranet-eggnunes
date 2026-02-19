@@ -143,3 +143,6 @@ verify_jwt = false
 
 [functions.check-portuguese]
 verify_jwt = false
+
+[functions.pje-publicacoes]
+verify_jwt = true

@@ -5322,6 +5322,92 @@ export type Database = {
           },
         ]
       }
+      publicacoes_dje: {
+        Row: {
+          conteudo: string | null
+          created_at: string
+          data_disponibilizacao: string | null
+          data_publicacao: string | null
+          destinatario: string | null
+          hash: string | null
+          id: string
+          meio: string | null
+          nome_advogado: string | null
+          numero_comunicacao: string | null
+          numero_processo: string
+          raw_data: Json | null
+          siglatribunal: string | null
+          tipo_comunicacao: string | null
+          tribunal: string | null
+          updated_at: string
+        }
+        Insert: {
+          conteudo?: string | null
+          created_at?: string
+          data_disponibilizacao?: string | null
+          data_publicacao?: string | null
+          destinatario?: string | null
+          hash?: string | null
+          id?: string
+          meio?: string | null
+          nome_advogado?: string | null
+          numero_comunicacao?: string | null
+          numero_processo: string
+          raw_data?: Json | null
+          siglatribunal?: string | null
+          tipo_comunicacao?: string | null
+          tribunal?: string | null
+          updated_at?: string
+        }
+        Update: {
+          conteudo?: string | null
+          created_at?: string
+          data_disponibilizacao?: string | null
+          data_publicacao?: string | null
+          destinatario?: string | null
+          hash?: string | null
+          id?: string
+          meio?: string | null
+          nome_advogado?: string | null
+          numero_comunicacao?: string | null
+          numero_processo?: string
+          raw_data?: Json | null
+          siglatribunal?: string | null
+          tipo_comunicacao?: string | null
+          tribunal?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      publicacoes_dje_reads: {
+        Row: {
+          id: string
+          publicacao_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          publicacao_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          publicacao_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publicacoes_dje_reads_publicacao_id_fkey"
+            columns: ["publicacao_id"]
+            isOneToOne: false
+            referencedRelation: "publicacoes_dje"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       publication_reads: {
         Row: {
           created_at: string
