@@ -15,7 +15,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui/alert-dialog';
-import { Star, Phone, Mail, Building2, Calendar, FileText, DollarSign, Plus, Pencil, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Star, Phone, Mail, Building2, Calendar, FileText, DollarSign, Plus, Pencil, CheckCircle2, AlertTriangle, Trash2 } from 'lucide-react';
 import { format, isPast, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { IndicacaoDialog } from './IndicacaoDialog';
@@ -95,9 +95,14 @@ export function ParceiroDetalhes({ open, onOpenChange, parceiro, onRefresh }: Pa
   const [editarParcelaOpen, setEditarParcelaOpen] = useState(false);
   const [parcelaEditando, setParcelaEditando] = useState<Pagamento | null>(null);
 
+  // Excluir indicação
+  const [excluirIndicacaoId, setExcluirIndicacaoId] = useState<string | null>(null);
+  const [excluindoIndicacao, setExcluindoIndicacao] = useState(false);
+
   const { isSocioOrRafael } = useAdminPermissions();
   const { isAdmin, profile } = useUserRole();
   const podeEditarStatus = isSocioOrRafael || isAdmin || profile?.position === 'comercial';
+  const podeExcluirIndicacao = isSocioOrRafael || isAdmin;
 
   useEffect(() => {
     if (open && parceiro) {
@@ -151,6 +156,27 @@ export function ParceiroDetalhes({ open, onOpenChange, parceiro, onRefresh }: Pa
       toast.error('Erro ao atualizar status');
     } finally {
       setSavingStatus(false);
+    }
+  };
+
+  const handleExcluirIndicacao = async () => {
+    if (!excluirIndicacaoId) return;
+    setExcluindoIndicacao(true);
+    try {
+      const { error } = await supabase
+        .from('parceiros_indicacoes')
+        .delete()
+        .eq('id', excluirIndicacaoId);
+
+      if (error) throw error;
+      toast.success('Indicação excluída com sucesso!');
+      setExcluirIndicacaoId(null);
+      fetchData();
+    } catch (error) {
+      console.error('Erro ao excluir indicação:', error);
+      toast.error('Erro ao excluir indicação');
+    } finally {
+      setExcluindoIndicacao(false);
     }
   };
 
@@ -337,12 +363,13 @@ export function ParceiroDetalhes({ open, onOpenChange, parceiro, onRefresh }: Pa
                       <TableHead>Valor</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Data</TableHead>
+                      {podeExcluirIndicacao && <TableHead>Ações</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {indicacoes.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={podeExcluirIndicacao ? 8 : 7} className="text-center text-muted-foreground py-8">
                           Nenhuma indicação registrada
                         </TableCell>
                       </TableRow>
@@ -390,6 +417,19 @@ export function ParceiroDetalhes({ open, onOpenChange, parceiro, onRefresh }: Pa
                           <TableCell>
                             {format(new Date(ind.data_indicacao), "dd/MM/yyyy", { locale: ptBR })}
                           </TableCell>
+                          {podeExcluirIndicacao && (
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive/80"
+                                title="Excluir indicação"
+                                onClick={() => setExcluirIndicacaoId(ind.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))
                     )}
@@ -535,6 +575,28 @@ export function ParceiroDetalhes({ open, onOpenChange, parceiro, onRefresh }: Pa
             <AlertDialogCancel disabled={loadingPagar}>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleMarcarComoPago} disabled={loadingPagar}>
               {loadingPagar ? 'Salvando...' : 'Confirmar Pagamento'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de confirmação de exclusão de indicação */}
+      <AlertDialog open={!!excluirIndicacaoId} onOpenChange={(o) => { if (!o) setExcluirIndicacaoId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Indicação</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta indicação? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={excluindoIndicacao}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleExcluirIndicacao}
+              disabled={excluindoIndicacao}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {excluindoIndicacao ? 'Excluindo...' : 'Excluir'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
