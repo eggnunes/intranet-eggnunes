@@ -1,100 +1,116 @@
 
-## Análise da Resposta do CNJ e Situação Atual
+## Melhorias no Módulo de Pagamentos de Parceiros
 
-### O que o CNJ informou
-A resposta foi clara: **os endpoints de consulta da API são públicos e não exigem autenticação**. Apenas os endpoints de autenticação e login são de uso exclusivo dos tribunais. Isso muda completamente a abordagem de implementação.
+### Contexto e Análise
 
-### Problema com a implementação atual
+O sistema atual de pagamentos de parceiros (`parceiros_pagamentos`) já possui:
+- Campos: `valor`, `data_vencimento`, `status`, `parcela_atual`, `total_parcelas`, `lancamento_financeiro_id`
+- Sincronização automática via função `sync_parceiro_pagamento_to_financeiro` no banco de dados que cria lançamentos no financeiro quando um pagamento é inserido
+- A tabela `fin_lancamentos` já tem `lancamento_financeiro_id` referenciado em `parceiros_pagamentos`
 
-O código da edge function `pje-publicacoes` está bloqueando a busca via API com esta lógica:
+O que **falta** implementar conforme solicitado:
 
-```typescript
-if (!pjeUsername || !pjePassword) {
-  return new Response(JSON.stringify({ 
-    error: 'Credenciais da API do CNJ não configuradas...' 
-  }), { status: 400 })
-}
+1. **Campo de abatimentos** (taxa de cartão, impostos) para calcular o valor líquido a repassar
+2. **Parcelas editáveis individualmente** (valor pode variar por parcela)
+3. **Marcar parcela como paga** diretamente na tela de detalhes do parceiro
+4. **Sincronização bidirecional**: ao pagar no financeiro → aparece como pago no parceiro; ao pagar no parceiro → cria/atualiza o lançamento financeiro como pago
+
+---
+
+### Mudanças no Banco de Dados
+
+**Adicionar colunas à tabela `parceiros_pagamentos`:**
+
+```sql
+ALTER TABLE parceiros_pagamentos 
+  ADD COLUMN valor_bruto numeric,         -- valor original antes dos abatimentos
+  ADD COLUMN valor_abatimentos numeric DEFAULT 0, -- total dos abatimentos
+  ADD COLUMN descricao_abatimentos text,  -- ex: "Taxa cartão 3% + ISS 5%"
+  ADD COLUMN valor_liquido numeric;       -- valor efetivo a pagar/receber
 ```
 
-Ou seja, a busca na API do CNJ só funcionava se as credenciais estivessem configuradas — mas como a API é pública, **essas credenciais não são necessárias para consultar publicações**.
+> O campo `valor` existente continuará sendo usado como `valor_liquido` para compatibilidade. Os novos campos são opcionais (nullable).
 
-### Sobre os parâmetros de busca por advogado
+**Atualizar a função `sync_parceiro_pagamento_to_financeiro`** para:
+- Usar `valor_liquido` (ou `valor` caso não haja abatimentos) na criação do lançamento
+- Ao marcar como pago, atualizar `data_pagamento` e `status = 'pago'` no lançamento financeiro vinculado
 
-A API do CNJ em `https://comunicaapi.pje.jus.br/api/v1/comunicacoes` aceita parâmetros de filtro via query string. Com base na documentação Swagger e nos padrões do PJe, os parâmetros relevantes para filtrar por advogado são:
-
-- `numeroOAB` — número da OAB do advogado
-- `ufOAB` — estado da OAB (ex: MG, SP)
-- `nomeAdvogado` — nome do advogado (busca parcial)
-- `numeroProcesso` — número do processo CNJ
-- `dataDisponibilizacaoInicio` e `dataDisponibilizacaoFim` — período
-- `siglaTribunal` — sigla do tribunal
-- `tipoComunicacao` — tipo (citação, intimação, etc.)
-- `pagina` e `tamanhoPagina` — paginação
+**Criar trigger de sincronização reversa** (`sync_financeiro_to_parceiro_pagamento`): quando `fin_lancamentos` for atualizado com `status = 'pago'` e existir um `parceiros_pagamentos` com `lancamento_financeiro_id` correspondente, atualiza automaticamente o status e data de pagamento no parceiro.
 
 ---
 
-## O que será implementado
+### Mudanças na UI
 
-### 1. Edge Function `pje-publicacoes` — Refatoração completa do `search-api`
+#### 1. `PagamentoParceiroDialog.tsx` — Dialog de criação
 
-**Remover** a verificação de credenciais obrigatórias para busca pública. A função passará a chamar `https://comunicaapi.pje.jus.br/api/v1/comunicacoes` **sem autenticação**, aplicando os filtros diretamente nos query params.
+**Adicionar seção de abatimentos:**
+- Campo "Valor Bruto (R$)" — valor total antes dos abatimentos
+- Campo "Abatimentos (R$)" — valor a descontar (taxa de cartão, imposto, etc.)
+- Campo "Descrição dos Abatimentos" — texto livre (ex: "Taxa cartão 3% + ISS")
+- **Preview automático** do "Valor Líquido" = Bruto - Abatimentos
+- Campo "Pagar 1ª parcela agora?" — checkbox para marcar a 1ª parcela como paga no ato do lançamento
 
-**Adicionar suporte a novos filtros por advogado:**
-- `numeroOAB` (ex: `118395`)
-- `ufOAB` (ex: `MG`)
-- `nomeAdvogado` (ex: `Rafael Egg Nunes`)
+**Parcelas individualizadas (quando > 1 parcela):**
+- Ao invés de dividir igualmente e bloquear, mostrar uma tabela de parcelas editáveis
+- Cada parcela terá: data de vencimento editável + valor editável + campo de abatimento por parcela
+- O valor padrão será dividido igualmente, mas o usuário pode ajustar cada linha
 
-**Atualizar o `check-credentials`** para retornar `configured: true` sempre, já que a API é pública.
-
-**Adicionar paginação** para buscar múltiplas páginas quando há muitos resultados.
-
-```typescript
-// Nova lógica - sem autenticação
-const apiUrl = `${PJE_API_BASE}/comunicacoes?${params.toString()}`
-const apiResponse = await fetch(apiUrl, {
-  headers: { 'Accept': 'application/json' }
-})
+```
+Parcela | Vencimento     | Valor Bruto | Abatimento | Valor Líquido | Pagar agora?
+  1/3   | 20/02/2026     | R$ 1.000    | R$ 50      | R$ 950        | [✓]
+  2/3   | 20/03/2026     | R$ 1.000    | -          | R$ 1.000      | [ ]
+  3/3   | 20/04/2026     | R$ 1.000    | -          | R$ 1.000      | [ ]
 ```
 
-### 2. Página `PublicacoesDJE.tsx` — Novos campos de busca
+#### 2. `ParceiroDetalhes.tsx` — Aba de Pagamentos
 
-**Adicionar filtros por advogado** na seção de filtros:
-- Campo "Número OAB" com valor padrão `118395`
-- Campo "UF da OAB" com valor padrão `MG`  
-- Campo "Nome do Advogado" com valor padrão `Rafael Egg Nunes`
+**Adicionar coluna "Valor Líquido"** na tabela de pagamentos (quando houver abatimentos).
 
-**Remover** a verificação `credentialsConfigured` que bloqueava o botão "Buscar na API do CNJ" — agora qualquer usuário pode buscar.
+**Adicionar coluna "Ações"** com:
+- Botão **"Marcar como Pago"** para parcelas pendentes → abre mini-dialog confirmando a data de pagamento
+- Badge de status visual melhorado: "Pendente" / "Pago" / "Vencido" (vermelho se data_vencimento < hoje e status != 'pago')
+- Botão **"Editar"** para parcelas pendentes → permite editar valor e abatimentos da parcela
 
-**Atualizar** o texto informativo para refletir que a API é pública.
-
-**Atualizar** o botão principal de busca para usar a API diretamente (não apenas o cache local), com fallback para cache.
-
-**Adicionar paginação** nos resultados (botão "Carregar mais").
-
-### 3. Estratégia de busca recomendada
-
-A busca ideal para Rafael Egg Nunes seria:
-1. Buscar por `numeroOAB=118395` + `ufOAB=MG` (OAB principal)
-2. Opcionalmente buscar por `nomeAdvogado=Rafael Egg Nunes` para capturar OABs suplementares
+**Mini-dialog de confirmação de pagamento:**
+- Mostra: parcela X/Y, valor líquido, parceiro
+- Campo: data do pagamento (default = hoje)
+- Botão confirmar → atualiza `status = 'pago'`, `data_pagamento`, e sincroniza com o financeiro
 
 ---
 
-## Arquivos a modificar
+### Fluxo de Sincronização Bidirecional
 
-| Arquivo | Mudança |
-|---|---|
-| `supabase/functions/pje-publicacoes/index.ts` | Remover autenticação CNJ, adicionar filtros OAB/nome, paginação |
-| `src/pages/PublicacoesDJE.tsx` | Adicionar campos OAB/UF/nome, liberar botão API pública, melhorar UX |
+```
+PARCEIROS → FINANCEIRO
+Ao marcar parcela como paga no módulo de parceiros:
+  1. UPDATE parceiros_pagamentos SET status='pago', data_pagamento=X
+  2. Trigger/função verifica se tem lancamento_financeiro_id
+     - Se SIM → UPDATE fin_lancamentos SET status='pago', data_pagamento=X
+     - Se NÃO → INSERT em fin_lancamentos e vincula o id
+
+FINANCEIRO → PARCEIROS
+Ao pagar lançamento no financeiro (trigger existente aprimorado):
+  1. fin_lancamentos UPDATE com status='pago'
+  2. Novo trigger verifica se existe parceiros_pagamentos com lancamento_financeiro_id = lançamento.id
+     - Se SIM → UPDATE parceiros_pagamentos SET status='pago', data_pagamento=X
+```
 
 ---
 
-## Resultado esperado
+### Arquivos a Criar/Modificar
 
-Após as mudanças, o Rafael poderá:
+| Arquivo | Tipo | Mudança |
+|---|---|---|
+| Migração SQL | Novo | Adicionar colunas `valor_bruto`, `valor_abatimentos`, `descricao_abatimentos`, `valor_liquido` à `parceiros_pagamentos`; atualizar trigger de sincronização; criar trigger reverso financeiro→parceiros |
+| `src/components/parceiros/PagamentoParceiroDialog.tsx` | Modificar | Adicionar campos de abatimento, tabela de parcelas editáveis, opção de pagar no ato |
+| `src/components/parceiros/ParceiroDetalhes.tsx` | Modificar | Adicionar colunas, botões de ação (marcar pago/editar), badge "Vencido", mini-dialog de confirmação de pagamento |
+| `src/components/parceiros/EditarParcelaDialog.tsx` | Novo | Dialog para editar valor/abatimentos de uma parcela pendente |
 
-1. Acessar "Publicações DJE" no menu
-2. Clicar em **"Buscar na API do CNJ"** (sem precisar configurar credenciais)
-3. Os campos OAB `118395` e UF `MG` já estarão pré-preenchidos
-4. O sistema retornará todas as publicações do DJEN onde ele consta como advogado
+---
 
-**Importante:** O campo `numeroOAB` e `ufOAB` devem ser preenchidos para cada busca. Para as OABs suplementares, o Rafael poderá alterar o campo UF (ex: `SP`, `RS`) e buscar novamente, ou usar o campo "Nome do Advogado" para buscar por nome em todos os tribunais.
+### Resultado Esperado
+
+- Ao criar um pagamento, Rafael poderá informar o valor bruto + abatimentos → o sistema calcula e exibe o líquido
+- Para pagamentos parcelados, cada parcela terá seu próprio valor e abatimento editável
+- Na aba de Pagamentos do parceiro, cada parcela pendente terá botão "Marcar como Pago" que sincroniza automaticamente com o financeiro
+- Se o pagamento for registrado no financeiro, a parcela do parceiro atualiza automaticamente para "Pago"
