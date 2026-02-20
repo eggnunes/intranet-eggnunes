@@ -5,3 +5,4 @@ export { ParceirosAreasManager } from './ParceirosAreasManager';
 export { ParceirosRanking } from './ParceirosRanking';
 export { IndicacaoDialog } from './IndicacaoDialog';
 export { PagamentoParceiroDialog } from './PagamentoParceiroDialog';
+export { EditarParcelaDialog } from './EditarParcelaDialog';

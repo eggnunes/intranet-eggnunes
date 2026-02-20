@@ -4953,6 +4953,7 @@ export type Database = {
           created_by: string | null
           data_pagamento: string | null
           data_vencimento: string
+          descricao_abatimentos: string | null
           forma_pagamento: string | null
           id: string
           indicacao_id: string | null
@@ -4965,12 +4966,16 @@ export type Database = {
           total_parcelas: number | null
           updated_at: string
           valor: number
+          valor_abatimentos: number | null
+          valor_bruto: number | null
+          valor_liquido: number | null
         }
         Insert: {
           created_at?: string
           created_by?: string | null
           data_pagamento?: string | null
           data_vencimento: string
+          descricao_abatimentos?: string | null
           forma_pagamento?: string | null
           id?: string
           indicacao_id?: string | null
@@ -4983,12 +4988,16 @@ export type Database = {
           total_parcelas?: number | null
           updated_at?: string
           valor: number
+          valor_abatimentos?: number | null
+          valor_bruto?: number | null
+          valor_liquido?: number | null
         }
         Update: {
           created_at?: string
           created_by?: string | null
           data_pagamento?: string | null
           data_vencimento?: string
+          descricao_abatimentos?: string | null
           forma_pagamento?: string | null
           id?: string
           indicacao_id?: string | null
@@ -5001,6 +5010,9 @@ export type Database = {
           total_parcelas?: number | null
           updated_at?: string
           valor?: number
+          valor_abatimentos?: number | null
+          valor_bruto?: number | null
+          valor_liquido?: number | null
         }
         Relationships: [
           {
