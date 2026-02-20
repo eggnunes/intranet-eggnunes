@@ -7,6 +7,50 @@ const corsHeaders = {
 
 const PJE_API_BASE = 'https://comunicaapi.pje.jus.br/api/v1'
 
+// User-Agent de navegador brasileiro para evitar bloqueio adicional
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
+/**
+ * Faz fetch de forma segura: verifica Content-Type antes de parsear JSON.
+ * Detecta respostas HTML (CloudFront bloqueio geográfico) e retorna erro descritivo.
+ */
+async function fetchJsonSafely(url: string, options: RequestInit = {}): Promise<{ ok: boolean; status: number; data?: any; bloqueioGeografico?: boolean; errorText?: string }> {
+  let response: Response
+  try {
+    response = await fetch(url, options)
+  } catch (err: any) {
+    return { ok: false, status: 0, errorText: `Falha de rede: ${err.message}` }
+  }
+
+  const contentType = response.headers.get('content-type') || ''
+
+  // Detecta resposta HTML — típico do CloudFront bloqueio geográfico
+  if (contentType.includes('text/html') || response.status === 403) {
+    const html = await response.text()
+    const isCloudFront = html.includes('CloudFront') || html.includes('403 ERROR') || response.status === 403
+    return {
+      ok: false,
+      status: response.status,
+      bloqueioGeografico: isCloudFront,
+      errorText: isCloudFront
+        ? 'A API do CNJ está bloqueando requisições desta região. A função está rodando na região sa-east-1 (São Paulo), mas o bloqueio persiste.'
+        : `Resposta inesperada (${response.status})`,
+    }
+  }
+
+  if (!response.ok) {
+    const text = await response.text()
+    return { ok: false, status: response.status, errorText: text }
+  }
+
+  try {
+    const data = await response.json()
+    return { ok: true, status: response.status, data }
+  } catch {
+    return { ok: false, status: response.status, errorText: 'Resposta inválida: não é JSON' }
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -38,9 +82,17 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { action, filters } = body
 
-    // A API do CNJ é pública — credenciais não são necessárias para consulta
+    // Verifica conectividade real com a API do CNJ
     if (action === 'check-credentials') {
-      return new Response(JSON.stringify({ configured: true }), {
+      const result = await fetchJsonSafely(`${PJE_API_BASE}/comunicacoes?tamanhoPagina=1&pagina=1`, {
+        headers: { 'Accept': 'application/json', 'User-Agent': BROWSER_UA },
+      })
+      if (result.bloqueioGeografico) {
+        return new Response(JSON.stringify({ configured: true, accessible: false, reason: 'bloqueio_geografico' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response(JSON.stringify({ configured: true, accessible: result.ok }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -98,66 +150,53 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'search-api') {
-      // Build query params for CNJ API (pública — sem autenticação necessária)
+      // Build query params for CNJ API
       const params = new URLSearchParams()
 
-      // Filtros por advogado
-      if (filters?.numeroOAB) {
-        params.append('numeroOAB', filters.numeroOAB)
-      }
-      if (filters?.ufOAB) {
-        params.append('ufOAB', filters.ufOAB)
-      }
-      if (filters?.nomeAdvogado) {
-        params.append('nomeAdvogado', filters.nomeAdvogado)
-      }
+      if (filters?.numeroOAB) params.append('numeroOAB', filters.numeroOAB)
+      if (filters?.ufOAB) params.append('ufOAB', filters.ufOAB)
+      if (filters?.nomeAdvogado) params.append('nomeAdvogado', filters.nomeAdvogado)
+      if (filters?.numeroProcesso) params.append('numeroProcesso', filters.numeroProcesso)
+      if (filters?.dataInicio) params.append('dataDisponibilizacaoInicio', filters.dataInicio)
+      if (filters?.dataFim) params.append('dataDisponibilizacaoFim', filters.dataFim)
+      if (filters?.tribunal) params.append('siglaTribunal', filters.tribunal)
+      if (filters?.tipoComunicacao) params.append('tipoComunicacao', filters.tipoComunicacao)
 
-      // Filtros gerais
-      if (filters?.numeroProcesso) {
-        params.append('numeroProcesso', filters.numeroProcesso)
-      }
-      if (filters?.dataInicio) {
-        params.append('dataDisponibilizacaoInicio', filters.dataInicio)
-      }
-      if (filters?.dataFim) {
-        params.append('dataDisponibilizacaoFim', filters.dataFim)
-      }
-      if (filters?.tribunal) {
-        params.append('siglaTribunal', filters.tribunal)
-      }
-      if (filters?.tipoComunicacao) {
-        params.append('tipoComunicacao', filters.tipoComunicacao)
-      }
-
-      // Paginação
       const pagina = filters?.pagina || 1
       const tamanhoPagina = filters?.tamanhoPagina || 20
       params.append('pagina', String(pagina))
       params.append('tamanhoPagina', String(tamanhoPagina))
 
-      console.log(`Consultando API pública do CNJ: ${PJE_API_BASE}/comunicacoes?${params.toString()}`)
-
-      // Chamada sem autenticação — endpoint público conforme CNJ
       const apiUrl = `${PJE_API_BASE}/comunicacoes?${params.toString()}`
-      const apiResponse = await fetch(apiUrl, {
+      console.log(`Consultando API CNJ (sa-east-1): ${apiUrl}`)
+
+      const result = await fetchJsonSafely(apiUrl, {
         headers: {
           'Accept': 'application/json',
+          'User-Agent': BROWSER_UA,
         },
       })
 
-      if (!apiResponse.ok) {
-        const errText = await apiResponse.text()
-        console.error('API error:', errText)
+      if (result.bloqueioGeografico) {
         return new Response(JSON.stringify({
-          error: `Erro ao consultar API do CNJ (HTTP ${apiResponse.status}).`,
-          details: errText,
+          error: 'A API do CNJ está bloqueando requisições desta região. Mesmo rodando em São Paulo (sa-east-1), o bloqueio persiste. Verifique se a API do CNJ mudou suas restrições.',
+          bloqueioGeografico: true,
+          details: result.errorText,
         }), {
-          status: apiResponse.status,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
 
-      const apiData = await apiResponse.json()
+      if (!result.ok) {
+        return new Response(JSON.stringify({
+          error: `Erro ao consultar API do CNJ (HTTP ${result.status}).`,
+          details: result.errorText,
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const apiData = result.data
       console.log('API response keys:', Object.keys(apiData))
 
       const comunicacoes = apiData.items || apiData.comunicacoes || apiData.content || (Array.isArray(apiData) ? apiData : [])

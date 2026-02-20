@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
+import { FunctionRegion } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { Search, Download, Eye, EyeOff, FileText, RefreshCw, Globe, ChevronDown } from 'lucide-react';
 import { format } from 'date-fns';
@@ -131,6 +132,7 @@ export default function PublicacoesDJE() {
 
       const { data, error } = await supabase.functions.invoke('pje-publicacoes', {
         body: { action: source === 'api' ? 'search-api' : 'search-local', filters },
+        region: FunctionRegion.SaEast1,
       });
 
       if (error) throw error;
@@ -162,6 +164,7 @@ export default function PublicacoesDJE() {
   const loadLocal = async (filters: any) => {
     const { data, error } = await supabase.functions.invoke('pje-publicacoes', {
       body: { action: 'search-local', filters },
+      region: FunctionRegion.SaEast1,
     });
     if (!error && data?.data) {
       setPublicacoes(data.data);
@@ -178,6 +181,7 @@ export default function PublicacoesDJE() {
 
       const { data, error } = await supabase.functions.invoke('pje-publicacoes', {
         body: { action: 'search-api', filters },
+        region: FunctionRegion.SaEast1,
       });
 
       if (error) throw error;
@@ -202,6 +206,7 @@ export default function PublicacoesDJE() {
       const action = pub.lida ? 'mark-unread' : 'mark-read';
       await supabase.functions.invoke('pje-publicacoes', {
         body: { action, publicacaoId: pub.id },
+        region: FunctionRegion.SaEast1,
       });
       setPublicacoes(prev =>
         prev.map(p => p.id === pub.id ? { ...p, lida: !p.lida } : p)
