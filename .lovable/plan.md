@@ -1,116 +1,178 @@
 
-## Melhorias no Módulo de Pagamentos de Parceiros
 
-### Contexto e Análise
+## Redesenho do RotaDoc: Pré-visualização, IA por arquivo, reordenação e processamento final
 
-O sistema atual de pagamentos de parceiros (`parceiros_pagamentos`) já possui:
-- Campos: `valor`, `data_vencimento`, `status`, `parcela_atual`, `total_parcelas`, `lancamento_financeiro_id`
-- Sincronização automática via função `sync_parceiro_pagamento_to_financeiro` no banco de dados que cria lançamentos no financeiro quando um pagamento é inserido
-- A tabela `fin_lancamentos` já tem `lancamento_financeiro_id` referenciado em `parceiros_pagamentos`
+### O que o usuário quer
 
-O que **falta** implementar conforme solicitado:
+O fluxo atual é: **upload → processar tudo direto → baixar resultado**. O novo fluxo pedido é:
 
-1. **Campo de abatimentos** (taxa de cartão, impostos) para calcular o valor líquido a repassar
-2. **Parcelas editáveis individualmente** (valor pode variar por parcela)
-3. **Marcar parcela como paga** diretamente na tela de detalhes do parceiro
-4. **Sincronização bidirecional**: ao pagar no financeiro → aparece como pago no parceiro; ao pagar no parceiro → cria/atualiza o lançamento financeiro como pago
-
----
-
-### Mudanças no Banco de Dados
-
-**Adicionar colunas à tabela `parceiros_pagamentos`:**
-
-```sql
-ALTER TABLE parceiros_pagamentos 
-  ADD COLUMN valor_bruto numeric,         -- valor original antes dos abatimentos
-  ADD COLUMN valor_abatimentos numeric DEFAULT 0, -- total dos abatimentos
-  ADD COLUMN descricao_abatimentos text,  -- ex: "Taxa cartão 3% + ISS 5%"
-  ADD COLUMN valor_liquido numeric;       -- valor efetivo a pagar/receber
-```
-
-> O campo `valor` existente continuará sendo usado como `valor_liquido` para compatibilidade. Os novos campos são opcionais (nullable).
-
-**Atualizar a função `sync_parceiro_pagamento_to_financeiro`** para:
-- Usar `valor_liquido` (ou `valor` caso não haja abatimentos) na criação do lançamento
-- Ao marcar como pago, atualizar `data_pagamento` e `status = 'pago'` no lançamento financeiro vinculado
-
-**Criar trigger de sincronização reversa** (`sync_financeiro_to_parceiro_pagamento`): quando `fin_lancamentos` for atualizado com `status = 'pago'` e existir um `parceiros_pagamentos` com `lancamento_financeiro_id` correspondente, atualiza automaticamente o status e data de pagamento no parceiro.
-
----
-
-### Mudanças na UI
-
-#### 1. `PagamentoParceiroDialog.tsx` — Dialog de criação
-
-**Adicionar seção de abatimentos:**
-- Campo "Valor Bruto (R$)" — valor total antes dos abatimentos
-- Campo "Abatimentos (R$)" — valor a descontar (taxa de cartão, imposto, etc.)
-- Campo "Descrição dos Abatimentos" — texto livre (ex: "Taxa cartão 3% + ISS")
-- **Preview automático** do "Valor Líquido" = Bruto - Abatimentos
-- Campo "Pagar 1ª parcela agora?" — checkbox para marcar a 1ª parcela como paga no ato do lançamento
-
-**Parcelas individualizadas (quando > 1 parcela):**
-- Ao invés de dividir igualmente e bloquear, mostrar uma tabela de parcelas editáveis
-- Cada parcela terá: data de vencimento editável + valor editável + campo de abatimento por parcela
-- O valor padrão será dividido igualmente, mas o usuário pode ajustar cada linha
-
-```
-Parcela | Vencimento     | Valor Bruto | Abatimento | Valor Líquido | Pagar agora?
-  1/3   | 20/02/2026     | R$ 1.000    | R$ 50      | R$ 950        | [✓]
-  2/3   | 20/03/2026     | R$ 1.000    | -          | R$ 1.000      | [ ]
-  3/3   | 20/04/2026     | R$ 1.000    | -          | R$ 1.000      | [ ]
-```
-
-#### 2. `ParceiroDetalhes.tsx` — Aba de Pagamentos
-
-**Adicionar coluna "Valor Líquido"** na tabela de pagamentos (quando houver abatimentos).
-
-**Adicionar coluna "Ações"** com:
-- Botão **"Marcar como Pago"** para parcelas pendentes → abre mini-dialog confirmando a data de pagamento
-- Badge de status visual melhorado: "Pendente" / "Pago" / "Vencido" (vermelho se data_vencimento < hoje e status != 'pago')
-- Botão **"Editar"** para parcelas pendentes → permite editar valor e abatimentos da parcela
-
-**Mini-dialog de confirmação de pagamento:**
-- Mostra: parcela X/Y, valor líquido, parceiro
-- Campo: data do pagamento (default = hoje)
-- Botão confirmar → atualiza `status = 'pago'`, `data_pagamento`, e sincroniza com o financeiro
-
----
-
-### Fluxo de Sincronização Bidirecional
-
-```
-PARCEIROS → FINANCEIRO
-Ao marcar parcela como paga no módulo de parceiros:
-  1. UPDATE parceiros_pagamentos SET status='pago', data_pagamento=X
-  2. Trigger/função verifica se tem lancamento_financeiro_id
-     - Se SIM → UPDATE fin_lancamentos SET status='pago', data_pagamento=X
-     - Se NÃO → INSERT em fin_lancamentos e vincula o id
-
-FINANCEIRO → PARCEIROS
-Ao pagar lançamento no financeiro (trigger existente aprimorado):
-  1. fin_lancamentos UPDATE com status='pago'
-  2. Novo trigger verifica se existe parceiros_pagamentos com lancamento_financeiro_id = lançamento.id
-     - Se SIM → UPDATE parceiros_pagamentos SET status='pago', data_pagamento=X
+```text
+Upload → Pré-visualização unificada (com drag&drop para reordenar)
+       → Botões por arquivo: [IA Recortar] [IA Rotacionar] [Manual Recortar] [Manual Rotacionar]
+       → Clicar na miniatura → ampliar para ver resultado
+       → Escolher: "Juntar em 1 PDF" ou "Manter separados"
+       → Processar → Baixar
 ```
 
 ---
 
-### Arquivos a Criar/Modificar
+### Análise do código atual
 
-| Arquivo | Tipo | Mudança |
+**Problema identificado nos PDFs:** o `process-documents` é chamado com `mergeAll: true` no lote, independente da opção do usuário. Isso provavelmente causa erro quando PDFs grandes chegam em lote — a edge function tenta fazer merge no servidor. A refatoração resolverá isso.
+
+**O que já existe e será reaproveitado:**
+- `FilePreview.tsx` — já tem drag&drop, botão de auto-crop por IA (Wand2), editor manual (ImageCropEditor), setas de mover
+- `ImageCropEditor.tsx` — editor completo com crop, rotação, flip
+- `auto-crop-document` edge function — retorna crop + rotation por imagem
+- `process-documents` edge function — converte imagens para PDF
+- `applyCrop()`, `handleAutoCrop()`, `handleBatchAutoCrop()` — lógica de recorte já funcional
+
+**O que será criado/modificado:**
+1. Novo componente `RotaDocPreview.tsx` — a tela de pré-visualização central
+2. Novo componente `RotaDocFileCard.tsx` — card de cada arquivo com miniaturas maiores e botões de IA
+3. Novo componente `RotaDocLightbox.tsx` — modal de ampliação ao clicar na miniatura
+4. Modificação de `RotaDoc.tsx` — novo fluxo em etapas
+5. Modificação de `ProcessingStatus.tsx` — adicionar visualização de PDFs processados
+
+---
+
+### Novo Fluxo em Etapas
+
+**Etapa 1 — Upload:** igual ao atual (FileUpload)
+
+**Etapa 2 — Pré-visualização e ajuste (NOVO):** aparece após selecionar arquivos, antes de processar
+
+**Etapa 3 — Processamento:** ao clicar em "Processar" após revisar
+
+**Etapa 4 — Download:** igual ao atual
+
+---
+
+### Componente `RotaDocFileCard.tsx` (novo)
+
+Cada arquivo terá um card maior com:
+
+```
+┌─────────────────────────────────────────────┐
+│  [═] Drag handle                 [↑][↓][✕]  │
+│                                              │
+│  ┌────────────────────┐                      │
+│  │                    │  📄 nome_arquivo.jpg │
+│  │   MINIATURA        │  1.2 MB • image/jpeg │
+│  │   (clicável para   │                      │
+│  │    ampliar)        │  IA:                 │
+│  │                    │  [✨ Recortar IA]    │
+│  │                    │  [🔄 Rotacionar IA]  │
+│  └────────────────────┘                      │
+│                                              │
+│  Manual:                                     │
+│  [✂️ Recortar Manual] [↻ Rot. 90°]          │
+└─────────────────────────────────────────────┘
+```
+
+**Detalhes dos botões:**
+- **Recortar IA** (`Wand2`): chama `auto-crop-document`, aplica crop automaticamente, atualiza miniatura
+- **Rotacionar IA** (`Sparkles`/`RotateCw`): chama a mesma `auto-crop-document` mas aplica apenas a rotação sugerida (ignora crop)
+- **Recortar Manual** (`Crop`): abre `ImageCropEditor` existente
+- **Rotacionar 90°** (`RotateCw`): rotaciona o arquivo +90° manualmente no cliente (sem IA)
+- **Para PDFs:** mostrar ícone de PDF com número de páginas; botões de IA ficam desabilitados (IA só funciona em imagens); apenas botões de ordem/remoção disponíveis
+
+---
+
+### Componente `RotaDocLightbox.tsx` (novo)
+
+Dialog/modal que abre ao clicar na miniatura:
+- Exibe a imagem em tamanho grande (até 80vw x 80vh)
+- Botão fechar
+- Mostra nome do arquivo
+- Para PDFs: mostra ícone grande com nome
+
+---
+
+### Botão "IA: Rotacionar e Recortar todos" (lote)
+
+No cabeçalho da lista, um botão "✨ Aplicar IA em todos" que:
+1. Processa cada imagem sequencialmente com `auto-crop-document`
+2. Aplica tanto o crop quanto a rotação sugerida
+3. Exibe barra de progresso
+4. **Tenta reordenar** os arquivos com base no tipo de documento detectado pela IA (agrupando por `documentType` retornado)
+
+---
+
+### Seção de opções e processamento
+
+Após a lista de arquivos, substituir o card atual de opções por:
+
+```
+┌─────────────────────────────────────────────┐
+│  Opções de saída                             │
+│                                              │
+│  ○ Juntar tudo em 1 PDF único                │
+│  ○ Manter documentos separados               │
+│                                              │
+│  [  Processar Documentos  ]                  │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+### Correção do erro com PDFs grandes (problema relatado)
+
+O erro do colaborador provavelmente ocorre porque:
+1. A edge function `process-documents` recebe PDFs grandes e tenta processá-los junto com imagens
+2. O `mergeAll: true` é sempre enviado ao servidor mesmo quando o usuário não quer mesclar
+
+**Correção:**
+- Enviar `mergeAll: false` para a edge function sempre (cada arquivo vira 1 PDF individualmente no servidor)
+- O merge final é feito **no cliente** com `pdf-lib` (já existe essa lógica em `RotaDoc.tsx` linhas 212-236), mas apenas se o usuário escolher "Juntar em 1 PDF"
+- Para PDFs já existentes (não imagens), incluí-los diretamente no merge sem reprocessar pelo servidor — apenas imagens passam pela edge function
+
+---
+
+### Arquivos a criar/modificar
+
+| Arquivo | Tipo | Descrição |
 |---|---|---|
-| Migração SQL | Novo | Adicionar colunas `valor_bruto`, `valor_abatimentos`, `descricao_abatimentos`, `valor_liquido` à `parceiros_pagamentos`; atualizar trigger de sincronização; criar trigger reverso financeiro→parceiros |
-| `src/components/parceiros/PagamentoParceiroDialog.tsx` | Modificar | Adicionar campos de abatimento, tabela de parcelas editáveis, opção de pagar no ato |
-| `src/components/parceiros/ParceiroDetalhes.tsx` | Modificar | Adicionar colunas, botões de ação (marcar pago/editar), badge "Vencido", mini-dialog de confirmação de pagamento |
-| `src/components/parceiros/EditarParcelaDialog.tsx` | Novo | Dialog para editar valor/abatimentos de uma parcela pendente |
+| `src/components/RotaDocFileCard.tsx` | Criar | Card individual com miniatura clicável, botões IA e manual por arquivo, drag handle |
+| `src/components/RotaDocLightbox.tsx` | Criar | Modal de ampliação da miniatura |
+| `src/pages/RotaDoc.tsx` | Modificar | Novo fluxo em etapas, usar os novos componentes, corrigir lógica de merge |
+| `src/components/FilePreview.tsx` | Manter | Ainda usado pelo novo componente como referência de lógica |
+| `src/components/ProcessingStatus.tsx` | Manter | Sem mudanças necessárias |
+
+> **Nota:** `FilePreview.tsx` não será deletado pois a lógica de `applyCrop`, `getImageDimensions` etc. será extraída para uso nos novos componentes. A lógica de AI crop e rotação manual será replicada no `RotaDocFileCard.tsx` de forma especializada.
 
 ---
 
-### Resultado Esperado
+### Comportamento da Rotação Manual (90° por clique)
 
-- Ao criar um pagamento, Rafael poderá informar o valor bruto + abatimentos → o sistema calcula e exibe o líquido
-- Para pagamentos parcelados, cada parcela terá seu próprio valor e abatimento editável
-- Na aba de Pagamentos do parceiro, cada parcela pendente terá botão "Marcar como Pago" que sincroniza automaticamente com o financeiro
-- Se o pagamento for registrado no financeiro, a parcela do parceiro atualiza automaticamente para "Pago"
+Para a rotação manual via botão:
+1. Carregar o File como imagem no canvas
+2. Girar 90° no sentido horário
+3. Exportar como novo File
+4. Atualizar a miniatura imediatamente
+
+Isso funciona para imagens JPG/PNG. Para PDFs, exibir aviso de que rotação manual em PDF não está disponível (usar o editor da IA após conversão).
+
+---
+
+### Comportamento da IA separado: Crop vs Rotação
+
+Atualmente `auto-crop-document` retorna ambos `rotation` e `cropX/Y/W/H`. Para os dois botões separados:
+- **[IA Recortar]**: aplica `cropX, cropY, cropWidth, cropHeight` + `rotation`
+- **[IA Rotacionar]**: aplica apenas `rotation` (sem alterar o crop — equivale a cropX=0, cropY=0, cropWidth=100, cropHeight=100 com rotação)
+
+Ambos chamam a mesma edge function, mas com lógica de aplicação diferente no cliente.
+
+---
+
+### Resultado esperado
+
+1. Usuário sobe os arquivos
+2. Aparece lista de cards com miniaturas maiores
+3. Clica em "✨ Aplicar IA em todos" → IA recorta, rotaciona e tenta reordenar
+4. Clica em cada miniatura para ver resultado ampliado
+5. Para arquivos que ficaram errados: usa botões manuais de cada card
+6. Arrasta cards para reordenar se necessário
+7. Escolhe "1 PDF único" ou "separados"
+8. Clica "Processar" → resultado final disponível para download
+
