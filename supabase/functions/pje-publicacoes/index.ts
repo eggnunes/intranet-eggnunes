@@ -38,20 +38,14 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { action, filters } = body
 
-    // Check credentials
-    const pjeUsername = Deno.env.get('PJE_CNJ_USERNAME')
-    const pjePassword = Deno.env.get('PJE_CNJ_PASSWORD')
-
+    // A API do CNJ é pública — credenciais não são necessárias para consulta
     if (action === 'check-credentials') {
-      return new Response(JSON.stringify({ 
-        configured: !!(pjeUsername && pjePassword) 
-      }), {
+      return new Response(JSON.stringify({ configured: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
     if (action === 'search-local') {
-      // Search from local database cache
       let query = supabase
         .from('publicacoes_dje')
         .select('*')
@@ -72,6 +66,9 @@ Deno.serve(async (req) => {
       }
       if (filters?.tipoComunicacao) {
         query = query.eq('tipo_comunicacao', filters.tipoComunicacao)
+      }
+      if (filters?.nomeAdvogado) {
+        query = query.ilike('nome_advogado', `%${filters.nomeAdvogado}%`)
       }
 
       const { data, error } = await query
@@ -101,17 +98,21 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'search-api') {
-      if (!pjeUsername || !pjePassword) {
-        return new Response(JSON.stringify({ 
-          error: 'Credenciais da API do CNJ não configuradas. Solicite ao administrador que configure PJE_CNJ_USERNAME e PJE_CNJ_PASSWORD.' 
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+      // Build query params for CNJ API (pública — sem autenticação necessária)
+      const params = new URLSearchParams()
+
+      // Filtros por advogado
+      if (filters?.numeroOAB) {
+        params.append('numeroOAB', filters.numeroOAB)
+      }
+      if (filters?.ufOAB) {
+        params.append('ufOAB', filters.ufOAB)
+      }
+      if (filters?.nomeAdvogado) {
+        params.append('nomeAdvogado', filters.nomeAdvogado)
       }
 
-      // Build query params for CNJ API
-      const params = new URLSearchParams()
+      // Filtros gerais
       if (filters?.numeroProcesso) {
         params.append('numeroProcesso', filters.numeroProcesso)
       }
@@ -128,38 +129,18 @@ Deno.serve(async (req) => {
         params.append('tipoComunicacao', filters.tipoComunicacao)
       }
 
-      // Authenticate with CNJ SSO
-      const authResponse = await fetch('https://sso.cloud.pje.jus.br/auth/realms/pje/protocol/openid-connect/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'password',
-          client_id: 'pje-comunica-api',
-          username: pjeUsername,
-          password: pjePassword,
-        }),
-      })
+      // Paginação
+      const pagina = filters?.pagina || 1
+      const tamanhoPagina = filters?.tamanhoPagina || 20
+      params.append('pagina', String(pagina))
+      params.append('tamanhoPagina', String(tamanhoPagina))
 
-      if (!authResponse.ok) {
-        const errText = await authResponse.text()
-        console.error('Auth error:', errText)
-        return new Response(JSON.stringify({ 
-          error: 'Falha na autenticação com o CNJ. Verifique as credenciais.',
-          details: errText,
-        }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
+      console.log(`Consultando API pública do CNJ: ${PJE_API_BASE}/comunicacoes?${params.toString()}`)
 
-      const authData = await authResponse.json()
-      const accessToken = authData.access_token
-
-      // Query the communications API
+      // Chamada sem autenticação — endpoint público conforme CNJ
       const apiUrl = `${PJE_API_BASE}/comunicacoes?${params.toString()}`
       const apiResponse = await fetch(apiUrl, {
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
           'Accept': 'application/json',
         },
       })
@@ -167,8 +148,8 @@ Deno.serve(async (req) => {
       if (!apiResponse.ok) {
         const errText = await apiResponse.text()
         console.error('API error:', errText)
-        return new Response(JSON.stringify({ 
-          error: 'Erro ao consultar API do CNJ.',
+        return new Response(JSON.stringify({
+          error: `Erro ao consultar API do CNJ (HTTP ${apiResponse.status}).`,
           details: errText,
         }), {
           status: apiResponse.status,
@@ -177,7 +158,10 @@ Deno.serve(async (req) => {
       }
 
       const apiData = await apiResponse.json()
-      const comunicacoes = apiData.items || apiData.comunicacoes || apiData || []
+      console.log('API response keys:', Object.keys(apiData))
+
+      const comunicacoes = apiData.items || apiData.comunicacoes || apiData.content || (Array.isArray(apiData) ? apiData : [])
+      const totalItems = apiData.totalItems || apiData.total || apiData.totalElements || comunicacoes.length
 
       // Cache results in database
       const toInsert = (Array.isArray(comunicacoes) ? comunicacoes : []).map((c: any) => {
@@ -191,7 +175,7 @@ Deno.serve(async (req) => {
           conteudo: c.conteudo || c.textoConteudo || '',
           destinatario: c.destinatario || c.nomeDestinatario || '',
           meio: c.meio || '',
-          nome_advogado: c.nomeAdvogado || '',
+          nome_advogado: c.nomeAdvogado || filters?.nomeAdvogado || '',
           numero_comunicacao: c.numeroComunicacao || '',
           siglaTribunal: c.siglaTribunal || filters?.tribunal || '',
           hash,
@@ -199,21 +183,23 @@ Deno.serve(async (req) => {
         }
       })
 
-      // Upsert to avoid duplicates
       if (toInsert.length > 0) {
         const { error: upsertError } = await supabase
           .from('publicacoes_dje')
           .upsert(toInsert, { onConflict: 'hash', ignoreDuplicates: true })
-        
+
         if (upsertError) {
           console.error('Upsert error:', upsertError)
         }
       }
 
-      return new Response(JSON.stringify({ 
+      return new Response(JSON.stringify({
         data: comunicacoes,
-        total: apiData.totalItems || comunicacoes.length,
+        total: totalItems,
         cached: toInsert.length,
+        pagina,
+        tamanhoPagina,
+        hasMore: comunicacoes.length === tamanhoPagina,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -224,7 +210,7 @@ Deno.serve(async (req) => {
       const { error } = await supabase
         .from('publicacoes_dje_reads')
         .upsert({ publicacao_id: publicacaoId, user_id: user.id }, { onConflict: 'publicacao_id,user_id' })
-      
+
       if (error) throw error
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -238,7 +224,7 @@ Deno.serve(async (req) => {
         .delete()
         .eq('publicacao_id', publicacaoId)
         .eq('user_id', user.id)
-      
+
       if (error) throw error
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
