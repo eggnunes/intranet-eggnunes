@@ -153,10 +153,10 @@ Deno.serve(async (req) => {
     if (action === 'search-api') {
       console.log('=== Busca DataJud via botão ===')
 
-      // Buscar processos do ADVBox
+      // Buscar processos do ADVBox com raw_data para extrair clientes
       const { data: processos, error: procError } = await supabase
         .from('advbox_tasks')
-        .select('process_number')
+        .select('process_number, raw_data')
         .not('process_number', 'is', null)
         .neq('process_number', '')
 
@@ -175,12 +175,22 @@ Deno.serve(async (req) => {
         }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
+      // Montar mapa processo -> nome do cliente
+      const clientesPorProcesso = new Map<string, string>()
+      for (const p of (processos || [])) {
+        if (p.raw_data?.lawsuit?.customers) {
+          const customers = p.raw_data.lawsuit.customers as any[]
+          const nomes = customers.map((c: any) => c.name).filter(Boolean).join(', ')
+          if (nomes) clientesPorProcesso.set(p.process_number, nomes)
+        }
+      }
+      console.log(`Clientes mapeados: ${clientesPorProcesso.size}`)
+
       // Agrupar por endpoint
       const porEndpoint = new Map<string, { endpoint: { sigla: string; url: string }; numeros: string[] }>()
       for (const num of numerosUnicos) {
         const ep = getEndpointForProcess(num)
         if (!ep) continue
-        // Filtrar por tribunal se informado
         if (filters?.tribunal && ep.sigla !== filters.tribunal) continue
         if (!porEndpoint.has(ep.url)) {
           porEndpoint.set(ep.url, { endpoint: ep, numeros: [] })
@@ -192,7 +202,6 @@ Deno.serve(async (req) => {
       const errors: string[] = []
       let processosConsultados = 0
 
-      // Definir período de busca (padrão: últimos 30 dias)
       const limiteData = new Date()
       if (filters?.dataInicio) {
         limiteData.setTime(new Date(filters.dataInicio).getTime())
@@ -222,6 +231,7 @@ Deno.serve(async (req) => {
             const proc = hit._source
             const numFormatado = numerosUnicos.find(n => n.replace(/[.-]/g, '') === proc.numeroProcesso) || proc.numeroProcesso
             const movimentos = proc.movimentos || []
+            const clienteNome = clientesPorProcesso.get(numFormatado) || ''
 
             for (const mov of movimentos) {
               const dataHora = mov.dataHora ? new Date(mov.dataHora) : null
@@ -232,7 +242,6 @@ Deno.serve(async (req) => {
               const isRelevante = /intima|cita|notifica|publica|expedi|despacho|decisão|sentença|julgamento|acórdão|audiência|petiç/i.test(nomeMovimento)
               if (!isRelevante) continue
 
-              // Filtrar por tipo de comunicação se informado
               if (filters?.tipoComunicacao) {
                 if (filters.tipoComunicacao === 'IN' && !/intima/i.test(nomeMovimento)) continue
                 if (filters.tipoComunicacao === 'CI' && !/cita/i.test(nomeMovimento)) continue
@@ -255,12 +264,16 @@ Deno.serve(async (req) => {
                 data_disponibilizacao: mov.dataHora,
                 data_publicacao: mov.dataHora,
                 conteudo: `${nomeMovimento}${complementos ? ` | ${complementos}` : ''} | ${proc.classe?.nome || ''}`,
-                destinatario: '',
+                destinatario: clienteNome,
                 meio: 'DataJud',
                 nome_advogado: 'Rafael Egg Nunes',
                 numero_comunicacao: '',
                 hash,
-                raw_data: { processo: { numeroProcesso: numFormatado, classe: proc.classe, orgaoJulgador: proc.orgaoJulgador }, movimento: mov },
+                raw_data: {
+                  processo: { numeroProcesso: numFormatado, classe: proc.classe, orgaoJulgador: proc.orgaoJulgador, assuntos: proc.assuntos },
+                  movimento: mov,
+                  cliente: clienteNome,
+                },
               })
             }
           }
@@ -270,7 +283,6 @@ Deno.serve(async (req) => {
 
       console.log(`Processos encontrados: ${processosConsultados}, Movimentações: ${toInsert.length}`)
 
-      // Deduplica e insere
       let novasPublicacoes = 0
       if (toInsert.length > 0) {
         const existingHashes = new Set<string>()
@@ -299,6 +311,56 @@ Deno.serve(async (req) => {
         processos_total: numerosUnicos.length,
         errors: errors.length > 0 ? errors : undefined,
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // === ENRICH EXISTING (preencher nomes de clientes nos registros existentes) ===
+    if (action === 'enrich-existing') {
+      // Buscar publicações sem cliente
+      const { data: pubsSemCliente, error: pubErr } = await supabase
+        .from('publicacoes_dje')
+        .select('id, numero_processo')
+        .or('destinatario.is.null,destinatario.eq.')
+        .limit(2000)
+
+      if (pubErr) throw pubErr
+
+      if (!pubsSemCliente || pubsSemCliente.length === 0) {
+        return new Response(JSON.stringify({ success: true, updated: 0, message: 'Todos os registros já possuem cliente.' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      // Buscar processos do advbox com dados de clientes
+      const processNumbers = [...new Set(pubsSemCliente.map((p: any) => p.numero_processo))]
+      const { data: advboxData } = await supabase
+        .from('advbox_tasks')
+        .select('process_number, raw_data')
+        .in('process_number', processNumbers)
+
+      const clienteMap = new Map<string, string>()
+      for (const item of (advboxData || [])) {
+        if (item.raw_data?.lawsuit?.customers) {
+          const customers = item.raw_data.lawsuit.customers as any[]
+          const nomes = customers.map((c: any) => c.name).filter(Boolean).join(', ')
+          if (nomes) clienteMap.set(item.process_number, nomes)
+        }
+      }
+
+      let updated = 0
+      for (const pub of pubsSemCliente) {
+        const cliente = clienteMap.get(pub.numero_processo)
+        if (cliente) {
+          const { error: updateErr } = await supabase
+            .from('publicacoes_dje')
+            .update({ destinatario: cliente })
+            .eq('id', pub.id)
+          if (!updateErr) updated++
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true, updated, total: pubsSemCliente.length }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
     // === MARK READ ===
