@@ -145,7 +145,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.pje-publicacoes]
-verify_jwt = true
+verify_jwt = false
 
 [functions.sync-pje-publicacoes]
 verify_jwt = false
