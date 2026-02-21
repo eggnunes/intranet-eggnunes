@@ -655,7 +655,14 @@ export default function PublicacoesDJE() {
                   <div>
                     <Label className="text-muted-foreground text-xs">Conteúdo da Movimentação</Label>
                     <div className="mt-2 p-4 bg-muted rounded-lg text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto">
-                      {selectedPub.conteudo || 'Conteúdo não disponível'}
+                      {(() => {
+                        if (rawMovimento) {
+                          const nomeMovimento = rawMovimento.nome || '';
+                          const complementosTexto = complementos?.join('; ') || '';
+                          return `${nomeMovimento}${complementosTexto ? ` | ${complementosTexto}` : ''}${classeNome ? ` | ${classeNome}` : ''}`;
+                        }
+                        return selectedPub.conteudo || 'Conteúdo não disponível';
+                      })()}
                     </div>
                   </div>
 

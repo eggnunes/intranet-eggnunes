@@ -352,6 +352,41 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Also fix conteudo for records with numeric codes
+      const { data: pubsComConteudoAntigo } = await supabase
+        .from('publicacoes_dje')
+        .select('id, raw_data, conteudo')
+        .not('raw_data', 'is', null)
+        .limit(2000)
+
+      let conteudoFixed = 0
+      for (const pub of (pubsComConteudoAntigo || [])) {
+        const mov = (pub.raw_data as any)?.movimento
+        const proc = (pub.raw_data as any)?.processo
+        if (!mov) continue
+        // Detect old format: numeric codes like ": 9" or ": 185"
+        if (pub.conteudo && /:\s*\d{1,4}(?:;|$|\s*\|)/.test(pub.conteudo)) {
+          const nomeMovimento = mov.nome || ''
+          const complementos = (mov.complementosTabelados || [])
+            .map((c: any) => {
+              const label = (c.descricao || '').replace(/_/g, ' ').trim()
+              const valor = (c.nome || '').trim()
+              if (label && valor) return `${label}: ${valor}`
+              return label || valor || ''
+            })
+            .filter(Boolean)
+            .join('; ')
+          const classeNome = proc?.classe?.nome || ''
+          const novoConteudo = `${nomeMovimento}${complementos ? ` | ${complementos}` : ''}${classeNome ? ` | ${classeNome}` : ''}`
+          
+          const { error: updateErr } = await supabase
+            .from('publicacoes_dje')
+            .update({ conteudo: novoConteudo })
+            .eq('id', pub.id)
+          if (!updateErr) conteudoFixed++
+        }
+      }
+
       let updated = 0
       for (const pub of pubsSemCliente) {
         const cliente = clienteMap.get(pub.numero_processo)
@@ -364,7 +399,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      return new Response(JSON.stringify({ success: true, updated, total: pubsSemCliente.length }), {
+      return new Response(JSON.stringify({ success: true, updated, conteudo_fixed: conteudoFixed, total: pubsSemCliente.length }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
