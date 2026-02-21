@@ -1,60 +1,50 @@
 
+## Correcao: Conteudo da movimentacao com dados antigos/cortados
 
-## Correcao: Conteudo da movimentacao incompleto/cortado
+### Problema
 
-### Problema identificado
+O campo `conteudo` no banco de dados contem o formato antigo com codigos numericos (ex: "designada: 9; Juiz(a): 185"). A correcao anterior so mudou como NOVOS dados sao salvos, mas os 590+ registros existentes continuam com o formato antigo. O dialog mostra `selectedPub.conteudo` diretamente do banco em vez de reconstruir o texto a partir do `raw_data`.
 
-O DataJud retorna nomes de movimentacao **hierarquicos** onde o campo `nome` contem apenas a parte filha do nome. Exemplo:
-- Nome completo correto: "Audiencia de Instrucao e Julgamento"  
-- O que a API retorna em `mov.nome`: "de Instrucao e Julgamento" (falta "Audiencia")
+### Solucao (2 mudancas)
 
-Alem disso, os complementos estao mostrando **codigos internos** em vez de descricoes legiveis:
-- Atual: `designada: 9; Juiz(a): 185`
-- Correto: `Situacao: designada; Dirigido por: Juiz(a)`
+#### 1. Frontend: Reconstruir conteudo a partir do raw_data
 
-O campo `valor` nos complementos e um codigo numerico interno do DataJud, nao um texto util. Os campos `nome` e `descricao` contem a informacao legivel.
+No dialog de detalhes (`PublicacoesDJE.tsx`, linha 654-660), em vez de mostrar `selectedPub.conteudo` diretamente, reconstruir o texto a partir dos dados estruturados do `raw_data`:
 
-### Mudancas
+- Usar `rawMovimento.nome` como nome da movimentacao
+- Usar os `complementos` ja calculados (linhas 585-592) como detalhes
+- Usar `classeNome` como classe processual
+- Juntar tudo de forma legivel, sem codigos numericos
 
-**Arquivo: `supabase/functions/pje-publicacoes/index.ts`**
+Isso resolve o problema para TODOS os registros, novos e antigos, pois o `raw_data` sempre contem os dados originais da API.
 
-1. **Corrigir montagem do conteudo** (linha 251-266):
-   - Nos complementos, usar `nome` como valor legivel e `descricao` como label, em vez de `nome: valor`
-   - Formato novo: `situacao_da_audiencia: designada; dirigida_por: Juiz(a)` em vez de `designada: 9; Juiz(a): 185`
+#### 2. Edge function: Atualizar registros existentes no banco
 
-2. **Incluir o codigo do movimento para mapeamento futuro**: salvar `mov.codigo` no raw_data (ja e salvo com `movimento: mov`)
-
-**Arquivo: `src/pages/PublicacoesDJE.tsx`**
-
-1. **Melhorar exibicao dos complementos no dialog de detalhes**: ao renderizar complementos do `raw_data.movimento.complementosTabelados`, mostrar `descricao` como label e `nome` como valor (ignorando o campo `valor` numerico)
-
-2. **Melhorar formatacao do conteudo principal**: se o conteudo comeca com "de " (indicando nome hierarquico truncado), nao ha como recuperar o pai da API, mas podemos deixar o conteudo mais limpo separando nome do movimento, complementos e classe em campos distintos no dialog em vez de tudo concatenado com `|`
+Adicionar logica na action `enrich-existing` para tambem corrigir o campo `conteudo` dos registros que contem codigos numericos, reconstruindo-o a partir do `raw_data` salvo.
 
 ### Detalhes tecnicos
 
-**Edge function - nova logica de complementos:**
+**`src/pages/PublicacoesDJE.tsx`** (dialog de detalhes):
 
 ```
-// Antes (mostra codigos numericos)
-const complementos = (mov.complementosTabelados || [])
-  .map(c => `${c.nome || ''}: ${c.valor || c.descricao || ''}`)
-  .join('; ')
+// Antes (linha 658):
+{selectedPub.conteudo || 'Conteudo nao disponivel'}
 
-// Depois (mostra descricoes legiveis)
-const complementos = (mov.complementosTabelados || [])
-  .map(c => `${c.descricao || c.nome || ''}: ${c.nome || ''}`)
-  .join('; ')
+// Depois: reconstruir a partir do raw_data
+const nomeMovimento = rawMovimento?.nome || '';
+const complementosTexto = complementos?.join('; ') || '';
+const conteudoFormatado = rawMovimento 
+  ? `${nomeMovimento}${complementosTexto ? ` | ${complementosTexto}` : ''}${classeNome ? ` | ${classeNome}` : ''}`
+  : selectedPub.conteudo;
+// Mostrar conteudoFormatado em vez de selectedPub.conteudo
 ```
 
-**Frontend - dialog de detalhes, renderizacao dos complementos:**
+**`supabase/functions/pje-publicacoes/index.ts`** (action `enrich-existing`):
 
-Ao renderizar `raw_data.movimento.complementosTabelados`, mostrar:
-- Label: `descricao` (ex: "situacao_da_audiencia" -> formatar para "Situacao da Audiencia")  
-- Valor: `nome` (ex: "designada", "Juiz(a)")
-- Ignorar o campo `valor` numerico
+Alem de atualizar `destinatario`, tambem reconstruir e atualizar o campo `conteudo` para registros que contem codigos numericos (detectaveis por regex como `\d{2,3}` apos `:` nos complementos).
 
 ### Resultado esperado
 
-- Complementos mostram texto legivel em vez de codigos numericos
-- Dialog de detalhes separa visualmente nome do movimento, complementos e classe processual
-- Informacao mais clara e completa para o usuario
+- O dialog mostra conteudo legivel para TODOS os registros (antigos e novos)
+- Complementos aparecem como "Situacao Da Audiencia: designada" em vez de "designada: 9"
+- Nao depende mais de rebuscar dados no DataJud para corrigir registros antigos
