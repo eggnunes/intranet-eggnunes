@@ -121,13 +121,13 @@ Deno.serve(async (req) => {
         .range((page - 1) * pageSize, page * pageSize - 1)
 
       if (filters?.numeroProcesso) query = query.ilike('numero_processo', `%${filters.numeroProcesso}%`)
-      if (filters?.tribunal) query = query.eq('siglaTribunal', filters.tribunal)
+      if (filters?.tribunal) query = query.ilike('tribunal', `%${filters.tribunal}%`)
       if (filters?.dataInicio) query = query.gte('data_disponibilizacao', filters.dataInicio)
       if (filters?.dataFim) query = query.lte('data_disponibilizacao', filters.dataFim + 'T23:59:59')
       if (filters?.tipoComunicacao) query = query.eq('tipo_comunicacao', filters.tipoComunicacao)
       if (filters?.nomeAdvogado) query = query.ilike('nome_advogado', `%${filters.nomeAdvogado}%`)
 
-      const { data, error } = await query
+      const { data, error, count } = await query
       if (error) throw error
 
       const pubIds = (data || []).map((p: any) => p.id)
@@ -259,7 +259,6 @@ Deno.serve(async (req) => {
                 meio: 'DataJud',
                 nome_advogado: 'Rafael Egg Nunes',
                 numero_comunicacao: '',
-                siglaTribunal: endpoint.sigla,
                 hash,
                 raw_data: { processo: { numeroProcesso: numFormatado, classe: proc.classe, orgaoJulgador: proc.orgaoJulgador }, movimento: mov },
               })
