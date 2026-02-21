@@ -1,80 +1,80 @@
 
 
-## Correcao: Resultados do DataJud nao aparecem + Filtros avancados
+## Enriquecer publicacoes com dados do cliente e melhorar detalhes
 
-### Problema identificado
+### Problema
 
-Apos o botao "Buscar no DataJud" salvar 604 movimentacoes no banco, a funcao `loadLocal()` e chamada para recarregar os dados, mas:
+1. **Falta nome do cliente**: O DataJud nao retorna nomes de partes/clientes. Porem, a tabela `advbox_tasks` contem essa informacao em `raw_data -> lawsuit -> customers[]`. Atualmente esse dado nao e aproveitado.
+2. **Data ambigua**: A coluna "Data" na tabela e "Data Disponibilizacao" no dialog nao deixam claro o que significam. Na verdade, o DataJud retorna `dataHora` de cada movimentacao -- ou seja, e a **data da movimentacao processual**.
+3. **Dialog incompleto**: Campos como Destinatario, N. Comunicacao e Advogado sao inuteis para dados do DataJud. Faltam informacoes uteis como **nome do cliente**, **classe processual**, **assuntos** e **orgao julgador** que ja estao no `raw_data`.
 
-1. **Erros silenciosos**: `loadLocal` engole qualquer erro sem feedback ao usuario (linha 170)
-2. **Limite de 100 registros**: A query `search-local` tem `.limit(100)`, insuficiente para 604+ resultados
-3. **Sem paginacao real**: Nao ha paginacao no cache local - so mostra os primeiros 100
-4. **Sem invalidacao de cache**: Se o `loadLocal` falhar, o estado `publicacoes` fica vazio
+### Solucao
 
-### Solucao em 2 partes
+#### Parte 1 - Edge function (`pje-publicacoes/index.ts`)
 
-#### Parte 1: Corrigir exibicao dos resultados
-
-**Arquivo: `src/pages/PublicacoesDJE.tsx`**
-
-1. Adicionar tratamento de erros em `loadLocal` - se falhar, mostrar toast de erro em vez de silenciar
-2. Apos a busca na API, chamar `loadLocal` sem filtro de advogado (ja que o DataJud nao filtra por OAB)
-3. Adicionar paginacao local com estado `totalCount` e botao "Carregar mais"
-4. Adicionar filtros aplicaveis diretamente nos resultados ja carregados (filtro client-side para busca rapida)
-
-**Arquivo: `supabase/functions/pje-publicacoes/index.ts`**
-
-1. Aumentar `.limit(100)` para `.limit(1000)` na action `search-local` para trazer mais resultados
-2. Adicionar contagem total via `.select('*', { count: 'exact' })` para informar quantos registros existem
-3. Adicionar suporte a paginacao (`offset` e `limit` via filtros)
-
-#### Parte 2: Filtros avancados nos resultados
-
-Adicionar no frontend uma barra de filtros acima da tabela de resultados com:
-
-- Campo de busca textual (filtra por conteudo, processo, tribunal - client-side)
-- Filtro por status de leitura (Todas / Lidas / Nao lidas)
-- Filtro por periodo (ultimos 7 dias, 30 dias, 90 dias, todos)
-- Ordenacao (data mais recente, data mais antiga, tribunal)
-- Contador mostrando "Exibindo X de Y resultados"
-
-### Mudancas tecnicas detalhadas
-
-**`supabase/functions/pje-publicacoes/index.ts` - action `search-local`:**
+Na action `search-api`, apos buscar os processos do `advbox_tasks`, montar um mapa de **numero do processo -> nome do cliente** extraindo de `raw_data.lawsuit.customers[].name`:
 
 ```
-// Antes
-let query = supabase
-  .from('publicacoes_dje')
-  .select('*')
-  .order('data_disponibilizacao', { ascending: false })
-  .limit(100)
-
-// Depois
-const page = filters?.page || 1
-const pageSize = filters?.pageSize || 200
-let query = supabase
-  .from('publicacoes_dje')
-  .select('*', { count: 'exact' })
-  .order('data_disponibilizacao', { ascending: false })
-  .range((page - 1) * pageSize, page * pageSize - 1)
+// Montar mapa processo -> cliente
+const clientesPorProcesso = new Map()
+for (const p of processos) {
+  if (p.raw_data?.lawsuit?.customers) {
+    const nomes = p.raw_data.lawsuit.customers.map(c => c.name).join(', ')
+    clientesPorProcesso.set(p.process_number, nomes)
+  }
+}
 ```
 
-Retorno atualizado para incluir `count` e `page`.
+Ao montar cada registro para inserir, preencher o campo `destinatario` com o nome do cliente:
 
-**`src/pages/PublicacoesDJE.tsx`:**
+```
+destinatario: clientesPorProcesso.get(numFormatado) || '',
+```
 
-1. `loadLocal` - adicionar `console.error` e `toast.error` quando falhar
-2. Apos busca API: chamar `loadLocal` passando `pageSize: 500` para trazer bastante resultado
-3. Adicionar estado `filtroTexto`, `filtroLeitura`, `filtroPeriodo` para filtros client-side
-4. Filtrar `publicacoes` em um `useMemo` antes de renderizar a tabela
-5. Adicionar componentes de filtro entre o CardHeader "Resultados" e a tabela
-6. Adicionar paginacao com botao "Carregar mais" e contador "Exibindo X de Y"
+Tambem incluir `assuntos` no `raw_data` salvo, ja que o DataJud retorna essa informacao.
+
+#### Parte 2 - Frontend (`PublicacoesDJE.tsx`)
+
+**Tabela de resultados:**
+- Renomear coluna "Data" para "Data Movimentacao"
+- Adicionar coluna "Cliente" mostrando `destinatario`
+
+**Dialog de detalhes - reorganizar campos:**
+- **Processo** e **Tribunal/Orgao Julgador** (como esta)
+- **Cliente** (usando `destinatario` ou extraindo de `raw_data.processo`)
+- **Classe Processual** (extrair de `raw_data.processo.classe.nome`)
+- **Tipo da Movimentacao** (badge com tipo IN/CI/NT)
+- **Data da Movimentacao** (renomear de "Data Disponibilizacao")
+- **Conteudo da Movimentacao** (campo grande com texto completo)
+- Remover campos que so mostram "-" (N. Comunicacao, Meio)
+
+**Dados extraidos do raw_data no dialog:**
+- `raw_data.processo.classe.nome` = Classe processual (ex: "Cumprimento de Sentenca contra a Fazenda Publica")
+- `raw_data.processo.orgaoJulgador.nome` = Orgao julgador
+- `raw_data.movimento.complementosTabelados` = Complementos da movimentacao
+- Nomes dos clientes do `advbox_tasks` (via `destinatario`)
+
+#### Parte 3 - Atualizar registros existentes
+
+Criar uma action `enrich-existing` na edge function que:
+1. Busca todas as publicacoes onde `destinatario` esta vazio
+2. Para cada uma, busca o `process_number` correspondente em `advbox_tasks`
+3. Extrai o nome do cliente do `raw_data.lawsuit.customers`
+4. Atualiza o campo `destinatario`
+
+Isso corrige os 590+ registros ja salvos sem precisar rebuscar no DataJud.
+
+### Resumo das mudancas
+
+| Arquivo | Mudanca |
+|---------|---------|
+| `supabase/functions/pje-publicacoes/index.ts` | Extrair nomes de clientes do advbox_tasks e salvar em `destinatario`; adicionar action `enrich-existing` |
+| `src/pages/PublicacoesDJE.tsx` | Renomear "Data" para "Data Movimentacao"; adicionar coluna "Cliente"; redesenhar dialog com classe processual, orgao julgador e cliente; remover campos vazios |
 
 ### Resultado esperado
 
-- O usuario clica em "Buscar no DataJud" e os 604+ resultados aparecem imediatamente na tabela
-- Filtros rapidos permitem buscar por texto, status de leitura e periodo
-- Se houver erro no carregamento, o usuario recebe feedback claro
-- Paginacao permite navegar grandes volumes de dados
+- A tabela mostra o nome do cliente em cada linha
+- O dialog mostra: processo, cliente, classe processual, orgao julgador, data da movimentacao, conteudo completo
+- A coluna de data deixa claro que e a data da movimentacao processual
+- Os 590+ registros existentes sao enriquecidos com nomes de clientes automaticamente
 
