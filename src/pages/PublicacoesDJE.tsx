@@ -301,6 +301,24 @@ export default function PublicacoesDJE() {
     }
   };
 
+  const reconstructContent = (pub: Publicacao): string => {
+    const rawMovimento = pub.raw_data?.movimento;
+    const rawProcesso = pub.raw_data?.processo;
+    if (!rawMovimento) return pub.conteudo || '-';
+    const nome = rawMovimento.nome || '';
+    const complementos = (rawMovimento.complementosTabelados || [])
+      .map((c: any) => {
+        const label = (c.descricao || '').replace(/_/g, ' ').trim();
+        const valor = (c.nome || '').trim();
+        if (label && valor) return `${label}: ${valor}`;
+        return label || valor || '';
+      })
+      .filter(Boolean)
+      .join('; ');
+    const classe = rawProcesso?.classe?.nome || '';
+    return `${nome}${complementos ? ` | ${complementos}` : ''}${classe ? ` | ${classe}` : ''}`;
+  };
+
   const hasMorePages = publicacoes.length < totalCount;
 
   return (
@@ -410,6 +428,27 @@ export default function PublicacoesDJE() {
               <Button variant="outline" onClick={exportCSV} disabled={filteredPublicacoes.length === 0} className="gap-2">
                 <Download className="h-4 w-4" />
                 Exportar CSV
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    toast.info('Enriquecendo dados existentes...');
+                    const { data, error } = await supabase.functions.invoke('pje-publicacoes', {
+                      body: { action: 'enrich-existing' },
+                      region: FunctionRegion.SaEast1,
+                    });
+                    if (error) throw error;
+                    toast.success(`Dados enriquecidos: ${data?.updated || 0} clientes atualizados, ${data?.conteudo_fixed || 0} conteúdos corrigidos.`);
+                    await loadLocal({}, 1);
+                  } catch (err: any) {
+                    toast.error('Erro ao enriquecer dados: ' + (err.message || 'Erro'));
+                  }
+                }}
+                className="gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Enriquecer Dados
               </Button>
             </div>
           </CardContent>
@@ -530,7 +569,7 @@ export default function PublicacoesDJE() {
                               {pub.tipo_comunicacao || '-'}
                             </Badge>
                           </TableCell>
-                          <TableCell className="max-w-[250px] truncate text-xs">{pub.conteudo || '-'}</TableCell>
+                          <TableCell className="max-w-[250px] truncate text-xs">{reconstructContent(pub)}</TableCell>
                           <TableCell>
                             <Button
                               variant="ghost"
@@ -655,14 +694,7 @@ export default function PublicacoesDJE() {
                   <div>
                     <Label className="text-muted-foreground text-xs">Conteúdo da Movimentação</Label>
                     <div className="mt-2 p-4 bg-muted rounded-lg text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto">
-                      {(() => {
-                        if (rawMovimento) {
-                          const nomeMovimento = rawMovimento.nome || '';
-                          const complementosTexto = complementos?.join('; ') || '';
-                          return `${nomeMovimento}${complementosTexto ? ` | ${complementosTexto}` : ''}${classeNome ? ` | ${classeNome}` : ''}`;
-                        }
-                        return selectedPub.conteudo || 'Conteúdo não disponível';
-                      })()}
+                      {reconstructContent(selectedPub)}
                     </div>
                   </div>
 
