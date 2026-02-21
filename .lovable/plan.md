@@ -1,16 +1,32 @@
 
 
-## Correção: Edge Function `pje-publicacoes` inacessível
+## Correção: Header `x-region` bloqueado pelo CORS
 
-### Problema
-O erro "Failed to send a request to the Edge Function" indica que a requisição nem chega à função. A causa é `verify_jwt = true` no `config.toml` para `pje-publicacoes`. O sistema de signing-keys do Lovable Cloud não é compatível com essa configuração — ela bloqueia todas as requisições antes que o código execute.
+### Problema raiz
+Quando se usa `region: FunctionRegion.SaEast1`, o SDK do Supabase adiciona o header `x-region` na requisição. O navegador faz um preflight OPTIONS verificando se esse header é permitido. A edge function `pje-publicacoes` lista apenas estes headers no CORS:
 
-### Solução
-Uma única mudança:
+```
+authorization, x-client-info, apikey, content-type, x-supabase-client-platform, ...
+```
 
-**`supabase/config.toml` linha 148:** trocar `verify_jwt = true` por `verify_jwt = false`
+O header `x-region` **nao esta na lista**, entao o preflight falha e o `fetch` lanca o erro "Failed to send a request to the Edge Function".
 
-A função já faz validação de autenticação manualmente no código (linhas 65-80 do `index.ts`), então a segurança está preservada.
+### Solucao
+Adicionar `x-region` a lista de `Access-Control-Allow-Headers` no `corsHeaders` da edge function `pje-publicacoes/index.ts`.
 
-### Resultado
-Após essa mudança, o botão "Buscar na API do CNJ" conseguirá alcançar a edge function, que por sua vez rodará em `sa-east-1` (São Paulo) conforme já configurado no frontend, e fará a consulta à API do CNJ com IP brasileiro.
+### Mudanca tecnica
+
+**Arquivo: `supabase/functions/pje-publicacoes/index.ts` (linha 5)**
+
+De:
+```
+'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+```
+
+Para:
+```
+'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-region, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+```
+
+Uma unica linha alterada. Isso permite que o navegador envie o header `x-region: sa-east-1`, o preflight passa, e a requisicao chega a funcao, que roda em Sao Paulo.
+
