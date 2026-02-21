@@ -249,7 +249,13 @@ Deno.serve(async (req) => {
               }
 
               const complementos = (mov.complementosTabelados || [])
-                .map((c: any) => `${c.nome || ''}: ${c.valor || c.descricao || ''}`)
+                .map((c: any) => {
+                  const label = (c.descricao || '').replace(/_/g, ' ').trim()
+                  const valor = (c.nome || '').trim()
+                  if (label && valor) return `${label}: ${valor}`
+                  return label || valor || ''
+                })
+                .filter(Boolean)
                 .join('; ')
 
               const hash = `dj-${proc.numeroProcesso}-${mov.dataHora}-${nomeMovimento.substring(0, 40)}`

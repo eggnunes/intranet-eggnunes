@@ -583,7 +583,12 @@ export default function PublicacoesDJE() {
               const orgaoJulgador = rawProcesso?.orgaoJulgador?.nome;
               const assuntos = rawProcesso?.assuntos?.map((a: any) => a.nome).filter(Boolean).join(', ');
               const complementos = rawMovimento?.complementosTabelados?.map(
-                (c: any) => `${c.nome || ''}: ${c.valor || c.descricao || ''}`
+                (c: any) => {
+                  const label = (c.descricao || '').replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()).trim();
+                  const valor = (c.nome || '').trim();
+                  if (label && valor) return `${label}: ${valor}`;
+                  return label || valor || '';
+                }
               ).filter(Boolean);
               const clienteNome = selectedPub.destinatario || selectedPub.raw_data?.cliente;
 
