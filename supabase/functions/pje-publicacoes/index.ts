@@ -110,13 +110,15 @@ Deno.serve(async (req) => {
       })
     }
 
-    // === SEARCH LOCAL (sem alterações) ===
+    // === SEARCH LOCAL ===
     if (action === 'search-local') {
+      const page = filters?.page || 1
+      const pageSize = filters?.pageSize || 500
       let query = supabase
         .from('publicacoes_dje')
-        .select('*')
+        .select('*', { count: 'exact' })
         .order('data_disponibilizacao', { ascending: false })
-        .limit(100)
+        .range((page - 1) * pageSize, page * pageSize - 1)
 
       if (filters?.numeroProcesso) query = query.ilike('numero_processo', `%${filters.numeroProcesso}%`)
       if (filters?.tribunal) query = query.eq('siglaTribunal', filters.tribunal)
@@ -142,7 +144,7 @@ Deno.serve(async (req) => {
       const readIds = new Set(reads.map((r: any) => r.publicacao_id))
       const enriched = (data || []).map((p: any) => ({ ...p, lida: readIds.has(p.id) }))
 
-      return new Response(JSON.stringify({ data: enriched }), {
+      return new Response(JSON.stringify({ data: enriched, totalCount: count || enriched.length, page, pageSize }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
