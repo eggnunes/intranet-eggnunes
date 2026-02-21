@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,8 +12,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { FunctionRegion } from '@supabase/supabase-js';
 import { toast } from 'sonner';
-import { Search, Download, Eye, EyeOff, FileText, RefreshCw, Globe, ChevronDown } from 'lucide-react';
-import { format } from 'date-fns';
+import { Search, Download, Eye, EyeOff, FileText, RefreshCw, Globe, ChevronDown, Filter } from 'lucide-react';
+import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Publicacao {
@@ -82,27 +82,30 @@ const TIPOS_COMUNICACAO = [
 
 export default function PublicacoesDJE() {
   const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [publicacoes, setPublicacoes] = useState<Publicacao[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [selectedPub, setSelectedPub] = useState<Publicacao | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
-  const [lastSearchWasApi, setLastSearchWasApi] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  // Filtros por advogado (pré-preenchidos com dados do titular)
+  // Filtros de busca (server-side)
   const [numeroOAB, setNumeroOAB] = useState('118395');
   const [ufOAB, setUfOAB] = useState('MG');
   const [nomeAdvogado, setNomeAdvogado] = useState('Rafael Egg Nunes');
-
-  // Filtros gerais
   const [numeroProcesso, setNumeroProcesso] = useState('');
   const [tribunal, setTribunal] = useState('');
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
   const [tipoComunicacao, setTipoComunicacao] = useState('');
 
+  // Filtros de resultados (client-side)
+  const [filtroTexto, setFiltroTexto] = useState('');
+  const [filtroLeitura, setFiltroLeitura] = useState<'todas' | 'lidas' | 'nao_lidas'>('todas');
+  const [filtroPeriodo, setFiltroPeriodo] = useState<'todos' | '7' | '30' | '90'>('todos');
+  const [ordenacao, setOrdenacao] = useState<'recente' | 'antigo' | 'tribunal'>('recente');
+
   useEffect(() => {
-    handleSearch('local');
+    loadLocal({}, 1);
   }, []);
 
   const buildFilters = () => {
@@ -118,43 +121,54 @@ export default function PublicacoesDJE() {
     return filters;
   };
 
+  const loadLocal = async (filters: any, page: number, append = false) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('pje-publicacoes', {
+        body: { action: 'search-local', filters: { ...filters, page, pageSize: 500 } },
+        region: FunctionRegion.SaEast1,
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      const newData = data?.data || [];
+      setTotalCount(data?.totalCount || newData.length);
+      if (append) {
+        setPublicacoes(prev => [...prev, ...newData]);
+      } else {
+        setPublicacoes(newData);
+      }
+      setCurrentPage(page);
+    } catch (err: any) {
+      console.error('Erro ao carregar publicações locais:', err);
+      toast.error('Erro ao carregar publicações: ' + (err.message || 'Erro desconhecido'));
+    }
+  };
+
   const handleSearch = async (source: 'local' | 'api') => {
     setLoading(true);
-    setCurrentPage(1);
-    setHasMore(false);
     try {
       const filters = buildFilters();
 
       if (source === 'api') {
-        filters.pagina = 1;
-        filters.tamanhoPagina = 20;
-      }
-
-      const { data, error } = await supabase.functions.invoke('pje-publicacoes', {
-        body: { action: source === 'api' ? 'search-api' : 'search-local', filters },
-        region: FunctionRegion.SaEast1,
-      });
-
-      if (error) throw error;
-      if (data?.error) {
-        toast.error(data.error);
-        return;
-      }
-
-      if (source === 'api') {
+        const { data, error } = await supabase.functions.invoke('pje-publicacoes', {
+          body: { action: 'search-api', filters },
+          region: FunctionRegion.SaEast1,
+        });
+        if (error) throw error;
+        if (data?.error) {
+          toast.error(data.error);
+          setLoading(false);
+          return;
+        }
         const total = data.total || 0;
         const cached = data.cached || 0;
         const processosTotal = data.processos_total || 0;
         toast.success(`${processosTotal} processos consultados no DataJud. ${total} movimentações encontradas, ${cached} novas salvas.`);
-        setHasMore(data.hasMore || false);
-        setLastSearchWasApi(true);
-        // Recarrega do cache local para enriquecer com status de leitura
-        await loadLocal(filters);
-        return;
+        // Reload from local cache to show results
+        await loadLocal({}, 1);
+      } else {
+        await loadLocal(filters, 1);
       }
-
-      setLastSearchWasApi(false);
-      setPublicacoes(data?.data || []);
     } catch (err: any) {
       toast.error('Erro ao buscar publicações: ' + (err.message || 'Erro desconhecido'));
     } finally {
@@ -162,45 +176,62 @@ export default function PublicacoesDJE() {
     }
   };
 
-  const loadLocal = async (filters: any) => {
-    const { data, error } = await supabase.functions.invoke('pje-publicacoes', {
-      body: { action: 'search-local', filters },
-      region: FunctionRegion.SaEast1,
-    });
-    if (!error && data?.data) {
-      setPublicacoes(data.data);
-    }
-  };
-
   const handleLoadMore = async () => {
-    const nextPage = currentPage + 1;
     setLoadingMore(true);
     try {
-      const filters = buildFilters();
-      filters.pagina = nextPage;
-      filters.tamanhoPagina = 20;
-
-      const { data, error } = await supabase.functions.invoke('pje-publicacoes', {
-        body: { action: 'search-api', filters },
-        region: FunctionRegion.SaEast1,
-      });
-
-      if (error) throw error;
-      if (data?.error) {
-        toast.error(data.error);
-        return;
-      }
-
-      toast.success(`${data.cached || 0} novas publicações adicionadas ao cache.`);
-      setHasMore(data.hasMore || false);
-      setCurrentPage(nextPage);
-      await loadLocal(buildFilters());
+      await loadLocal(buildFilters(), currentPage + 1, true);
     } catch (err: any) {
       toast.error('Erro ao carregar mais: ' + (err.message || 'Erro desconhecido'));
     } finally {
       setLoadingMore(false);
     }
   };
+
+  // Client-side filtering
+  const filteredPublicacoes = useMemo(() => {
+    let result = [...publicacoes];
+
+    // Text filter
+    if (filtroTexto) {
+      const termo = filtroTexto.toLowerCase();
+      result = result.filter(p =>
+        (p.numero_processo || '').toLowerCase().includes(termo) ||
+        (p.conteudo || '').toLowerCase().includes(termo) ||
+        (p.tribunal || '').toLowerCase().includes(termo) ||
+        (p.siglaTribunal || '').toLowerCase().includes(termo) ||
+        (p.destinatario || '').toLowerCase().includes(termo) ||
+        (p.nome_advogado || '').toLowerCase().includes(termo)
+      );
+    }
+
+    // Read status filter
+    if (filtroLeitura === 'lidas') {
+      result = result.filter(p => p.lida);
+    } else if (filtroLeitura === 'nao_lidas') {
+      result = result.filter(p => !p.lida);
+    }
+
+    // Period filter
+    if (filtroPeriodo !== 'todos') {
+      const dias = parseInt(filtroPeriodo);
+      const limite = subDays(new Date(), dias);
+      result = result.filter(p => {
+        if (!p.data_disponibilizacao) return false;
+        return new Date(p.data_disponibilizacao) >= limite;
+      });
+    }
+
+    // Sort
+    if (ordenacao === 'recente') {
+      result.sort((a, b) => (b.data_disponibilizacao || '').localeCompare(a.data_disponibilizacao || ''));
+    } else if (ordenacao === 'antigo') {
+      result.sort((a, b) => (a.data_disponibilizacao || '').localeCompare(b.data_disponibilizacao || ''));
+    } else if (ordenacao === 'tribunal') {
+      result.sort((a, b) => (a.siglaTribunal || '').localeCompare(b.siglaTribunal || ''));
+    }
+
+    return result;
+  }, [publicacoes, filtroTexto, filtroLeitura, filtroPeriodo, ordenacao]);
 
   const toggleRead = async (pub: Publicacao) => {
     try {
@@ -218,12 +249,12 @@ export default function PublicacoesDJE() {
   };
 
   const exportCSV = () => {
-    if (publicacoes.length === 0) {
+    if (filteredPublicacoes.length === 0) {
       toast.error('Nenhuma publicação para exportar');
       return;
     }
     const headers = ['Processo', 'Tribunal', 'Tipo', 'Data Disponibilização', 'Destinatário', 'Advogado', 'Conteúdo'];
-    const rows = publicacoes.map(p => [
+    const rows = filteredPublicacoes.map(p => [
       p.numero_processo,
       p.tribunal || p.siglaTribunal,
       p.tipo_comunicacao,
@@ -261,6 +292,8 @@ export default function PublicacoesDJE() {
     }
   };
 
+  const hasMorePages = publicacoes.length < totalCount;
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -296,59 +329,37 @@ export default function PublicacoesDJE() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Filtros por advogado */}
             <div>
               <p className="text-sm font-medium text-foreground mb-3">Filtros por Advogado</p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Número OAB</Label>
-                  <Input
-                    placeholder="Ex: 118395"
-                    value={numeroOAB}
-                    onChange={e => setNumeroOAB(e.target.value)}
-                  />
+                  <Input placeholder="Ex: 118395" value={numeroOAB} onChange={e => setNumeroOAB(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>UF da OAB</Label>
-                  <Input
-                    placeholder="Ex: MG"
-                    value={ufOAB}
-                    onChange={e => setUfOAB(e.target.value.toUpperCase())}
-                    maxLength={2}
-                  />
+                  <Input placeholder="Ex: MG" value={ufOAB} onChange={e => setUfOAB(e.target.value.toUpperCase())} maxLength={2} />
                 </div>
                 <div className="space-y-2">
                   <Label>Nome do Advogado</Label>
-                  <Input
-                    placeholder="Nome completo"
-                    value={nomeAdvogado}
-                    onChange={e => setNomeAdvogado(e.target.value)}
-                  />
+                  <Input placeholder="Nome completo" value={nomeAdvogado} onChange={e => setNomeAdvogado(e.target.value)} />
                 </div>
               </div>
             </div>
 
-            {/* Divisor */}
             <div className="border-t border-border" />
 
-            {/* Filtros gerais */}
             <div>
               <p className="text-sm font-medium text-foreground mb-3">Filtros Adicionais</p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Número do Processo</Label>
-                  <Input
-                    placeholder="0000000-00.0000.0.00.0000"
-                    value={numeroProcesso}
-                    onChange={e => setNumeroProcesso(e.target.value)}
-                  />
+                  <Input placeholder="0000000-00.0000.0.00.0000" value={numeroProcesso} onChange={e => setNumeroProcesso(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Tribunal</Label>
                   <Select value={tribunal} onValueChange={setTribunal}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o tribunal" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Selecione o tribunal" /></SelectTrigger>
                     <SelectContent>
                       {TRIBUNAIS.map(t => (
                         <SelectItem key={t.value || 'all'} value={t.value || 'all'}>{t.label}</SelectItem>
@@ -359,9 +370,7 @@ export default function PublicacoesDJE() {
                 <div className="space-y-2">
                   <Label>Tipo de Comunicação</Label>
                   <Select value={tipoComunicacao} onValueChange={setTipoComunicacao}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o tipo" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
                     <SelectContent>
                       {TIPOS_COMUNICACAO.map(t => (
                         <SelectItem key={t.value || 'all'} value={t.value || 'all'}>{t.label}</SelectItem>
@@ -389,7 +398,7 @@ export default function PublicacoesDJE() {
                 <Search className="h-4 w-4" />
                 Buscar no Cache Local
               </Button>
-              <Button variant="outline" onClick={exportCSV} disabled={publicacoes.length === 0} className="gap-2">
+              <Button variant="outline" onClick={exportCSV} disabled={filteredPublicacoes.length === 0} className="gap-2">
                 <Download className="h-4 w-4" />
                 Exportar CSV
               </Button>
@@ -403,12 +412,60 @@ export default function PublicacoesDJE() {
             <CardTitle className="text-lg flex items-center gap-2">
               <FileText className="h-5 w-5" />
               Resultados
-              {publicacoes.length > 0 && (
-                <Badge variant="secondary">{publicacoes.length} publicações</Badge>
+              {totalCount > 0 && (
+                <Badge variant="secondary">
+                  Exibindo {filteredPublicacoes.length} de {totalCount} publicações
+                </Badge>
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Client-side filters */}
+            {publicacoes.length > 0 && (
+              <div className="flex flex-wrap items-end gap-3 p-3 bg-muted/50 rounded-lg">
+                <Filter className="h-4 w-4 text-muted-foreground mt-1" />
+                <div className="flex-1 min-w-[200px]">
+                  <Input
+                    placeholder="Buscar por processo, conteúdo, tribunal..."
+                    value={filtroTexto}
+                    onChange={e => setFiltroTexto(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+                <Select value={filtroLeitura} onValueChange={(v) => setFiltroLeitura(v as any)}>
+                  <SelectTrigger className="w-[140px] h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas</SelectItem>
+                    <SelectItem value="lidas">Lidas</SelectItem>
+                    <SelectItem value="nao_lidas">Não lidas</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={filtroPeriodo} onValueChange={(v) => setFiltroPeriodo(v as any)}>
+                  <SelectTrigger className="w-[150px] h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todo período</SelectItem>
+                    <SelectItem value="7">Últimos 7 dias</SelectItem>
+                    <SelectItem value="30">Últimos 30 dias</SelectItem>
+                    <SelectItem value="90">Últimos 90 dias</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={ordenacao} onValueChange={(v) => setOrdenacao(v as any)}>
+                  <SelectTrigger className="w-[160px] h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="recente">Mais recente</SelectItem>
+                    <SelectItem value="antigo">Mais antigo</SelectItem>
+                    <SelectItem value="tribunal">Por tribunal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {loading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}
@@ -418,6 +475,12 @@ export default function PublicacoesDJE() {
                 <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
                 <p>Nenhuma publicação encontrada no cache local</p>
                 <p className="text-sm mt-1">Clique em <strong>"Buscar no DataJud"</strong> para consultar movimentações dos processos cadastrados</p>
+              </div>
+            ) : filteredPublicacoes.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Search className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                <p>Nenhuma publicação corresponde aos filtros aplicados</p>
+                <p className="text-sm mt-1">Tente ajustar os filtros acima</p>
               </div>
             ) : (
               <>
@@ -430,12 +493,12 @@ export default function PublicacoesDJE() {
                         <TableHead>Processo</TableHead>
                         <TableHead>Tribunal</TableHead>
                         <TableHead>Tipo</TableHead>
-                        <TableHead>Destinatário</TableHead>
+                        <TableHead>Conteúdo</TableHead>
                         <TableHead>Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {publicacoes.map(pub => (
+                      {filteredPublicacoes.map(pub => (
                         <TableRow
                           key={pub.id}
                           className={`cursor-pointer ${pub.lida ? 'opacity-60' : ''}`}
@@ -456,7 +519,7 @@ export default function PublicacoesDJE() {
                               {pub.tipo_comunicacao || '-'}
                             </Badge>
                           </TableCell>
-                          <TableCell className="max-w-[200px] truncate">{pub.destinatario || '-'}</TableCell>
+                          <TableCell className="max-w-[300px] truncate text-xs">{pub.conteudo || '-'}</TableCell>
                           <TableCell>
                             <Button
                               variant="ghost"
@@ -473,8 +536,8 @@ export default function PublicacoesDJE() {
                   </Table>
                 </div>
 
-                {/* Carregar mais */}
-                {hasMore && (
+                {/* Load more */}
+                {hasMorePages && (
                   <div className="flex justify-center pt-4">
                     <Button
                       variant="outline"
@@ -487,7 +550,7 @@ export default function PublicacoesDJE() {
                       ) : (
                         <ChevronDown className="h-4 w-4" />
                       )}
-                      {loadingMore ? 'Carregando...' : 'Carregar mais publicações'}
+                      {loadingMore ? 'Carregando...' : `Carregar mais (${publicacoes.length} de ${totalCount})`}
                     </Button>
                   </div>
                 )}
