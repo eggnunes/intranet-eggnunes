@@ -1,80 +1,60 @@
 
 
-## Enriquecer publicacoes com dados do cliente e melhorar detalhes
+## Correcao: Conteudo da movimentacao incompleto/cortado
 
-### Problema
+### Problema identificado
 
-1. **Falta nome do cliente**: O DataJud nao retorna nomes de partes/clientes. Porem, a tabela `advbox_tasks` contem essa informacao em `raw_data -> lawsuit -> customers[]`. Atualmente esse dado nao e aproveitado.
-2. **Data ambigua**: A coluna "Data" na tabela e "Data Disponibilizacao" no dialog nao deixam claro o que significam. Na verdade, o DataJud retorna `dataHora` de cada movimentacao -- ou seja, e a **data da movimentacao processual**.
-3. **Dialog incompleto**: Campos como Destinatario, N. Comunicacao e Advogado sao inuteis para dados do DataJud. Faltam informacoes uteis como **nome do cliente**, **classe processual**, **assuntos** e **orgao julgador** que ja estao no `raw_data`.
+O DataJud retorna nomes de movimentacao **hierarquicos** onde o campo `nome` contem apenas a parte filha do nome. Exemplo:
+- Nome completo correto: "Audiencia de Instrucao e Julgamento"  
+- O que a API retorna em `mov.nome`: "de Instrucao e Julgamento" (falta "Audiencia")
 
-### Solucao
+Alem disso, os complementos estao mostrando **codigos internos** em vez de descricoes legiveis:
+- Atual: `designada: 9; Juiz(a): 185`
+- Correto: `Situacao: designada; Dirigido por: Juiz(a)`
 
-#### Parte 1 - Edge function (`pje-publicacoes/index.ts`)
+O campo `valor` nos complementos e um codigo numerico interno do DataJud, nao um texto util. Os campos `nome` e `descricao` contem a informacao legivel.
 
-Na action `search-api`, apos buscar os processos do `advbox_tasks`, montar um mapa de **numero do processo -> nome do cliente** extraindo de `raw_data.lawsuit.customers[].name`:
+### Mudancas
+
+**Arquivo: `supabase/functions/pje-publicacoes/index.ts`**
+
+1. **Corrigir montagem do conteudo** (linha 251-266):
+   - Nos complementos, usar `nome` como valor legivel e `descricao` como label, em vez de `nome: valor`
+   - Formato novo: `situacao_da_audiencia: designada; dirigida_por: Juiz(a)` em vez de `designada: 9; Juiz(a): 185`
+
+2. **Incluir o codigo do movimento para mapeamento futuro**: salvar `mov.codigo` no raw_data (ja e salvo com `movimento: mov`)
+
+**Arquivo: `src/pages/PublicacoesDJE.tsx`**
+
+1. **Melhorar exibicao dos complementos no dialog de detalhes**: ao renderizar complementos do `raw_data.movimento.complementosTabelados`, mostrar `descricao` como label e `nome` como valor (ignorando o campo `valor` numerico)
+
+2. **Melhorar formatacao do conteudo principal**: se o conteudo comeca com "de " (indicando nome hierarquico truncado), nao ha como recuperar o pai da API, mas podemos deixar o conteudo mais limpo separando nome do movimento, complementos e classe em campos distintos no dialog em vez de tudo concatenado com `|`
+
+### Detalhes tecnicos
+
+**Edge function - nova logica de complementos:**
 
 ```
-// Montar mapa processo -> cliente
-const clientesPorProcesso = new Map()
-for (const p of processos) {
-  if (p.raw_data?.lawsuit?.customers) {
-    const nomes = p.raw_data.lawsuit.customers.map(c => c.name).join(', ')
-    clientesPorProcesso.set(p.process_number, nomes)
-  }
-}
+// Antes (mostra codigos numericos)
+const complementos = (mov.complementosTabelados || [])
+  .map(c => `${c.nome || ''}: ${c.valor || c.descricao || ''}`)
+  .join('; ')
+
+// Depois (mostra descricoes legiveis)
+const complementos = (mov.complementosTabelados || [])
+  .map(c => `${c.descricao || c.nome || ''}: ${c.nome || ''}`)
+  .join('; ')
 ```
 
-Ao montar cada registro para inserir, preencher o campo `destinatario` com o nome do cliente:
+**Frontend - dialog de detalhes, renderizacao dos complementos:**
 
-```
-destinatario: clientesPorProcesso.get(numFormatado) || '',
-```
-
-Tambem incluir `assuntos` no `raw_data` salvo, ja que o DataJud retorna essa informacao.
-
-#### Parte 2 - Frontend (`PublicacoesDJE.tsx`)
-
-**Tabela de resultados:**
-- Renomear coluna "Data" para "Data Movimentacao"
-- Adicionar coluna "Cliente" mostrando `destinatario`
-
-**Dialog de detalhes - reorganizar campos:**
-- **Processo** e **Tribunal/Orgao Julgador** (como esta)
-- **Cliente** (usando `destinatario` ou extraindo de `raw_data.processo`)
-- **Classe Processual** (extrair de `raw_data.processo.classe.nome`)
-- **Tipo da Movimentacao** (badge com tipo IN/CI/NT)
-- **Data da Movimentacao** (renomear de "Data Disponibilizacao")
-- **Conteudo da Movimentacao** (campo grande com texto completo)
-- Remover campos que so mostram "-" (N. Comunicacao, Meio)
-
-**Dados extraidos do raw_data no dialog:**
-- `raw_data.processo.classe.nome` = Classe processual (ex: "Cumprimento de Sentenca contra a Fazenda Publica")
-- `raw_data.processo.orgaoJulgador.nome` = Orgao julgador
-- `raw_data.movimento.complementosTabelados` = Complementos da movimentacao
-- Nomes dos clientes do `advbox_tasks` (via `destinatario`)
-
-#### Parte 3 - Atualizar registros existentes
-
-Criar uma action `enrich-existing` na edge function que:
-1. Busca todas as publicacoes onde `destinatario` esta vazio
-2. Para cada uma, busca o `process_number` correspondente em `advbox_tasks`
-3. Extrai o nome do cliente do `raw_data.lawsuit.customers`
-4. Atualiza o campo `destinatario`
-
-Isso corrige os 590+ registros ja salvos sem precisar rebuscar no DataJud.
-
-### Resumo das mudancas
-
-| Arquivo | Mudanca |
-|---------|---------|
-| `supabase/functions/pje-publicacoes/index.ts` | Extrair nomes de clientes do advbox_tasks e salvar em `destinatario`; adicionar action `enrich-existing` |
-| `src/pages/PublicacoesDJE.tsx` | Renomear "Data" para "Data Movimentacao"; adicionar coluna "Cliente"; redesenhar dialog com classe processual, orgao julgador e cliente; remover campos vazios |
+Ao renderizar `raw_data.movimento.complementosTabelados`, mostrar:
+- Label: `descricao` (ex: "situacao_da_audiencia" -> formatar para "Situacao da Audiencia")  
+- Valor: `nome` (ex: "designada", "Juiz(a)")
+- Ignorar o campo `valor` numerico
 
 ### Resultado esperado
 
-- A tabela mostra o nome do cliente em cada linha
-- O dialog mostra: processo, cliente, classe processual, orgao julgador, data da movimentacao, conteudo completo
-- A coluna de data deixa claro que e a data da movimentacao processual
-- Os 590+ registros existentes sao enriquecidos com nomes de clientes automaticamente
-
+- Complementos mostram texto legivel em vez de codigos numericos
+- Dialog de detalhes separa visualmente nome do movimento, complementos e classe processual
+- Informacao mais clara e completa para o usuario
