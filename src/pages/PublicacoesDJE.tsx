@@ -144,7 +144,8 @@ export default function PublicacoesDJE() {
       if (source === 'api') {
         const total = data.total || 0;
         const cached = data.cached || 0;
-        toast.success(`${total} publicações encontradas na API do CNJ. ${cached} novas salvas no cache.`);
+        const processosTotal = data.processos_total || 0;
+        toast.success(`${processosTotal} processos consultados no DataJud. ${total} movimentações encontradas, ${cached} novas salvas.`);
         setHasMore(data.hasMore || false);
         setLastSearchWasApi(true);
         // Recarrega do cache local para enriquecer com status de leitura
@@ -266,10 +267,10 @@ export default function PublicacoesDJE() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Publicações DJE</h1>
-            <p className="text-muted-foreground">Consulta de publicações do Diário da Justiça Eletrônica via API pública do CNJ</p>
+            <p className="text-muted-foreground">Consulta de movimentações processuais via API pública do DataJud</p>
           </div>
           <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-600 dark:text-emerald-400 dark:border-emerald-400">
-            <Globe className="h-3 w-3" /> API Pública CNJ
+            <Globe className="h-3 w-3" /> API DataJud
           </Badge>
         </div>
 
@@ -279,9 +280,9 @@ export default function PublicacoesDJE() {
             <div className="flex items-start gap-3">
               <Globe className="h-5 w-5 text-primary mt-0.5 shrink-0" />
               <p className="text-sm text-muted-foreground">
-                A API do CNJ (<span className="font-mono text-xs">comunicaapi.pje.jus.br</span>) é pública e não requer autenticação para consultas. 
-                Preencha os filtros por advogado abaixo e clique em <strong>"Buscar na API do CNJ"</strong> para trazer as publicações em seu nome em todos os tribunais.
-                Para OABs suplementares, altere o campo UF e busque novamente.
+                A busca externa utiliza a <strong>API pública do DataJud</strong> para consultar movimentações de todos os processos cadastrados no escritório.
+                Clique em <strong>"Buscar no DataJud"</strong> para trazer as movimentações recentes (últimos 30 dias).
+                Os filtros por advogado são aplicados apenas na busca do cache local.
               </p>
             </div>
           </CardContent>
@@ -382,7 +383,7 @@ export default function PublicacoesDJE() {
             <div className="flex flex-wrap gap-2 pt-2">
               <Button onClick={() => handleSearch('api')} disabled={loading} className="gap-2">
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                Buscar na API do CNJ
+                Buscar no DataJud
               </Button>
               <Button variant="outline" onClick={() => handleSearch('local')} disabled={loading} className="gap-2">
                 <Search className="h-4 w-4" />
@@ -416,7 +417,7 @@ export default function PublicacoesDJE() {
               <div className="text-center py-12 text-muted-foreground">
                 <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
                 <p>Nenhuma publicação encontrada no cache local</p>
-                <p className="text-sm mt-1">Clique em <strong>"Buscar na API do CNJ"</strong> para consultar novas publicações pelo seu número de OAB</p>
+                <p className="text-sm mt-1">Clique em <strong>"Buscar no DataJud"</strong> para consultar movimentações dos processos cadastrados</p>
               </div>
             ) : (
               <>

@@ -5,49 +5,69 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-region, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 }
 
-const PJE_API_BASE = 'https://comunicaapi.pje.jus.br/api/v1'
-
-// User-Agent de navegador brasileiro para evitar bloqueio adicional
+const DATAJUD_API_KEY = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
-/**
- * Faz fetch de forma segura: verifica Content-Type antes de parsear JSON.
- * Detecta respostas HTML (CloudFront bloqueio geográfico) e retorna erro descritivo.
- */
-async function fetchJsonSafely(url: string, options: RequestInit = {}): Promise<{ ok: boolean; status: number; data?: any; bloqueioGeografico?: boolean; errorText?: string }> {
-  let response: Response
-  try {
-    response = await fetch(url, options)
-  } catch (err: any) {
-    return { ok: false, status: 0, errorText: `Falha de rede: ${err.message}` }
-  }
+function getEndpointForProcess(numProcesso: string): { sigla: string; url: string } | null {
+  const match = numProcesso.match(/\d{7}-\d{2}\.\d{4}\.(\d)\.(\d{2})\.\d{4}/)
+  if (!match) return null
+  const justica = match[1]
+  const tribunal = match[2]
 
-  const contentType = response.headers.get('content-type') || ''
-
-  // Detecta resposta HTML — típico do CloudFront bloqueio geográfico
-  if (contentType.includes('text/html') || response.status === 403) {
-    const html = await response.text()
-    const isCloudFront = html.includes('CloudFront') || html.includes('403 ERROR') || response.status === 403
-    return {
-      ok: false,
-      status: response.status,
-      bloqueioGeografico: isCloudFront,
-      errorText: isCloudFront
-        ? 'A API do CNJ está bloqueando requisições desta região. A função está rodando na região sa-east-1 (São Paulo), mas o bloqueio persiste.'
-        : `Resposta inesperada (${response.status})`,
+  if (justica === '8') {
+    const tjMap: Record<string, string> = {
+      '01': 'tjac', '02': 'tjal', '03': 'tjap', '04': 'tjam', '05': 'tjba',
+      '06': 'tjce', '07': 'tjdf', '08': 'tjes', '09': 'tjgo', '10': 'tjma',
+      '11': 'tjmt', '12': 'tjms', '13': 'tjmg', '14': 'tjpa', '15': 'tjpb',
+      '16': 'tjpr', '17': 'tjpe', '18': 'tjpi', '19': 'tjrj', '20': 'tjrn',
+      '21': 'tjrs', '22': 'tjro', '23': 'tjrr', '24': 'tjsc', '25': 'tjsp',
+      '26': 'tjse', '27': 'tjto',
     }
+    const alias = tjMap[tribunal]
+    if (!alias) return null
+    return { sigla: alias.toUpperCase(), url: `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search` }
   }
-
-  if (!response.ok) {
-    const text = await response.text()
-    return { ok: false, status: response.status, errorText: text }
+  if (justica === '4') {
+    const trfMap: Record<string, string> = {
+      '01': 'trf1', '02': 'trf2', '03': 'trf3', '04': 'trf4', '05': 'trf5', '06': 'trf6',
+    }
+    const alias = trfMap[tribunal]
+    if (!alias) return null
+    return { sigla: alias.toUpperCase(), url: `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search` }
   }
+  if (justica === '5') {
+    const trtMap: Record<string, string> = {
+      '01': 'trt1', '02': 'trt2', '03': 'trt3', '04': 'trt4', '05': 'trt5',
+      '06': 'trt6', '07': 'trt7', '08': 'trt8', '09': 'trt9', '10': 'trt10',
+      '11': 'trt11', '12': 'trt12', '13': 'trt13', '14': 'trt14', '15': 'trt15',
+      '16': 'trt16', '17': 'trt17', '18': 'trt18', '19': 'trt19', '20': 'trt20',
+      '21': 'trt21', '22': 'trt22', '23': 'trt23', '24': 'trt24',
+    }
+    const alias = trtMap[tribunal]
+    if (!alias) return null
+    return { sigla: alias.toUpperCase(), url: `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search` }
+  }
+  return null
+}
 
+async function searchDataJud(url: string, query: any): Promise<any> {
   try {
-    const data = await response.json()
-    return { ok: true, status: response.status, data }
-  } catch {
-    return { ok: false, status: response.status, errorText: 'Resposta inválida: não é JSON' }
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `APIKey ${DATAJUD_API_KEY}`,
+        'User-Agent': BROWSER_UA,
+      },
+      body: JSON.stringify(query),
+    })
+    if (!response.ok) {
+      const text = await response.text()
+      return { ok: false, status: response.status, error: text.substring(0, 200) }
+    }
+    return { ok: true, data: await response.json() }
+  } catch (err: any) {
+    return { ok: false, error: err.message }
   }
 }
 
@@ -69,7 +89,6 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
-
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
     if (authError || !user) {
@@ -82,21 +101,16 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { action, filters } = body
 
-    // Verifica conectividade real com a API do CNJ
+    // === CHECK CREDENTIALS (verifica conectividade com DataJud) ===
     if (action === 'check-credentials') {
-      const result = await fetchJsonSafely(`${PJE_API_BASE}/comunicacoes?tamanhoPagina=1&pagina=1`, {
-        headers: { 'Accept': 'application/json', 'User-Agent': BROWSER_UA },
-      })
-      if (result.bloqueioGeografico) {
-        return new Response(JSON.stringify({ configured: true, accessible: false, reason: 'bloqueio_geografico' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
+      const testUrl = 'https://api-publica.datajud.cnj.jus.br/api_publica_tjmg/_search'
+      const result = await searchDataJud(testUrl, { size: 1, query: { match_all: {} } })
       return new Response(JSON.stringify({ configured: true, accessible: result.ok }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
+    // === SEARCH LOCAL (sem alterações) ===
     if (action === 'search-local') {
       let query = supabase
         .from('publicacoes_dje')
@@ -104,29 +118,16 @@ Deno.serve(async (req) => {
         .order('data_disponibilizacao', { ascending: false })
         .limit(100)
 
-      if (filters?.numeroProcesso) {
-        query = query.ilike('numero_processo', `%${filters.numeroProcesso}%`)
-      }
-      if (filters?.tribunal) {
-        query = query.eq('siglaTribunal', filters.tribunal)
-      }
-      if (filters?.dataInicio) {
-        query = query.gte('data_disponibilizacao', filters.dataInicio)
-      }
-      if (filters?.dataFim) {
-        query = query.lte('data_disponibilizacao', filters.dataFim + 'T23:59:59')
-      }
-      if (filters?.tipoComunicacao) {
-        query = query.eq('tipo_comunicacao', filters.tipoComunicacao)
-      }
-      if (filters?.nomeAdvogado) {
-        query = query.ilike('nome_advogado', `%${filters.nomeAdvogado}%`)
-      }
+      if (filters?.numeroProcesso) query = query.ilike('numero_processo', `%${filters.numeroProcesso}%`)
+      if (filters?.tribunal) query = query.eq('siglaTribunal', filters.tribunal)
+      if (filters?.dataInicio) query = query.gte('data_disponibilizacao', filters.dataInicio)
+      if (filters?.dataFim) query = query.lte('data_disponibilizacao', filters.dataFim + 'T23:59:59')
+      if (filters?.tipoComunicacao) query = query.eq('tipo_comunicacao', filters.tipoComunicacao)
+      if (filters?.nomeAdvogado) query = query.ilike('nome_advogado', `%${filters.nomeAdvogado}%`)
 
       const { data, error } = await query
       if (error) throw error
 
-      // Get reads for this user
       const pubIds = (data || []).map((p: any) => p.id)
       let reads: any[] = []
       if (pubIds.length > 0) {
@@ -139,123 +140,179 @@ Deno.serve(async (req) => {
       }
 
       const readIds = new Set(reads.map((r: any) => r.publicacao_id))
-      const enriched = (data || []).map((p: any) => ({
-        ...p,
-        lida: readIds.has(p.id),
-      }))
+      const enriched = (data || []).map((p: any) => ({ ...p, lida: readIds.has(p.id) }))
 
       return new Response(JSON.stringify({ data: enriched }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
+    // === SEARCH API (DataJud) ===
     if (action === 'search-api') {
-      // Build query params for CNJ API
-      const params = new URLSearchParams()
+      console.log('=== Busca DataJud via botão ===')
 
-      if (filters?.numeroOAB) params.append('numeroOAB', filters.numeroOAB)
-      if (filters?.ufOAB) params.append('ufOAB', filters.ufOAB)
-      if (filters?.nomeAdvogado) params.append('nomeAdvogado', filters.nomeAdvogado)
-      if (filters?.numeroProcesso) params.append('numeroProcesso', filters.numeroProcesso)
-      if (filters?.dataInicio) params.append('dataDisponibilizacaoInicio', filters.dataInicio)
-      if (filters?.dataFim) params.append('dataDisponibilizacaoFim', filters.dataFim)
-      if (filters?.tribunal) params.append('siglaTribunal', filters.tribunal)
-      if (filters?.tipoComunicacao) params.append('tipoComunicacao', filters.tipoComunicacao)
+      // Buscar processos do ADVBox
+      const { data: processos, error: procError } = await supabase
+        .from('advbox_tasks')
+        .select('process_number')
+        .not('process_number', 'is', null)
+        .neq('process_number', '')
 
-      const pagina = filters?.pagina || 1
-      const tamanhoPagina = filters?.tamanhoPagina || 20
-      params.append('pagina', String(pagina))
-      params.append('tamanhoPagina', String(tamanhoPagina))
+      if (procError) throw procError
 
-      const apiUrl = `${PJE_API_BASE}/comunicacoes?${params.toString()}`
-      console.log(`Consultando API CNJ (sa-east-1): ${apiUrl}`)
+      const numerosUnicos = [...new Set((processos || []).map((p: any) => p.process_number))]
+      console.log(`Processos únicos: ${numerosUnicos.length}`)
 
-      const result = await fetchJsonSafely(apiUrl, {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': BROWSER_UA,
-        },
-      })
-
-      if (result.bloqueioGeografico) {
+      if (numerosUnicos.length === 0) {
         return new Response(JSON.stringify({
-          error: 'A API do CNJ está bloqueando requisições desta região. Mesmo rodando em São Paulo (sa-east-1), o bloqueio persiste. Verifique se a API do CNJ mudou suas restrições.',
-          bloqueioGeografico: true,
-          details: result.errorText,
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+          data: [],
+          total: 0,
+          cached: 0,
+          novas: 0,
+          message: 'Nenhum processo cadastrado na base do escritório.',
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
-      if (!result.ok) {
-        return new Response(JSON.stringify({
-          error: `Erro ao consultar API do CNJ (HTTP ${result.status}).`,
-          details: result.errorText,
-        }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      const apiData = result.data
-      console.log('API response keys:', Object.keys(apiData))
-
-      const comunicacoes = apiData.items || apiData.comunicacoes || apiData.content || (Array.isArray(apiData) ? apiData : [])
-      const totalItems = apiData.totalItems || apiData.total || apiData.totalElements || comunicacoes.length
-
-      // Cache results in database
-      const toInsert = (Array.isArray(comunicacoes) ? comunicacoes : []).map((c: any) => {
-        const hash = `${c.numeroProcesso || ''}-${c.numeroComunicacao || ''}-${c.dataDisponibilizacao || ''}`
-        return {
-          numero_processo: c.numeroProcesso || '',
-          tribunal: c.nomeOrgao || c.tribunal || '',
-          tipo_comunicacao: c.tipoComunicacao || '',
-          data_disponibilizacao: c.dataDisponibilizacao || null,
-          data_publicacao: c.dataPublicacao || null,
-          conteudo: c.conteudo || c.textoConteudo || '',
-          destinatario: c.destinatario || c.nomeDestinatario || '',
-          meio: c.meio || '',
-          nome_advogado: c.nomeAdvogado || filters?.nomeAdvogado || '',
-          numero_comunicacao: c.numeroComunicacao || '',
-          siglaTribunal: c.siglaTribunal || filters?.tribunal || '',
-          hash,
-          raw_data: c,
+      // Agrupar por endpoint
+      const porEndpoint = new Map<string, { endpoint: { sigla: string; url: string }; numeros: string[] }>()
+      for (const num of numerosUnicos) {
+        const ep = getEndpointForProcess(num)
+        if (!ep) continue
+        // Filtrar por tribunal se informado
+        if (filters?.tribunal && ep.sigla !== filters.tribunal) continue
+        if (!porEndpoint.has(ep.url)) {
+          porEndpoint.set(ep.url, { endpoint: ep, numeros: [] })
         }
-      })
+        porEndpoint.get(ep.url)!.numeros.push(num.replace(/[.-]/g, ''))
+      }
 
+      const toInsert: any[] = []
+      const errors: string[] = []
+      let processosConsultados = 0
+
+      // Definir período de busca (padrão: últimos 30 dias)
+      const limiteData = new Date()
+      if (filters?.dataInicio) {
+        limiteData.setTime(new Date(filters.dataInicio).getTime())
+      } else {
+        limiteData.setDate(limiteData.getDate() - 30)
+      }
+
+      for (const [url, { endpoint, numeros }] of porEndpoint) {
+        for (let i = 0; i < numeros.length; i += 20) {
+          const batch = numeros.slice(i, i + 20)
+          const query = {
+            size: 20,
+            query: { terms: { "numeroProcesso": batch } },
+            _source: ["numeroProcesso", "classe", "orgaoJulgador", "dataAjuizamento", "movimentos", "assuntos", "tribunal"],
+          }
+
+          const result = await searchDataJud(url, query)
+          if (!result.ok) {
+            errors.push(`${endpoint.sigla}: ${(result.error || '').substring(0, 100)}`)
+            continue
+          }
+
+          const hits = result.data?.hits?.hits || []
+          processosConsultados += hits.length
+
+          for (const hit of hits) {
+            const proc = hit._source
+            const numFormatado = numerosUnicos.find(n => n.replace(/[.-]/g, '') === proc.numeroProcesso) || proc.numeroProcesso
+            const movimentos = proc.movimentos || []
+
+            for (const mov of movimentos) {
+              const dataHora = mov.dataHora ? new Date(mov.dataHora) : null
+              if (!dataHora || dataHora < limiteData) continue
+              if (filters?.dataFim && dataHora > new Date(filters.dataFim + 'T23:59:59')) continue
+
+              const nomeMovimento = mov.nome || ''
+              const isRelevante = /intima|cita|notifica|publica|expedi|despacho|decisão|sentença|julgamento|acórdão|audiência|petiç/i.test(nomeMovimento)
+              if (!isRelevante) continue
+
+              // Filtrar por tipo de comunicação se informado
+              if (filters?.tipoComunicacao) {
+                if (filters.tipoComunicacao === 'IN' && !/intima/i.test(nomeMovimento)) continue
+                if (filters.tipoComunicacao === 'CI' && !/cita/i.test(nomeMovimento)) continue
+                if (filters.tipoComunicacao === 'NT' && !/notifica/i.test(nomeMovimento)) continue
+              }
+
+              const complementos = (mov.complementosTabelados || [])
+                .map((c: any) => `${c.nome || ''}: ${c.valor || c.descricao || ''}`)
+                .join('; ')
+
+              const hash = `dj-${proc.numeroProcesso}-${mov.dataHora}-${nomeMovimento.substring(0, 40)}`
+              let tipoCom = 'NT'
+              if (/intima/i.test(nomeMovimento)) tipoCom = 'IN'
+              else if (/cita/i.test(nomeMovimento)) tipoCom = 'CI'
+
+              toInsert.push({
+                numero_processo: numFormatado,
+                tribunal: proc.orgaoJulgador?.nome || endpoint.sigla,
+                tipo_comunicacao: tipoCom,
+                data_disponibilizacao: mov.dataHora,
+                data_publicacao: mov.dataHora,
+                conteudo: `${nomeMovimento}${complementos ? ` | ${complementos}` : ''} | ${proc.classe?.nome || ''}`,
+                destinatario: '',
+                meio: 'DataJud',
+                nome_advogado: 'Rafael Egg Nunes',
+                numero_comunicacao: '',
+                siglaTribunal: endpoint.sigla,
+                hash,
+                raw_data: { processo: { numeroProcesso: numFormatado, classe: proc.classe, orgaoJulgador: proc.orgaoJulgador }, movimento: mov },
+              })
+            }
+          }
+        }
+        console.log(`${endpoint.sigla}: ${numeros.length} processos`)
+      }
+
+      console.log(`Processos encontrados: ${processosConsultados}, Movimentações: ${toInsert.length}`)
+
+      // Deduplica e insere
+      let novasPublicacoes = 0
       if (toInsert.length > 0) {
-        const { error: upsertError } = await supabase
-          .from('publicacoes_dje')
-          .upsert(toInsert, { onConflict: 'hash', ignoreDuplicates: true })
+        const existingHashes = new Set<string>()
+        const hashes = toInsert.map((r: any) => r.hash)
+        for (let i = 0; i < hashes.length; i += 100) {
+          const batch = hashes.slice(i, i + 100)
+          const { data: rows } = await supabase.from('publicacoes_dje').select('hash').in('hash', batch)
+          for (const row of (rows || [])) existingHashes.add(row.hash)
+        }
+        novasPublicacoes = toInsert.filter((r: any) => !existingHashes.has(r.hash)).length
 
-        if (upsertError) {
-          console.error('Upsert error:', upsertError)
+        for (let i = 0; i < toInsert.length; i += 50) {
+          const batch = toInsert.slice(i, i + 50)
+          const { error: upsertError } = await supabase
+            .from('publicacoes_dje')
+            .upsert(batch, { onConflict: 'hash', ignoreDuplicates: true })
+          if (upsertError) console.error('Erro upsert:', upsertError.message)
         }
       }
 
       return new Response(JSON.stringify({
-        data: comunicacoes,
-        total: totalItems,
-        cached: toInsert.length,
-        pagina,
-        tamanhoPagina,
-        hasMore: comunicacoes.length === tamanhoPagina,
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+        success: true,
+        total: toInsert.length,
+        cached: novasPublicacoes,
+        processos_consultados: processosConsultados,
+        processos_total: numerosUnicos.length,
+        errors: errors.length > 0 ? errors : undefined,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
+    // === MARK READ ===
     if (action === 'mark-read') {
       const { publicacaoId } = body
       const { error } = await supabase
         .from('publicacoes_dje_reads')
         .upsert({ publicacao_id: publicacaoId, user_id: user.id }, { onConflict: 'publicacao_id,user_id' })
-
       if (error) throw error
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
+    // === MARK UNREAD ===
     if (action === 'mark-unread') {
       const { publicacaoId } = body
       const { error } = await supabase
@@ -263,7 +320,6 @@ Deno.serve(async (req) => {
         .delete()
         .eq('publicacao_id', publicacaoId)
         .eq('user_id', user.id)
-
       if (error) throw error
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -274,7 +330,7 @@ Deno.serve(async (req) => {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
