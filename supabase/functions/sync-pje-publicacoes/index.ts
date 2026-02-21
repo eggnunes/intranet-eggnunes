@@ -192,7 +192,6 @@ Deno.serve(async (req) => {
               meio: 'DataJud',
               nome_advogado: 'Rafael Egg Nunes',
               numero_comunicacao: '',
-              siglaTribunal: endpoint.sigla,
               hash,
               raw_data: { processo: { numeroProcesso: numFormatado, classe: proc.classe, orgaoJulgador: proc.orgaoJulgador }, movimento: mov },
             })
