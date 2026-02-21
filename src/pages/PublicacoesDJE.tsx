@@ -164,6 +164,15 @@ export default function PublicacoesDJE() {
         const cached = data.cached || 0;
         const processosTotal = data.processos_total || 0;
         toast.success(`${processosTotal} processos consultados no DataJud. ${total} movimentações encontradas, ${cached} novas salvas.`);
+        // Enrich existing records with client names
+        try {
+          await supabase.functions.invoke('pje-publicacoes', {
+            body: { action: 'enrich-existing' },
+            region: FunctionRegion.SaEast1,
+          });
+        } catch (e) {
+          console.warn('Erro ao enriquecer registros:', e);
+        }
         // Reload from local cache to show results
         await loadLocal({}, 1);
       } else {
@@ -489,8 +498,9 @@ export default function PublicacoesDJE() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Status</TableHead>
-                        <TableHead>Data</TableHead>
+                        <TableHead>Data Movimentação</TableHead>
                         <TableHead>Processo</TableHead>
+                        <TableHead>Cliente</TableHead>
                         <TableHead>Tribunal</TableHead>
                         <TableHead>Tipo</TableHead>
                         <TableHead>Conteúdo</TableHead>
@@ -513,13 +523,14 @@ export default function PublicacoesDJE() {
                           </TableCell>
                           <TableCell className="whitespace-nowrap">{formatDate(pub.data_disponibilizacao)}</TableCell>
                           <TableCell className="font-mono text-xs">{pub.numero_processo}</TableCell>
-                          <TableCell>{pub.siglaTribunal || pub.tribunal}</TableCell>
+                          <TableCell className="max-w-[180px] truncate text-sm">{pub.destinatario || '-'}</TableCell>
+                          <TableCell>{pub.tribunal}</TableCell>
                           <TableCell>
                             <Badge variant={tipoBadgeColor(pub.tipo_comunicacao) as any}>
                               {pub.tipo_comunicacao || '-'}
                             </Badge>
                           </TableCell>
-                          <TableCell className="max-w-[300px] truncate text-xs">{pub.conteudo || '-'}</TableCell>
+                          <TableCell className="max-w-[250px] truncate text-xs">{pub.conteudo || '-'}</TableCell>
                           <TableCell>
                             <Button
                               variant="ghost"
@@ -563,63 +574,110 @@ export default function PublicacoesDJE() {
         <Dialog open={!!selectedPub} onOpenChange={() => setSelectedPub(null)}>
           <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Detalhes da Publicação</DialogTitle>
+              <DialogTitle>Detalhes da Movimentação</DialogTitle>
             </DialogHeader>
-            {selectedPub && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-muted-foreground">Processo</Label>
-                    <p className="font-mono">{selectedPub.numero_processo}</p>
+            {selectedPub && (() => {
+              const rawProcesso = selectedPub.raw_data?.processo;
+              const rawMovimento = selectedPub.raw_data?.movimento;
+              const classeNome = rawProcesso?.classe?.nome;
+              const orgaoJulgador = rawProcesso?.orgaoJulgador?.nome;
+              const assuntos = rawProcesso?.assuntos?.map((a: any) => a.nome).filter(Boolean).join(', ');
+              const complementos = rawMovimento?.complementosTabelados?.map(
+                (c: any) => `${c.nome || ''}: ${c.valor || c.descricao || ''}`
+              ).filter(Boolean);
+              const clienteNome = selectedPub.destinatario || selectedPub.raw_data?.cliente;
+
+              return (
+                <div className="space-y-4">
+                  {/* Processo e Cliente */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Processo</Label>
+                      <p className="font-mono text-sm">{selectedPub.numero_processo}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Cliente</Label>
+                      <p className="text-sm font-medium">{clienteNome || <span className="text-muted-foreground italic">Não identificado</span>}</p>
+                    </div>
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">Tribunal</Label>
-                    <p>{selectedPub.tribunal || selectedPub.siglaTribunal}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Tipo</Label>
-                    <Badge variant={tipoBadgeColor(selectedPub.tipo_comunicacao) as any}>
-                      {selectedPub.tipo_comunicacao}
-                    </Badge>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Data Disponibilização</Label>
-                    <p>{formatDate(selectedPub.data_disponibilizacao)}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Destinatário</Label>
-                    <p>{selectedPub.destinatario || '-'}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Advogado</Label>
-                    <p>{selectedPub.nome_advogado || '-'}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Nº Comunicação</Label>
-                    <p>{selectedPub.numero_comunicacao || '-'}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Meio</Label>
-                    <p>{selectedPub.meio || '-'}</p>
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Conteúdo</Label>
-                  <div className="mt-2 p-4 bg-muted rounded-lg text-sm whitespace-pre-wrap max-h-[400px] overflow-y-auto">
-                    {selectedPub.conteudo || 'Conteúdo não disponível'}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => toggleRead(selectedPub)}>
-                    {selectedPub.lida ? (
-                      <><EyeOff className="h-4 w-4 mr-2" /> Marcar como não lida</>
-                    ) : (
-                      <><Eye className="h-4 w-4 mr-2" /> Marcar como lida</>
+
+                  {/* Classe e Órgão Julgador */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {classeNome && (
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Classe Processual</Label>
+                        <p className="text-sm">{classeNome}</p>
+                      </div>
                     )}
-                  </Button>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Órgão Julgador / Tribunal</Label>
+                      <p className="text-sm">{orgaoJulgador || selectedPub.tribunal}</p>
+                    </div>
+                  </div>
+
+                  {/* Assuntos */}
+                  {assuntos && (
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Assuntos</Label>
+                      <p className="text-sm">{assuntos}</p>
+                    </div>
+                  )}
+
+                  {/* Tipo e Data */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Tipo da Movimentação</Label>
+                      <div className="mt-1">
+                        <Badge variant={tipoBadgeColor(selectedPub.tipo_comunicacao) as any}>
+                          {selectedPub.tipo_comunicacao === 'IN' ? 'Intimação' :
+                           selectedPub.tipo_comunicacao === 'CI' ? 'Citação' :
+                           selectedPub.tipo_comunicacao === 'NT' ? 'Notificação' :
+                           selectedPub.tipo_comunicacao || '-'}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Data da Movimentação</Label>
+                      <p className="text-sm">{formatDate(selectedPub.data_disponibilizacao)}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Advogado Responsável</Label>
+                      <p className="text-sm">{selectedPub.nome_advogado || '-'}</p>
+                    </div>
+                  </div>
+
+                  {/* Conteúdo da movimentação */}
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Conteúdo da Movimentação</Label>
+                    <div className="mt-2 p-4 bg-muted rounded-lg text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto">
+                      {selectedPub.conteudo || 'Conteúdo não disponível'}
+                    </div>
+                  </div>
+
+                  {/* Complementos */}
+                  {complementos && complementos.length > 0 && (
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Complementos</Label>
+                      <div className="mt-1 space-y-1">
+                        {complementos.map((c: string, i: number) => (
+                          <p key={i} className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">{c}</p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-2 border-t border-border">
+                    <Button variant="outline" size="sm" onClick={() => toggleRead(selectedPub)}>
+                      {selectedPub.lida ? (
+                        <><EyeOff className="h-4 w-4 mr-2" /> Marcar como não lida</>
+                      ) : (
+                        <><Eye className="h-4 w-4 mr-2" /> Marcar como lida</>
+                      )}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </DialogContent>
         </Dialog>
       </div>
