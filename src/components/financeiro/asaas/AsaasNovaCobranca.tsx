@@ -30,8 +30,9 @@ interface Customer {
   cpfCnpj: string;
   email?: string;
   phone?: string;
-  source?: 'asaas' | 'advbox' | 'local' | 'contrato';
+  source?: 'asaas' | 'advbox' | 'local' | 'contrato' | 'formulario';
   productName?: string;
+  sortDate?: Date;
 }
 
 interface AdvboxCustomer {
@@ -57,6 +58,16 @@ interface ContractCustomer {
   client_email: string | null;
   client_phone: string | null;
   product_name: string | null;
+  created_at: string;
+}
+
+interface FormCustomer {
+  id: number;
+  nomeCompleto: string;
+  cpf: string;
+  email: string;
+  telefone: string;
+  timestamp: string;
 }
 
 interface AsaasNovaCobrancaProps {
@@ -77,13 +88,16 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   
-  // ADVBox, Local e Contract customers cache
+  // ADVBox, Local, Contract and Form customers cache
   const [advboxCustomers, setAdvboxCustomers] = useState<AdvboxCustomer[]>([]);
   const [localCustomers, setLocalCustomers] = useState<LocalCustomer[]>([]);
   const [contractCustomers, setContractCustomers] = useState<ContractCustomer[]>([]);
+  const [formCustomers, setFormCustomers] = useState<FormCustomer[]>([]);
   const [loadingAdvbox, setLoadingAdvbox] = useState(false);
   const [loadingLocal, setLoadingLocal] = useState(false);
   const [loadingContracts, setLoadingContracts] = useState(false);
+  const [loadingForms, setLoadingForms] = useState(false);
+  const [formsLoaded, setFormsLoaded] = useState(false);
   
   // Form data
   const [billingType, setBillingType] = useState<'BOLETO' | 'CREDIT_CARD' | 'PIX'>('BOLETO');
@@ -113,6 +127,8 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
     setDiscountDays('0');
     setFineValue('');
     setInterestValue('');
+    setFormCustomers([]);
+    setFormsLoaded(false);
   };
 
   useEffect(() => {
@@ -188,7 +204,7 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
     try {
       const { data, error } = await supabase
         .from('fin_contratos')
-        .select('id, client_name, client_cpf, client_email, client_phone, product_name')
+        .select('id, client_name, client_cpf, client_email, client_phone, product_name, created_at')
         .in('status', ['ativo', 'pendente'])
         .order('created_at', { ascending: false });
       
@@ -202,6 +218,24 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
     }
   };
 
+  // Carregar clientes de formulários (Google Sheets)
+  const loadFormCustomers = async () => {
+    setLoadingForms(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('google-sheets-integration');
+      if (error) throw error;
+      if (data?.clients) {
+        setFormCustomers(data.clients);
+        setFormsLoaded(true);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar formulários:', error);
+      toast.error('Erro ao carregar clientes de formulários');
+    } finally {
+      setLoadingForms(false);
+    }
+  };
+
   // Carregar dados ao abrir o dialog
   useEffect(() => {
     if (open) {
@@ -210,6 +244,13 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
       loadContractCustomers();
     }
   }, [open]);
+
+  // Carregar formulários sob demanda quando aba Contratos for selecionada
+  useEffect(() => {
+    if (open && customerSource === 'contrato' && !formsLoaded && !loadingForms) {
+      loadFormCustomers();
+    }
+  }, [open, customerSource, formsLoaded]);
 
   // Buscar clientes no Asaas
   const searchAsaasCustomers = async () => {
@@ -249,7 +290,7 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
   const getFilteredCustomers = (): Customer[] => {
     const searchNorm = normalize(customerSearch);
     const searchDigits = customerSearch.replace(/\D/g, '');
-    
+    const hasSearch = searchNorm.length >= 2 || searchDigits.length >= 3;
     if (customerSource === 'asaas') {
       return customers;
     }
@@ -293,15 +334,29 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
     }
 
     if (customerSource === 'contrato') {
-      return contractCustomers
+      // Parse timestamp from Google Sheets format (dd/MM/yyyy HH:mm:ss)
+      const parseFormTimestamp = (ts: string): Date => {
+        if (!ts) return new Date(0);
+        const parts = ts.match(/(\d{2})\/(\d{2})\/(\d{4})\s*(\d{2})?:?(\d{2})?:?(\d{2})?/);
+        if (parts) {
+          return new Date(
+            parseInt(parts[3]), parseInt(parts[2]) - 1, parseInt(parts[1]),
+            parseInt(parts[4] || '0'), parseInt(parts[5] || '0'), parseInt(parts[6] || '0')
+          );
+        }
+        return new Date(0);
+      };
+
+      // Map contract customers
+      const contractMapped: Customer[] = contractCustomers
         .filter(c => {
           if (!searchNorm) return true;
           if (normalize(c.client_name).includes(searchNorm)) return true;
           if (searchDigits && c.client_cpf?.replace(/\D/g, '').includes(searchDigits)) return true;
           if (c.client_email && normalize(c.client_email).includes(searchNorm)) return true;
+          if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
           return false;
         })
-        .slice(0, 30)
         .map(c => ({
           id: `contrato_${c.id}`,
           name: c.client_name,
@@ -309,8 +364,61 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
           email: c.client_email || undefined,
           phone: c.client_phone || undefined,
           source: 'contrato' as const,
-          productName: c.product_name || undefined
+          productName: c.product_name || undefined,
+          sortDate: new Date(c.created_at),
         }));
+
+      // Map form customers
+      const formMapped: Customer[] = formCustomers
+        .filter(c => {
+          if (!searchNorm) return true;
+          if (c.nomeCompleto && normalize(c.nomeCompleto).includes(searchNorm)) return true;
+          if (searchDigits && c.cpf?.replace(/\D/g, '').includes(searchDigits)) return true;
+          if (c.email && normalize(c.email).includes(searchNorm)) return true;
+          if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+          return false;
+        })
+        .map(c => ({
+          id: `formulario_${c.id}`,
+          name: c.nomeCompleto || '',
+          cpfCnpj: c.cpf?.replace(/\D/g, '') || '',
+          email: c.email || undefined,
+          phone: c.telefone || undefined,
+          source: 'formulario' as const,
+          productName: undefined,
+          sortDate: parseFormTimestamp(c.timestamp),
+        }));
+
+      // Deduplicate: prioritize contracts over forms by CPF
+      const seen = new Set<string>();
+      const deduped: Customer[] = [];
+
+      // Add contracts first (they have priority)
+      for (const c of contractMapped) {
+        const cpfKey = c.cpfCnpj?.replace(/\D/g, '');
+        if (cpfKey) seen.add(cpfKey);
+        deduped.push(c);
+      }
+
+      // Add form customers that are not duplicates
+      for (const c of formMapped) {
+        const cpfKey = c.cpfCnpj?.replace(/\D/g, '');
+        if (cpfKey && seen.has(cpfKey)) continue;
+        if (cpfKey) seen.add(cpfKey);
+        deduped.push(c);
+      }
+
+      // Sort by date descending (most recent first)
+      // Contracts are already sorted; interleave by assigning proper dates
+      // We'll use index-based sorting for contracts (they came sorted from DB)
+      // and timestamp for forms, then sort everything together
+      deduped.sort((a, b) => {
+        const dateA = a.sortDate?.getTime() || 0;
+        const dateB = b.sortDate?.getTime() || 0;
+        return dateB - dateA;
+      });
+
+      return deduped.slice(0, 30);
     }
     
     return [];
@@ -576,10 +684,19 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
                 Carregando clientes do sistema financeiro...
               </div>
             )}
-            {customerSource === 'contrato' && loadingContracts && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Carregando clientes de contratos...
+            {customerSource === 'contrato' && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {(loadingContracts || loadingForms) ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {loadingContracts ? 'Carregando contratos...' : 'Carregando formulários...'}
+                  </div>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => { setFormsLoaded(false); loadFormCustomers(); }} className="text-xs">
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    Atualizar formulários
+                  </Button>
+                )}
               </div>
             )}
 
@@ -605,8 +722,11 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
                         {customer.source && customer.source !== 'asaas' && (
                           <div className="flex flex-col items-end gap-1">
                             <Badge variant="outline" className="text-xs">
-                              {customer.source === 'advbox' ? 'ADVBox' : customer.source === 'contrato' ? 'Contrato' : 'Financeiro'}
+                              {customer.source === 'advbox' ? 'ADVBox' : customer.source === 'contrato' ? 'Contrato' : customer.source === 'formulario' ? 'Formulário' : 'Financeiro'}
                             </Badge>
+                            {customer.source === 'formulario' && (
+                              <span className="text-xs text-muted-foreground">Lead de formulário</span>
+                            )}
                             {customer.productName && (
                               <span className="text-xs text-muted-foreground">{customer.productName}</span>
                             )}
@@ -619,13 +739,13 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
               </div>
             )}
 
-            {customerSearch.length >= 2 && getFilteredCustomers().length === 0 && !searchingCustomer && !loadingAdvbox && !loadingLocal && !loadingContracts && (
+            {customerSearch.length >= 2 && getFilteredCustomers().length === 0 && !searchingCustomer && !loadingAdvbox && !loadingLocal && !loadingContracts && !loadingForms && (
               <p className="text-center text-muted-foreground py-4">
                 Nenhum cliente encontrado
               </p>
             )}
 
-            {customerSource !== 'asaas' && customerSearch.length < 2 && (
+            {customerSource !== 'asaas' && customerSource !== 'contrato' && customerSearch.length < 2 && (
               <p className="text-center text-muted-foreground py-4 text-sm">
                 Digite pelo menos 2 caracteres para buscar
               </p>
@@ -646,7 +766,7 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
                   </div>
                   {selectedCustomer.source && selectedCustomer.source !== 'asaas' && (
                     <Badge variant="outline">
-                      {selectedCustomer.source === 'advbox' ? 'ADVBox' : selectedCustomer.source === 'contrato' ? 'Contrato' : 'Financeiro'}
+                      {selectedCustomer.source === 'advbox' ? 'ADVBox' : selectedCustomer.source === 'contrato' ? 'Contrato' : selectedCustomer.source === 'formulario' ? 'Formulário' : 'Financeiro'}
                     </Badge>
                   )}
                 </div>
