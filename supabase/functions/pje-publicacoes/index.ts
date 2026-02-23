@@ -421,7 +421,47 @@ Deno.serve(async (req) => {
         }
       }
 
-      return new Response(JSON.stringify({ success: true, updated, conteudo_fixed: conteudoFixed, tribunal_fixed: tribunalFixed, total: pubsSemCliente.length }), {
+      // Fallback: extract party names from ComunicaPJe HTML content
+      let htmlExtracted = 0
+      const { data: pubsSemClienteCPJe } = await supabase
+        .from('publicacoes_dje')
+        .select('id, conteudo, raw_data')
+        .eq('meio', 'ComunicaPJe')
+        .or('destinatario.is.null,destinatario.eq.')
+        .limit(2000)
+
+      for (const pub of (pubsSemClienteCPJe || [])) {
+        const html = pub.conteudo || (pub.raw_data as any)?.texto || ''
+        if (!html) continue
+        // Extract names after REQUERENTE, AUTOR, RECLAMANTE, etc.
+        const partyPatterns = [
+          /(?:REQUERENTE|AUTOR(?:A)?|RECLAMANTE|IMPETRANTE|EXEQUENTE|AGRAVANTE|APELANTE|EMBARGANTE)\s*(?:<\/td>)?\s*(?:<td>)?\s*:?\s*(?:<\/td>)?\s*(?:<td>)?\s*:?\s*([A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ][A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s]+)/gi,
+        ]
+        const names = new Set<string>()
+        for (const pattern of partyPatterns) {
+          let match
+          while ((match = pattern.exec(html)) !== null) {
+            const name = match[1].trim()
+              .replace(/<[^>]+>/g, '')
+              .replace(/\s+/g, ' ')
+              .trim()
+            // Filter out generic terms and short names
+            if (name.length > 3 && !/^(CPF|OAB|ADVOGADO|RÉU|REQUERIDO|CNPJ)/.test(name)) {
+              names.add(name)
+            }
+          }
+        }
+        if (names.size > 0) {
+          const nomeCliente = [...names].join(', ')
+          const { error: updateErr } = await supabase
+            .from('publicacoes_dje')
+            .update({ destinatario: nomeCliente })
+            .eq('id', pub.id)
+          if (!updateErr) htmlExtracted++
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true, updated, html_extracted: htmlExtracted, conteudo_fixed: conteudoFixed, tribunal_fixed: tribunalFixed, total: pubsSemCliente.length }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }

@@ -329,6 +329,41 @@ export default function PublicacoesDJE() {
     }
   };
 
+  const stripHtml = (html: string): string => {
+    if (!html) return '-';
+    // Decode HTML entities
+    const txt = html
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<\/tr>/gi, '\n')
+      .replace(/<\/td>/gi, ' ')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/&Iacute;/gi, 'Í')
+      .replace(/&Aacute;/gi, 'Á')
+      .replace(/&Eacute;/gi, 'É')
+      .replace(/&Oacute;/gi, 'Ó')
+      .replace(/&Uacute;/gi, 'Ú')
+      .replace(/&Atilde;/gi, 'Ã')
+      .replace(/&Otilde;/gi, 'Õ')
+      .replace(/&Ccedil;/gi, 'Ç')
+      .replace(/&ordm;/gi, 'º')
+      .replace(/&ordf;/gi, 'ª')
+      .replace(/&#\d+;/gi, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    return txt || '-';
+  };
+
+  const isHtmlContent = (text: string): boolean => {
+    return /<[a-z][\s\S]*>/i.test(text);
+  };
+
   const reconstructContent = (pub: Publicacao): string => {
     const rawMovimento = pub.raw_data?.movimento;
     const rawProcesso = pub.raw_data?.processo;
@@ -622,7 +657,9 @@ export default function PublicacoesDJE() {
                             </Badge>
                           </TableCell>
                           <TableCell className="max-w-[250px] truncate text-xs">
-                            {pub.meio === 'ComunicaPJe' ? (pub.conteudo || '-').substring(0, 150) : reconstructContent(pub)}
+                            {pub.meio === 'ComunicaPJe' 
+                              ? stripHtml(pub.conteudo || '-').substring(0, 150) 
+                              : reconstructContent(pub)}
                           </TableCell>
                           <TableCell>
                             <Button
@@ -753,12 +790,16 @@ export default function PublicacoesDJE() {
                   </div>
 
                   {/* Conteúdo da movimentação */}
-                  <div>
-                    <Label className="text-muted-foreground text-xs">Conteúdo da Movimentação</Label>
-                    <div className="mt-2 p-4 bg-muted rounded-lg text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto">
-                      {selectedPub.meio === 'ComunicaPJe' ? (selectedPub.conteudo || '-') : reconstructContent(selectedPub)}
-                    </div>
-                  </div>
+                   <div>
+                     <Label className="text-muted-foreground text-xs">Conteúdo da Movimentação</Label>
+                     <div className="mt-2 p-4 bg-muted rounded-lg text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto">
+                       {selectedPub.meio === 'ComunicaPJe' 
+                         ? (isHtmlContent(selectedPub.conteudo || '') 
+                           ? stripHtml(selectedPub.conteudo) 
+                           : (selectedPub.conteudo || '-'))
+                         : reconstructContent(selectedPub)}
+                     </div>
+                   </div>
 
                   {/* Complementos */}
                   {complementos && complementos.length > 0 && (
