@@ -430,6 +430,125 @@ Deno.serve(async (req) => {
       })
     }
 
+    // === SEARCH COMUNICA PJE ===
+    if (action === 'search-comunicapje') {
+      console.log('=== Busca Comunica PJe ===')
+
+      const ADVOGADOS = [
+        { nome: 'RAFAEL EGG NUNES', display: 'Rafael Egg Nunes' },
+        { nome: 'GUILHERME ZARDO ROCHA', display: 'Guilherme Zardo Rocha' },
+      ]
+
+      const hoje = new Date()
+      const dataInicioDefault = new Date(hoje)
+      dataInicioDefault.setDate(dataInicioDefault.getDate() - 7)
+      const dataInicioBusca = filters?.dataInicio || dataInicioDefault.toISOString().split('T')[0]
+      const dataFimBusca = filters?.dataFim || hoje.toISOString().split('T')[0]
+
+      const toInsert: any[] = []
+      const errors: string[] = []
+      let totalEncontrados = 0
+
+      for (const advogado of ADVOGADOS) {
+        let pagina = 1
+        let totalPages = 1
+
+        while (pagina <= totalPages) {
+          const params = new URLSearchParams({
+            nomeAdvogado: advogado.nome,
+            dataDisponibilizacaoInicio: dataInicioBusca,
+            dataDisponibilizacaoFim: dataFimBusca,
+            itensPorPagina: '100',
+            pagina: String(pagina),
+          })
+
+          const url = `https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params.toString()}`
+          console.log(`ComunicaPJe: Buscando ${advogado.display} página ${pagina}...`)
+
+          try {
+            const response = await fetch(url, {
+              method: 'GET',
+              headers: { 'User-Agent': BROWSER_UA },
+            })
+
+            if (!response.ok) {
+              const errText = await response.text()
+              errors.push(`ComunicaPJe ${advogado.display}: HTTP ${response.status} - ${errText.substring(0, 100)}`)
+              break
+            }
+
+            const result = await response.json()
+            const items = result.items || []
+            const count = result.count || 0
+            totalEncontrados += items.length
+
+            // Calculate total pages
+            totalPages = Math.ceil(count / 100)
+
+            for (const item of items) {
+              const numProcesso = item.numeroprocessocommascara || ''
+              const numProcessoLimpo = numProcesso.replace(/[.-]/g, '')
+              const texto = item.texto || ''
+              const dataDisp = item.data_disponibilizacao || ''
+              const hashTexto = texto.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '')
+              const hash = `cpje-${numProcessoLimpo}-${dataDisp}-${hashTexto}`
+
+              toInsert.push({
+                numero_processo: numProcesso,
+                tribunal: item.siglaTribunal || '',
+                tipo_comunicacao: item.tipoComunicacao || 'NT',
+                data_disponibilizacao: dataDisp,
+                data_publicacao: dataDisp,
+                conteudo: texto,
+                destinatario: item.nomeDestinatario || '',
+                meio: 'ComunicaPJe',
+                nome_advogado: advogado.display,
+                numero_comunicacao: item.numeroComunicacao || '',
+                hash,
+                raw_data: item,
+              })
+            }
+
+            console.log(`ComunicaPJe ${advogado.display}: página ${pagina}/${totalPages}, ${items.length} itens (total API: ${count})`)
+          } catch (err: any) {
+            errors.push(`ComunicaPJe ${advogado.display}: ${err.message}`)
+            break
+          }
+
+          pagina++
+        }
+      }
+
+      console.log(`ComunicaPJe total encontrados: ${totalEncontrados}, para inserir: ${toInsert.length}`)
+
+      let novasPublicacoes = 0
+      if (toInsert.length > 0) {
+        const existingHashes = new Set<string>()
+        const hashes = toInsert.map((r: any) => r.hash)
+        for (let i = 0; i < hashes.length; i += 100) {
+          const batch = hashes.slice(i, i + 100)
+          const { data: rows } = await supabase.from('publicacoes_dje').select('hash').in('hash', batch)
+          for (const row of (rows || [])) existingHashes.add(row.hash)
+        }
+        novasPublicacoes = toInsert.filter((r: any) => !existingHashes.has(r.hash)).length
+
+        for (let i = 0; i < toInsert.length; i += 50) {
+          const batch = toInsert.slice(i, i + 50)
+          const { error: upsertError } = await supabase
+            .from('publicacoes_dje')
+            .upsert(batch, { onConflict: 'hash', ignoreDuplicates: true })
+          if (upsertError) console.error('Erro upsert ComunicaPJe:', upsertError.message)
+        }
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        total: toInsert.length,
+        novas: novasPublicacoes,
+        errors: errors.length > 0 ? errors : undefined,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     return new Response(JSON.stringify({ error: 'Ação inválida' }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
