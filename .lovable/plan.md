@@ -1,80 +1,51 @@
 
 
-## Acelerar Busca de Clientes ADVBox na Cobranca Asaas
+## Corrigir Busca e Listagem de Contratos na Nova Cobranca Asaas
 
-### Problema
+### Problemas Identificados
 
-Ao abrir o dialog de nova cobranca e selecionar a aba "ADVBox", o sistema chama o endpoint `/customers` da Edge Function que busca TODOS os clientes da API do ADVBox com paginacao completa (100 por pagina, com delay de 1.5s entre paginas). Com milhares de clientes, isso leva 20-30 segundos ou mais, podendo dar timeout. Clientes novos tambem podem nao aparecer se o cache da Edge Function estiver desatualizado.
+1. **Ordenacao errada**: Os contratos estao sendo carregados ordenados por `client_name` (alfabetico). Isso faz com que os ultimos clientes que preencheram formulario aparecam no meio ou no final da lista, dificultando a localizacao. Devem ser ordenados por `created_at DESC` (mais recentes primeiro).
+
+2. **Busca limitada**: A busca no campo de texto funciona, mas so compara com `client_name.toLowerCase().includes(search)`. Se o usuario digitar "Juan" e o nome estiver salvo como "JUAN OLIVEIRA" ou com acentos, a busca pode falhar em cenarios de formatacao. Alem disso, a busca por CPF so funciona com `includes`, sem remover formatacao.
+
+3. **Limite de exibicao**: O `.slice(0, 20)` mostra apenas 20 resultados, o que e adequado, mas combinado com a ordenacao alfabetica faz com que so aparecem nomes comecando com A-D inicialmente.
+
+4. **Cliente pode nao estar na tabela**: O cliente "Juan Oliveira" nao foi encontrado na tabela `fin_contratos`. Pode ser que o formulario tenha sido preenchido mas o contrato nao foi gerado, ou o nome esta salvo de forma diferente. A busca precisa ser mais flexivel.
+
+---
 
 ### Solucao
 
-Criar um pipeline de persistencia local (igual ao que ja existe para `advbox_tasks`) com uma tabela `advbox_customers` no banco de dados. A busca no frontend passa a consultar o banco local (instantaneo), enquanto a sincronizacao com a API do ADVBox acontece em background.
+**Arquivo a modificar:** `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`
+
+#### 1. Ordenar contratos por data (mais recentes primeiro)
+
+Alterar a query de `loadContractCustomers()` de `.order('client_name')` para `.order('created_at', { ascending: false })`.
+
+#### 2. Melhorar a busca de contratos
+
+- Normalizar a busca removendo acentos e caracteres especiais
+- Buscar tambem no CPF removendo formatacao (pontos e tracos)
+- Buscar no email do cliente tambem
+- Aumentar o limite de exibicao para 30 resultados
+
+#### 3. Aplicar mesmas melhorias para outras fontes
+
+- Ordenar clientes locais (`fin_clientes`) por nome mas permitir busca por email/telefone
+- Garantir que a busca por CPF funciona independente da formatacao
+
+---
 
 ### Detalhes Tecnicos
 
-#### 1. Migracao SQL - Criar tabela `advbox_customers`
+**Alteracoes na funcao `loadContractCustomers()`:**
+- Mudar `.order('client_name')` para `.order('created_at', { ascending: false })`
+- Remover filtro `.eq('status', 'ativo')` ou expandir para incluir outros status recentes (ex: `in ('ativo', 'pendente')`)
 
-```text
-Tabela: advbox_customers
-Campos:
-  - id (uuid, PK)
-  - advbox_id (integer, unique) -- ID do cliente no ADVBox
-  - name (text, not null)
-  - tax_id (text) -- CPF/CNPJ
-  - cpf (text)
-  - cnpj (text)
-  - email (text)
-  - phone (text)
-  - birthday (date)
-  - synced_at (timestamptz, default now())
-  - created_at (timestamptz, default now())
+**Alteracoes na funcao `getFilteredCustomers()` (bloco contrato):**
+- Normalizar texto de busca (remover acentos com `normalize('NFD').replace(...)`)
+- Comparar CPF sem formatacao: `client_cpf?.replace(/\D/g, '').includes(searchClean)`
+- Incluir busca por email: `client_email?.toLowerCase().includes(search)`
+- Aumentar slice para 30
 
-RLS: Leitura para usuarios autenticados.
-Indice: em name (lower) e tax_id para buscas rapidas.
-```
-
-Tambem criar tabela de controle de sincronizacao (reutilizar `advbox_sync_status` com `sync_type = 'customers'`) ou um registro dedicado.
-
-#### 2. Edge Function - `sync-advbox-customers`
-
-Nova Edge Function dedicada a sincronizar clientes do ADVBox para a tabela local:
-
-- Busca clientes da API do ADVBox com paginacao resumivel (usando `last_offset` de `advbox_sync_status`)
-- Faz UPSERT na tabela `advbox_customers` (insert ou update por `advbox_id`)
-- Atualiza progresso em `advbox_sync_status`
-- Configurar com `verify_jwt = false` para permitir chamada via pg_cron
-- Agendar execucao a cada 15 minutos via pg_cron (igual `advbox_tasks`)
-
-#### 3. Frontend - Modificar `AsaasNovaCobranca.tsx`
-
-Alterar `loadAdvboxCustomers()` para:
-
-- **Consultar `advbox_customers` no banco local** (query Supabase, retorno instantaneo)
-- Exibir resultados imediatamente
-- Opcionalmente, mostrar botao "Atualizar lista" que dispara a sincronizacao manual
-- Remover a chamada direta ao endpoint `/customers` da Edge Function `advbox-integration`
-
-#### 4. Configuracao
-
-- Adicionar `[functions.sync-advbox-customers]` com `verify_jwt = false` no `config.toml`
-- Criar job pg_cron para executar a cada 15 minutos
-
-### Fluxo Resultante
-
-```text
-ANTES:
-  Usuario abre dialog -> Chama API ADVBox (20-30s) -> Exibe clientes
-
-DEPOIS:
-  Usuario abre dialog -> Consulta banco local (<1s) -> Exibe clientes
-  [Background: pg_cron a cada 15min sincroniza novos clientes]
-  [Manual: Botao "Atualizar" para forcar sincronizacao]
-```
-
-### Arquivos a Criar/Modificar
-
-1. **Migracao SQL** -- Criar tabela `advbox_customers` + indice + RLS + registro em `advbox_sync_status` + job pg_cron
-2. **`supabase/functions/sync-advbox-customers/index.ts`** -- Nova Edge Function de sincronizacao
-3. **`src/components/financeiro/asaas/AsaasNovaCobranca.tsx`** -- Alterar `loadAdvboxCustomers()` para buscar do banco local
-4. **`supabase/config.toml`** -- Sera atualizado automaticamente com a nova funcao
-
+**Nenhuma alteracao no backend** -- apenas ajustes na query e na logica de filtro do frontend.
