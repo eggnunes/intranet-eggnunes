@@ -12,8 +12,9 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, MessageSquareHeart, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck, Lock, Pencil, Key, UserX, UserCheck, Circle, ClipboardList } from 'lucide-react';
+import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, MessageSquareHeart, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck, Lock, Pencil, Key, UserX, UserCheck, Circle, ClipboardList, Sparkles } from 'lucide-react';
 import { AuditLogHistory } from '@/components/AuditLogHistory';
+import { AdminUpdatesManager } from '@/components/AdminUpdatesManager';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -865,6 +866,11 @@ export default function Admin() {
                   <span className="sm:hidden">Desab.</span>
                 </TabsTrigger>
               )}
+              <TabsTrigger value="updates" className="gap-1.5 flex-shrink-0 px-2 sm:px-3 py-2 text-xs sm:text-sm whitespace-nowrap">
+                <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Atualizações</span>
+                <span className="sm:hidden">Atual.</span>
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -1357,6 +1363,10 @@ export default function Admin() {
               <FeedbackBoxAdmin />
             </TabsContent>
           )}
+
+          <TabsContent value="updates">
+            <AdminUpdatesManager />
+          </TabsContent>
         </Tabs>
 
         {/* Dialog de Edição de Usuário */}
