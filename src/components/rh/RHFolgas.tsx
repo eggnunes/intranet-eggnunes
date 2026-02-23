@@ -8,12 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Calendar, Plus, Pencil, Trash2, Search, X, BarChart3, ListFilter } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { formatLocalDate, parseLocalDate } from '@/lib/dateUtils';
+import { formatLocalDate } from '@/lib/dateUtils';
+import { FolgasDashboard } from './FolgasDashboard';
 
 interface Folga {
   id: string;
@@ -33,13 +35,18 @@ interface Colaborador {
 }
 
 export function RHFolgas() {
-  const [folgas, setFolgas] = useState<Folga[]>([]);
+  const [allFolgas, setAllFolgas] = useState<Folga[]>([]);
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFolga, setEditingFolga] = useState<Folga | null>(null);
+
+  // Advanced filters
+  const [filtroDataDe, setFiltroDataDe] = useState('');
+  const [filtroDataAte, setFiltroDataAte] = useState('');
   const [filtroColaborador, setFiltroColaborador] = useState('all');
-  const [filtroMes, setFiltroMes] = useState(format(new Date(), 'yyyy-MM'));
+  const [filtroMotivo, setFiltroMotivo] = useState('');
+  const [filtroAno, setFiltroAno] = useState(String(new Date().getFullYear()));
 
   // Form state
   const [formColaboradorId, setFormColaboradorId] = useState('');
@@ -50,11 +57,8 @@ export function RHFolgas() {
 
   useEffect(() => {
     fetchColaboradores();
+    fetchAllFolgas();
   }, []);
-
-  useEffect(() => {
-    fetchFolgas();
-  }, [filtroColaborador, filtroMes]);
 
   const fetchColaboradores = async () => {
     const { data, error } = await supabase
@@ -63,31 +67,18 @@ export function RHFolgas() {
       .eq('approval_status', 'approved')
       .eq('is_active', true)
       .order('full_name');
-
     if (!error && data) setColaboradores(data);
   };
 
-  const fetchFolgas = async () => {
+  const fetchAllFolgas = async () => {
     setLoading(true);
     try {
-      const startDate = filtroMes + '-01';
-      const endDate = filtroMes + '-31';
-
-      let query = supabase
+      const { data, error } = await supabase
         .from('rh_folgas')
         .select('*')
-        .gte('data_folga', startDate)
-        .lte('data_folga', endDate)
         .order('data_folga', { ascending: false });
-
-      if (filtroColaborador !== 'all') {
-        query = query.eq('colaborador_id', filtroColaborador);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
 
-      // Fetch profile names in bulk
       const userIds = new Set<string>();
       (data || []).forEach(f => {
         userIds.add(f.colaborador_id);
@@ -108,12 +99,32 @@ export function RHFolgas() {
         criador_nome: f.created_by ? profileMap[f.created_by] || '-' : '-',
       }));
 
-      setFolgas(folgasComNomes);
-    } catch (error: any) {
+      setAllFolgas(folgasComNomes);
+    } catch {
       toast.error('Erro ao carregar folgas');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Filtered folgas for Registros tab
+  const filteredFolgas = allFolgas.filter(f => {
+    if (filtroAno && !filtroDataDe && !filtroDataAte) {
+      if (!f.data_folga.startsWith(filtroAno)) return false;
+    }
+    if (filtroDataDe && f.data_folga < filtroDataDe) return false;
+    if (filtroDataAte && f.data_folga > filtroDataAte) return false;
+    if (filtroColaborador !== 'all' && f.colaborador_id !== filtroColaborador) return false;
+    if (filtroMotivo && !(f.motivo || '').toLowerCase().includes(filtroMotivo.toLowerCase())) return false;
+    return true;
+  });
+
+  const clearFilters = () => {
+    setFiltroDataDe('');
+    setFiltroDataAte('');
+    setFiltroColaborador('all');
+    setFiltroMotivo('');
+    setFiltroAno(String(new Date().getFullYear()));
   };
 
   const resetForm = () => {
@@ -138,11 +149,9 @@ export function RHFolgas() {
       toast.error('Preencha o colaborador e a data');
       return;
     }
-
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-
       if (editingFolga) {
         const { error } = await supabase
           .from('rh_folgas')
@@ -174,10 +183,9 @@ export function RHFolgas() {
         }
         toast.success('Folga cadastrada');
       }
-
       setDialogOpen(false);
       resetForm();
-      fetchFolgas();
+      fetchAllFolgas();
     } catch (error: any) {
       toast.error('Erro: ' + error.message);
     } finally {
@@ -192,9 +200,11 @@ export function RHFolgas() {
       toast.error('Erro ao excluir');
     } else {
       toast.success('Folga excluída');
-      fetchFolgas();
+      fetchAllFolgas();
     }
   };
+
+  const availableYears = Array.from({ length: 5 }, (_, i) => String(new Date().getFullYear() - i));
 
   return (
     <div className="space-y-6">
@@ -229,19 +239,11 @@ export function RHFolgas() {
               </div>
               <div className="space-y-2">
                 <Label>Motivo</Label>
-                <Input
-                  placeholder="Ex: Batimento de metas, prêmio..."
-                  value={formMotivo}
-                  onChange={e => setFormMotivo(e.target.value)}
-                />
+                <Input placeholder="Ex: Batimento de metas, prêmio..." value={formMotivo} onChange={e => setFormMotivo(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Observações</Label>
-                <Textarea
-                  placeholder="Observações adicionais (opcional)"
-                  value={formObservacoes}
-                  onChange={e => setFormObservacoes(e.target.value)}
-                />
+                <Textarea placeholder="Observações adicionais (opcional)" value={formObservacoes} onChange={e => setFormObservacoes(e.target.value)} />
               </div>
               <Button onClick={handleSave} disabled={saving} className="w-full">
                 {saving ? 'Salvando...' : editingFolga ? 'Atualizar' : 'Cadastrar'}
@@ -251,79 +253,118 @@ export function RHFolgas() {
         </Dialog>
       </div>
 
-      {/* Filtros */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Mês</Label>
-              <Input type="month" value={filtroMes} onChange={e => setFiltroMes(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Colaborador</Label>
-              <Select value={filtroColaborador} onValueChange={setFiltroColaborador}>
-                <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {colaboradores.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="dashboard">
+        <TabsList>
+          <TabsTrigger value="dashboard" className="gap-2"><BarChart3 className="h-4 w-4" /> Dashboard</TabsTrigger>
+          <TabsTrigger value="registros" className="gap-2"><ListFilter className="h-4 w-4" /> Registros</TabsTrigger>
+        </TabsList>
 
-      {/* Tabela */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Folgas Cadastradas ({folgas.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-center py-8 text-muted-foreground">Carregando...</p>
-          ) : folgas.length === 0 ? (
-            <p className="text-center py-8 text-muted-foreground">Nenhuma folga encontrada no período</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Colaborador</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Motivo</TableHead>
-                  <TableHead>Cadastrado por</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {folgas.map(f => (
-                  <TableRow key={f.id}>
-                    <TableCell className="font-medium">{f.colaborador_nome}</TableCell>
-                    <TableCell>{formatLocalDate(f.data_folga)}</TableCell>
-                    <TableCell>
-                      {f.motivo ? (
-                        <Badge variant="secondary">{f.motivo}</Badge>
-                      ) : '-'}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{f.criador_nome}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEditDialog(f)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(f.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+        <TabsContent value="dashboard">
+          <FolgasDashboard folgas={allFolgas} loading={loading} />
+        </TabsContent>
+
+        <TabsContent value="registros">
+          <div className="space-y-4">
+            {/* Advanced Filters */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2"><Search className="h-4 w-4" /> Filtros</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Ano</Label>
+                    <Select value={filtroAno} onValueChange={setFiltroAno}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {availableYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">De</Label>
+                    <Input type="date" value={filtroDataDe} onChange={e => setFiltroDataDe(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Até</Label>
+                    <Input type="date" value={filtroDataAte} onChange={e => setFiltroDataAte(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Colaborador</Label>
+                    <Select value={filtroColaborador} onValueChange={setFiltroColaborador}>
+                      <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {colaboradores.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Motivo</Label>
+                    <Input placeholder="Buscar motivo..." value={filtroMotivo} onChange={e => setFiltroMotivo(e.target.value)} />
+                  </div>
+                </div>
+                <div className="flex justify-end mt-3">
+                  <Button variant="outline" size="sm" onClick={clearFilters} className="gap-1">
+                    <X className="h-3 w-3" /> Limpar filtros
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Folgas Cadastradas ({filteredFolgas.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <p className="text-center py-8 text-muted-foreground">Carregando...</p>
+                ) : filteredFolgas.length === 0 ? (
+                  <p className="text-center py-8 text-muted-foreground">Nenhuma folga encontrada</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Colaborador</TableHead>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Motivo</TableHead>
+                        <TableHead>Cadastrado por</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredFolgas.map(f => (
+                        <TableRow key={f.id}>
+                          <TableCell className="font-medium">{f.colaborador_nome}</TableCell>
+                          <TableCell>{formatLocalDate(f.data_folga)}</TableCell>
+                          <TableCell>
+                            {f.motivo ? <Badge variant="secondary">{f.motivo}</Badge> : '-'}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{f.criador_nome}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button variant="ghost" size="icon" onClick={() => openEditDialog(f)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => handleDelete(f.id)}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
