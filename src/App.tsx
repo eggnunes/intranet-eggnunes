@@ -68,6 +68,7 @@ import WhatsAppAvisos from "./pages/WhatsAppAvisos";
 import CorretorPortugues from "./pages/CorretorPortugues";
 import PublicacoesDJE from "./pages/PublicacoesDJE";
 import ResetPassword from "./pages/ResetPassword";
+import GestaoFolgas from "./pages/GestaoFolgas";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient({
@@ -564,6 +565,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <PublicacoesDJE />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/gestao-folgas"
+              element={
+                <ProtectedRoute>
+                  <GestaoFolgas />
                 </ProtectedRoute>
               }
             />
