@@ -1,50 +1,124 @@
 
-## Correcao: Conteudo da movimentacao com dados antigos/cortados
 
-### Problema
+# Integracao da API Comunica PJe (DJEN) + Melhorias DataJud
 
-O campo `conteudo` no banco de dados contem o formato antigo com codigos numericos (ex: "designada: 9; Juiz(a): 185"). A correcao anterior so mudou como NOVOS dados sao salvos, mas os 590+ registros existentes continuam com o formato antigo. O dialog mostra `selectedPub.conteudo` diretamente do banco em vez de reconstruir o texto a partir do `raw_data`.
+## Contexto
 
-### Solucao (2 mudancas)
+O documento do Manus identifica **duas APIs** do CNJ:
 
-#### 1. Frontend: Reconstruir conteudo a partir do raw_data
+1. **API Comunica PJe (DJEN)** - Busca publicacoes pelo nome dos advogados. **Esta API nao existe ainda no sistema** e e a principal addicao.
+2. **API DataJud** - Busca movimentacoes por numero de processo. **Ja esta implementada** no sistema atual.
 
-No dialog de detalhes (`PublicacoesDJE.tsx`, linha 654-660), em vez de mostrar `selectedPub.conteudo` diretamente, reconstruir o texto a partir dos dados estruturados do `raw_data`:
+O sistema atual usa apenas o DataJud (via processos cadastrados no AdvBox). A integracao do Comunica PJe adiciona uma segunda fonte de dados que captura publicacoes de Diarios de Justica diretamente pelo nome dos advogados, cobrindo processos que podem nao estar cadastrados no AdvBox.
 
-- Usar `rawMovimento.nome` como nome da movimentacao
-- Usar os `complementos` ja calculados (linhas 585-592) como detalhes
-- Usar `classeNome` como classe processual
-- Juntar tudo de forma legivel, sem codigos numericos
+## Problema do Bloqueio Geografico
 
-Isso resolve o problema para TODOS os registros, novos e antigos, pois o `raw_data` sempre contem os dados originais da API.
+O Manus alerta que a API Comunica PJe tem bloqueio geografico (CloudFront). O sistema ja resolve isso para o DataJud executando a edge function na regiao `sa-east-1` (Sao Paulo). A mesma estrategia sera aplicada para o Comunica PJe.
 
-#### 2. Edge function: Atualizar registros existentes no banco
+## Mudancas Planejadas
 
-Adicionar logica na action `enrich-existing` para tambem corrigir o campo `conteudo` dos registros que contem codigos numericos, reconstruindo-o a partir do `raw_data` salvo.
+### 1. Edge Function `pje-publicacoes/index.ts` - Nova action `search-comunicapje`
 
-### Detalhes tecnicos
+Adicionar uma nova action que:
+- Faz requisicoes GET para `https://comunicaapi.pje.jus.br/api/v1/comunicacao`
+- Busca por cada advogado configurado (Rafael Egg Nunes e Guilherme Zardo Rocha)
+- Parametros: `nomeAdvogado` (URL-encoded, maiusculas), `dataDisponibilizacaoInicio`, `dataDisponibilizacaoFim`, `itensPorPagina=100`, `pagina`
+- Implementa paginacao automatica (verifica `count` vs `itensPorPagina`)
+- Mapeia campos da resposta: `texto` -> `conteudo`, `siglaTribunal` -> `tribunal`, `numeroprocessocommascara` -> `numero_processo`, `data_disponibilizacao` -> `data_disponibilizacao`
+- Gera hash unico: `cpje-{numeroProcesso}-{data_disponibilizacao}` para evitar duplicatas
+- Define `meio` = `'ComunicaPJe'` para distinguir da fonte DataJud
+- Faz upsert na tabela `publicacoes_dje` (mesma tabela, nova fonte)
 
-**`src/pages/PublicacoesDJE.tsx`** (dialog de detalhes):
+### 2. Edge Function `sync-pje-publicacoes/index.ts` - Adicionar Comunica PJe ao sync automatico
 
+A funcao de sincronizacao diaria (cron) atualmente so consulta o DataJud. Sera adicionada a consulta ao Comunica PJe apos a consulta ao DataJud, seguindo a mesma logica:
+- Buscar publicacoes dos ultimos 7 dias para cada advogado
+- Fazer upsert no banco
+- Incluir contagem no resultado final
+
+### 3. Frontend `src/pages/PublicacoesDJE.tsx` - Botao de busca ComunicaPJe
+
+Adicionar:
+- Um novo botao "Buscar no Comunica PJe" ao lado do botao existente "Buscar no DataJud"
+- Ao clicar, invoca a action `search-comunicapje` com os filtros de data
+- Mostrar coluna ou badge indicando a fonte (`DataJud` ou `ComunicaPJe`) na tabela de resultados
+- Filtro adicional por fonte/meio
+
+### 4. Configuracao dos advogados
+
+Os nomes dos advogados serao configurados diretamente na edge function como constante:
+
+```text
+ADVOGADOS = [
+  { nome: 'RAFAEL EGG NUNES', display: 'Rafael Egg Nunes' },
+  { nome: 'GUILHERME ZARDO ROCHA', display: 'Guilherme Zardo Rocha' },
+]
 ```
-// Antes (linha 658):
-{selectedPub.conteudo || 'Conteudo nao disponivel'}
 
-// Depois: reconstruir a partir do raw_data
-const nomeMovimento = rawMovimento?.nome || '';
-const complementosTexto = complementos?.join('; ') || '';
-const conteudoFormatado = rawMovimento 
-  ? `${nomeMovimento}${complementosTexto ? ` | ${complementosTexto}` : ''}${classeNome ? ` | ${classeNome}` : ''}`
-  : selectedPub.conteudo;
-// Mostrar conteudoFormatado em vez de selectedPub.conteudo
+## Detalhes Tecnicos
+
+### Requisicao ao Comunica PJe
+
+```text
+GET https://comunicaapi.pje.jus.br/api/v1/comunicacao
+  ?nomeAdvogado=RAFAEL%20EGG%20NUNES
+  &dataDisponibilizacaoInicio=2026-02-22
+  &dataDisponibilizacaoFim=2026-02-22
+  &itensPorPagina=100
+  &pagina=1
 ```
 
-**`supabase/functions/pje-publicacoes/index.ts`** (action `enrich-existing`):
+- Sem autenticacao (API publica)
+- Requer IP brasileiro (regiao sa-east-1 resolve isso)
+- Resposta: objeto com campo `items` (array de publicacoes) e `count` (total)
+- Campos relevantes por item: `texto`, `data_disponibilizacao`, `siglaTribunal`, `numeroprocessocommascara`, `tipoComunicacao`, `nomeDestinatario`, `meio`
 
-Alem de atualizar `destinatario`, tambem reconstruir e atualizar o campo `conteudo` para registros que contem codigos numericos (detectaveis por regex como `\d{2,3}` apos `:` nos complementos).
+### Mapeamento de campos Comunica PJe -> publicacoes_dje
 
-### Resultado esperado
+| Campo API | Campo Banco |
+|---|---|
+| `numeroprocessocommascara` | `numero_processo` |
+| `siglaTribunal` | `tribunal` |
+| `tipoComunicacao` (CI/IN/NT) | `tipo_comunicacao` |
+| `data_disponibilizacao` | `data_disponibilizacao` |
+| `data_disponibilizacao` | `data_publicacao` |
+| `texto` | `conteudo` |
+| `nomeDestinatario` | `destinatario` |
+| `meio` (ex: "Diario") | `meio` -> salvar como `'ComunicaPJe'` |
+| advogado buscado | `nome_advogado` |
+| JSON completo do item | `raw_data` |
 
-- O dialog mostra conteudo legivel para TODOS os registros (antigos e novos)
-- Complementos aparecem como "Situacao Da Audiencia: designada" em vez de "designada: 9"
-- Nao depende mais de rebuscar dados no DataJud para corrigir registros antigos
+### Hash para deduplicacao
+
+```text
+cpje-{numeroProcessoSemMascara}-{data_disponibilizacao}-{primeiros30charsTexto}
+```
+
+### Logica de paginacao
+
+```text
+pagina = 1
+loop:
+  resultado = GET(url, pagina)
+  salvar items
+  if (pagina * itensPorPagina >= resultado.count) break
+  pagina++
+```
+
+### Filtro por fonte no frontend
+
+Adicionar opcao de filtro `meio` no client-side para permitir filtrar entre "Todas", "DataJud" e "ComunicaPJe".
+
+## Arquivos modificados
+
+1. `supabase/functions/pje-publicacoes/index.ts` - Adicionar action `search-comunicapje`
+2. `supabase/functions/sync-pje-publicacoes/index.ts` - Adicionar busca ComunicaPJe ao sync diario
+3. `src/pages/PublicacoesDJE.tsx` - Botao ComunicaPJe, coluna/badge de fonte, filtro por fonte
+
+## O que NAO muda
+
+- A integracao DataJud existente permanece intacta
+- A tabela `publicacoes_dje` nao precisa de alteracao (ja tem os campos necessarios)
+- O mecanismo de leitura/nao-lida continua igual
+- O dialog de detalhes continua usando `reconstructContent` para registros DataJud, e mostra `conteudo` direto para registros ComunicaPJe (que ja vem com texto completo)
+
