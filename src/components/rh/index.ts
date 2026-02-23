@@ -11,3 +11,4 @@ export { RHMenus } from './RHMenus';
 export { ColaboradorPerfilUnificado } from './ColaboradorPerfilUnificado';
 export { RHPromocoes } from './RHPromocoes';
 export { PromocaoDialog } from './PromocaoDialog';
+export { RHFolgas } from './RHFolgas';

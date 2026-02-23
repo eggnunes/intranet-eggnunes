@@ -97,6 +97,13 @@ interface Ferias {
   dias_totais: number;
 }
 
+interface FolgaRecord {
+  id: string;
+  data_folga: string;
+  motivo: string | null;
+  criador_nome?: string;
+}
+
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7c43', '#a4de6c'];
 
 export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados' }: ColaboradorPerfilUnificadoProps) {
@@ -116,6 +123,7 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
   const [pagamentosGrafico, setPagamentosGrafico] = useState<any[]>([]);
   const [pontuacaoAdvbox, setPontuacaoAdvbox] = useState<PontuacaoAdvbox[]>([]);
   const [ferias, setFerias] = useState<Ferias[]>([]);
+  const [folgasColaborador, setFolgasColaborador] = useState<FolgaRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [reembolsosPorPagamento, setReembolsosPorPagamento] = useState<Record<string, number>>({});
@@ -136,7 +144,8 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
         promocoesRes,
         historicoRes,
         pagamentosRes,
-        feriasRes
+        feriasRes,
+        folgasRes
       ] = await Promise.all([
         supabase
           .from('profiles')
@@ -164,7 +173,12 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
           .select('id, start_date, end_date, status, business_days')
           .eq('user_id', colaboradorId)
           .order('start_date', { ascending: false })
-          .limit(10)
+          .limit(10),
+        supabase
+          .from('rh_folgas')
+          .select('id, data_folga, motivo, created_by')
+          .eq('colaborador_id', colaboradorId)
+          .order('data_folga', { ascending: false })
       ]);
 
       if (profileRes.error) throw profileRes.error;
@@ -238,6 +252,26 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
           dias_totais: f.business_days || 0
         }));
         setFerias(feriasData);
+      }
+
+      // Processar folgas
+      if (!folgasRes.error && folgasRes.data) {
+        const folgaIds = new Set<string>();
+        (folgasRes.data as any[]).forEach((f: any) => { if (f.created_by) folgaIds.add(f.created_by); });
+        let folgaProfileMap: Record<string, string> = {};
+        if (folgaIds.size > 0) {
+          const { data: folgaProfiles } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', Array.from(folgaIds));
+          (folgaProfiles || []).forEach(p => { folgaProfileMap[p.id] = p.full_name; });
+        }
+        setFolgasColaborador((folgasRes.data as any[]).map((f: any) => ({
+          id: f.id,
+          data_folga: f.data_folga,
+          motivo: f.motivo,
+          criador_nome: f.created_by ? folgaProfileMap[f.created_by] || '-' : '-',
+        })));
       }
 
       // Buscar pontuação ADVBOX
@@ -470,7 +504,7 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
       </Card>
 
       {/* Cards de Métricas */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Pago (12 meses)</CardTitle>
@@ -524,6 +558,19 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
             <p className="text-xs text-muted-foreground">
               Períodos aprovados
             </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Folgas ({new Date().getFullYear()})</CardTitle>
+            <Calendar className="h-4 w-4 text-purple-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {folgasColaborador.filter(f => f.data_folga.startsWith(String(new Date().getFullYear()))).length}
+            </div>
+            <p className="text-xs text-muted-foreground">Dias de folga no ano</p>
           </CardContent>
         </Card>
       </div>
@@ -842,6 +889,44 @@ export function ColaboradorPerfilUnificado({ colaboradorId, initialTab = 'dados'
           {canViewMedical && (
             <InformalVacationSummary colaboradorId={colaboradorId} />
           )}
+
+          {/* Histórico de Folgas */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Histórico de Folgas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {folgasColaborador.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Motivo</TableHead>
+                      <TableHead>Cadastrado por</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {folgasColaborador.map((f) => (
+                      <TableRow key={f.id}>
+                        <TableCell>{formatLocalDate(f.data_folga)}</TableCell>
+                        <TableCell>
+                          {f.motivo ? <Badge variant="secondary">{f.motivo}</Badge> : '-'}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{f.criador_nome}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-muted-foreground text-center py-4">
+                  Nenhuma folga registrada
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Histórico de Salário */}
           <Card>

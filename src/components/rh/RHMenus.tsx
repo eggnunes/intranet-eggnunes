@@ -54,6 +54,7 @@ const menuItems: MenuItem[] = [
     icon: TrendingUp,
     items: [
       { id: 'promocoes', label: 'Promoções' },
+      { id: 'folgas', label: 'Folgas' },
     ]
   },
   {
