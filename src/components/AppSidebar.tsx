@@ -263,6 +263,7 @@ export function AppSidebar() {
         { icon: Users, path: '/equipe', label: 'Perfil da Equipe' },
         { icon: Cake, path: '/aniversarios', label: 'Aniversários da Equipe' },
         { icon: CalendarDays, path: '/ferias', label: 'Gestão de Férias' },
+        { icon: CalendarDays, path: '/gestao-folgas', label: 'Gestão de Folgas' },
         { icon: Home, path: '/home-office', label: 'Home Office' },
         { icon: UserPlus, path: '/contratacao', label: 'Recrutamento' },
         { icon: BookOpen, path: '/onboarding', label: 'Onboarding' },
