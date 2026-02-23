@@ -1,72 +1,40 @@
 
 
-## Dashboard Analitico e Filtros Avancados para Gestao de Folgas
+## Atualizar Notificacoes de Novidades no Cabecalho
 
 ### Resumo
 
-Transformar a pagina de Gestao de Folgas em um sistema completo com dashboard analitico (graficos e metricas), filtros avancados de busca, e garantir que folgas passadas possam ser cadastradas sem restricao.
+Inserir notificacoes pendentes na tabela `intranet_updates` para que os usuarios vejam as novidades recentes ao clicar no icone de estrela no cabecalho. Tambem criar uma interface administrativa para facilitar o cadastro de futuras atualizacoes.
 
 ---
 
-### 1. Cadastro de Folgas Passadas
+### Notificacoes a Inserir
 
-O formulario atual ja utiliza `<input type="date">` sem restricao de data minima, entao folgas passadas ja podem ser cadastradas. Nenhuma alteracao necessaria neste ponto.
+Apenas **2 registros** na tabela `intranet_updates`:
 
----
-
-### 2. Reestruturacao com Abas
-
-A pagina `GestaoFolgas` passara a ter **duas abas**:
-
-- **Dashboard**: Metricas resumidas + graficos analiticos
-- **Registros**: Tabela CRUD com filtros avancados (conteudo atual aprimorado)
+| # | Titulo | Categoria | Descricao |
+|---|---|---|---|
+| 1 | Sistema de Gestao de Folgas | feature | Novo modulo para cadastrar e gerenciar folgas de colaboradores, com dashboard analitico (graficos e metricas), filtros avancados e historico individual no perfil. Acesse pelo menu Equipe e RH > Gestao de Folgas. O Dashboard principal tambem exibe quem nao esta no escritorio hoje. |
+| 2 | Publicacoes do Diario da Justica Eletronico Nacional | feature | Novo sistema de monitoramento de publicacoes judiciais via DataJud e Comunica PJe/DJEN. Acompanhe comunicacoes judiciais por processo ou por advogado, com filtros por fonte e busca textual. |
 
 ---
 
-### 3. Dashboard Analitico (nova aba)
+### Interface Administrativa
 
-**Cards de metricas no topo:**
-- Total de folgas no ano atual
-- Total de folgas no mes atual
-- Colaborador com mais folgas no ano
-- Motivo mais frequente
+Adicionar uma secao "Gerenciar Atualizacoes" no painel Admin (`src/pages/Admin.tsx`) para que administradores possam cadastrar novas notificacoes de funcionalidades diretamente pela interface, sem depender de migracoes SQL.
 
-**Graficos (usando Recharts, ja instalado):**
-- **Grafico de barras**: Folgas por mes (ultimos 12 meses)
-- **Grafico de pizza**: Distribuicao por motivo
-- **Grafico de barras horizontal**: Ranking de colaboradores com mais folgas no ano
-
-Os dados serao buscados com uma query sem filtro de mes (todo o ano atual) para alimentar o dashboard.
-
----
-
-### 4. Filtros Avancados na aba Registros
-
-Substituir os filtros atuais (mes + colaborador) por um painel mais completo:
-
-| Filtro | Tipo | Descricao |
-|---|---|---|
-| Periodo (De/Ate) | date range | Dois inputs de data para intervalo personalizado |
-| Colaborador | select | Dropdown com todos os colaboradores |
-| Motivo | text input | Busca textual no campo motivo |
-| Ano | select | Selecao rapida por ano (2024, 2025, 2026...) |
-
-Botao "Limpar filtros" para resetar todos.
+Campos do formulario:
+- Titulo (texto)
+- Descricao (textarea)
+- Categoria (select: Nova Funcionalidade, Melhoria, Correcao, Atualizacao)
 
 ---
 
 ### Detalhes Tecnicos
 
-**Arquivos a modificar:**
-- `src/components/rh/RHFolgas.tsx` - Adicionar abas (Dashboard + Registros), graficos com Recharts, filtros avancados
-- `src/pages/GestaoFolgas.tsx` - Sem alteracao (ja renderiza RHFolgas)
+**Migracao SQL:**
+- INSERT de 2 registros em `intranet_updates` (titulo, descricao, categoria, created_by usando o admin principal)
 
-**Bibliotecas utilizadas:**
-- `recharts` (ja instalado) para graficos
-- `@/components/ui/chart` (ChartContainer, etc.) para estilizacao consistente
-- `@/components/ui/tabs` para abas
-
-**Busca de dados do dashboard:**
-- Uma query separada buscando todas as folgas do ano atual (sem filtro de mes) para calcular metricas e alimentar graficos
-- Agrupamento feito no frontend (por mes, por motivo, por colaborador)
+**Arquivo a modificar:**
+- `src/pages/Admin.tsx` — Adicionar secao para gerenciar atualizacoes (CRUD na tabela `intranet_updates`) com formulario de cadastro e listagem das atualizacoes existentes
 
