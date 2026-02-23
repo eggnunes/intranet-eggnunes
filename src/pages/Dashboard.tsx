@@ -4,7 +4,7 @@ import { Layout } from '@/components/Layout';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, MessageSquare, TrendingUp, User, Mail, Users, Video, Building2, ExternalLink, Gavel, Clock, Cake, Megaphone, Calendar, Trophy, Pin, Search, Star, Zap } from 'lucide-react';
+import { FileText, MessageSquare, TrendingUp, User, Mail, Users, Video, Building2, ExternalLink, Gavel, Clock, Cake, Megaphone, Calendar, Trophy, Pin, Search, Star, Zap, Home, Palmtree, CalendarOff } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -39,6 +39,13 @@ interface TopPage {
   access_count: number;
 }
 
+interface AbsenceRecord {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+  tipo: 'home_office' | 'folga' | 'ferias';
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { profile, loading, isApproved } = useUserRole();
@@ -48,10 +55,13 @@ export default function Dashboard() {
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
   const [topPages, setTopPages] = useState<TopPage[]>([]);
   const [loadingTopPages, setLoadingTopPages] = useState(true);
+  const [absences, setAbsences] = useState<AbsenceRecord[]>([]);
+  const [loadingAbsences, setLoadingAbsences] = useState(true);
 
   useEffect(() => {
     fetchMonthBirthdays();
     fetchRecentAnnouncements();
+    fetchAbsences();
   }, []);
 
   useEffect(() => {
@@ -111,6 +121,61 @@ export default function Dashboard() {
       setRecentAnnouncements(data as Announcement[]);
     }
     setLoadingAnnouncements(false);
+  };
+
+  const fetchAbsences = async () => {
+    try {
+      const today = new Date();
+      const todayStr = format(today, 'yyyy-MM-dd');
+      const dayOfWeek = today.getDay();
+      const absMonth = today.getMonth() + 1;
+      const absYear = today.getFullYear();
+      const currentYear = today.getFullYear();
+
+      const [hoRes, folgaRes, feriasRes] = await Promise.all([
+        supabase
+          .from('home_office_schedules')
+          .select('user_id')
+          .eq('day_of_week', dayOfWeek)
+          .eq('month', absMonth)
+          .eq('year', absYear),
+        supabase
+          .from('rh_folgas')
+          .select('colaborador_id')
+          .eq('data_folga', todayStr),
+        supabase
+          .from('vacation_requests')
+          .select('user_id')
+          .eq('status', 'approved')
+          .lte('start_date', todayStr)
+          .gte('end_date', todayStr)
+      ]);
+
+      const absenceMap = new Map<string, AbsenceRecord['tipo']>();
+      (hoRes.data || []).forEach((r: any) => absenceMap.set(r.user_id, 'home_office'));
+      (folgaRes.data || []).forEach((r: any) => { if (!absenceMap.has(r.colaborador_id)) absenceMap.set(r.colaborador_id, 'folga'); });
+      (feriasRes.data || []).forEach((r: any) => { if (!absenceMap.has(r.user_id)) absenceMap.set(r.user_id, 'ferias'); });
+
+      if (absenceMap.size > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url')
+          .in('id', Array.from(absenceMap.keys()));
+
+        const result: AbsenceRecord[] = (profiles || []).map(p => ({
+          id: p.id,
+          full_name: p.full_name,
+          avatar_url: p.avatar_url,
+          tipo: absenceMap.get(p.id)!,
+        }));
+        result.sort((a, b) => a.full_name.localeCompare(b.full_name));
+        setAbsences(result);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar ausências:', err);
+    } finally {
+      setLoadingAbsences(false);
+    }
   };
 
   const getPositionLabel = (position: string | null) => {
@@ -296,6 +361,40 @@ export default function Dashboard() {
 
         {/* Alertas de Falhas de Mensagens de Aniversário */}
         <BirthdayMessageFailuresAlert />
+
+        {/* Quem não está no escritório hoje */}
+        {!loadingAbsences && absences.length > 0 && (
+          <section>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20">
+                <CalendarOff className="h-5 w-5 text-orange-600" />
+              </div>
+              <h2 className="text-xl font-bold">Quem não está no escritório hoje</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {absences.map((a) => (
+                <Card key={a.id} className="border-l-4 border-l-orange-400">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={a.avatar_url || undefined} />
+                      <AvatarFallback className="text-sm">
+                        {a.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{a.full_name}</p>
+                    </div>
+                    <Badge variant={a.tipo === 'ferias' ? 'default' : 'secondary'} className="flex items-center gap-1 shrink-0">
+                      {a.tipo === 'home_office' && <><Home className="h-3 w-3" /> Home Office</>}
+                      {a.tipo === 'folga' && <><CalendarOff className="h-3 w-3" /> Folga</>}
+                      {a.tipo === 'ferias' && <><Palmtree className="h-3 w-3" /> Férias</>}
+                    </Badge>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Mural de Avisos - Destaques */}
         <section>

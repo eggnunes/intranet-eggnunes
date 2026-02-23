@@ -6183,6 +6183,51 @@ export type Database = {
           },
         ]
       }
+      rh_folgas: {
+        Row: {
+          colaborador_id: string
+          created_at: string
+          created_by: string | null
+          data_folga: string
+          id: string
+          motivo: string | null
+          observacoes: string | null
+        }
+        Insert: {
+          colaborador_id: string
+          created_at?: string
+          created_by?: string | null
+          data_folga: string
+          id?: string
+          motivo?: string | null
+          observacoes?: string | null
+        }
+        Update: {
+          colaborador_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_folga?: string
+          id?: string
+          motivo?: string | null
+          observacoes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rh_folgas_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rh_folgas_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rh_historico_salario: {
         Row: {
           colaborador_id: string
