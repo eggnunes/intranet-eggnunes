@@ -1,74 +1,85 @@
 
 
-# Enriquecimento de Publicações: Cliente + Vara/Órgão Julgador
+## Sistema de Folgas + Painel "Quem Nao Esta no Escritorio" no Dashboard
 
-## Diagnóstico
+### Resumo
 
-Analisei os dados e descobri informações importantes:
+Implementar um sistema completo de gestao de folgas dentro do modulo de RH, onde usuarios administrativos podem cadastrar folgas para advogados. Cada colaborador visualiza suas proprias folgas no perfil unificado. Alem disso, o Dashboard principal exibira um painel consolidado mostrando quem nao esta no escritorio hoje (folga, home office ou ferias).
 
-1. **Vara/Órgão Julgador**: A API do Comunica PJe **já retorna** essa informação no campo `nomeOrgao` (ex: "42ª VARA DO TRABALHO DE BELO HORIZONTE", "Unidade Jurisdicional da Comarca de Nova Lima"), mas o sistema está ignorando esse campo e salvando apenas a sigla do tribunal (ex: TRT3, TJMG).
+---
 
-2. **Nome do Cliente**: Não vem da API do Comunica PJe, mas está disponível no banco de dados via AdvBox (`advbox_tasks.raw_data.lawsuit.customers`).
+### 1. Banco de Dados
 
-## Mudanças Planejadas
+**Nova tabela `rh_folgas`:**
 
-### 1. Salvar o órgão julgador junto com o tribunal (Edge Functions)
+| Coluna | Tipo | Descricao |
+|---|---|---|
+| id | uuid PK | Identificador |
+| colaborador_id | uuid FK profiles(id) | Colaborador que recebera a folga |
+| data_folga | date NOT NULL | Data da folga |
+| motivo | text | Motivo (batimento de metas, premio, etc.) |
+| observacoes | text | Observacoes opcionais |
+| created_by | uuid FK profiles(id) | Quem cadastrou (administrativo) |
+| created_at | timestamptz DEFAULT now() | Data de criacao |
 
-Nas duas edge functions (`pje-publicacoes` e `sync-pje-publicacoes`), alterar o mapeamento do campo `tribunal` para incluir o `nomeOrgao`:
+**Constraint:** UNIQUE(colaborador_id, data_folga) para evitar duplicidade.
 
-- **Antes**: `tribunal: item.siglaTribunal || ''` (resultado: "TRT3")
-- **Depois**: `tribunal: item.nomeOrgao ? \`${item.siglaTribunal} - ${item.nomeOrgao}\` : item.siglaTribunal || ''` (resultado: "TRT3 - 42ª VARA DO TRABALHO DE BELO HORIZONTE")
+**RLS Policies:**
+- SELECT: Usuarios aprovados podem ver suas proprias folgas (`colaborador_id = auth.uid()`). Admins/socios veem todas.
+- INSERT/UPDATE/DELETE: Apenas admins e socios (via `is_admin_or_socio(auth.uid())`). Tambem permitir usuarios com position = 'administrativo'.
 
-Isso resolve o problema da vara sem precisar de cruzamento com o AdvBox.
+---
 
-### 2. Enriquecer com nome do cliente automaticamente (Edge Functions)
+### 2. Componente de Gestao de Folgas (`RHFolgas.tsx`)
 
-Após inserir registros do Comunica PJe, cruzar os números de processo com `advbox_tasks` para preencher o campo `destinatario` (nome do cliente):
+Novo componente dentro de `src/components/rh/` com:
 
-- Buscar todos os `numero_processo` dos registros recém-inseridos que estejam sem `destinatario`
-- Consultar `advbox_tasks` pelo `process_number` correspondente
-- Extrair nomes de `raw_data.lawsuit.customers[].name`
-- Atualizar o campo `destinatario` com os nomes
+- **Tabela** listando todas as folgas cadastradas com filtros por colaborador e periodo
+- **Dialog** para cadastrar nova folga: selecao de colaborador (apenas advogados), data, motivo e observacoes
+- **Edicao e exclusao** de folgas existentes
+- Apenas usuarios com `position === 'administrativo'` ou admins/socios tem acesso
 
-### 3. Atualizar registros existentes (110 publicações já importadas)
+Sera adicionado ao menu lateral do RH em "Gestao de Pessoas" como item "Folgas".
 
-Os 110 registros já importados do Comunica PJe serão atualizados automaticamente quando o usuário clicar em "Enriquecer Dados" ou na próxima sincronização automática.
+---
 
-### 4. Frontend - Chamar enriquecimento automático
+### 3. Integracao no Perfil Unificado do Colaborador
 
-Após busca no Comunica PJe, disparar automaticamente a action `enrich-existing` em segundo plano.
+No `ColaboradorPerfilUnificado.tsx`, na aba "Carreira":
 
-## Detalhes Técnicos
+- Adicionar uma nova secao "Historico de Folgas" (similar ao "Historico de Ferias")
+- Buscar dados de `rh_folgas` para o colaborador em questao
+- Exibir tabela com data, motivo e quem cadastrou
+- Card de metrica no topo: total de folgas no ano
 
-### Arquivos modificados
+---
 
-1. **`supabase/functions/pje-publicacoes/index.ts`**
-   - Na action `search-comunicapje`: alterar mapeamento de `tribunal` para incluir `nomeOrgao`
-   - Adicionar etapa de enriquecimento de clientes após upsert
+### 4. Painel "Ausencias do Dia" no Dashboard
 
-2. **`supabase/functions/sync-pje-publicacoes/index.ts`**
-   - Alterar mapeamento de `tribunal` para incluir `nomeOrgao`
-   - Adicionar etapa de enriquecimento de clientes após upsert do Comunica PJe
+No `Dashboard.tsx`, adicionar uma nova secao logo apos os alertas de tarefas, com o titulo "Quem nao esta no escritorio hoje". Este painel consulta 3 fontes:
 
-3. **`src/pages/PublicacoesDJE.tsx`**
-   - Após busca no Comunica PJe, chamar `enrich-existing` automaticamente
+1. **Home Office:** `home_office_schedules` onde `day_of_week` = dia da semana atual, `month` = mes atual, `year` = ano atual
+2. **Folgas:** `rh_folgas` onde `data_folga` = hoje
+3. **Ferias:** `vacation_requests` onde `start_date <= hoje AND end_date >= hoje AND status = 'approved'`
 
-### Formato do campo tribunal após alteração
+Exibir cards agrupados por tipo com avatar, nome e badge indicando o motivo (Home Office / Folga / Ferias). Se ninguem estiver ausente, exibir mensagem "Todos presentes hoje".
 
-```text
-Antes:  "TRT3"
-Depois: "TRT3 - 42ª VARA DO TRABALHO DE BELO HORIZONTE"
+---
 
-Antes:  "TJMG"
-Depois: "TJMG - Unidade Jurisdicional da Comarca de Nova Lima"
-```
+### Detalhes Tecnicos
 
-### Lógica de enriquecimento de clientes
+**Arquivos a criar:**
+- `src/components/rh/RHFolgas.tsx` - Componente CRUD de folgas
 
-```text
-1. SELECT DISTINCT numero_processo FROM publicacoes inseridas WHERE destinatario = ''
-2. Para cada numero_processo:
-   a. Buscar em advbox_tasks WHERE process_number = numero_processo
-   b. Extrair raw_data -> lawsuit -> customers -> [].name
-   c. UPDATE publicacoes_dje SET destinatario = nomes WHERE numero_processo = X AND destinatario = ''
-```
+**Arquivos a modificar:**
+- Migracao SQL: criar tabela `rh_folgas` com RLS
+- `src/components/rh/RHMenus.tsx` - Adicionar item "Folgas" em "Gestao de Pessoas"
+- `src/components/rh/index.ts` - Exportar `RHFolgas`
+- `src/pages/RH.tsx` - Adicionar case 'folgas' no switch e import
+- `src/components/rh/ColaboradorPerfilUnificado.tsx` - Buscar e exibir folgas na aba Carreira + card metrica
+- `src/pages/Dashboard.tsx` - Novo painel de ausencias do dia (home office + folga + ferias)
+
+**Padrao de fetch de profiles:** Usar o padrao de duas etapas (buscar IDs, depois buscar profiles em bulk) para respeitar RLS, conforme ja feito no sistema de home office.
+
+**Permissoes:** A funcao `is_admin_or_socio` ja existe no banco. Para o position 'administrativo', a RLS verificara `(SELECT position FROM profiles WHERE id = auth.uid()) = 'administrativo'`.
+
