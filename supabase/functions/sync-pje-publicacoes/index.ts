@@ -227,8 +227,116 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Notificar Rafael se houver novas
-    if (novasPublicacoes > 0) {
+
+    // === COMUNICA PJE ===
+    console.log('=== Iniciando busca Comunica PJe ===')
+
+    const ADVOGADOS = [
+      { nome: 'RAFAEL EGG NUNES', display: 'Rafael Egg Nunes' },
+      { nome: 'GUILHERME ZARDO ROCHA', display: 'Guilherme Zardo Rocha' },
+    ]
+
+    const hoje = new Date()
+    const dataInicioCP = new Date(hoje)
+    dataInicioCP.setDate(dataInicioCP.getDate() - 7)
+    const dataInicioBusca = dataInicioCP.toISOString().split('T')[0]
+    const dataFimBusca = hoje.toISOString().split('T')[0]
+
+    const comunicaPjeInserts: any[] = []
+    const comunicaPjeErrors: string[] = []
+
+    for (const advogado of ADVOGADOS) {
+      let pagina = 1
+      let totalPages = 1
+
+      while (pagina <= totalPages) {
+        const params = new URLSearchParams({
+          nomeAdvogado: advogado.nome,
+          dataDisponibilizacaoInicio: dataInicioBusca,
+          dataDisponibilizacaoFim: dataFimBusca,
+          itensPorPagina: '100',
+          pagina: String(pagina),
+        })
+
+        const url = `https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params.toString()}`
+
+        try {
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: { 'User-Agent': BROWSER_UA },
+          })
+
+          if (!response.ok) {
+            const errText = await response.text()
+            comunicaPjeErrors.push(`${advogado.display}: HTTP ${response.status} - ${errText.substring(0, 100)}`)
+            break
+          }
+
+          const result = await response.json()
+          const items = result.items || []
+          const count = result.count || 0
+          totalPages = Math.ceil(count / 100)
+
+          for (const item of items) {
+            const numProcesso = item.numeroprocessocommascara || ''
+            const numProcessoLimpo = numProcesso.replace(/[.-]/g, '')
+            const texto = item.texto || ''
+            const dataDisp = item.data_disponibilizacao || ''
+            const hashTexto = texto.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '')
+            const hash = `cpje-${numProcessoLimpo}-${dataDisp}-${hashTexto}`
+
+            comunicaPjeInserts.push({
+              numero_processo: numProcesso,
+              tribunal: item.siglaTribunal || '',
+              tipo_comunicacao: item.tipoComunicacao || 'NT',
+              data_disponibilizacao: dataDisp,
+              data_publicacao: dataDisp,
+              conteudo: texto,
+              destinatario: item.nomeDestinatario || '',
+              meio: 'ComunicaPJe',
+              nome_advogado: advogado.display,
+              numero_comunicacao: item.numeroComunicacao || '',
+              hash,
+              raw_data: item,
+            })
+          }
+
+          console.log(`ComunicaPJe ${advogado.display}: página ${pagina}/${totalPages}, ${items.length} itens`)
+        } catch (err: any) {
+          comunicaPjeErrors.push(`${advogado.display}: ${err.message}`)
+          break
+        }
+
+        pagina++
+      }
+    }
+
+    console.log(`ComunicaPJe: ${comunicaPjeInserts.length} publicações encontradas`)
+
+    let novasComunicaPje = 0
+    if (comunicaPjeInserts.length > 0) {
+      const existingHashesCP = new Set<string>()
+      const hashesCP = comunicaPjeInserts.map((r: any) => r.hash)
+      for (let i = 0; i < hashesCP.length; i += 100) {
+        const batch = hashesCP.slice(i, i + 100)
+        const { data: rows } = await supabase.from('publicacoes_dje').select('hash').in('hash', batch)
+        for (const row of (rows || [])) existingHashesCP.add(row.hash)
+      }
+      novasComunicaPje = comunicaPjeInserts.filter((r: any) => !existingHashesCP.has(r.hash)).length
+
+      for (let i = 0; i < comunicaPjeInserts.length; i += 50) {
+        const batch = comunicaPjeInserts.slice(i, i + 50)
+        const { error: upsertError } = await supabase
+          .from('publicacoes_dje')
+          .upsert(batch, { onConflict: 'hash', ignoreDuplicates: true })
+        if (upsertError) console.error('Erro upsert ComunicaPJe:', upsertError.message)
+      }
+    }
+
+    const totalNovas = novasPublicacoes + novasComunicaPje
+
+    // Notificar Rafael se houver novas (DataJud + ComunicaPJe)
+    if (totalNovas > 0) {
       const { data: rafaelProfile } = await supabase
         .from('profiles')
         .select('id')
@@ -238,8 +346,8 @@ Deno.serve(async (req) => {
       if (rafaelProfile) {
         await supabase.from('user_notifications').insert({
           user_id: rafaelProfile.id,
-          title: `📋 ${novasPublicacoes} nova(s) movimentação(ões) processual(is)`,
-          message: `Encontradas ${novasPublicacoes} novas movimentações em processos monitorados pelo escritório.`,
+          title: `📋 ${totalNovas} nova(s) movimentação(ões) processual(is)`,
+          message: `Encontradas ${novasPublicacoes} via DataJud e ${novasComunicaPje} via Comunica PJe.`,
           type: 'publicacao_dje',
           action_url: '/publicacoes-dje',
         })
@@ -253,9 +361,11 @@ Deno.serve(async (req) => {
       success: true,
       processos_advbox: numerosUnicos.length,
       processos_consultados: processosConsultados,
-      movimentacoes: toInsert.length,
-      novas: novasPublicacoes,
-      errors: errors.length > 0 ? errors : undefined,
+      movimentacoes_datajud: toInsert.length,
+      novas_datajud: novasPublicacoes,
+      movimentacoes_comunicapje: comunicaPjeInserts.length,
+      novas_comunicapje: novasComunicaPje,
+      errors: [...errors, ...comunicaPjeErrors].length > 0 ? [...errors, ...comunicaPjeErrors] : undefined,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

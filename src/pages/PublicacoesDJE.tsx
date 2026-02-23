@@ -102,6 +102,7 @@ export default function PublicacoesDJE() {
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroLeitura, setFiltroLeitura] = useState<'todas' | 'lidas' | 'nao_lidas'>('todas');
   const [filtroPeriodo, setFiltroPeriodo] = useState<'todos' | '7' | '30' | '90'>('todos');
+  const [filtroFonte, setFiltroFonte] = useState<'todas' | 'DataJud' | 'ComunicaPJe'>('todas');
   const [ordenacao, setOrdenacao] = useState<'recente' | 'antigo' | 'tribunal'>('recente');
 
   useEffect(() => {
@@ -144,12 +145,27 @@ export default function PublicacoesDJE() {
     }
   };
 
-  const handleSearch = async (source: 'local' | 'api') => {
+  const handleSearch = async (source: 'local' | 'api' | 'comunicapje') => {
     setLoading(true);
     try {
       const filters = buildFilters();
 
-      if (source === 'api') {
+      if (source === 'comunicapje') {
+        const { data, error } = await supabase.functions.invoke('pje-publicacoes', {
+          body: { action: 'search-comunicapje', filters },
+          region: FunctionRegion.SaEast1,
+        });
+        if (error) throw error;
+        if (data?.error) {
+          toast.error(data.error);
+          setLoading(false);
+          return;
+        }
+        const total = data.total || 0;
+        const novas = data.novas || 0;
+        toast.success(`Comunica PJe: ${total} publicações encontradas, ${novas} novas salvas.`);
+        await loadLocal({}, 1);
+      } else if (source === 'api') {
         const { data, error } = await supabase.functions.invoke('pje-publicacoes', {
           body: { action: 'search-api', filters },
           region: FunctionRegion.SaEast1,
@@ -164,7 +180,6 @@ export default function PublicacoesDJE() {
         const cached = data.cached || 0;
         const processosTotal = data.processos_total || 0;
         toast.success(`${processosTotal} processos consultados no DataJud. ${total} movimentações encontradas, ${cached} novas salvas.`);
-        // Enrich existing records with client names
         try {
           await supabase.functions.invoke('pje-publicacoes', {
             body: { action: 'enrich-existing' },
@@ -173,7 +188,6 @@ export default function PublicacoesDJE() {
         } catch (e) {
           console.warn('Erro ao enriquecer registros:', e);
         }
-        // Reload from local cache to show results
         await loadLocal({}, 1);
       } else {
         await loadLocal(filters, 1);
@@ -220,6 +234,11 @@ export default function PublicacoesDJE() {
       result = result.filter(p => !p.lida);
     }
 
+    // Source filter
+    if (filtroFonte !== 'todas') {
+      result = result.filter(p => p.meio === filtroFonte);
+    }
+
     // Period filter
     if (filtroPeriodo !== 'todos') {
       const dias = parseInt(filtroPeriodo);
@@ -240,7 +259,7 @@ export default function PublicacoesDJE() {
     }
 
     return result;
-  }, [publicacoes, filtroTexto, filtroLeitura, filtroPeriodo, ordenacao]);
+  }, [publicacoes, filtroTexto, filtroLeitura, filtroFonte, filtroPeriodo, ordenacao]);
 
   const toggleRead = async (pub: Publicacao) => {
     try {
@@ -325,13 +344,18 @@ export default function PublicacoesDJE() {
     <Layout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
+         <div>
             <h1 className="text-2xl font-bold text-foreground">Publicações DJE</h1>
-            <p className="text-muted-foreground">Consulta de movimentações processuais via API pública do DataJud</p>
+            <p className="text-muted-foreground">Consulta de movimentações processuais via DataJud e Comunica PJe</p>
           </div>
-          <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-600 dark:text-emerald-400 dark:border-emerald-400">
-            <Globe className="h-3 w-3" /> API DataJud
-          </Badge>
+          <div className="flex gap-2">
+            <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-600 dark:text-emerald-400 dark:border-emerald-400">
+              <Globe className="h-3 w-3" /> DataJud
+            </Badge>
+            <Badge variant="outline" className="gap-1 text-blue-600 border-blue-600 dark:text-blue-400 dark:border-blue-400">
+              <Globe className="h-3 w-3" /> Comunica PJe
+            </Badge>
+          </div>
         </div>
 
         {/* Info banner */}
@@ -340,9 +364,8 @@ export default function PublicacoesDJE() {
             <div className="flex items-start gap-3">
               <Globe className="h-5 w-5 text-primary mt-0.5 shrink-0" />
               <p className="text-sm text-muted-foreground">
-                A busca externa utiliza a <strong>API pública do DataJud</strong> para consultar movimentações de todos os processos cadastrados no escritório.
-                Clique em <strong>"Buscar no DataJud"</strong> para trazer as movimentações recentes (últimos 30 dias).
-                Os filtros por advogado são aplicados apenas na busca do cache local.
+                O sistema consulta duas fontes: <strong>DataJud</strong> (movimentações por número de processo) e <strong>Comunica PJe</strong> (publicações por nome do advogado).
+                Use os botões abaixo para buscar em cada fonte.
               </p>
             </div>
           </CardContent>
@@ -420,6 +443,10 @@ export default function PublicacoesDJE() {
               <Button onClick={() => handleSearch('api')} disabled={loading} className="gap-2">
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 Buscar no DataJud
+              </Button>
+              <Button onClick={() => handleSearch('comunicapje')} disabled={loading} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                Buscar no Comunica PJe
               </Button>
               <Button variant="outline" onClick={() => handleSearch('local')} disabled={loading} className="gap-2">
                 <Search className="h-4 w-4" />
@@ -501,6 +528,16 @@ export default function PublicacoesDJE() {
                     <SelectItem value="90">Últimos 90 dias</SelectItem>
                   </SelectContent>
                 </Select>
+                <Select value={filtroFonte} onValueChange={(v) => setFiltroFonte(v as any)}>
+                  <SelectTrigger className="w-[160px] h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas as fontes</SelectItem>
+                    <SelectItem value="DataJud">DataJud</SelectItem>
+                    <SelectItem value="ComunicaPJe">Comunica PJe</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Select value={ordenacao} onValueChange={(v) => setOrdenacao(v as any)}>
                   <SelectTrigger className="w-[160px] h-9">
                     <SelectValue />
@@ -542,6 +579,7 @@ export default function PublicacoesDJE() {
                         <TableHead>Cliente</TableHead>
                         <TableHead>Tribunal</TableHead>
                         <TableHead>Tipo</TableHead>
+                        <TableHead>Fonte</TableHead>
                         <TableHead>Conteúdo</TableHead>
                         <TableHead>Ações</TableHead>
                       </TableRow>
@@ -569,7 +607,14 @@ export default function PublicacoesDJE() {
                               {pub.tipo_comunicacao || '-'}
                             </Badge>
                           </TableCell>
-                          <TableCell className="max-w-[250px] truncate text-xs">{reconstructContent(pub)}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-xs ${pub.meio === 'ComunicaPJe' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-emerald-500 text-emerald-600 dark:text-emerald-400'}`}>
+                              {pub.meio === 'ComunicaPJe' ? 'PJe' : 'DataJud'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="max-w-[250px] truncate text-xs">
+                            {pub.meio === 'ComunicaPJe' ? (pub.conteudo || '-').substring(0, 150) : reconstructContent(pub)}
+                          </TableCell>
                           <TableCell>
                             <Button
                               variant="ghost"
@@ -667,8 +712,8 @@ export default function PublicacoesDJE() {
                     </div>
                   )}
 
-                  {/* Tipo e Data */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Tipo, Data e Fonte */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                       <Label className="text-muted-foreground text-xs">Tipo da Movimentação</Label>
                       <div className="mt-1">
@@ -688,13 +733,21 @@ export default function PublicacoesDJE() {
                       <Label className="text-muted-foreground text-xs">Advogado Responsável</Label>
                       <p className="text-sm">{selectedPub.nome_advogado || '-'}</p>
                     </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Fonte</Label>
+                      <div className="mt-1">
+                        <Badge variant="outline" className={`text-xs ${selectedPub.meio === 'ComunicaPJe' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-emerald-500 text-emerald-600 dark:text-emerald-400'}`}>
+                          {selectedPub.meio === 'ComunicaPJe' ? 'Comunica PJe' : 'DataJud'}
+                        </Badge>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Conteúdo da movimentação */}
                   <div>
                     <Label className="text-muted-foreground text-xs">Conteúdo da Movimentação</Label>
                     <div className="mt-2 p-4 bg-muted rounded-lg text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto">
-                      {reconstructContent(selectedPub)}
+                      {selectedPub.meio === 'ComunicaPJe' ? (selectedPub.conteudo || '-') : reconstructContent(selectedPub)}
                     </div>
                   </div>
 
