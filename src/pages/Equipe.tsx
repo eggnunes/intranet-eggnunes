@@ -5,14 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, User, Briefcase, GraduationCap, Building2, UserCog, Mail, IdCard, Cake, CalendarCheck, Phone, ExternalLink, MessageSquare } from 'lucide-react';
+import { Users, User, Briefcase, GraduationCap, Building2, UserCog, Mail, IdCard, Cake, CalendarCheck, Phone, ExternalLink, MessageSquare, Calendar } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { format, parse, differenceInMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useStartConversation } from '@/hooks/useStartConversation';
 import { useAuth } from '@/hooks/useAuth';
+import { RHFolgas } from '@/components/rh/RHFolgas';
 
 interface TeamMember {
   id: string;
@@ -38,9 +40,11 @@ interface GroupedTeam {
 export default function Equipe() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { profile } = useUserRole();
+  const { isAdmin, profile } = useUserRole();
   const { startConversation } = useStartConversation();
   const isSocio = profile?.position === 'socio';
+  const isAdministrativo = profile?.position === 'administrativo';
+  const canManageFolgas = isAdmin || isSocio || isAdministrativo;
   
   const [team, setTeam] = useState<GroupedTeam>({
     socio: [],
@@ -54,7 +58,6 @@ export default function Equipe() {
   useEffect(() => {
     fetchTeam();
 
-    // Configurar real-time updates para mudanças nos perfis
     const channel = supabase
       .channel('team-profile-changes')
       .on(
@@ -65,7 +68,6 @@ export default function Equipe() {
           table: 'profiles',
         },
         () => {
-          // Quando qualquer perfil for atualizado, recarregar a equipe
           fetchTeam();
         }
       )
@@ -192,126 +194,177 @@ export default function Equipe() {
           </div>
         </div>
 
-        {/* Team Sections */}
-        {(Object.keys(team) as Array<keyof GroupedTeam>).map((position) => {
-          const members = team[position];
-          if (members.length === 0) return null;
-
-          const positionInfo = getPositionInfo(position);
-          const Icon = positionInfo.icon;
-
-          return (
-            <section key={position} className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg bg-gradient-to-br ${positionInfo.color}`}>
-                  <Icon className="h-5 w-5 text-white" />
-                </div>
-                <h2 className="text-2xl font-bold">{positionInfo.title}</h2>
-                <Badge variant="secondary" className="ml-2">
-                  {members.length} {members.length === 1 ? 'membro' : 'membros'}
-                </Badge>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {members.map((member) => (
-                  <Card
-                    key={member.id}
-                    className={`${positionInfo.bgColor} ${positionInfo.borderColor} border-2 hover:shadow-lg transition-all duration-300 hover:-translate-y-1 ${isSocio ? 'cursor-pointer' : ''}`}
-                    onClick={isSocio ? () => navigate(`/rh?colaboradorId=${member.id}`) : undefined}
-                  >
-                    <CardHeader>
-                      <div className="flex items-start gap-4">
-                        <Avatar className="h-16 w-16 border-2 border-primary/30">
-                          <AvatarImage src={member.avatar_url || undefined} />
-                          <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-lg">
-                            {member.full_name
-                              .split(' ')
-                              .map((n) => n[0])
-                              .join('')
-                              .toUpperCase()
-                              .slice(0, 2)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <CardTitle className="text-lg mb-2 truncate flex items-center gap-2">
-                            {member.full_name}
-                            {isSocio && (
-                              <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                            )}
-                          </CardTitle>
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Mail className="h-3 w-3 flex-shrink-0" />
-                              <span className="truncate">{member.email}</span>
-                            </div>
-                            {member.telefone && (
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Phone className="h-3 w-3 flex-shrink-0" />
-                                <span>{member.telefone}</span>
-                              </div>
-                            )}
-                            {member.birth_date && (
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Cake className="h-3 w-3 flex-shrink-0" />
-                                <span>
-                                  {format(parse(member.birth_date, 'yyyy-MM-dd', new Date()), "dd 'de' MMMM", { locale: ptBR })}
-                                </span>
-                              </div>
-                            )}
-                            {member.join_date && (
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <CalendarCheck className="h-3 w-3 flex-shrink-0" />
-                                <span>
-                                  Desde {format(parse(member.join_date, 'yyyy-MM-dd', new Date()), "MMMM 'de' yyyy", { locale: ptBR })}
-                                  {' '}({calculateTenure(member.join_date)})
-                                </span>
-                              </div>
-                            )}
-                            {(member.oab_number || member.oab_state) && (
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <IdCard className="h-3 w-3 flex-shrink-0" />
-                                <span>
-                                  OAB {member.oab_state && `${member.oab_state}/`}
-                                  {member.oab_number}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          {/* Botão de Enviar Mensagem */}
-                          {user && user.id !== member.id && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="mt-3 w-full gap-2"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                startConversation(member.id, member.full_name);
-                              }}
-                            >
-                              <MessageSquare className="h-4 w-4" />
-                              Enviar Mensagem
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </CardHeader>
-                  </Card>
-                ))}
-              </div>
-              <Separator className="my-6" />
-            </section>
-          );
-        })}
-
-        {Object.values(team).every((members) => members.length === 0) && (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Nenhum membro cadastrado ainda.</p>
-            </CardContent>
-          </Card>
+        {canManageFolgas ? (
+          <Tabs defaultValue="equipe" className="w-full">
+            <TabsList>
+              <TabsTrigger value="equipe" className="gap-2">
+                <Users className="h-4 w-4" />
+                Equipe
+              </TabsTrigger>
+              <TabsTrigger value="folgas" className="gap-2">
+                <Calendar className="h-4 w-4" />
+                Gestão de Folgas
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="equipe" className="mt-6">
+              <TeamContent
+                team={team}
+                isSocio={isSocio}
+                user={user}
+                navigate={navigate}
+                startConversation={startConversation}
+                getPositionInfo={getPositionInfo}
+                calculateTenure={calculateTenure}
+              />
+            </TabsContent>
+            <TabsContent value="folgas" className="mt-6">
+              <RHFolgas />
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <TeamContent
+            team={team}
+            isSocio={isSocio}
+            user={user}
+            navigate={navigate}
+            startConversation={startConversation}
+            getPositionInfo={getPositionInfo}
+            calculateTenure={calculateTenure}
+          />
         )}
       </div>
     </Layout>
+  );
+}
+
+function TeamContent({ team, isSocio, user, navigate, startConversation, getPositionInfo, calculateTenure }: {
+  team: GroupedTeam;
+  isSocio: boolean;
+  user: any;
+  navigate: any;
+  startConversation: any;
+  getPositionInfo: (position: keyof GroupedTeam) => any;
+  calculateTenure: (joinDate: string | null) => string | null;
+}) {
+  return (
+    <div className="space-y-6">
+      {(Object.keys(team) as Array<keyof GroupedTeam>).map((position) => {
+        const members = team[position];
+        if (members.length === 0) return null;
+
+        const positionInfo = getPositionInfo(position);
+        const Icon = positionInfo.icon;
+
+        return (
+          <section key={position} className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg bg-gradient-to-br ${positionInfo.color}`}>
+                <Icon className="h-5 w-5 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold">{positionInfo.title}</h2>
+              <Badge variant="secondary" className="ml-2">
+                {members.length} {members.length === 1 ? 'membro' : 'membros'}
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {members.map((member) => (
+                <Card
+                  key={member.id}
+                  className={`${positionInfo.bgColor} ${positionInfo.borderColor} border-2 hover:shadow-lg transition-all duration-300 hover:-translate-y-1 ${isSocio ? 'cursor-pointer' : ''}`}
+                  onClick={isSocio ? () => navigate(`/rh?colaboradorId=${member.id}`) : undefined}
+                >
+                  <CardHeader>
+                    <div className="flex items-start gap-4">
+                      <Avatar className="h-16 w-16 border-2 border-primary/30">
+                        <AvatarImage src={member.avatar_url || undefined} />
+                        <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20 text-primary text-lg">
+                          {member.full_name
+                            .split(' ')
+                            .map((n) => n[0])
+                            .join('')
+                            .toUpperCase()
+                            .slice(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-lg mb-2 truncate flex items-center gap-2">
+                          {member.full_name}
+                          {isSocio && (
+                            <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                          )}
+                        </CardTitle>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Mail className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate">{member.email}</span>
+                          </div>
+                          {member.telefone && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Phone className="h-3 w-3 flex-shrink-0" />
+                              <span>{member.telefone}</span>
+                            </div>
+                          )}
+                          {member.birth_date && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Cake className="h-3 w-3 flex-shrink-0" />
+                              <span>
+                                {format(parse(member.birth_date, 'yyyy-MM-dd', new Date()), "dd 'de' MMMM", { locale: ptBR })}
+                              </span>
+                            </div>
+                          )}
+                          {member.join_date && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <CalendarCheck className="h-3 w-3 flex-shrink-0" />
+                              <span>
+                                Desde {format(parse(member.join_date, 'yyyy-MM-dd', new Date()), "MMMM 'de' yyyy", { locale: ptBR })}
+                                {' '}({calculateTenure(member.join_date)})
+                              </span>
+                            </div>
+                          )}
+                          {(member.oab_number || member.oab_state) && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <IdCard className="h-3 w-3 flex-shrink-0" />
+                              <span>
+                                OAB {member.oab_state && `${member.oab_state}/`}
+                                {member.oab_number}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        {user && user.id !== member.id && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-3 w-full gap-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startConversation(member.id, member.full_name);
+                            }}
+                          >
+                            <MessageSquare className="h-4 w-4" />
+                            Enviar Mensagem
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                </Card>
+              ))}
+            </div>
+            <Separator className="my-6" />
+          </section>
+        );
+      })}
+
+      {Object.values(team).every((members) => members.length === 0) && (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">Nenhum membro cadastrado ainda.</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
