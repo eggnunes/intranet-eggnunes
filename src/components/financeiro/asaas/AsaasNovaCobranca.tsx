@@ -189,8 +189,8 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
       const { data, error } = await supabase
         .from('fin_contratos')
         .select('id, client_name, client_cpf, client_email, client_phone, product_name')
-        .eq('status', 'ativo')
-        .order('client_name');
+        .in('status', ['ativo', 'pendente'])
+        .order('created_at', { ascending: false });
       
       if (!error && data) {
         setContractCustomers(data);
@@ -241,9 +241,14 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
     }
   };
 
+  // Normalizar texto removendo acentos para busca flexível
+  const normalize = (text: string) =>
+    text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
   // Filtrar clientes baseado na fonte selecionada
   const getFilteredCustomers = (): Customer[] => {
-    const search = customerSearch.toLowerCase();
+    const searchNorm = normalize(customerSearch);
+    const searchDigits = customerSearch.replace(/\D/g, '');
     
     if (customerSource === 'asaas') {
       return customers;
@@ -251,8 +256,13 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
     
     if (customerSource === 'advbox') {
       return advboxCustomers
-        .filter(c => c.name.toLowerCase().includes(search) || c.tax_id?.includes(search) || c.cpf?.includes(search) || c.cnpj?.includes(search))
-        .slice(0, 20)
+        .filter(c => {
+          if (!searchNorm) return true;
+          if (normalize(c.name).includes(searchNorm)) return true;
+          if (searchDigits && (c.tax_id?.replace(/\D/g, '').includes(searchDigits) || c.cpf?.replace(/\D/g, '').includes(searchDigits) || c.cnpj?.replace(/\D/g, '').includes(searchDigits))) return true;
+          return false;
+        })
+        .slice(0, 30)
         .map(c => ({
           id: `advbox_${c.id}`,
           name: c.name,
@@ -263,8 +273,15 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
     
     if (customerSource === 'local') {
       return localCustomers
-        .filter(c => c.nome.toLowerCase().includes(search) || c.cpf_cnpj?.includes(search))
-        .slice(0, 20)
+        .filter(c => {
+          if (!searchNorm) return true;
+          if (normalize(c.nome).includes(searchNorm)) return true;
+          if (searchDigits && c.cpf_cnpj?.replace(/\D/g, '').includes(searchDigits)) return true;
+          if (c.email && normalize(c.email).includes(searchNorm)) return true;
+          if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+          return false;
+        })
+        .slice(0, 30)
         .map(c => ({
           id: `local_${c.id}`,
           name: c.nome,
@@ -277,8 +294,14 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
 
     if (customerSource === 'contrato') {
       return contractCustomers
-        .filter(c => c.client_name.toLowerCase().includes(search) || c.client_cpf?.includes(search))
-        .slice(0, 20)
+        .filter(c => {
+          if (!searchNorm) return true;
+          if (normalize(c.client_name).includes(searchNorm)) return true;
+          if (searchDigits && c.client_cpf?.replace(/\D/g, '').includes(searchDigits)) return true;
+          if (c.client_email && normalize(c.client_email).includes(searchNorm)) return true;
+          return false;
+        })
+        .slice(0, 30)
         .map(c => ({
           id: `contrato_${c.id}`,
           name: c.client_name,
