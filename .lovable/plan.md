@@ -1,124 +1,74 @@
 
 
-# Integracao da API Comunica PJe (DJEN) + Melhorias DataJud
+# Enriquecimento de Publicações: Cliente + Vara/Órgão Julgador
 
-## Contexto
+## Diagnóstico
 
-O documento do Manus identifica **duas APIs** do CNJ:
+Analisei os dados e descobri informações importantes:
 
-1. **API Comunica PJe (DJEN)** - Busca publicacoes pelo nome dos advogados. **Esta API nao existe ainda no sistema** e e a principal addicao.
-2. **API DataJud** - Busca movimentacoes por numero de processo. **Ja esta implementada** no sistema atual.
+1. **Vara/Órgão Julgador**: A API do Comunica PJe **já retorna** essa informação no campo `nomeOrgao` (ex: "42ª VARA DO TRABALHO DE BELO HORIZONTE", "Unidade Jurisdicional da Comarca de Nova Lima"), mas o sistema está ignorando esse campo e salvando apenas a sigla do tribunal (ex: TRT3, TJMG).
 
-O sistema atual usa apenas o DataJud (via processos cadastrados no AdvBox). A integracao do Comunica PJe adiciona uma segunda fonte de dados que captura publicacoes de Diarios de Justica diretamente pelo nome dos advogados, cobrindo processos que podem nao estar cadastrados no AdvBox.
+2. **Nome do Cliente**: Não vem da API do Comunica PJe, mas está disponível no banco de dados via AdvBox (`advbox_tasks.raw_data.lawsuit.customers`).
 
-## Problema do Bloqueio Geografico
+## Mudanças Planejadas
 
-O Manus alerta que a API Comunica PJe tem bloqueio geografico (CloudFront). O sistema ja resolve isso para o DataJud executando a edge function na regiao `sa-east-1` (Sao Paulo). A mesma estrategia sera aplicada para o Comunica PJe.
+### 1. Salvar o órgão julgador junto com o tribunal (Edge Functions)
 
-## Mudancas Planejadas
+Nas duas edge functions (`pje-publicacoes` e `sync-pje-publicacoes`), alterar o mapeamento do campo `tribunal` para incluir o `nomeOrgao`:
 
-### 1. Edge Function `pje-publicacoes/index.ts` - Nova action `search-comunicapje`
+- **Antes**: `tribunal: item.siglaTribunal || ''` (resultado: "TRT3")
+- **Depois**: `tribunal: item.nomeOrgao ? \`${item.siglaTribunal} - ${item.nomeOrgao}\` : item.siglaTribunal || ''` (resultado: "TRT3 - 42ª VARA DO TRABALHO DE BELO HORIZONTE")
 
-Adicionar uma nova action que:
-- Faz requisicoes GET para `https://comunicaapi.pje.jus.br/api/v1/comunicacao`
-- Busca por cada advogado configurado (Rafael Egg Nunes e Guilherme Zardo Rocha)
-- Parametros: `nomeAdvogado` (URL-encoded, maiusculas), `dataDisponibilizacaoInicio`, `dataDisponibilizacaoFim`, `itensPorPagina=100`, `pagina`
-- Implementa paginacao automatica (verifica `count` vs `itensPorPagina`)
-- Mapeia campos da resposta: `texto` -> `conteudo`, `siglaTribunal` -> `tribunal`, `numeroprocessocommascara` -> `numero_processo`, `data_disponibilizacao` -> `data_disponibilizacao`
-- Gera hash unico: `cpje-{numeroProcesso}-{data_disponibilizacao}` para evitar duplicatas
-- Define `meio` = `'ComunicaPJe'` para distinguir da fonte DataJud
-- Faz upsert na tabela `publicacoes_dje` (mesma tabela, nova fonte)
+Isso resolve o problema da vara sem precisar de cruzamento com o AdvBox.
 
-### 2. Edge Function `sync-pje-publicacoes/index.ts` - Adicionar Comunica PJe ao sync automatico
+### 2. Enriquecer com nome do cliente automaticamente (Edge Functions)
 
-A funcao de sincronizacao diaria (cron) atualmente so consulta o DataJud. Sera adicionada a consulta ao Comunica PJe apos a consulta ao DataJud, seguindo a mesma logica:
-- Buscar publicacoes dos ultimos 7 dias para cada advogado
-- Fazer upsert no banco
-- Incluir contagem no resultado final
+Após inserir registros do Comunica PJe, cruzar os números de processo com `advbox_tasks` para preencher o campo `destinatario` (nome do cliente):
 
-### 3. Frontend `src/pages/PublicacoesDJE.tsx` - Botao de busca ComunicaPJe
+- Buscar todos os `numero_processo` dos registros recém-inseridos que estejam sem `destinatario`
+- Consultar `advbox_tasks` pelo `process_number` correspondente
+- Extrair nomes de `raw_data.lawsuit.customers[].name`
+- Atualizar o campo `destinatario` com os nomes
 
-Adicionar:
-- Um novo botao "Buscar no Comunica PJe" ao lado do botao existente "Buscar no DataJud"
-- Ao clicar, invoca a action `search-comunicapje` com os filtros de data
-- Mostrar coluna ou badge indicando a fonte (`DataJud` ou `ComunicaPJe`) na tabela de resultados
-- Filtro adicional por fonte/meio
+### 3. Atualizar registros existentes (110 publicações já importadas)
 
-### 4. Configuracao dos advogados
+Os 110 registros já importados do Comunica PJe serão atualizados automaticamente quando o usuário clicar em "Enriquecer Dados" ou na próxima sincronização automática.
 
-Os nomes dos advogados serao configurados diretamente na edge function como constante:
+### 4. Frontend - Chamar enriquecimento automático
 
-```text
-ADVOGADOS = [
-  { nome: 'RAFAEL EGG NUNES', display: 'Rafael Egg Nunes' },
-  { nome: 'GUILHERME ZARDO ROCHA', display: 'Guilherme Zardo Rocha' },
-]
-```
+Após busca no Comunica PJe, disparar automaticamente a action `enrich-existing` em segundo plano.
 
-## Detalhes Tecnicos
+## Detalhes Técnicos
 
-### Requisicao ao Comunica PJe
+### Arquivos modificados
+
+1. **`supabase/functions/pje-publicacoes/index.ts`**
+   - Na action `search-comunicapje`: alterar mapeamento de `tribunal` para incluir `nomeOrgao`
+   - Adicionar etapa de enriquecimento de clientes após upsert
+
+2. **`supabase/functions/sync-pje-publicacoes/index.ts`**
+   - Alterar mapeamento de `tribunal` para incluir `nomeOrgao`
+   - Adicionar etapa de enriquecimento de clientes após upsert do Comunica PJe
+
+3. **`src/pages/PublicacoesDJE.tsx`**
+   - Após busca no Comunica PJe, chamar `enrich-existing` automaticamente
+
+### Formato do campo tribunal após alteração
 
 ```text
-GET https://comunicaapi.pje.jus.br/api/v1/comunicacao
-  ?nomeAdvogado=RAFAEL%20EGG%20NUNES
-  &dataDisponibilizacaoInicio=2026-02-22
-  &dataDisponibilizacaoFim=2026-02-22
-  &itensPorPagina=100
-  &pagina=1
+Antes:  "TRT3"
+Depois: "TRT3 - 42ª VARA DO TRABALHO DE BELO HORIZONTE"
+
+Antes:  "TJMG"
+Depois: "TJMG - Unidade Jurisdicional da Comarca de Nova Lima"
 ```
 
-- Sem autenticacao (API publica)
-- Requer IP brasileiro (regiao sa-east-1 resolve isso)
-- Resposta: objeto com campo `items` (array de publicacoes) e `count` (total)
-- Campos relevantes por item: `texto`, `data_disponibilizacao`, `siglaTribunal`, `numeroprocessocommascara`, `tipoComunicacao`, `nomeDestinatario`, `meio`
-
-### Mapeamento de campos Comunica PJe -> publicacoes_dje
-
-| Campo API | Campo Banco |
-|---|---|
-| `numeroprocessocommascara` | `numero_processo` |
-| `siglaTribunal` | `tribunal` |
-| `tipoComunicacao` (CI/IN/NT) | `tipo_comunicacao` |
-| `data_disponibilizacao` | `data_disponibilizacao` |
-| `data_disponibilizacao` | `data_publicacao` |
-| `texto` | `conteudo` |
-| `nomeDestinatario` | `destinatario` |
-| `meio` (ex: "Diario") | `meio` -> salvar como `'ComunicaPJe'` |
-| advogado buscado | `nome_advogado` |
-| JSON completo do item | `raw_data` |
-
-### Hash para deduplicacao
+### Lógica de enriquecimento de clientes
 
 ```text
-cpje-{numeroProcessoSemMascara}-{data_disponibilizacao}-{primeiros30charsTexto}
+1. SELECT DISTINCT numero_processo FROM publicacoes inseridas WHERE destinatario = ''
+2. Para cada numero_processo:
+   a. Buscar em advbox_tasks WHERE process_number = numero_processo
+   b. Extrair raw_data -> lawsuit -> customers -> [].name
+   c. UPDATE publicacoes_dje SET destinatario = nomes WHERE numero_processo = X AND destinatario = ''
 ```
-
-### Logica de paginacao
-
-```text
-pagina = 1
-loop:
-  resultado = GET(url, pagina)
-  salvar items
-  if (pagina * itensPorPagina >= resultado.count) break
-  pagina++
-```
-
-### Filtro por fonte no frontend
-
-Adicionar opcao de filtro `meio` no client-side para permitir filtrar entre "Todas", "DataJud" e "ComunicaPJe".
-
-## Arquivos modificados
-
-1. `supabase/functions/pje-publicacoes/index.ts` - Adicionar action `search-comunicapje`
-2. `supabase/functions/sync-pje-publicacoes/index.ts` - Adicionar busca ComunicaPJe ao sync diario
-3. `src/pages/PublicacoesDJE.tsx` - Botao ComunicaPJe, coluna/badge de fonte, filtro por fonte
-
-## O que NAO muda
-
-- A integracao DataJud existente permanece intacta
-- A tabela `publicacoes_dje` nao precisa de alteracao (ja tem os campos necessarios)
-- O mecanismo de leitura/nao-lida continua igual
-- O dialog de detalhes continua usando `reconstructContent` para registros DataJud, e mostra `conteudo` direto para registros ComunicaPJe (que ja vem com texto completo)
-
