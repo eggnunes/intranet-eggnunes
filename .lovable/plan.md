@@ -1,51 +1,124 @@
 
+### Diagnóstico confirmado com base no código + banco + anexo
 
-## Corrigir Busca e Listagem de Contratos na Nova Cobranca Asaas
+O comportamento atual está coerente com a sua reclamação:
 
-### Problemas Identificados
-
-1. **Ordenacao errada**: Os contratos estao sendo carregados ordenados por `client_name` (alfabetico). Isso faz com que os ultimos clientes que preencheram formulario aparecam no meio ou no final da lista, dificultando a localizacao. Devem ser ordenados por `created_at DESC` (mais recentes primeiro).
-
-2. **Busca limitada**: A busca no campo de texto funciona, mas so compara com `client_name.toLowerCase().includes(search)`. Se o usuario digitar "Juan" e o nome estiver salvo como "JUAN OLIVEIRA" ou com acentos, a busca pode falhar em cenarios de formatacao. Alem disso, a busca por CPF so funciona com `includes`, sem remover formatacao.
-
-3. **Limite de exibicao**: O `.slice(0, 20)` mostra apenas 20 resultados, o que e adequado, mas combinado com a ordenacao alfabetica faz com que so aparecem nomes comecando com A-D inicialmente.
-
-4. **Cliente pode nao estar na tabela**: O cliente "Juan Oliveira" nao foi encontrado na tabela `fin_contratos`. Pode ser que o formulario tenha sido preenchido mas o contrato nao foi gerado, ou o nome esta salvo de forma diferente. A busca precisa ser mais flexivel.
+1. A aba **“Contratos”** da Nova Cobrança (`AsaasNovaCobranca.tsx`) busca **somente** da tabela `fin_contratos`.
+2. O painel “Clientes do Formulário” (onde aparece “Ruan”) vem de **Google Sheets** via `google-sheets-integration` (`src/pages/SetorComercial.tsx`) — ou seja, é uma fonte diferente.
+3. Resultado: se o cliente ainda não virou registro em `fin_contratos`, ele **não aparece** na Nova Cobrança, mesmo existindo no formulário.
+4. Isso explica exatamente o caso do Ruan: ele está na aba de formulários, mas não está sendo considerado na busca da cobrança.
 
 ---
 
-### Solucao
+### Objetivo da correção
 
-**Arquivo a modificar:** `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`
-
-#### 1. Ordenar contratos por data (mais recentes primeiro)
-
-Alterar a query de `loadContractCustomers()` de `.order('client_name')` para `.order('created_at', { ascending: false })`.
-
-#### 2. Melhorar a busca de contratos
-
-- Normalizar a busca removendo acentos e caracteres especiais
-- Buscar tambem no CPF removendo formatacao (pontos e tracos)
-- Buscar no email do cliente tambem
-- Aumentar o limite de exibicao para 30 resultados
-
-#### 3. Aplicar mesmas melhorias para outras fontes
-
-- Ordenar clientes locais (`fin_clientes`) por nome mas permitir busca por email/telefone
-- Garantir que a busca por CPF funciona independente da formatacao
+Fazer a aba “Contratos” da Nova Cobrança reconhecer também os clientes da aba de formulários (Google Sheets), mantendo:
+- listagem recente no topo;
+- busca por nome/CPF/email/telefone;
+- desempenho bom;
+- clareza visual da origem (Contrato vs Formulário).
 
 ---
 
-### Detalhes Tecnicos
+### Implementação proposta (frontend, sem migração de banco)
 
-**Alteracoes na funcao `loadContractCustomers()`:**
-- Mudar `.order('client_name')` para `.order('created_at', { ascending: false })`
-- Remover filtro `.eq('status', 'ativo')` ou expandir para incluir outros status recentes (ex: `in ('ativo', 'pendente')`)
+**Arquivo principal:** `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`
 
-**Alteracoes na funcao `getFilteredCustomers()` (bloco contrato):**
-- Normalizar texto de busca (remover acentos com `normalize('NFD').replace(...)`)
-- Comparar CPF sem formatacao: `client_cpf?.replace(/\D/g, '').includes(searchClean)`
-- Incluir busca por email: `client_email?.toLowerCase().includes(search)`
-- Aumentar slice para 30
+#### 1) Expandir a fonte “contrato” para “contratos + formulários”
+- Criar estado para clientes de formulário (ex.: `formCustomers`) e loading dedicado.
+- Criar função `loadFormCustomers()` chamando `supabase.functions.invoke('google-sheets-integration')`.
+- Mapear campos do retorno:
+  - `nomeCompleto` -> nome
+  - `cpf` -> cpfCnpj
+  - `email` -> email
+  - `telefone` -> phone
+  - `timestamp` -> data de ordenação
+- Não remover `loadContractCustomers()`; vamos **combinar** as duas origens.
 
-**Nenhuma alteracao no backend** -- apenas ajustes na query e na logica de filtro do frontend.
+#### 2) Unificar e normalizar busca no bloco `customerSource === 'contrato'`
+- Em vez de filtrar só `contractCustomers`, criar um array unificado:
+  - contratos (`fin_contratos`)
+  - formulários (Google Sheets)
+- Aplicar a mesma normalização robusta já usada (acentos + dígitos):
+  - nome sem acento (`normalize`)
+  - CPF/telefone apenas números (`replace(/\D/g, '')`)
+  - incluir email na busca
+- Cobrir casos:
+  - digitar “Ruan” encontra `Ruan de Oliveira Coelho`
+  - digitar CPF com/sem máscara encontra igual
+  - digitar pedaço do email/telefone também encontra
+
+#### 3) Ordenação correta por recência
+- Unificar com campo de data:
+  - contratos: `created_at`
+  - formulários: `timestamp` convertido de `dd/MM/yyyy HH:mm:ss`
+- Ordenar descendente (mais recente primeiro), antes do `slice`.
+
+#### 4) Deduplicação para evitar cliente repetido
+- Deduplicar por prioridade:
+  1. CPF numérico (quando existir)
+  2. fallback nome normalizado + telefone/email
+- Regra de prioridade:
+  - manter registro de **contrato** quando houver duplicidade com formulário (porque traz `product_name` e status já formalizado).
+
+#### 5) UX na lista de resultados
+- Exibir badge de origem:
+  - `Contrato`
+  - `Formulário`
+- Para contrato, manter exibição de `productName`.
+- Para formulário, opcionalmente exibir subtítulo curto “Lead de formulário”.
+
+#### 6) Segurança funcional na criação de cobrança
+- Fluxo atual exige CPF/CNPJ para sincronizar no Asaas; manter isso.
+- Se cliente de formulário vier sem CPF, mostrar mensagem clara já no passo 1 (antes de avançar), para evitar fricção no fim do fluxo.
+
+---
+
+### Ajustes de performance e confiabilidade
+
+1. **Carregamento sob demanda**
+   - Buscar Google Sheets apenas quando:
+     - modal abrir **e** aba “Contratos” for usada, ou
+     - usuário trocar para a aba “Contratos”.
+   - Evita chamadas desnecessárias para quem usa só Asaas/ADVBox.
+
+2. **Cache em memória durante o modal aberto**
+   - Não chamar Google Sheets a cada tecla.
+   - Carrega uma vez e filtra localmente.
+
+3. **Botão de atualizar nessa fonte**
+   - Adicionar botão “Atualizar formulários” na aba “Contratos” (similar ao ADVBox), para forçar refresh imediato quando acabou de chegar lead novo.
+
+---
+
+### Critérios de aceite (o que deve funcionar após aprovação)
+
+1. Abrindo Nova Cobrança > aba Contratos:
+   - o “último formulário preenchido” aparece no topo (se dados válidos).
+2. Ao digitar “Ruan”, o cliente do formulário é encontrado.
+3. Busca por CPF sem máscara também encontra.
+4. Quando cliente existir em contrato e formulário, não aparece duplicado.
+5. Selecionando cliente de formulário com CPF válido, o fluxo segue e cria cobrança normalmente.
+
+---
+
+### Riscos e mitigação
+
+- **Risco:** falha temporária da função de Google Sheets.
+  - **Mitigação:** fallback para mostrar contratos normalmente + toast de erro específico para formulários.
+- **Risco:** timestamps em formato inconsistente.
+  - **Mitigação:** parser defensivo com fallback de data mínima; não quebrar ordenação.
+- **Risco:** volume crescer.
+  - **Mitigação futura:** criar endpoint de busca paginada no backend (se necessário); por agora o volume atual (~1k) é seguro para filtro local.
+
+---
+
+### Arquivos previstos para alteração
+
+1. `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`
+   - novos estados para formulário
+   - `loadFormCustomers()`
+   - unificação + deduplicação + ordenação no `getFilteredCustomers()` da fonte contrato
+   - ajustes de UI (badge/formulário + botão atualizar)
+
+Sem necessidade de migração de banco nesta etapa.
