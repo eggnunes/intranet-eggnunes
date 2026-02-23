@@ -254,6 +254,48 @@ export type Database = {
           },
         ]
       }
+      advbox_customers: {
+        Row: {
+          advbox_id: number
+          birthday: string | null
+          cnpj: string | null
+          cpf: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          phone: string | null
+          synced_at: string
+          tax_id: string | null
+        }
+        Insert: {
+          advbox_id: number
+          birthday?: string | null
+          cnpj?: string | null
+          cpf?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          synced_at?: string
+          tax_id?: string | null
+        }
+        Update: {
+          advbox_id?: number
+          birthday?: string | null
+          cnpj?: string | null
+          cpf?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          synced_at?: string
+          tax_id?: string | null
+        }
+        Relationships: []
+      }
       advbox_financial_sync: {
         Row: {
           advbox_data: Json

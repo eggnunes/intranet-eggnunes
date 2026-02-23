@@ -121,31 +121,43 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
     }
   }, [open]);
 
-  // Carregar clientes do ADVBox
+  // Carregar clientes do ADVBox (do banco local)
   const loadAdvboxCustomers = async () => {
     setLoadingAdvbox(true);
     try {
-      const { data, error } = await supabase.functions.invoke('advbox-integration', {
-        body: {}
-      });
+      const { data, error } = await supabase
+        .from('advbox_customers' as any)
+        .select('advbox_id, name, tax_id, cpf, cnpj, email, phone')
+        .order('name');
       
-      // Buscar customers endpoint
-      const customersRes = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/advbox-integration/customers?limit=200`,
-        {
-          headers: {
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          }
-        }
-      );
-      
-      if (customersRes.ok) {
-        const result = await customersRes.json();
-        setAdvboxCustomers(result.data || []);
+      if (!error && data) {
+        setAdvboxCustomers((data as any[]).map((c: any) => ({
+          id: c.advbox_id,
+          name: c.name,
+          tax_id: c.tax_id,
+          cpf: c.cpf,
+          cnpj: c.cnpj,
+        })));
       }
     } catch (error) {
       console.error('Erro ao carregar clientes ADVBox:', error);
     } finally {
+      setLoadingAdvbox(false);
+    }
+  };
+
+  // Forçar sincronização manual dos clientes ADVBox
+  const syncAdvboxCustomers = async () => {
+    setLoadingAdvbox(true);
+    try {
+      toast.info('Sincronizando clientes do ADVBox... Isso pode levar alguns minutos.');
+      const { error } = await supabase.functions.invoke('sync-advbox-customers');
+      if (error) throw error;
+      toast.success('Sincronização iniciada! Recarregando lista...');
+      await loadAdvboxCustomers();
+    } catch (error) {
+      console.error('Erro ao sincronizar:', error);
+      toast.error('Erro ao sincronizar clientes do ADVBox');
       setLoadingAdvbox(false);
     }
   };
@@ -239,7 +251,7 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
     
     if (customerSource === 'advbox') {
       return advboxCustomers
-        .filter(c => c.name.toLowerCase().includes(search))
+        .filter(c => c.name.toLowerCase().includes(search) || c.tax_id?.includes(search) || c.cpf?.includes(search) || c.cnpj?.includes(search))
         .slice(0, 20)
         .map(c => ({
           id: `advbox_${c.id}`,
@@ -519,11 +531,20 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
               )}
             </div>
 
-            {/* Loading indicators */}
-            {customerSource === 'advbox' && loadingAdvbox && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Carregando clientes do ADVBox...
+            {/* Loading indicators and refresh */}
+            {customerSource === 'advbox' && (
+              <div className="flex items-center gap-2">
+                {loadingAdvbox ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Carregando clientes do ADVBox...
+                  </div>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={syncAdvboxCustomers} className="text-xs">
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    Atualizar lista do ADVBox
+                  </Button>
+                )}
               </div>
             )}
             {customerSource === 'local' && loadingLocal && (
