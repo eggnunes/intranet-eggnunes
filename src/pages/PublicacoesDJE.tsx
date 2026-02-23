@@ -164,6 +164,15 @@ export default function PublicacoesDJE() {
         const total = data.total || 0;
         const novas = data.novas || 0;
         toast.success(`Comunica PJe: ${total} publicações encontradas, ${novas} novas salvas.`);
+        // Enriquecer dados existentes em segundo plano
+        try {
+          await supabase.functions.invoke('pje-publicacoes', {
+            body: { action: 'enrich-existing' },
+            region: FunctionRegion.SaEast1,
+          });
+        } catch (e) {
+          console.warn('Erro ao enriquecer registros:', e);
+        }
         await loadLocal({}, 1);
       } else if (source === 'api') {
         const { data, error } = await supabase.functions.invoke('pje-publicacoes', {

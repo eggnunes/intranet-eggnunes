@@ -287,7 +287,7 @@ Deno.serve(async (req) => {
 
             comunicaPjeInserts.push({
               numero_processo: numProcesso,
-              tribunal: item.siglaTribunal || '',
+              tribunal: item.nomeOrgao ? `${item.siglaTribunal} - ${item.nomeOrgao}` : (item.siglaTribunal || ''),
               tipo_comunicacao: item.tipoComunicacao || 'NT',
               data_disponibilizacao: dataDisp,
               data_publicacao: dataDisp,
@@ -330,6 +330,47 @@ Deno.serve(async (req) => {
           .from('publicacoes_dje')
           .upsert(batch, { onConflict: 'hash', ignoreDuplicates: true })
         if (upsertError) console.error('Erro upsert ComunicaPJe:', upsertError.message)
+      }
+    }
+
+    // === Enriquecimento automático: preencher nomes de clientes via AdvBox ===
+    if (novasComunicaPje > 0) {
+      try {
+        console.log('Enriquecendo publicações ComunicaPJe com dados do AdvBox...')
+        const processNumbers = [...new Set(comunicaPjeInserts.map((r: any) => r.numero_processo))]
+        const { data: advboxData } = await supabase
+          .from('advbox_tasks')
+          .select('process_number, raw_data')
+          .in('process_number', processNumbers)
+
+        const clienteMap = new Map<string, string>()
+        for (const item of (advboxData || [])) {
+          if (item.raw_data?.lawsuit?.customers) {
+            const customers = item.raw_data.lawsuit.customers as any[]
+            const nomes = customers.map((c: any) => c.name).filter(Boolean).join(', ')
+            if (nomes) clienteMap.set(item.process_number, nomes)
+          }
+        }
+
+        let enriched = 0
+        if (clienteMap.size > 0) {
+          const { data: pubsSemCliente } = await supabase
+            .from('publicacoes_dje')
+            .select('id, numero_processo')
+            .in('numero_processo', processNumbers)
+            .or('destinatario.is.null,destinatario.eq.')
+
+          for (const pub of (pubsSemCliente || [])) {
+            const cliente = clienteMap.get(pub.numero_processo)
+            if (cliente) {
+              await supabase.from('publicacoes_dje').update({ destinatario: cliente }).eq('id', pub.id)
+              enriched++
+            }
+          }
+        }
+        console.log(`Enriquecimento ComunicaPJe: ${enriched} publicações atualizadas`)
+      } catch (enrichErr: any) {
+        console.error('Erro no enriquecimento:', enrichErr.message)
       }
     }
 
