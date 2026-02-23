@@ -319,8 +319,30 @@ Deno.serve(async (req) => {
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    // === ENRICH EXISTING (preencher nomes de clientes nos registros existentes) ===
+    // === ENRICH EXISTING (preencher nomes de clientes e tribunal nos registros existentes) ===
     if (action === 'enrich-existing') {
+      // === Fix tribunal for ComunicaPJe records missing nomeOrgao ===
+      let tribunalFixed = 0
+      const { data: pubsComunicaPje } = await supabase
+        .from('publicacoes_dje')
+        .select('id, tribunal, raw_data')
+        .eq('meio', 'ComunicaPJe')
+        .not('raw_data', 'is', null)
+        .limit(2000)
+
+      for (const pub of (pubsComunicaPje || [])) {
+        const rawItem = pub.raw_data as any
+        if (rawItem?.nomeOrgao && pub.tribunal && !pub.tribunal.includes(' - ')) {
+          const novoTribunal = `${rawItem.siglaTribunal || pub.tribunal} - ${rawItem.nomeOrgao}`
+          const { error: updateErr } = await supabase
+            .from('publicacoes_dje')
+            .update({ tribunal: novoTribunal })
+            .eq('id', pub.id)
+          if (!updateErr) tribunalFixed++
+        }
+      }
+      console.log(`Tribunal corrigido: ${tribunalFixed} registros`)
+
       // Buscar publicações sem cliente
       const { data: pubsSemCliente, error: pubErr } = await supabase
         .from('publicacoes_dje')
@@ -331,7 +353,7 @@ Deno.serve(async (req) => {
       if (pubErr) throw pubErr
 
       if (!pubsSemCliente || pubsSemCliente.length === 0) {
-        return new Response(JSON.stringify({ success: true, updated: 0, message: 'Todos os registros já possuem cliente.' }), {
+        return new Response(JSON.stringify({ success: true, updated: 0, tribunal_fixed: tribunalFixed, message: 'Todos os registros já possuem cliente.' }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
@@ -399,7 +421,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      return new Response(JSON.stringify({ success: true, updated, conteudo_fixed: conteudoFixed, total: pubsSemCliente.length }), {
+      return new Response(JSON.stringify({ success: true, updated, conteudo_fixed: conteudoFixed, tribunal_fixed: tribunalFixed, total: pubsSemCliente.length }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -495,7 +517,7 @@ Deno.serve(async (req) => {
 
               toInsert.push({
                 numero_processo: numProcesso,
-                tribunal: item.siglaTribunal || '',
+                tribunal: item.nomeOrgao ? `${item.siglaTribunal} - ${item.nomeOrgao}` : (item.siglaTribunal || ''),
                 tipo_comunicacao: item.tipoComunicacao || 'NT',
                 data_disponibilizacao: dataDisp,
                 data_publicacao: dataDisp,
@@ -538,6 +560,47 @@ Deno.serve(async (req) => {
             .from('publicacoes_dje')
             .upsert(batch, { onConflict: 'hash', ignoreDuplicates: true })
           if (upsertError) console.error('Erro upsert ComunicaPJe:', upsertError.message)
+        }
+      }
+
+      // === Enriquecimento automático: preencher nomes de clientes via AdvBox ===
+      if (novasPublicacoes > 0) {
+        try {
+          console.log('Enriquecendo publicações com dados do AdvBox...')
+          const processNumbers = [...new Set(toInsert.map((r: any) => r.numero_processo))]
+          const { data: advboxData } = await supabase
+            .from('advbox_tasks')
+            .select('process_number, raw_data')
+            .in('process_number', processNumbers)
+
+          const clienteMap = new Map<string, string>()
+          for (const item of (advboxData || [])) {
+            if (item.raw_data?.lawsuit?.customers) {
+              const customers = item.raw_data.lawsuit.customers as any[]
+              const nomes = customers.map((c: any) => c.name).filter(Boolean).join(', ')
+              if (nomes) clienteMap.set(item.process_number, nomes)
+            }
+          }
+
+          let enriched = 0
+          if (clienteMap.size > 0) {
+            const { data: pubsSemCliente } = await supabase
+              .from('publicacoes_dje')
+              .select('id, numero_processo')
+              .in('numero_processo', processNumbers)
+              .or('destinatario.is.null,destinatario.eq.')
+
+            for (const pub of (pubsSemCliente || [])) {
+              const cliente = clienteMap.get(pub.numero_processo)
+              if (cliente) {
+                await supabase.from('publicacoes_dje').update({ destinatario: cliente }).eq('id', pub.id)
+                enriched++
+              }
+            }
+          }
+          console.log(`Enriquecimento: ${enriched} publicações atualizadas com nomes de clientes`)
+        } catch (enrichErr: any) {
+          console.error('Erro no enriquecimento:', enrichErr.message)
         }
       }
 
