@@ -368,7 +368,40 @@ Deno.serve(async (req) => {
             }
           }
         }
-        console.log(`Enriquecimento ComunicaPJe: ${enriched} publicações atualizadas`)
+
+        // Fallback: extract party names from ComunicaPJe HTML content
+        let htmlExtracted = 0
+        const { data: pubsSemClienteHTML } = await supabase
+          .from('publicacoes_dje')
+          .select('id, conteudo, raw_data')
+          .eq('meio', 'ComunicaPJe')
+          .in('numero_processo', processNumbers)
+          .or('destinatario.is.null,destinatario.eq.')
+
+        for (const pub of (pubsSemClienteHTML || [])) {
+          const html = pub.conteudo || (pub.raw_data as any)?.texto || ''
+          if (!html) continue
+          const partyPatterns = [
+            /(?:REQUERENTE|AUTOR(?:A)?|RECLAMANTE|IMPETRANTE|EXEQUENTE|AGRAVANTE|APELANTE|EMBARGANTE)\s*(?:<\/td>)?\s*(?:<td>)?\s*:?\s*(?:<\/td>)?\s*(?:<td>)?\s*:?\s*([A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ][A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ\s]+)/gi,
+          ]
+          const names = new Set<string>()
+          for (const pattern of partyPatterns) {
+            let match
+            while ((match = pattern.exec(html)) !== null) {
+              const name = match[1].trim().replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+              if (name.length > 3 && !/^(CPF|OAB|ADVOGADO|RÉU|REQUERIDO|CNPJ)/.test(name)) {
+                names.add(name)
+              }
+            }
+          }
+          if (names.size > 0) {
+            const nomeCliente = [...names].join(', ')
+            await supabase.from('publicacoes_dje').update({ destinatario: nomeCliente }).eq('id', pub.id)
+            htmlExtracted++
+          }
+        }
+
+        console.log(`Enriquecimento ComunicaPJe: ${enriched} via AdvBox, ${htmlExtracted} via HTML`)
       } catch (enrichErr: any) {
         console.error('Erro no enriquecimento:', enrichErr.message)
       }
