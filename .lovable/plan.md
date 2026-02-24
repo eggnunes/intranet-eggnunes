@@ -1,124 +1,54 @@
 
-### Diagnóstico confirmado com base no código + banco + anexo
 
-O comportamento atual está coerente com a sua reclamação:
+## Corrigir Cursor Pulando nos Campos de Valor do Rateio (RH Pagamentos)
 
-1. A aba **“Contratos”** da Nova Cobrança (`AsaasNovaCobranca.tsx`) busca **somente** da tabela `fin_contratos`.
-2. O painel “Clientes do Formulário” (onde aparece “Ruan”) vem de **Google Sheets** via `google-sheets-integration` (`src/pages/SetorComercial.tsx`) — ou seja, é uma fonte diferente.
-3. Resultado: se o cliente ainda não virou registro em `fin_contratos`, ele **não aparece** na Nova Cobrança, mesmo existindo no formulário.
-4. Isso explica exatamente o caso do Ruan: ele está na aba de formulários, mas não está sendo considerado na busca da cobrança.
+### Problema
 
----
+No campo de **valor (R$)** do rateio em RH Pagamentos, o valor exibido usa `toLocaleString('pt-BR', { minimumFractionDigits: 2 })`. Isso significa que ao digitar "1", o campo imediatamente formata para "1,00" e o cursor pula para depois dos centavos. O usuario nao consegue digitar naturalmente (ex: "1500" vai virando "1,00" -> "10,00" em vez de "1500").
 
-### Objetivo da correção
+O mesmo problema existe no componente `RateioLancamento.tsx` (financeiro), onde `formatCurrencyInput` tambem forca 2 casas decimais.
 
-Fazer a aba “Contratos” da Nova Cobrança reconhecer também os clientes da aba de formulários (Google Sheets), mantendo:
-- listagem recente no topo;
-- busca por nome/CPF/email/telefone;
-- desempenho bom;
-- clareza visual da origem (Contrato vs Formulário).
+### Causa Raiz
 
----
+- **Linha 1340 de `RHPagamentos.tsx`**: `rateio.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })` forca formatacao completa a cada tecla.
+- **`RateioLancamento.tsx` linha ~156**: `formatCurrencyInput` faz o mesmo: `value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })`.
 
-### Implementação proposta (frontend, sem migração de banco)
+O sistema ja tem a funcao `maskCurrency` em `src/lib/masks.ts` que faz exatamente o que e necessario: formata progressivamente sem forcar casas decimais ate o usuario digitar a virgula.
 
-**Arquivo principal:** `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`
+### Solucao
 
-#### 1) Expandir a fonte “contrato” para “contratos + formulários”
-- Criar estado para clientes de formulário (ex.: `formCustomers`) e loading dedicado.
-- Criar função `loadFormCustomers()` chamando `supabase.functions.invoke('google-sheets-integration')`.
-- Mapear campos do retorno:
-  - `nomeCompleto` -> nome
-  - `cpf` -> cpfCnpj
-  - `email` -> email
-  - `telefone` -> phone
-  - `timestamp` -> data de ordenação
-- Não remover `loadContractCustomers()`; vamos **combinar** as duas origens.
+#### 1. `src/components/rh/RHPagamentos.tsx` (campo valor do rateio, ~linha 1335-1349)
 
-#### 2) Unificar e normalizar busca no bloco `customerSource === 'contrato'`
-- Em vez de filtrar só `contractCustomers`, criar um array unificado:
-  - contratos (`fin_contratos`)
-  - formulários (Google Sheets)
-- Aplicar a mesma normalização robusta já usada (acentos + dígitos):
-  - nome sem acento (`normalize`)
-  - CPF/telefone apenas números (`replace(/\D/g, '')`)
-  - incluir email na busca
-- Cobrir casos:
-  - digitar “Ruan” encontra `Ruan de Oliveira Coelho`
-  - digitar CPF com/sem máscara encontra igual
-  - digitar pedaço do email/telefone também encontra
+- Trocar o `value` de `rateio.valor.toLocaleString(...)` para usar um estado intermediario de display com `maskCurrency`.
+- Criar um estado `rateioDisplayValues` (objeto `Record<string, string>`) para armazenar o texto digitado de cada rateio.
+- No `onChange`: aplicar `maskCurrency` ao input, guardar no display, e converter com `parseCurrency` para o valor numerico.
+- No `value`: usar `rateioDisplayValues[rateio.id]` em vez de formatar do numero.
+- Inicializar os display values quando rateios mudam por percentual (recalculo inverso).
 
-#### 3) Ordenação correta por recência
-- Unificar com campo de data:
-  - contratos: `created_at`
-  - formulários: `timestamp` convertido de `dd/MM/yyyy HH:mm:ss`
-- Ordenar descendente (mais recente primeiro), antes do `slice`.
+#### 2. `src/components/financeiro/RateioLancamento.tsx` (campo valor, ~linha 147-160)
 
-#### 4) Deduplicação para evitar cliente repetido
-- Deduplicar por prioridade:
-  1. CPF numérico (quando existir)
-  2. fallback nome normalizado + telefone/email
-- Regra de prioridade:
-  - manter registro de **contrato** quando houver duplicidade com formulário (porque traz `product_name` e status já formalizado).
+- Mesmo padrao: trocar `formatCurrencyInput(rateio.valor)` por estado de display com `maskCurrency`.
+- Aplicar `maskCurrency` no onChange e `parseCurrency` para converter.
 
-#### 5) UX na lista de resultados
-- Exibir badge de origem:
-  - `Contrato`
-  - `Formulário`
-- Para contrato, manter exibição de `productName`.
-- Para formulário, opcionalmente exibir subtítulo curto “Lead de formulário”.
+#### 3. Campo de percentual (ambos os arquivos)
 
-#### 6) Segurança funcional na criação de cobrança
-- Fluxo atual exige CPF/CNPJ para sincronizar no Asaas; manter isso.
-- Se cliente de formulário vier sem CPF, mostrar mensagem clara já no passo 1 (antes de avançar), para evitar fricção no fim do fluxo.
+- O campo de percentual tem problema similar mas menor. Aplicar a mesma logica com display intermediario para consistencia.
 
----
+### Detalhes Tecnicos
 
-### Ajustes de performance e confiabilidade
+**Estado novo em `RHPagamentos.tsx`:**
+```
+const [rateioDisplayValues, setRateioDisplayValues] = useState<Record<string, string>>({});
+```
 
-1. **Carregamento sob demanda**
-   - Buscar Google Sheets apenas quando:
-     - modal abrir **e** aba “Contratos” for usada, ou
-     - usuário trocar para a aba “Contratos”.
-   - Evita chamadas desnecessárias para quem usa só Asaas/ADVBox.
+**Campo valor refatorado:**
+- `value={rateioDisplayValues[rateio.id] ?? (rateio.valor > 0 ? maskCurrency(rateio.valor.toLocaleString(...)) : '')}`
+- `onChange`: aplica `maskCurrency`, salva display, converte com `parseCurrency`, atualiza rateio numerico.
 
-2. **Cache em memória durante o modal aberto**
-   - Não chamar Google Sheets a cada tecla.
-   - Carrega uma vez e filtra localmente.
+**Quando percentual muda e recalcula valor:** atualizar tambem o display value correspondente usando `maskCurrency` do valor calculado.
 
-3. **Botão de atualizar nessa fonte**
-   - Adicionar botão “Atualizar formulários” na aba “Contratos” (similar ao ADVBox), para forçar refresh imediato quando acabou de chegar lead novo.
+### Arquivos a Modificar
 
----
+1. `src/components/rh/RHPagamentos.tsx` — campo valor e percentual do rateio
+2. `src/components/financeiro/RateioLancamento.tsx` — campo valor e percentual do rateio
 
-### Critérios de aceite (o que deve funcionar após aprovação)
-
-1. Abrindo Nova Cobrança > aba Contratos:
-   - o “último formulário preenchido” aparece no topo (se dados válidos).
-2. Ao digitar “Ruan”, o cliente do formulário é encontrado.
-3. Busca por CPF sem máscara também encontra.
-4. Quando cliente existir em contrato e formulário, não aparece duplicado.
-5. Selecionando cliente de formulário com CPF válido, o fluxo segue e cria cobrança normalmente.
-
----
-
-### Riscos e mitigação
-
-- **Risco:** falha temporária da função de Google Sheets.
-  - **Mitigação:** fallback para mostrar contratos normalmente + toast de erro específico para formulários.
-- **Risco:** timestamps em formato inconsistente.
-  - **Mitigação:** parser defensivo com fallback de data mínima; não quebrar ordenação.
-- **Risco:** volume crescer.
-  - **Mitigação futura:** criar endpoint de busca paginada no backend (se necessário); por agora o volume atual (~1k) é seguro para filtro local.
-
----
-
-### Arquivos previstos para alteração
-
-1. `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`
-   - novos estados para formulário
-   - `loadFormCustomers()`
-   - unificação + deduplicação + ordenação no `getFilteredCustomers()` da fonte contrato
-   - ajustes de UI (badge/formulário + botão atualizar)
-
-Sem necessidade de migração de banco nesta etapa.
