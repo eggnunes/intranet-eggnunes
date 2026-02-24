@@ -1,54 +1,54 @@
 
 
-## Corrigir Cursor Pulando nos Campos de Valor do Rateio (RH Pagamentos)
+## Corrigir Erro de Unique Constraint ao Editar Pagamento
 
 ### Problema
 
-No campo de **valor (R$)** do rateio em RH Pagamentos, o valor exibido usa `toLocaleString('pt-BR', { minimumFractionDigits: 2 })`. Isso significa que ao digitar "1", o campo imediatamente formata para "1,00" e o cursor pula para depois dos centavos. O usuario nao consegue digitar naturalmente (ex: "1500" vai virando "1,00" -> "10,00" em vez de "1500").
-
-O mesmo problema existe no componente `RateioLancamento.tsx` (financeiro), onde `formatCurrencyInput` tambem forca 2 casas decimais.
+Ao clicar em "Salvar Alterações" no dialog de editar pagamento, o sistema mostra:
+> "Erro ao atualizar pagamento: duplicate key value violates unique constraint rh_pagamentos_colaborador_id_mes_referencia_key"
 
 ### Causa Raiz
 
-- **Linha 1340 de `RHPagamentos.tsx`**: `rateio.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })` forca formatacao completa a cada tecla.
-- **`RateioLancamento.tsx` linha ~156**: `formatCurrencyInput` faz o mesmo: `value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })`.
+Na funcao `handleSaveEdit` (linha 1002-1014 de `RHPagamentos.tsx`), o UPDATE sempre reenvia o campo `mes_referencia` com a conversao `editMesReferencia + '-01'`. Mesmo que o valor nao tenha sido alterado, o PostgreSQL tenta validar a constraint unique `(colaborador_id, mes_referencia)` durante o update. Se houver qualquer inconsistencia de formato ou se o trigger `sync_rh_pagamento_to_financeiro` dispara e faz um segundo UPDATE na mesma tabela (linha que faz `UPDATE rh_pagamentos SET lancamento_financeiro_id = ... WHERE id = NEW.id`), isso pode causar recursao que viola a constraint.
 
-O sistema ja tem a funcao `maskCurrency` em `src/lib/masks.ts` que faz exatamente o que e necessario: formata progressivamente sem forcar casas decimais ate o usuario digitar a virgula.
+O trigger `sync_rh_pagamento_to_financeiro` (linhas que fazem UPDATE na propria tabela `rh_pagamentos` dentro de um trigger AFTER UPDATE) e a causa mais provavel da recursao: o UPDATE original dispara o trigger, que faz outro UPDATE na mesma linha (para setar `lancamento_financeiro_id`), que dispara o trigger novamente, e na segunda execucao tenta inserir um novo lancamento e atualizar `rh_pagamentos` novamente.
 
 ### Solucao
 
-#### 1. `src/components/rh/RHPagamentos.tsx` (campo valor do rateio, ~linha 1335-1349)
+**Arquivo:** `src/components/rh/RHPagamentos.tsx`
 
-- Trocar o `value` de `rateio.valor.toLocaleString(...)` para usar um estado intermediario de display com `maskCurrency`.
-- Criar um estado `rateioDisplayValues` (objeto `Record<string, string>`) para armazenar o texto digitado de cada rateio.
-- No `onChange`: aplicar `maskCurrency` ao input, guardar no display, e converter com `parseCurrency` para o valor numerico.
-- No `value`: usar `rateioDisplayValues[rateio.id]` em vez de formatar do numero.
-- Inicializar os display values quando rateios mudam por percentual (recalculo inverso).
+1. **Remover `mes_referencia` do UPDATE quando nao mudou**: Comparar `editMesReferencia + '-01'` com `editingPagamento.mes_referencia`. Se for igual, nao incluir no objeto de update. Isso evita que o PostgreSQL reavalie a constraint desnecessariamente.
 
-#### 2. `src/components/financeiro/RateioLancamento.tsx` (campo valor, ~linha 147-160)
+2. **Nao incluir `mes_referencia` no update por padrao**: Na maioria das edicoes, o usuario esta apenas alterando valores de rubricas, nao o mes de referencia. O campo `mes_referencia` so deve ser incluido no UPDATE se o usuario efetivamente mudou o mes.
 
-- Mesmo padrao: trocar `formatCurrencyInput(rateio.valor)` por estado de display com `maskCurrency`.
-- Aplicar `maskCurrency` no onChange e `parseCurrency` para converter.
+### Implementacao
 
-#### 3. Campo de percentual (ambos os arquivos)
+Na funcao `handleSaveEdit`, substituir o bloco de update (linhas 1001-1014) por:
 
-- O campo de percentual tem problema similar mas menor. Aplicar a mesma logica com display intermediario para consistencia.
+```typescript
+const updateData: any = {
+  data_pagamento: editDataPagamento,
+  status: editStatus,
+  observacoes: editObservacoes || editingPagamento.observacoes,
+  total_vantagens: totaisEdit.vantagens,
+  total_descontos: totaisEdit.descontos,
+  total_liquido: totaisEdit.liquido,
+  updated_at: new Date().toISOString()
+};
 
-### Detalhes Tecnicos
+// Só incluir mes_referencia se realmente mudou
+const novoMesRef = editMesReferencia + '-01';
+if (novoMesRef !== editingPagamento.mes_referencia.substring(0, 10)) {
+  updateData.mes_referencia = novoMesRef;
+}
 
-**Estado novo em `RHPagamentos.tsx`:**
+const { error } = await supabase
+  .from('rh_pagamentos')
+  .update(updateData)
+  .eq('id', editingPagamento.id);
 ```
-const [rateioDisplayValues, setRateioDisplayValues] = useState<Record<string, string>>({});
-```
 
-**Campo valor refatorado:**
-- `value={rateioDisplayValues[rateio.id] ?? (rateio.valor > 0 ? maskCurrency(rateio.valor.toLocaleString(...)) : '')}`
-- `onChange`: aplica `maskCurrency`, salva display, converte com `parseCurrency`, atualiza rateio numerico.
+### Arquivo a modificar
 
-**Quando percentual muda e recalcula valor:** atualizar tambem o display value correspondente usando `maskCurrency` do valor calculado.
-
-### Arquivos a Modificar
-
-1. `src/components/rh/RHPagamentos.tsx` — campo valor e percentual do rateio
-2. `src/components/financeiro/RateioLancamento.tsx` — campo valor e percentual do rateio
+1. `src/components/rh/RHPagamentos.tsx` — funcao `handleSaveEdit`, bloco de update (~linhas 1001-1014)
 
