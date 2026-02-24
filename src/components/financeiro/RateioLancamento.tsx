@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus, Trash2, PieChart, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { maskCurrency, parseCurrency } from '@/lib/masks';
 
 interface RateioItem {
   id: string;
@@ -54,6 +55,8 @@ export function RateioLancamentoDialog({
   const [rateios, setRateios] = useState<RateioItem[]>([
     { id: crypto.randomUUID(), categoriaId: '', setorId: '', centroCustoId: '', percentual: 100, valor: valorTotal }
   ]);
+  const [displayValues, setDisplayValues] = useState<Record<string, string>>({});
+  const [displayPct, setDisplayPct] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (open) {
@@ -62,6 +65,8 @@ export function RateioLancamentoDialog({
       setRateios([
         { id: crypto.randomUUID(), categoriaId: '', setorId: '', centroCustoId: '', percentual: 100, valor: valorTotal }
       ]);
+      setDisplayValues({});
+      setDisplayPct({});
     }
   }, [open, valorTotal]);
 
@@ -119,6 +124,15 @@ export function RateioLancamentoDialog({
   const distribuirIgualmente = () => {
     const percentualIgual = 100 / rateios.length;
     const valorIgual = valorTotal / rateios.length;
+    
+    const newDisplayValues: Record<string, string> = {};
+    const newDisplayPct: Record<string, string> = {};
+    rateios.forEach(r => {
+      newDisplayValues[r.id] = maskCurrency(valorIgual.toFixed(2).replace('.', ','));
+      newDisplayPct[r.id] = percentualIgual.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+    });
+    setDisplayValues(newDisplayValues);
+    setDisplayPct(newDisplayPct);
     
     setRateios(rateios.map(r => ({
       ...r,
@@ -257,9 +271,13 @@ export function RateioLancamentoDialog({
                             type="text"
                             inputMode="decimal"
                             placeholder="0,00"
-                            value={rateio.percentual > 0 ? rateio.percentual.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : ''}
+                            value={displayPct[rateio.id] ?? (rateio.percentual > 0 ? rateio.percentual.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : '')}
                             onChange={(e) => {
-                              const val = parseCurrencyInput(e.target.value);
+                              const raw = e.target.value.replace(/[^\d,]/g, '');
+                              setDisplayPct(prev => ({ ...prev, [rateio.id]: raw }));
+                              const val = parseFloat(raw.replace(',', '.')) || 0;
+                              const newValor = (valorTotal * val) / 100;
+                              setDisplayValues(prev => ({ ...prev, [rateio.id]: maskCurrency(newValor.toFixed(2).replace('.', ',')) }));
                               updateRateio(rateio.id, 'percentual', val);
                             }}
                             className="h-9 pr-8"
@@ -277,9 +295,13 @@ export function RateioLancamentoDialog({
                             type="text"
                             inputMode="decimal"
                             placeholder="0,00"
-                            value={formatCurrencyInput(rateio.valor)}
+                            value={displayValues[rateio.id] ?? (rateio.valor > 0 ? maskCurrency(rateio.valor.toFixed(2).replace('.', ',')) : '')}
                             onChange={(e) => {
-                              const val = parseCurrencyInput(e.target.value);
+                              const masked = maskCurrency(e.target.value);
+                              setDisplayValues(prev => ({ ...prev, [rateio.id]: masked }));
+                              const val = parseCurrency(masked);
+                              const newPct = valorTotal > 0 ? (val / valorTotal) * 100 : 0;
+                              setDisplayPct(prev => ({ ...prev, [rateio.id]: newPct > 0 ? newPct.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : '' }));
                               updateRateio(rateio.id, 'valor', val);
                             }}
                             className="h-9 pl-10"

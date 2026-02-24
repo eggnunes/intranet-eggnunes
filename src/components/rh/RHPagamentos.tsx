@@ -135,6 +135,8 @@ export function RHPagamentos() {
   const [descricaoGeral, setDescricaoGeral] = useState('');
   const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<{ id: string; nome: string }[]>([]);
   const [rateios, setRateios] = useState<RateioItem[]>([]);
+  const [rateioDisplayValues, setRateioDisplayValues] = useState<Record<string, string>>({});
+  const [rateioDisplayPct, setRateioDisplayPct] = useState<Record<string, string>>({});
   const [usarRateio, setUsarRateio] = useState(false);
   const [contaId, setContaId] = useState('');
   const [contas, setContas] = useState<{ id: string; nome: string }[]>([]);
@@ -1315,13 +1317,17 @@ export function RHPagamentos() {
                                     inputMode="decimal"
                                     placeholder="0"
                                     className="h-9 pr-6 text-center"
-                                    value={rateio.percentual > 0 ? rateio.percentual.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : ''}
+                                    value={rateioDisplayPct[rateio.id] ?? (rateio.percentual > 0 ? rateio.percentual.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : '')}
                                     onChange={(e) => {
-                                      const pctStr = e.target.value.replace(',', '.');
+                                      const raw = e.target.value.replace(/[^\d,]/g, '');
+                                      setRateioDisplayPct(prev => ({ ...prev, [rateio.id]: raw }));
+                                      const pctStr = raw.replace(',', '.');
                                       const pct = parseFloat(pctStr) || 0;
+                                      const newVal = (totais.liquido * pct) / 100;
+                                      setRateioDisplayValues(prev => ({ ...prev, [rateio.id]: maskCurrency(newVal.toFixed(2).replace('.', ',')) }));
                                       setRateios(rateios.map(r => 
                                         r.id === rateio.id 
-                                          ? { ...r, percentual: pct, valor: (totais.liquido * pct) / 100 } 
+                                          ? { ...r, percentual: pct, valor: newVal } 
                                           : r
                                       ));
                                     }}
@@ -1337,12 +1343,16 @@ export function RHPagamentos() {
                                     inputMode="decimal"
                                     placeholder="0,00"
                                     className="h-9 pl-8"
-                                    value={rateio.valor > 0 ? rateio.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}
+                                    value={rateioDisplayValues[rateio.id] ?? (rateio.valor > 0 ? maskCurrency(rateio.valor.toFixed(2).replace('.', ',')) : '')}
                                     onChange={(e) => {
-                                      const val = parseCurrency(e.target.value);
+                                      const masked = maskCurrency(e.target.value);
+                                      setRateioDisplayValues(prev => ({ ...prev, [rateio.id]: masked }));
+                                      const val = parseCurrency(masked);
+                                      const newPct = totais.liquido > 0 ? (val / totais.liquido) * 100 : 0;
+                                      setRateioDisplayPct(prev => ({ ...prev, [rateio.id]: newPct > 0 ? newPct.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : '' }));
                                       setRateios(rateios.map(r => 
                                         r.id === rateio.id 
-                                          ? { ...r, valor: val, percentual: totais.liquido > 0 ? (val / totais.liquido) * 100 : 0 } 
+                                          ? { ...r, valor: val, percentual: newPct } 
                                           : r
                                       ));
                                     }}
