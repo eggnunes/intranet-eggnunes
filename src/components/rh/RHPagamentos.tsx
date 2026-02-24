@@ -999,18 +999,25 @@ export function RHPagamentos() {
       }
 
       // Atualizar pagamento com novos totais
+      const updateData: any = {
+        data_pagamento: editDataPagamento,
+        status: editStatus,
+        observacoes: editObservacoes || editingPagamento.observacoes,
+        total_vantagens: totaisEdit.vantagens,
+        total_descontos: totaisEdit.descontos,
+        total_liquido: totaisEdit.liquido,
+        updated_at: new Date().toISOString()
+      };
+
+      // Só incluir mes_referencia se realmente mudou
+      const novoMesRef = editMesReferencia + '-01';
+      if (novoMesRef !== editingPagamento.mes_referencia.substring(0, 10)) {
+        updateData.mes_referencia = novoMesRef;
+      }
+
       const { error } = await supabase
         .from('rh_pagamentos')
-        .update({
-          mes_referencia: editMesReferencia + '-01',
-          data_pagamento: editDataPagamento,
-          status: editStatus,
-          observacoes: editObservacoes || editingPagamento.observacoes,
-          total_vantagens: totaisEdit.vantagens,
-          total_descontos: totaisEdit.descontos,
-          total_liquido: totaisEdit.liquido,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', editingPagamento.id);
 
       if (error) throw error;
