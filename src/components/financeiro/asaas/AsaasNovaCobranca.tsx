@@ -320,7 +320,7 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
           if (normalize(c.nome).includes(searchNorm)) return true;
           if (searchDigits && c.cpf_cnpj?.replace(/\D/g, '').includes(searchDigits)) return true;
           if (c.email && normalize(c.email).includes(searchNorm)) return true;
-          if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+          if (searchDigits && c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
           return false;
         })
         .slice(0, 30)
@@ -355,7 +355,7 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
           if (normalize(c.client_name).includes(searchNorm)) return true;
           if (searchDigits && c.client_cpf?.replace(/\D/g, '').includes(searchDigits)) return true;
           if (c.client_email && normalize(c.client_email).includes(searchNorm)) return true;
-          if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+          if (searchDigits && c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
           return false;
         })
         .map(c => ({
@@ -376,7 +376,7 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
           if (c.nomeCompleto && normalize(c.nomeCompleto).includes(searchNorm)) return true;
           if (searchDigits && c.cpf?.replace(/\D/g, '').includes(searchDigits)) return true;
           if (c.email && normalize(c.email).includes(searchNorm)) return true;
-          if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+          if (searchDigits && c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
           if (c.allValues && normalize(c.allValues).includes(searchNorm)) return true;
           return false;
         })
