@@ -1,54 +1,30 @@
 
 
-## Corrigir Erro de Unique Constraint ao Editar Pagamento
+## Diagnóstico
 
-### Problema
+Analisando o código e o screenshot, identifiquei dois problemas que explicam por que o Ederson não aparece:
 
-Ao clicar em "Salvar Alterações" no dialog de editar pagamento, o sistema mostra:
-> "Erro ao atualizar pagamento: duplicate key value violates unique constraint rh_pagamentos_colaborador_id_mes_referencia_key"
+### Problema 1: Busca limitada a campos mapeados
+O filtro de formulários (`formMapped.filter`) só busca em 4 campos: `nomeCompleto`, `cpf`, `email`, `telefone`. Se o mapeamento de colunas falhar (ex: coluna do Google Sheets com nome diferente de "nome completo"), o campo `nomeCompleto` fica vazio e a busca nunca encontra o cliente, mesmo que os dados existam na planilha.
 
-### Causa Raiz
+Na edge function `google-sheets-integration`, `getValue('nome completo')` procura um header que **contenha** "nome completo". Se o header da planilha for apenas "Nome" ou "Nome do Cliente", o mapeamento falha silenciosamente e retorna string vazia.
 
-Na funcao `handleSaveEdit` (linha 1002-1014 de `RHPagamentos.tsx`), o UPDATE sempre reenvia o campo `mes_referencia` com a conversao `editMesReferencia + '-01'`. Mesmo que o valor nao tenha sido alterado, o PostgreSQL tenta validar a constraint unique `(colaborador_id, mes_referencia)` durante o update. Se houver qualquer inconsistencia de formato ou se o trigger `sync_rh_pagamento_to_financeiro` dispara e faz um segundo UPDATE na mesma tabela (linha que faz `UPDATE rh_pagamentos SET lancamento_financeiro_id = ... WHERE id = NEW.id`), isso pode causar recursao que viola a constraint.
+### Problema 2: Sem busca em todos os dados brutos
+Quando o mapeamento de coluna falha, não há fallback. O sistema deveria buscar em TODOS os valores da linha, garantindo que qualquer texto digitado encontre a pessoa independente de como as colunas estão nomeadas.
 
-O trigger `sync_rh_pagamento_to_financeiro` (linhas que fazem UPDATE na propria tabela `rh_pagamentos` dentro de um trigger AFTER UPDATE) e a causa mais provavel da recursao: o UPDATE original dispara o trigger, que faz outro UPDATE na mesma linha (para setar `lancamento_financeiro_id`), que dispara o trigger novamente, e na segunda execucao tenta inserir um novo lancamento e atualizar `rh_pagamentos` novamente.
+### Solução
 
-### Solucao
+**Arquivo 1: `supabase/functions/google-sheets-integration/index.ts`**
+- Adicionar campo `allValues` a cada registro: concatenação de todos os valores da linha em uma única string. Isso permite busca em qualquer campo, mesmo que o mapeamento de colunas falhe.
+- Adicionar fallback para o campo `nomeCompleto`: se `getValue('nome completo')` retornar vazio, tentar `getValue('nome')` como alternativa.
 
-**Arquivo:** `src/components/rh/RHPagamentos.tsx`
+**Arquivo 2: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+- Atualizar interface `FormCustomer` para incluir `allValues: string`.
+- No filtro de formulários, adicionar busca em `c.allValues` como fallback quando nenhum campo específico bate.
+- Mostrar contador de formulários carregados ("X formulários carregados") para o usuário saber que os dados foram carregados corretamente.
 
-1. **Remover `mes_referencia` do UPDATE quando nao mudou**: Comparar `editMesReferencia + '-01'` com `editingPagamento.mes_referencia`. Se for igual, nao incluir no objeto de update. Isso evita que o PostgreSQL reavalie a constraint desnecessariamente.
-
-2. **Nao incluir `mes_referencia` no update por padrao**: Na maioria das edicoes, o usuario esta apenas alterando valores de rubricas, nao o mes de referencia. O campo `mes_referencia` so deve ser incluido no UPDATE se o usuario efetivamente mudou o mes.
-
-### Implementacao
-
-Na funcao `handleSaveEdit`, substituir o bloco de update (linhas 1001-1014) por:
-
-```typescript
-const updateData: any = {
-  data_pagamento: editDataPagamento,
-  status: editStatus,
-  observacoes: editObservacoes || editingPagamento.observacoes,
-  total_vantagens: totaisEdit.vantagens,
-  total_descontos: totaisEdit.descontos,
-  total_liquido: totaisEdit.liquido,
-  updated_at: new Date().toISOString()
-};
-
-// Só incluir mes_referencia se realmente mudou
-const novoMesRef = editMesReferencia + '-01';
-if (novoMesRef !== editingPagamento.mes_referencia.substring(0, 10)) {
-  updateData.mes_referencia = novoMesRef;
-}
-
-const { error } = await supabase
-  .from('rh_pagamentos')
-  .update(updateData)
-  .eq('id', editingPagamento.id);
-```
-
-### Arquivo a modificar
-
-1. `src/components/rh/RHPagamentos.tsx` — funcao `handleSaveEdit`, bloco de update (~linhas 1001-1014)
+### Resultado esperado
+- Digitar "ederson" encontrará o cliente mesmo que o mapeamento de colunas não tenha capturado o nome no campo `nomeCompleto`.
+- A busca varrerá todos os dados da linha do formulário.
+- O usuário verá quantos registros de formulário foram carregados.
 
