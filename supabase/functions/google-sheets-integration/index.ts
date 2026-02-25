@@ -67,10 +67,13 @@ serve(async (req) => {
         return index >= 0 ? (row[index] || '') : '';
       };
 
+      const allValues = row.join(' ').trim();
+
       return {
         id: rowIndex + 1,
         timestamp: row[0] || '',
-        nomeCompleto: getValue('nome completo'),
+        nomeCompleto: getValue('nome completo') || getValue('nome'),
+        allValues,
         cpf: getValue('cpf'),
         documentoIdentidade: getValue('documento de identidade'),
         comoConheceu: getValue('como conheceu'),

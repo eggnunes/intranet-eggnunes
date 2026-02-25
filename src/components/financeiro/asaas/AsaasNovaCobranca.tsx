@@ -68,6 +68,7 @@ interface FormCustomer {
   email: string;
   telefone: string;
   timestamp: string;
+  allValues?: string;
 }
 
 interface AsaasNovaCobrancaProps {
@@ -376,6 +377,7 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
           if (searchDigits && c.cpf?.replace(/\D/g, '').includes(searchDigits)) return true;
           if (c.email && normalize(c.email).includes(searchNorm)) return true;
           if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+          if (c.allValues && normalize(c.allValues).includes(searchNorm)) return true;
           return false;
         })
         .map(c => ({
