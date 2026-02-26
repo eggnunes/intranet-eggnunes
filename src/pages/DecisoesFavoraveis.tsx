@@ -489,10 +489,13 @@ export default function DecisoesFavoraveis() {
     return matchesSearch && matchesType;
   });
 
-  // Filter clients for autocomplete - show results even if search is empty
+  // Normalize string removing accents for search
+  const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+  // Filter clients for autocomplete with accent normalization
   const filteredClients = clientSearch.length >= 2 
     ? advboxClients.filter((c: AdvboxClient) =>
-        c.name.toLowerCase().includes(clientSearch.toLowerCase())
+        normalize(c.name).includes(normalize(clientSearch))
       ).slice(0, 15)
     : [];
 
