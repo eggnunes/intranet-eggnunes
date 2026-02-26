@@ -216,13 +216,22 @@ export default function DecisoesFavoraveis() {
       const { data: session } = await supabase.auth.getSession();
       if (!session.session) throw new Error('Not authenticated');
 
-      await supabase.functions.invoke('sync-advbox-customers', {
+      const response = await supabase.functions.invoke('sync-advbox-customers', {
         headers: {
           Authorization: `Bearer ${session.session.access_token}`,
         },
       });
+      
       await refetchClients();
-      toast.success('Clientes sincronizados do Advbox');
+      
+      const result = response.data;
+      if (result?.status === 'partial') {
+        toast.info(`${result.total_upserted} clientes sincronizados. Clique novamente para continuar a importação.`);
+      } else if (result?.status === 'completed') {
+        toast.success(`${result.total_upserted} clientes sincronizados do Advbox`);
+      } else {
+        toast.success('Clientes sincronizados do Advbox');
+      }
     } catch (error) {
       console.error('Error syncing clients:', error);
       toast.error('Erro ao sincronizar clientes do Advbox');
@@ -699,6 +708,20 @@ export default function DecisoesFavoraveis() {
                       </div>
                       {loadingClients && advboxClients.length === 0 && (
                         <p className="text-sm text-muted-foreground">Carregando clientes do Advbox...</p>
+                      )}
+                      {advboxClients.length > 0 && !selectedClient && (
+                        <p className="text-xs text-muted-foreground">{advboxClients.length} clientes disponíveis</p>
+                      )}
+                      {advboxClients.length === 0 && !loadingClients && !isSearchingClients && (
+                        <p className="text-sm text-amber-600 dark:text-amber-400">
+                          Nenhum cliente carregado. Clique no botão de busca para sincronizar do Advbox.
+                        </p>
+                      )}
+                      {isSearchingClients && (
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Sincronizando clientes... pode levar alguns segundos.
+                        </p>
                       )}
                       {clientSearch.length >= 2 && filteredClients.length > 0 && !selectedClient && (
                         <div className="border rounded-md max-h-40 overflow-y-auto">
