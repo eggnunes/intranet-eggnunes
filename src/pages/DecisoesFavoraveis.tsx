@@ -209,15 +209,23 @@ export default function DecisoesFavoraveis() {
     enabled: true,
   });
 
-  // Manual search function for Advbox clients
+  // Manual search function - force sync from ADVBox API then reload
   const handleSearchClients = async () => {
     setIsSearchingClients(true);
     try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) throw new Error('Not authenticated');
+
+      await supabase.functions.invoke('sync-advbox-customers', {
+        headers: {
+          Authorization: `Bearer ${session.session.access_token}`,
+        },
+      });
       await refetchClients();
-      toast.success('Clientes carregados do Advbox');
+      toast.success('Clientes sincronizados do Advbox');
     } catch (error) {
-      console.error('Error fetching clients:', error);
-      toast.error('Erro ao buscar clientes no Advbox');
+      console.error('Error syncing clients:', error);
+      toast.error('Erro ao sincronizar clientes do Advbox');
     } finally {
       setIsSearchingClients(false);
     }
