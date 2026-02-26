@@ -1,37 +1,34 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+## Corrigir Busca de Clientes ADVBox nas Decisões Favoráveis
 
-### Causa Raiz
+### Problemas Identificados
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+1. **Fonte de dados lenta/instável**: O código busca clientes via edge function `advbox-integration/customers` (API externa), que é lenta e pode falhar. Existe uma tabela local `advbox_customers` sincronizada a cada 15 minutos que não está sendo usada.
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+2. **Busca sem normalização de acentos**: O filtro usa `.toLowerCase().includes()` que não remove acentos. Digitar "emilio" não encontra "Emílio".
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+### Solução
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+**Arquivo: `src/pages/DecisoesFavoraveis.tsx`**
 
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-```
+1. **Trocar fonte de dados**: Substituir a chamada à edge function por uma query direta à tabela `advbox_customers` do banco local. Isso garante carregamento instantâneo e confiável.
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+2. **Adicionar normalização de acentos**: Criar função `normalize` que remove acentos (`NFD` + regex) e converte para minúsculas. Usar na comparação do `filteredClients`.
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+3. **Manter botão de refresh**: O botão de busca manual passará a invocar `sync-advbox-customers` para forçar sincronização e depois recarregar da tabela local.
 
-### Solucao
+### Mudanças específicas
 
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+- Query `advbox-customers`: trocar `supabase.functions.invoke('advbox-integration/customers')` por `supabase.from('advbox_customers').select('advbox_id, name').order('name')`. Mapear `advbox_id` para `id`.
 
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+- Filtro `filteredClients` (linha 501-505): normalizar com remoção de acentos:
+  ```typescript
+  const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const filteredClients = clientSearch.length >= 2
+    ? advboxClients.filter((c) => normalize(c.name).includes(normalize(clientSearch))).slice(0, 15)
+    : [];
+  ```
 
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+- `handleSearchClients`: invocar `sync-advbox-customers` para forçar sincronização, depois `refetchClients()`.
 
