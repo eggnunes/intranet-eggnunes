@@ -709,6 +709,20 @@ export default function DecisoesFavoraveis() {
                       {loadingClients && advboxClients.length === 0 && (
                         <p className="text-sm text-muted-foreground">Carregando clientes do Advbox...</p>
                       )}
+                      {advboxClients.length > 0 && !selectedClient && (
+                        <p className="text-xs text-muted-foreground">{advboxClients.length} clientes disponíveis</p>
+                      )}
+                      {advboxClients.length === 0 && !loadingClients && !isSearchingClients && (
+                        <p className="text-sm text-amber-600 dark:text-amber-400">
+                          Nenhum cliente carregado. Clique no botão de busca para sincronizar do Advbox.
+                        </p>
+                      )}
+                      {isSearchingClients && (
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Sincronizando clientes... pode levar alguns segundos.
+                        </p>
+                      )}
                       {clientSearch.length >= 2 && filteredClients.length > 0 && !selectedClient && (
                         <div className="border rounded-md max-h-40 overflow-y-auto">
                           {filteredClients.map((client: AdvboxClient) => (
