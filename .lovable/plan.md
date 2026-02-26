@@ -1,31 +1,37 @@
 
 
-## Plano: Corrigir 2 Problemas (Pagamento RH + Clientes ADVBox)
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-### Problema 1: Pagamento bloqueado por mês errado
+### Causa Raiz
 
-**Causa raiz:** A verificação de duplicidade em `RHPagamentos.tsx` (linha 524-528) compara `mes_referencia` com `mesReferencia + '-01'`. O estado `mesReferencia` é inicializado com o mês atual (ex: `2026-02`), mas o formulário mostra o mês selecionado no filtro. O bug é que o `mesReferencia` do formulário de novo pagamento não está sincronizado com o filtro `filtroMes`, ou o valor está incorreto na comparação.
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-Mais importante: a verificação impede qualquer segundo pagamento para o mesmo colaborador no mesmo mês. O usuário precisa poder lançar bonificações, adiantamentos, etc.
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-**Solução:**
-- **Remover a verificação de duplicidade** (linhas 523-538 de `RHPagamentos.tsx`). Permitir múltiplos pagamentos por colaborador no mesmo mês.
-- Manter apenas a proteção contra double-click (que já existe com `submitting`).
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-**Arquivo:** `src/components/rh/RHPagamentos.tsx` — remover linhas 523-538
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 
----
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+```
 
-### Problema 2: Clientes ADVBox não carregam nas Decisões Favoráveis
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
 
-**Causa raiz:** A tabela `advbox_customers` está vazia ou com poucos registros. Não existe cron automático para sincronizar clientes. O usuário precisa clicar manualmente no botão de sincronizar múltiplas vezes (cada execução importa ~2500 clientes antes do timeout de 50s).
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
 
-**Solução:**
-1. Adicionar entrada no `config.toml` para `sync-advbox-customers` com `verify_jwt = false`
-2. Criar migração SQL com `pg_cron` para executar `sync-advbox-customers` a cada 15 minutos automaticamente (igual ao padrão já usado para `sync-advbox-tasks`)
-3. O cron vai chamar a function repetidamente, e ela continua do offset onde parou, até completar todos os ~9500 clientes
+### Solucao
 
-**Arquivos:**
-- `supabase/config.toml` — adicionar `[functions.sync-advbox-customers]` com `verify_jwt = false`
-- Nova migração SQL — criar cron job `sync-advbox-customers-cron` a cada 15 minutos
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
 
