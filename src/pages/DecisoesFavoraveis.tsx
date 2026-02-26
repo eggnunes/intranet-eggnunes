@@ -187,42 +187,26 @@ export default function DecisoesFavoraveis() {
     },
   });
 
-  // Fetch Advbox clients - load in background on page load
+  // Fetch Advbox clients from local synced table
   const { data: advboxClients = [], isLoading: loadingClients, refetch: refetchClients } = useQuery({
     queryKey: ['advbox-customers'],
     queryFn: async () => {
-      const { data: session } = await supabase.auth.getSession();
-      if (!session.session) throw new Error('Not authenticated');
+      console.log('Fetching ADVBox customers from local table...');
+      const { data, error } = await supabase
+        .from('advbox_customers')
+        .select('advbox_id, name')
+        .order('name');
 
-      console.log('Fetching ADVBox customers...');
-      const response = await supabase.functions.invoke('advbox-integration/customers', {
-        headers: {
-          Authorization: `Bearer ${session.session.access_token}`,
-        },
-      });
-
-      if (response.error) {
-        console.error('Error fetching customers:', response.error);
-        throw response.error;
+      if (error) {
+        console.error('Error fetching customers:', error);
+        throw error;
       }
       
-      console.log('ADVBox customers response:', response.data);
-      
-      // Extract customers from different response formats
-      let customers: any[] = [];
-      if (response.data?.data?.items) {
-        customers = response.data.data.items;
-      } else if (Array.isArray(response.data?.data)) {
-        customers = response.data.data;
-      } else if (Array.isArray(response.data)) {
-        customers = response.data;
-      }
-      
-      console.log(`Found ${customers.length} customers`);
-      return customers.map((c: any) => ({ id: c.id, name: c.name })).filter((c: any) => c.id && c.name);
+      console.log(`Found ${data?.length || 0} customers from local table`);
+      return (data || []).map((c: any) => ({ id: c.advbox_id, name: c.name })).filter((c: any) => c.id && c.name);
     },
-    staleTime: 10 * 60 * 1000, // Cache for 10 minutes
-    enabled: true, // Always load in background
+    staleTime: 5 * 60 * 1000,
+    enabled: true,
   });
 
   // Manual search function for Advbox clients
