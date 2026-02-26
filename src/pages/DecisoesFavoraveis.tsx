@@ -216,13 +216,22 @@ export default function DecisoesFavoraveis() {
       const { data: session } = await supabase.auth.getSession();
       if (!session.session) throw new Error('Not authenticated');
 
-      await supabase.functions.invoke('sync-advbox-customers', {
+      const response = await supabase.functions.invoke('sync-advbox-customers', {
         headers: {
           Authorization: `Bearer ${session.session.access_token}`,
         },
       });
+      
       await refetchClients();
-      toast.success('Clientes sincronizados do Advbox');
+      
+      const result = response.data;
+      if (result?.status === 'partial') {
+        toast.info(`${result.total_upserted} clientes sincronizados. Clique novamente para continuar a importação.`);
+      } else if (result?.status === 'completed') {
+        toast.success(`${result.total_upserted} clientes sincronizados do Advbox`);
+      } else {
+        toast.success('Clientes sincronizados do Advbox');
+      }
     } catch (error) {
       console.error('Error syncing clients:', error);
       toast.error('Erro ao sincronizar clientes do Advbox');
