@@ -233,7 +233,7 @@ export function AppSidebar() {
     {
       label: '⚖️ GESTÃO PROCESSUAL',
       items: [
-        { icon: Award, path: '/decisoes-favoraveis', label: 'Decisões Favoráveis' },
+        { icon: Award, path: '/decisoes-favoraveis', label: 'Jurisprudência Interna' },
         { icon: KeyRound, path: '/codigos-autenticacao', label: 'Códigos TOTP' },
         { icon: Briefcase, path: '/portais-tribunais', label: 'Portais de Tribunais' },
         { icon: FileText, path: '/publicacoes-dje', label: 'Publicações DJE' },

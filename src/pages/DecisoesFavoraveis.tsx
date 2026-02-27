@@ -617,8 +617,8 @@ export default function DecisoesFavoraveis() {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Decisões Favoráveis</h1>
-            <p className="text-muted-foreground">Gerencie as decisões favoráveis e análises de jurimetria</p>
+            <h1 className="text-2xl font-bold">Jurisprudência Interna</h1>
+            <p className="text-muted-foreground">Gerencie as decisões e análises de jurimetria</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={fetchMissingLinksWithResponsibles} disabled={isLoadingMissingLinks}>
