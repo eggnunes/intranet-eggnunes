@@ -566,6 +566,12 @@ export default function PublicacoesDJE() {
                   Exibindo {filteredPublicacoes.length} de {totalCount} publicações
                 </Badge>
               )}
+              {refreshingInBackground && (
+                <Badge variant="outline" className="gap-1 animate-pulse">
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                  Atualizando publicações...
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
