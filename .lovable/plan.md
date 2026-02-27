@@ -1,37 +1,72 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+## Plano: Evolução do Módulo de Decisões Favoráveis
 
-### Causa Raiz
+### 1. Migração de banco de dados
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+Adicionar novas colunas na tabela `favorable_decisions`:
+- `reu` (text, nullable) - Réu da ação
+- `regiao` (text, nullable) - Região do tribunal
+- `materia` (text, nullable) - Matéria (civil, trabalhista, previdenciário, etc.)
+- `resultado` (text, nullable) - Procedente/Improcedente/Parcialmente procedente
+- `decisao_texto` (text, nullable) - Texto/trecho da decisão em si
+- `ai_analysis` (jsonb, nullable) - Dados da análise de IA (categorização automática)
+- `notify_team` (boolean, default false) - Se deseja notificar equipe
+- `notify_message` (text, nullable) - Trecho da decisão para notificação
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+### 2. Edge function para análise de IA
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+Criar `supabase/functions/analyze-decision/index.ts`:
+- Recebe observation/decisao_texto e campos existentes
+- Usa Lovable AI (gemini-3-flash-preview) para categorizar automaticamente: réu, matéria, resultado, região
+- Retorna JSON estruturado com os campos preenchidos
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+### 3. Refatorar a página em abas (Tabs)
 
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-```
+Reorganizar `src/pages/DecisoesFavoraveis.tsx` com duas abas principais:
+- **Decisões**: Conteúdo atual (listagem, cadastro, filtros)
+- **Jurimetria**: Dashboard com gráficos e análises
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+### 4. Novos filtros de pesquisa
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+Expandir os filtros existentes para incluir:
+- Réu
+- Tribunal/Região
+- Matéria
+- Resultado (Procedente/Improcedente)
+- Período (data início/fim)
 
-### Solucao
+### 5. Formulário de cadastro atualizado
 
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+Adicionar ao formulário existente:
+- Campo "Réu"
+- Campo "Região"
+- Select "Matéria" (civil, trabalhista, previdenciário, tributário, administrativo, etc.)
+- Select "Resultado" (procedente, improcedente, parcialmente procedente)
+- Textarea "Texto/Trecho da Decisão"
+- Checkbox "Notificar equipe" + Textarea condicional para o trecho a notificar
+- Botão "Analisar com IA" que preenche automaticamente campos via edge function
 
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+### 6. Notificação à equipe
 
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+Ao salvar com `notify_team = true`:
+- Inserir registro em `user_notifications` para todos os usuários aprovados
+- Incluir o trecho da decisão na mensagem da notificação
 
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+### 7. Aba Jurimetria - Dashboard
+
+Criar componente `src/components/JurimetriaDashboard.tsx` com:
+- Gráfico de pizza: distribuição por matéria
+- Gráfico de barras: decisões por tribunal/região
+- Gráfico de barras: procedência vs improcedência
+- Gráfico de linha: evolução temporal de decisões
+- Cards de KPIs: taxa de procedência, tribunal com mais vitórias, matéria mais frequente
+- Filtros próprios (período, matéria, tribunal)
+- Usa recharts (já instalado)
+
+### Arquivos modificados/criados
+- **Migração SQL**: novos campos na tabela
+- `supabase/functions/analyze-decision/index.ts` (novo)
+- `src/components/JurimetriaDashboard.tsx` (novo)
+- `src/pages/DecisoesFavoraveis.tsx` (refatorado com tabs, filtros, formulário)
 
