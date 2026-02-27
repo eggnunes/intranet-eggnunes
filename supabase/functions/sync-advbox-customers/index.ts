@@ -59,6 +59,14 @@ Deno.serve(async (req) => {
   try {
     console.log('Starting incremental sync of ADVBox customers...');
 
+    // Fix stale "running" records (crashed/timed out previous runs)
+    await supabase
+      .from('advbox_sync_status')
+      .update({ status: 'partial', completed_at: new Date().toISOString() })
+      .eq('sync_type', 'customers')
+      .eq('status', 'running')
+      .lt('started_at', new Date(Date.now() - 2 * 60 * 1000).toISOString());
+
     // Check where we left off from previous partial sync
     const { data: lastSync } = await supabase
       .from('advbox_sync_status')
