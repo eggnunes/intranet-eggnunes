@@ -136,7 +136,7 @@ export function JurimetriaDashboard({ decisions }: JurimetriaDashboardProps) {
   const resultadoData = useMemo(() => {
     const counts: Record<string, number> = {};
     filtered.forEach(d => {
-      const key = d.resultado || 'nao_identificado';
+      const key = d.resultado || 'procedente';
       counts[key] = (counts[key] || 0) + 1;
     });
     return Object.entries(counts).map(([name, value]) => ({
