@@ -725,9 +725,12 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
                   <CardTitle className="text-base">Qualificação do Cliente</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
-                    {qualification}
-                  </p>
+                  <Textarea
+                    value={localQualification}
+                    onChange={(e) => setLocalQualification(e.target.value)}
+                    className="min-h-[120px] text-sm"
+                    placeholder="Qualificação do cliente..."
+                  />
                 </CardContent>
               </Card>
 
