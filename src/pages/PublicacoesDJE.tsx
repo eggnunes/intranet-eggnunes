@@ -153,11 +153,20 @@ export default function PublicacoesDJE() {
       if (data?.error) throw new Error(data.error);
 
       const newData = data?.data || [];
-      setTotalCount(data?.totalCount || newData.length);
+      const newTotal = data?.totalCount || newData.length;
+      setTotalCount(newTotal);
       if (append) {
-        setPublicacoes(prev => [...prev, ...newData]);
+        setPublicacoes(prev => {
+          const merged = [...prev, ...newData];
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify(merged)); } catch {}
+          return merged;
+        });
       } else {
         setPublicacoes(newData);
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(newData));
+          localStorage.setItem(CACHE_TOTAL_KEY, String(newTotal));
+        } catch {}
       }
       setCurrentPage(page);
     } catch (err: any) {
