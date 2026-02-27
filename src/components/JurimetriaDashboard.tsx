@@ -123,7 +123,8 @@ export function JurimetriaDashboard({ decisions }: JurimetriaDashboardProps) {
       const key = d.regiao || d.court || 'Não informado';
       if (!counts[key]) counts[key] = { procedente: 0, improcedente: 0, total: 0 };
       counts[key].total++;
-      if (d.resultado === 'procedente' || d.resultado === 'parcialmente_procedente') counts[key].procedente++;
+      const res = d.resultado || 'procedente';
+      if (res === 'procedente' || res === 'parcialmente_procedente') counts[key].procedente++;
       else counts[key].improcedente++;
     });
     return Object.entries(counts)
