@@ -2527,63 +2527,87 @@ export type Database = {
       }
       favorable_decisions: {
         Row: {
+          ai_analysis: Json | null
           client_id: string | null
           client_name: string
           court: string | null
           court_division: string | null
           created_at: string
           created_by: string
+          decisao_texto: string | null
           decision_date: string
           decision_link: string | null
           decision_type: string
           evaluation_requested: boolean | null
           id: string
           lawsuit_id: string | null
+          materia: string | null
+          notify_message: string | null
+          notify_team: boolean | null
           observation: string | null
           process_number: string | null
           product_name: string
+          regiao: string | null
+          resultado: string | null
+          reu: string | null
           teams_row_index: number | null
           updated_at: string
           was_evaluated: boolean | null
           was_posted: boolean | null
         }
         Insert: {
+          ai_analysis?: Json | null
           client_id?: string | null
           client_name: string
           court?: string | null
           court_division?: string | null
           created_at?: string
           created_by: string
+          decisao_texto?: string | null
           decision_date: string
           decision_link?: string | null
           decision_type: string
           evaluation_requested?: boolean | null
           id?: string
           lawsuit_id?: string | null
+          materia?: string | null
+          notify_message?: string | null
+          notify_team?: boolean | null
           observation?: string | null
           process_number?: string | null
           product_name: string
+          regiao?: string | null
+          resultado?: string | null
+          reu?: string | null
           teams_row_index?: number | null
           updated_at?: string
           was_evaluated?: boolean | null
           was_posted?: boolean | null
         }
         Update: {
+          ai_analysis?: Json | null
           client_id?: string | null
           client_name?: string
           court?: string | null
           court_division?: string | null
           created_at?: string
           created_by?: string
+          decisao_texto?: string | null
           decision_date?: string
           decision_link?: string | null
           decision_type?: string
           evaluation_requested?: boolean | null
           id?: string
           lawsuit_id?: string | null
+          materia?: string | null
+          notify_message?: string | null
+          notify_team?: boolean | null
           observation?: string | null
           process_number?: string | null
           product_name?: string
+          regiao?: string | null
+          resultado?: string | null
+          reu?: string | null
           teams_row_index?: number | null
           updated_at?: string
           was_evaluated?: boolean | null

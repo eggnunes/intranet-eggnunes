@@ -152,3 +152,6 @@ verify_jwt = false
 
 [functions.sync-advbox-customers]
 verify_jwt = false
+
+[functions.analyze-decision]
+verify_jwt = true
