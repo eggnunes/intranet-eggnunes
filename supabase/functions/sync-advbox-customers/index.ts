@@ -59,6 +59,31 @@ Deno.serve(async (req) => {
   try {
     console.log('Starting incremental sync of ADVBox customers...');
 
+    // Fix stale "running" records (crashed/timed out previous runs > 2 min)
+    await supabase
+      .from('advbox_sync_status')
+      .update({ status: 'partial', completed_at: new Date().toISOString() })
+      .eq('sync_type', 'customers')
+      .eq('status', 'running')
+      .lt('started_at', new Date(Date.now() - 2 * 60 * 1000).toISOString());
+
+    // Check if another instance is currently running (concurrency lock)
+    const { data: activeRun } = await supabase
+      .from('advbox_sync_status')
+      .select('id, started_at')
+      .eq('sync_type', 'customers')
+      .eq('status', 'running')
+      .limit(1)
+      .single();
+
+    if (activeRun) {
+      console.log('Another sync is already running. Skipping.');
+      return new Response(
+        JSON.stringify({ success: true, status: 'skipped', message: 'Outra sincronização já está em andamento.' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Check where we left off from previous partial sync
     const { data: lastSync } = await supabase
       .from('advbox_sync_status')
@@ -71,8 +96,8 @@ Deno.serve(async (req) => {
 
     let startOffset = lastSync?.last_offset || 0;
 
-    // Create sync status record
-    const { data: syncRecord } = await supabase
+    // Create sync status record (concurrency lock)
+    const { data: syncRecord, error: syncInsertError } = await supabase
       .from('advbox_sync_status')
       .insert({
         sync_type: 'customers',
@@ -83,7 +108,12 @@ Deno.serve(async (req) => {
       .select('id')
       .single();
 
+    if (syncInsertError) {
+      console.error('Failed to create sync status record:', syncInsertError);
+    }
+
     const syncId = syncRecord?.id;
+    console.log(`Sync record created: ${syncId}, starting from offset ${startOffset}`);
 
     let offset = startOffset;
     const limit = 100;

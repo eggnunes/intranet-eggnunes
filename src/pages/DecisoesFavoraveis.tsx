@@ -187,45 +187,38 @@ export default function DecisoesFavoraveis() {
     },
   });
 
-  // Fetch Advbox clients from local synced table
+  // Fetch Advbox clients from local synced table - server-side search
   const { data: advboxClients = [], isLoading: loadingClients, refetch: refetchClients } = useQuery({
-    queryKey: ['advbox-customers'],
+    queryKey: ['advbox-customers-search', clientSearch],
     queryFn: async () => {
-      console.log('Fetching ADVBox customers from local table...');
-      // Fetch ALL customers using pagination to bypass 1000 row default limit
-      let allCustomers: Array<{ advbox_id: number; name: string }> = [];
-      let offset = 0;
-      const pageSize = 1000;
-      let hasMore = true;
+      if (clientSearch.length < 2) return [];
+      
+      console.log(`Searching ADVBox customers for: "${clientSearch}"`);
+      
+      // Normalize search: remove accents for ilike search
+      const normalizedSearch = clientSearch
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+      
+      // Use server-side search with ilike - no pagination needed
+      const { data, error } = await supabase
+        .from('advbox_customers')
+        .select('advbox_id, name')
+        .or(`name.ilike.%${clientSearch}%,name.ilike.%${normalizedSearch}%`)
+        .order('name')
+        .limit(50);
 
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('advbox_customers')
-          .select('advbox_id, name')
-          .order('name')
-          .range(offset, offset + pageSize - 1);
-
-        if (error) {
-          console.error('Error fetching customers:', error);
-          throw error;
-        }
-
-        if (data && data.length > 0) {
-          allCustomers = [...allCustomers, ...data];
-          offset += data.length;
-          if (data.length < pageSize) {
-            hasMore = false;
-          }
-        } else {
-          hasMore = false;
-        }
+      if (error) {
+        console.error('Error searching customers:', error);
+        throw error;
       }
       
-      console.log(`Found ${allCustomers.length} customers from local table (paginated)`);
-      return allCustomers.map((c) => ({ id: c.advbox_id, name: c.name })).filter((c) => c.id && c.name);
+      console.log(`Found ${data?.length || 0} customers matching "${clientSearch}"`);
+      return (data || []).map((c) => ({ id: c.advbox_id, name: c.name })).filter((c) => c.id && c.name);
     },
-    staleTime: 5 * 60 * 1000,
-    enabled: true,
+    staleTime: 30 * 1000,
+    enabled: clientSearch.length >= 2,
   });
 
   // Manual search function - force sync from ADVBox API then reload
@@ -520,12 +513,8 @@ export default function DecisoesFavoraveis() {
   // Normalize string removing accents for search
   const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-  // Filter clients for autocomplete with accent normalization
-  const filteredClients = clientSearch.length >= 2 
-    ? advboxClients.filter((c: AdvboxClient) =>
-        normalize(c.name).includes(normalize(clientSearch))
-      ).slice(0, 15)
-    : [];
+  // Clients already filtered server-side by useQuery
+  const filteredClients = advboxClients;
 
   const getDecisionTypeLabel = (type: string) => {
     return DECISION_TYPES.find(t => t.value === type)?.label || type;
@@ -728,12 +717,12 @@ export default function DecisoesFavoraveis() {
                       {loadingClients && advboxClients.length === 0 && (
                         <p className="text-sm text-muted-foreground">Carregando clientes do Advbox...</p>
                       )}
-                      {advboxClients.length > 0 && !selectedClient && (
-                        <p className="text-xs text-muted-foreground">{advboxClients.length} clientes disponíveis</p>
+                      {advboxClients.length > 0 && !selectedClient && clientSearch.length >= 2 && (
+                        <p className="text-xs text-muted-foreground">{advboxClients.length} clientes encontrados</p>
                       )}
-                      {advboxClients.length === 0 && !loadingClients && !isSearchingClients && (
-                        <p className="text-sm text-amber-600 dark:text-amber-400">
-                          Nenhum cliente carregado. Clique no botão de busca para sincronizar do Advbox.
+                      {advboxClients.length === 0 && clientSearch.length >= 2 && !loadingClients && !isSearchingClients && (
+                        <p className="text-sm text-muted-foreground">
+                          Nenhum cliente encontrado. Clique no botão de busca para sincronizar do Advbox.
                         </p>
                       )}
                       {isSearchingClients && (
