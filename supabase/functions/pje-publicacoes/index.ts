@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
       let query = supabase
         .from('publicacoes_dje')
         .select('*', { count: 'exact' })
-        .order('data_disponibilizacao', { ascending: false })
+        .order('created_at', { ascending: false })
         .range((page - 1) * pageSize, page * pageSize - 1)
 
       if (filters?.numeroProcesso) query = query.ilike('numero_processo', `%${filters.numeroProcesso}%`)
