@@ -288,11 +288,11 @@ export default function PublicacoesDJE() {
       });
     }
 
-    // Sort
+    // Sort - use created_at (insertion order = Diário order) instead of data_disponibilizacao
     if (ordenacao === 'recente') {
-      result.sort((a, b) => (b.data_disponibilizacao || '').localeCompare(a.data_disponibilizacao || ''));
+      result.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
     } else if (ordenacao === 'antigo') {
-      result.sort((a, b) => (a.data_disponibilizacao || '').localeCompare(b.data_disponibilizacao || ''));
+      result.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
     } else if (ordenacao === 'tribunal') {
       result.sort((a, b) => (a.siglaTribunal || '').localeCompare(b.siglaTribunal || ''));
     }
