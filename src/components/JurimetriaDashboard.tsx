@@ -81,7 +81,7 @@ export function JurimetriaDashboard({ decisions }: JurimetriaDashboardProps) {
 
   // KPIs
   const totalDecisions = filtered.length;
-  const procedentes = filtered.filter(d => d.resultado === 'procedente' || d.resultado === 'parcialmente_procedente').length;
+  const procedentes = filtered.filter(d => !d.resultado || d.resultado === 'procedente' || d.resultado === 'parcialmente_procedente').length;
   const taxaProcedencia = totalDecisions > 0 ? Math.round((procedentes / totalDecisions) * 100) : 0;
 
   const topTribunal = useMemo(() => {
