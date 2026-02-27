@@ -78,7 +78,7 @@ export const DeclaracaoGenerator = ({
     const dataAtual = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
     
     // Remover ponto e vírgula do final da qualificação
-    const qualificacaoLimpa = qualification.replace(/[;,.]$/, '').trim();
+    const qualificacaoLimpa = localQualification.replace(/[;,.]$/, '').trim();
     
     // Nome do cliente em maiúsculo para a qualificação
     const nomeCliente = client.nomeCompleto.toUpperCase();
