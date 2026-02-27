@@ -147,7 +147,7 @@ export const Layout = ({ children }: LayoutProps) => {
     { path: '/advbox-analytics', label: 'Analytics', description: 'Gráficos e métricas', category: 'Advbox' },
     { path: '/aniversarios-clientes', label: 'Aniversários Clientes', description: 'Clientes aniversariantes', category: 'Advbox' },
     { path: '/historico-mensagens-aniversario', label: 'Histórico Mensagens', description: 'Mensagens de aniversário', category: 'Advbox' },
-    { path: '/decisoes-favoraveis', label: 'Decisões Favoráveis', description: 'Registro de vitórias', category: 'Gestão Processual' },
+    { path: '/decisoes-favoraveis', label: 'Jurisprudência Interna', description: 'Registro de decisões e jurimetria', category: 'Gestão Processual' },
     { path: '/codigos-autenticacao', label: 'Códigos TOTP', description: 'Autenticação de tribunais', category: 'Gestão Processual' },
     { path: '/setor-comercial', label: 'Painel Comercial', description: 'Gerador de documentos', category: 'Comercial' },
     { path: '/crm', label: 'CRM', description: 'Gestão de leads', category: 'Comercial' },

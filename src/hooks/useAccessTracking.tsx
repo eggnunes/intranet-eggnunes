@@ -33,7 +33,7 @@ const PAGE_NAMES: Record<string, string> = {
   '/lead-tracking': 'Lead Tracking',
   '/processos': 'Processos',
   '/publicacoes-feed': 'Publicações',
-  '/decisoes-favoraveis': 'Decisões Favoráveis',
+  '/decisoes-favoraveis': 'Jurisprudência Interna',
   '/tarefas-advbox': 'Tarefas Advbox',
   '/advbox-config': 'Configuração Advbox',
   '/advbox-analytics': 'Analytics Advbox',

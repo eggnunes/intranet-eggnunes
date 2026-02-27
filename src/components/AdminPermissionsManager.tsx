@@ -97,7 +97,7 @@ const PERMISSION_CATEGORIES = [
       { key: 'processos', label: 'Dashboard de Processos' },
       { key: 'publicacoes', label: 'Publicações' },
       { key: 'tarefas_advbox', label: 'Tarefas Advbox' },
-      { key: 'decisoes', label: 'Decisões Favoráveis' },
+      { key: 'decisoes', label: 'Jurisprudência Interna' },
       { key: 'contratos', label: 'Gerador de Contratos' },
       { key: 'jurisprudencia', label: 'Pesquisa de Jurisprudência' },
       { key: 'rota_doc', label: 'Rota Doc' },
