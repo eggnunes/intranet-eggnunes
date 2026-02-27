@@ -31,7 +31,11 @@ interface Publicacao {
   siglaTribunal: string;
   lida: boolean;
   raw_data?: any;
+  created_at?: string;
 }
+
+const CACHE_KEY = 'publicacoes_dje_cache';
+const CACHE_TOTAL_KEY = 'publicacoes_dje_total';
 
 const TRIBUNAIS = [
   { value: '', label: 'Todos' },
@@ -82,8 +86,18 @@ const TIPOS_COMUNICACAO = [
 
 export default function PublicacoesDJE() {
   const [loading, setLoading] = useState(false);
-  const [publicacoes, setPublicacoes] = useState<Publicacao[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
+  const [refreshingInBackground, setRefreshingInBackground] = useState(false);
+  const [publicacoes, setPublicacoes] = useState<Publicacao[]>(() => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  const [totalCount, setTotalCount] = useState(() => {
+    try {
+      return parseInt(localStorage.getItem(CACHE_TOTAL_KEY) || '0', 10);
+    } catch { return 0; }
+  });
   const [selectedPub, setSelectedPub] = useState<Publicacao | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -106,7 +120,14 @@ export default function PublicacoesDJE() {
   const [ordenacao, setOrdenacao] = useState<'recente' | 'antigo' | 'tribunal'>('recente');
 
   useEffect(() => {
-    loadLocal({}, 1);
+    // If we have cached data, just refresh in background
+    if (publicacoes.length > 0) {
+      setRefreshingInBackground(true);
+      loadLocal({}, 1).finally(() => setRefreshingInBackground(false));
+    } else {
+      setLoading(true);
+      loadLocal({}, 1).finally(() => setLoading(false));
+    }
   }, []);
 
   const buildFilters = () => {
@@ -132,11 +153,20 @@ export default function PublicacoesDJE() {
       if (data?.error) throw new Error(data.error);
 
       const newData = data?.data || [];
-      setTotalCount(data?.totalCount || newData.length);
+      const newTotal = data?.totalCount || newData.length;
+      setTotalCount(newTotal);
       if (append) {
-        setPublicacoes(prev => [...prev, ...newData]);
+        setPublicacoes(prev => {
+          const merged = [...prev, ...newData];
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify(merged)); } catch {}
+          return merged;
+        });
       } else {
         setPublicacoes(newData);
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(newData));
+          localStorage.setItem(CACHE_TOTAL_KEY, String(newTotal));
+        } catch {}
       }
       setCurrentPage(page);
     } catch (err: any) {
@@ -258,11 +288,11 @@ export default function PublicacoesDJE() {
       });
     }
 
-    // Sort
+    // Sort - use created_at (insertion order = Diário order) instead of data_disponibilizacao
     if (ordenacao === 'recente') {
-      result.sort((a, b) => (b.data_disponibilizacao || '').localeCompare(a.data_disponibilizacao || ''));
+      result.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
     } else if (ordenacao === 'antigo') {
-      result.sort((a, b) => (a.data_disponibilizacao || '').localeCompare(b.data_disponibilizacao || ''));
+      result.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
     } else if (ordenacao === 'tribunal') {
       result.sort((a, b) => (a.siglaTribunal || '').localeCompare(b.siglaTribunal || ''));
     }
@@ -534,6 +564,12 @@ export default function PublicacoesDJE() {
               {totalCount > 0 && (
                 <Badge variant="secondary">
                   Exibindo {filteredPublicacoes.length} de {totalCount} publicações
+                </Badge>
+              )}
+              {refreshingInBackground && (
+                <Badge variant="outline" className="gap-1 animate-pulse">
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                  Atualizando publicações...
                 </Badge>
               )}
             </CardTitle>
