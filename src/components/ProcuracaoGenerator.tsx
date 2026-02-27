@@ -919,13 +919,13 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
                           className="h-8"
                         />
                         <div className="flex gap-2">
-                          <Button 
-                            size="sm" 
-                            onClick={() => salvarTemplate(true)}
-                            disabled={savingTemplate || !templateName.trim() || !poderesEspeciais.trim()}
-                            className="h-8"
-                          >
-                            {savingTemplate ? <Loader2 className="h-3 w-3 animate-spin" /> : "Criar Template Padrão"}
+                           <Button 
+                             size="sm" 
+                             onClick={() => salvarTemplate(isAdmin)}
+                             disabled={savingTemplate || !templateName.trim() || !poderesEspeciais.trim()}
+                             className="h-8"
+                           >
+                             {savingTemplate ? <Loader2 className="h-3 w-3 animate-spin" /> : (isAdmin ? "Criar Template Padrão" : "Salvar Template")}
                           </Button>
                           <Button 
                             size="sm" 
