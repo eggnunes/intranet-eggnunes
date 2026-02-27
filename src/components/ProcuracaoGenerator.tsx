@@ -107,8 +107,9 @@ export const ProcuracaoGenerator = ({
   const [templates, setTemplates] = useState<PowerTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
-  const [showCreateDefaultTemplate, setShowCreateDefaultTemplate] = useState(false);
-  const [templateName, setTemplateName] = useState("");
+   const [showCreateDefaultTemplate, setShowCreateDefaultTemplate] = useState(false);
+   const [templateName, setTemplateName] = useState("");
+   const [templateSearch, setTemplateSearch] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
   
   // Objeto do contrato detectado automaticamente
