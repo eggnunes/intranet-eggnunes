@@ -81,7 +81,7 @@ export function JurimetriaDashboard({ decisions }: JurimetriaDashboardProps) {
 
   // KPIs
   const totalDecisions = filtered.length;
-  const procedentes = filtered.filter(d => d.resultado === 'procedente' || d.resultado === 'parcialmente_procedente').length;
+  const procedentes = filtered.filter(d => !d.resultado || d.resultado === 'procedente' || d.resultado === 'parcialmente_procedente').length;
   const taxaProcedencia = totalDecisions > 0 ? Math.round((procedentes / totalDecisions) * 100) : 0;
 
   const topTribunal = useMemo(() => {
@@ -123,7 +123,8 @@ export function JurimetriaDashboard({ decisions }: JurimetriaDashboardProps) {
       const key = d.regiao || d.court || 'Não informado';
       if (!counts[key]) counts[key] = { procedente: 0, improcedente: 0, total: 0 };
       counts[key].total++;
-      if (d.resultado === 'procedente' || d.resultado === 'parcialmente_procedente') counts[key].procedente++;
+      const res = d.resultado || 'procedente';
+      if (res === 'procedente' || res === 'parcialmente_procedente') counts[key].procedente++;
       else counts[key].improcedente++;
     });
     return Object.entries(counts)
@@ -135,7 +136,7 @@ export function JurimetriaDashboard({ decisions }: JurimetriaDashboardProps) {
   const resultadoData = useMemo(() => {
     const counts: Record<string, number> = {};
     filtered.forEach(d => {
-      const key = d.resultado || 'nao_identificado';
+      const key = d.resultado || 'procedente';
       counts[key] = (counts[key] || 0) + 1;
     });
     return Object.entries(counts).map(([name, value]) => ({

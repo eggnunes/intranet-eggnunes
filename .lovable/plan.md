@@ -1,25 +1,37 @@
 
 
-## Plano: Corrigir classificação de decisões na Jurimetria
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-### Problema
-No `JurimetriaDashboard.tsx`, quando `resultado` é `null` (todas as decisões existentes), o código cai no `else` e conta como "improcedente". Como todas as decisões cadastradas até agora não têm o campo `resultado` preenchido, aparecem todas como improcedentes no gráfico.
+### Causa Raiz
 
-### Solução
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-**1. Corrigir lógica no dashboard (`src/components/JurimetriaDashboard.tsx`)**
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-- Linha 82 (KPI `procedentes`): incluir `resultado === null` como procedente, já que decisões sem classificação neste módulo são favoráveis por definição
-- Linha 126-127 (`regiaoData`): tratar `null` como procedente
-- Linha 140-145 (`resultadoData`): tratar `null` como procedente em vez de "não identificado"
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-Na verdade, a abordagem correta é: decisões sem `resultado` preenchido devem ser tratadas como "procedente" pois este é o módulo de **Decisões Favoráveis**.
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-**2. Atualizar registros existentes no banco de dados**
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+```
 
-Executar UPDATE para definir `resultado = 'procedente'` em todas as decisões que atualmente têm `resultado IS NULL`.
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
 
-### Arquivos
-- `src/components/JurimetriaDashboard.tsx` — corrigir lógica de classificação
-- Migração SQL — `UPDATE favorable_decisions SET resultado = 'procedente' WHERE resultado IS NULL`
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+
+### Solucao
+
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
 
