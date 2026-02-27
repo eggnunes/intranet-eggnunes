@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     let startOffset = lastSync?.last_offset || 0;
 
     // Create sync status record
-    const { data: syncRecord } = await supabase
+    const { data: syncRecord, error: syncInsertError } = await supabase
       .from('advbox_sync_status')
       .insert({
         sync_type: 'customers',
@@ -91,7 +91,12 @@ Deno.serve(async (req) => {
       .select('id')
       .single();
 
+    if (syncInsertError) {
+      console.error('Failed to create sync status record:', syncInsertError);
+    }
+
     const syncId = syncRecord?.id;
+    console.log(`Sync record created: ${syncId}, starting from offset ${startOffset}`);
 
     let offset = startOffset;
     const limit = 100;
