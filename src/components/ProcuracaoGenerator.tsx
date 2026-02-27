@@ -906,10 +906,12 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
                       </div>
                     )}
 
-                    {/* Formulário criar template padrão (admin) */}
-                    {showCreateDefaultTemplate && isAdmin && (
-                      <div className="space-y-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                        <Label className="text-xs font-medium text-primary">Criar Template Padrão (visível para todos)</Label>
+                     {/* Formulário criar template */}
+                     {showCreateDefaultTemplate && (
+                       <div className="space-y-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                         <Label className="text-xs font-medium text-primary">
+                           {isAdmin ? 'Criar Template Padrão (visível para todos)' : 'Salvar como Template'}
+                         </Label>
                         <Input
                           placeholder="Nome do template"
                           value={templateName}
