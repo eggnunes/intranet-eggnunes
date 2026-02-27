@@ -187,45 +187,38 @@ export default function DecisoesFavoraveis() {
     },
   });
 
-  // Fetch Advbox clients from local synced table
+  // Fetch Advbox clients from local synced table - server-side search
   const { data: advboxClients = [], isLoading: loadingClients, refetch: refetchClients } = useQuery({
-    queryKey: ['advbox-customers'],
+    queryKey: ['advbox-customers-search', clientSearch],
     queryFn: async () => {
-      console.log('Fetching ADVBox customers from local table...');
-      // Fetch ALL customers using pagination to bypass 1000 row default limit
-      let allCustomers: Array<{ advbox_id: number; name: string }> = [];
-      let offset = 0;
-      const pageSize = 1000;
-      let hasMore = true;
+      if (clientSearch.length < 2) return [];
+      
+      console.log(`Searching ADVBox customers for: "${clientSearch}"`);
+      
+      // Normalize search: remove accents for ilike search
+      const normalizedSearch = clientSearch
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+      
+      // Use server-side search with ilike - no pagination needed
+      const { data, error } = await supabase
+        .from('advbox_customers')
+        .select('advbox_id, name')
+        .or(`name.ilike.%${clientSearch}%,name.ilike.%${normalizedSearch}%`)
+        .order('name')
+        .limit(50);
 
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('advbox_customers')
-          .select('advbox_id, name')
-          .order('name')
-          .range(offset, offset + pageSize - 1);
-
-        if (error) {
-          console.error('Error fetching customers:', error);
-          throw error;
-        }
-
-        if (data && data.length > 0) {
-          allCustomers = [...allCustomers, ...data];
-          offset += data.length;
-          if (data.length < pageSize) {
-            hasMore = false;
-          }
-        } else {
-          hasMore = false;
-        }
+      if (error) {
+        console.error('Error searching customers:', error);
+        throw error;
       }
       
-      console.log(`Found ${allCustomers.length} customers from local table (paginated)`);
-      return allCustomers.map((c) => ({ id: c.advbox_id, name: c.name })).filter((c) => c.id && c.name);
+      console.log(`Found ${data?.length || 0} customers matching "${clientSearch}"`);
+      return (data || []).map((c) => ({ id: c.advbox_id, name: c.name })).filter((c) => c.id && c.name);
     },
-    staleTime: 5 * 60 * 1000,
-    enabled: true,
+    staleTime: 30 * 1000,
+    enabled: clientSearch.length >= 2,
   });
 
   // Manual search function - force sync from ADVBox API then reload
