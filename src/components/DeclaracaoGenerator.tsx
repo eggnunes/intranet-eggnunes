@@ -158,7 +158,7 @@ ${nomeCliente}`;
       yPosition += 14;
 
       // Remover ponto e vírgula do final da qualificação se existir
-      const qualificacaoLimpa = qualification.replace(/[;,.]$/, '').trim();
+      const qualificacaoLimpa = localQualification.replace(/[;,.]$/, '').trim();
       
       // Nome do cliente em maiúsculo
       const nomeCliente = client.nomeCompleto.toUpperCase();
