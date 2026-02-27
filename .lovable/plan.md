@@ -1,30 +1,37 @@
 
 
-## Melhorar sistema de templates de poderes especiais
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-### Problema
-1. Apenas admins podem salvar templates de poderes especiais
-2. Não existe busca/filtro nos templates disponíveis
+### Causa Raiz
 
-### Solução
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-**Arquivo:** `src/components/ProcuracaoGenerator.tsx`
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-1. **Permitir que qualquer usuário salve templates:**
-   - Remover a restrição `isAdmin` do formulário de criação (linha 903)
-   - Quando não-admin salva, `is_default` fica `false`; quando admin salva, `is_default` fica `true`
-   - Mostrar botão "Salvar como Template" para todos os usuários (já existe na linha 856-864)
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-2. **Adicionar campo de busca nos templates:**
-   - Novo estado `templateSearch` para filtrar templates por nome
-   - Adicionar `<Input>` de busca acima da lista de badges quando há mais de 3 templates
-   - Filtrar a lista `templates` pelo texto digitado (case-insensitive)
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-3. **Ajustes na UI:**
-   - Mudar texto do botão de "Salvar como Template Geral" para "Salvar como Template" para não-admins
-   - Admins veem opção de marcar como "padrão" (visível para todos)
-   - Mostrar botão "+ Novo Template Padrão" para admins e "+ Salvar Template" para não-admins
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+```
 
-### Alterações
-- Apenas `src/components/ProcuracaoGenerator.tsx` (sem migração necessária, tabela já existe)
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+
+### Solucao
+
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
 
