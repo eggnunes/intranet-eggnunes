@@ -192,18 +192,37 @@ export default function DecisoesFavoraveis() {
     queryKey: ['advbox-customers'],
     queryFn: async () => {
       console.log('Fetching ADVBox customers from local table...');
-      const { data, error } = await supabase
-        .from('advbox_customers')
-        .select('advbox_id, name')
-        .order('name');
+      // Fetch ALL customers using pagination to bypass 1000 row default limit
+      let allCustomers: Array<{ advbox_id: number; name: string }> = [];
+      let offset = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (error) {
-        console.error('Error fetching customers:', error);
-        throw error;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('advbox_customers')
+          .select('advbox_id, name')
+          .order('name')
+          .range(offset, offset + pageSize - 1);
+
+        if (error) {
+          console.error('Error fetching customers:', error);
+          throw error;
+        }
+
+        if (data && data.length > 0) {
+          allCustomers = [...allCustomers, ...data];
+          offset += data.length;
+          if (data.length < pageSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
       }
       
-      console.log(`Found ${data?.length || 0} customers from local table`);
-      return (data || []).map((c: any) => ({ id: c.advbox_id, name: c.name })).filter((c: any) => c.id && c.name);
+      console.log(`Found ${allCustomers.length} customers from local table (paginated)`);
+      return allCustomers.map((c) => ({ id: c.advbox_id, name: c.name })).filter((c) => c.id && c.name);
     },
     staleTime: 5 * 60 * 1000,
     enabled: true,
