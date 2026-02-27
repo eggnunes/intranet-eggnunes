@@ -95,6 +95,7 @@ export const ProcuracaoGenerator = ({
   qualification,
   objetoContrato 
 }: ProcuracaoGeneratorProps) => {
+  const [localQualification, setLocalQualification] = useState(qualification);
   const [temPoderesEspeciais, setTemPoderesEspeciais] = useState(false);
   const [poderesEspeciais, setPoderesEspeciais] = useState("");
   const [gerandoPoderes, setGerandoPoderes] = useState(false);
