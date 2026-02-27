@@ -31,7 +31,11 @@ interface Publicacao {
   siglaTribunal: string;
   lida: boolean;
   raw_data?: any;
+  created_at?: string;
 }
+
+const CACHE_KEY = 'publicacoes_dje_cache';
+const CACHE_TOTAL_KEY = 'publicacoes_dje_total';
 
 const TRIBUNAIS = [
   { value: '', label: 'Todos' },
