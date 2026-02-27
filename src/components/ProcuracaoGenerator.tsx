@@ -125,6 +125,11 @@ export const ProcuracaoGenerator = ({
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
 
+  // Sincronizar qualificação local com prop
+  useEffect(() => {
+    setLocalQualification(qualification);
+  }, [qualification]);
+
   // Carregar rascunho de contrato existente para detectar objeto do contrato
   useEffect(() => {
     const loadContractDraft = async () => {
