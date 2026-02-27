@@ -445,7 +445,7 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
       doc.text(nomeCliente, marginLeft, yPosition);
       
       // Resto da qualificação em fonte normal (sem o nome)
-      const qualificacaoLimpa = qualification.replace(/[;,.]$/, '').trim();
+      const qualificacaoLimpa = localQualification.replace(/[;,.]$/, '').trim();
       let restoQualificacao = qualificacaoLimpa;
       
       // Remover o nome do início da qualificação
