@@ -86,8 +86,18 @@ const TIPOS_COMUNICACAO = [
 
 export default function PublicacoesDJE() {
   const [loading, setLoading] = useState(false);
-  const [publicacoes, setPublicacoes] = useState<Publicacao[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
+  const [refreshingInBackground, setRefreshingInBackground] = useState(false);
+  const [publicacoes, setPublicacoes] = useState<Publicacao[]>(() => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  const [totalCount, setTotalCount] = useState(() => {
+    try {
+      return parseInt(localStorage.getItem(CACHE_TOTAL_KEY) || '0', 10);
+    } catch { return 0; }
+  });
   const [selectedPub, setSelectedPub] = useState<Publicacao | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -110,7 +120,14 @@ export default function PublicacoesDJE() {
   const [ordenacao, setOrdenacao] = useState<'recente' | 'antigo' | 'tribunal'>('recente');
 
   useEffect(() => {
-    loadLocal({}, 1);
+    // If we have cached data, just refresh in background
+    if (publicacoes.length > 0) {
+      setRefreshingInBackground(true);
+      loadLocal({}, 1).finally(() => setRefreshingInBackground(false));
+    } else {
+      setLoading(true);
+      loadLocal({}, 1).finally(() => setLoading(false));
+    }
   }, []);
 
   const buildFilters = () => {
