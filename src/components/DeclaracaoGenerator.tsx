@@ -67,6 +67,10 @@ export const DeclaracaoGenerator = ({
   const [previewText, setPreviewText] = useState("");
   const [gerandoPDF, setGerandoPDF] = useState(false);
 
+  useEffect(() => {
+    setLocalQualification(qualification);
+  }, [qualification]);
+
   // Gerar texto da declaração para preview
   const gerarTextoDeclaracao = (): string => {
     if (!client) return "";
