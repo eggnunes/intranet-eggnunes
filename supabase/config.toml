@@ -149,3 +149,6 @@ verify_jwt = false
 
 [functions.sync-pje-publicacoes]
 verify_jwt = false
+
+[functions.sync-advbox-customers]
+verify_jwt = false
