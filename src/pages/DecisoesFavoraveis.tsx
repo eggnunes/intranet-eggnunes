@@ -513,12 +513,8 @@ export default function DecisoesFavoraveis() {
   // Normalize string removing accents for search
   const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-  // Filter clients for autocomplete with accent normalization
-  const filteredClients = clientSearch.length >= 2 
-    ? advboxClients.filter((c: AdvboxClient) =>
-        normalize(c.name).includes(normalize(clientSearch))
-      ).slice(0, 15)
-    : [];
+  // Clients already filtered server-side by useQuery
+  const filteredClients = advboxClients;
 
   const getDecisionTypeLabel = (type: string) => {
     return DECISION_TYPES.find(t => t.value === type)?.label || type;
