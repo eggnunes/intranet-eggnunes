@@ -62,6 +62,7 @@ export const DeclaracaoGenerator = ({
   client, 
   qualification 
 }: DeclaracaoGeneratorProps) => {
+  const [localQualification, setLocalQualification] = useState(qualification);
   const [showPreview, setShowPreview] = useState(false);
   const [previewText, setPreviewText] = useState("");
   const [gerandoPDF, setGerandoPDF] = useState(false);
