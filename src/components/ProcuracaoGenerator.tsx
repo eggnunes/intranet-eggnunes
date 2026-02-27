@@ -787,23 +787,29 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
                     </div>
                     
                     {/* Templates disponíveis */}
-                    {templates.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs text-muted-foreground">Templates disponíveis</Label>
-                          {isAdmin && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setShowCreateDefaultTemplate(true)}
-                              className="h-6 text-xs px-2"
-                            >
-                              + Novo Template Padrão
-                            </Button>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {templates.map((template) => (
+                     {templates.length > 0 && (
+                       <div className="space-y-2">
+                         <div className="flex items-center justify-between">
+                           <Label className="text-xs text-muted-foreground">Templates disponíveis</Label>
+                           <Button
+                             variant="ghost"
+                             size="sm"
+                             onClick={() => setShowCreateDefaultTemplate(true)}
+                             className="h-6 text-xs px-2"
+                           >
+                             {isAdmin ? '+ Novo Template Padrão' : '+ Salvar Template'}
+                           </Button>
+                         </div>
+                         {templates.length > 3 && (
+                           <Input
+                             placeholder="Buscar template..."
+                             value={templateSearch}
+                             onChange={(e) => setTemplateSearch(e.target.value)}
+                             className="h-8 text-xs"
+                           />
+                         )}
+                         <div className="flex flex-wrap gap-2">
+                           {templates.filter(t => !templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase())).map((template) => (
                             <div key={template.id} className="flex items-center gap-1">
                               <Badge 
                                 variant={template.is_default ? "secondary" : "outline"}
