@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -62,9 +62,14 @@ export const DeclaracaoGenerator = ({
   client, 
   qualification 
 }: DeclaracaoGeneratorProps) => {
+  const [localQualification, setLocalQualification] = useState(qualification);
   const [showPreview, setShowPreview] = useState(false);
   const [previewText, setPreviewText] = useState("");
   const [gerandoPDF, setGerandoPDF] = useState(false);
+
+  useEffect(() => {
+    setLocalQualification(qualification);
+  }, [qualification]);
 
   // Gerar texto da declaração para preview
   const gerarTextoDeclaracao = (): string => {
@@ -73,7 +78,7 @@ export const DeclaracaoGenerator = ({
     const dataAtual = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
     
     // Remover ponto e vírgula do final da qualificação
-    const qualificacaoLimpa = qualification.replace(/[;,.]$/, '').trim();
+    const qualificacaoLimpa = localQualification.replace(/[;,.]$/, '').trim();
     
     // Nome do cliente em maiúsculo para a qualificação
     const nomeCliente = client.nomeCompleto.toUpperCase();
@@ -153,7 +158,7 @@ ${nomeCliente}`;
       yPosition += 14;
 
       // Remover ponto e vírgula do final da qualificação se existir
-      const qualificacaoLimpa = qualification.replace(/[;,.]$/, '').trim();
+      const qualificacaoLimpa = localQualification.replace(/[;,.]$/, '').trim();
       
       // Nome do cliente em maiúsculo
       const nomeCliente = client.nomeCompleto.toUpperCase();

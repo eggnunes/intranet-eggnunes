@@ -95,6 +95,7 @@ export const ProcuracaoGenerator = ({
   qualification,
   objetoContrato 
 }: ProcuracaoGeneratorProps) => {
+  const [localQualification, setLocalQualification] = useState(qualification);
   const [temPoderesEspeciais, setTemPoderesEspeciais] = useState(false);
   const [poderesEspeciais, setPoderesEspeciais] = useState("");
   const [gerandoPoderes, setGerandoPoderes] = useState(false);
@@ -123,6 +124,11 @@ export const ProcuracaoGenerator = ({
 
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
+
+  // Sincronizar qualificação local com prop
+  useEffect(() => {
+    setLocalQualification(qualification);
+  }, [qualification]);
 
   // Carregar rascunho de contrato existente para detectar objeto do contrato
   useEffect(() => {
@@ -356,7 +362,7 @@ Retorne APENAS o texto dos poderes especiais, sem explicações adicionais.`;
     
     let texto = `PROCURAÇÃO
 
-${qualification}; nomeia(m) e constitui(em), seus bastantes procuradores os advogados:
+${localQualification}; nomeia(m) e constitui(em), seus bastantes procuradores os advogados:
 
 ${advogadosTexto}
 
@@ -439,7 +445,7 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
       doc.text(nomeCliente, marginLeft, yPosition);
       
       // Resto da qualificação em fonte normal (sem o nome)
-      const qualificacaoLimpa = qualification.replace(/[;,.]$/, '').trim();
+      const qualificacaoLimpa = localQualification.replace(/[;,.]$/, '').trim();
       let restoQualificacao = qualificacaoLimpa;
       
       // Remover o nome do início da qualificação
@@ -719,9 +725,12 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
                   <CardTitle className="text-base">Qualificação do Cliente</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
-                    {qualification}
-                  </p>
+                  <Textarea
+                    value={localQualification}
+                    onChange={(e) => setLocalQualification(e.target.value)}
+                    className="min-h-[120px] text-sm"
+                    placeholder="Qualificação do cliente..."
+                  />
                 </CardContent>
               </Card>
 
