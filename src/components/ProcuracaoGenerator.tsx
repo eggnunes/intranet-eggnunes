@@ -362,7 +362,7 @@ Retorne APENAS o texto dos poderes especiais, sem explicações adicionais.`;
     
     let texto = `PROCURAÇÃO
 
-${qualification}; nomeia(m) e constitui(em), seus bastantes procuradores os advogados:
+${localQualification}; nomeia(m) e constitui(em), seus bastantes procuradores os advogados:
 
 ${advogadosTexto}
 
