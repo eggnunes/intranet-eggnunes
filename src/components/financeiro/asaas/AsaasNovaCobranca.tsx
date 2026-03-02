@@ -495,8 +495,9 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
     }
 
     const numInstallments = parseInt(installmentCount);
-    if (billingType === 'CREDIT_CARD' && (numInstallments < 1 || numInstallments > 21)) {
-      toast.error('Número de parcelas inválido (1-21)');
+    const maxInstallments = billingType === 'CREDIT_CARD' ? 21 : 60;
+    if (numInstallments < 1 || numInstallments > maxInstallments) {
+      toast.error(`Número de parcelas inválido (1-${maxInstallments})`);
       return;
     }
 
