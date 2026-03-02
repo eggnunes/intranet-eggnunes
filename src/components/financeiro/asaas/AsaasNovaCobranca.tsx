@@ -856,7 +856,7 @@ export function AsaasNovaCobranca({ open, onOpenChange, onSuccess }: AsaasNovaCo
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="1">À vista</SelectItem>
-                      {Array.from({ length: billingType === 'CREDIT_CARD' ? 20 : 11 }, (_, i) => i + 2).map((n) => (
+                      {Array.from({ length: billingType === 'CREDIT_CARD' ? 20 : 59 }, (_, i) => i + 2).map((n) => (
                         <SelectItem key={n} value={n.toString()}>
                           {n}x de R$ {(installmentValue).toFixed(2).replace('.', ',')}
                         </SelectItem>

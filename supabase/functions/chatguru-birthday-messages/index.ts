@@ -228,77 +228,69 @@ Deno.serve(async (req) => {
     }
     console.log('[ChatGuru] Credentials verified');
 
-    // Get today's date
-    const today = new Date();
-    const currentDay = today.getDate();
-    const currentMonth = today.getMonth();
-    console.log(`Checking birthdays for: ${currentDay}/${currentMonth + 1}`);
+    // Get today's date in Brazil timezone (UTC-3)
+    const now = new Date();
+    const brazilOffset = -3 * 60;
+    const brazilTime = new Date(now.getTime() + (brazilOffset + now.getTimezoneOffset()) * 60000);
+    const currentDay = brazilTime.getDate();
+    const currentMonth = brazilTime.getMonth() + 1; // 1-indexed
+    console.log(`Checking birthdays for: day=${currentDay}, month=${currentMonth}`);
 
-    // Fetch customer birthdays from Advbox
-    const { data: birthdayData, error: birthdayError } = await supabase.functions.invoke(
-      'advbox-integration/customer-birthdays',
-      {
-        body: { force_refresh: false },
-        headers: { Authorization: authHeader },
-      }
-    );
+    // Fetch customers with birthdays today directly from advbox_customers table
+    const { data: allCustomers, error: customersError } = await supabase
+      .from('advbox_customers')
+      .select('advbox_id, name, phone, birthday')
+      .not('birthday', 'is', null)
+      .not('phone', 'is', null);
 
-    if (birthdayError) {
-      console.error('Error fetching birthdays:', birthdayError);
-      throw birthdayError;
+    if (customersError) {
+      console.error('Error fetching customers:', customersError);
+      throw new Error('Erro ao buscar clientes do banco de dados');
     }
 
-    // Handle nested data structure from Advbox API
-    let rawCustomers: any[] = [];
-    if (Array.isArray(birthdayData)) {
-      rawCustomers = birthdayData;
-    } else if (birthdayData?.data?.data && Array.isArray(birthdayData.data.data)) {
-      rawCustomers = birthdayData.data.data;
-    } else if (birthdayData?.data && Array.isArray(birthdayData.data)) {
-      rawCustomers = birthdayData.data;
-    } else if (birthdayData && typeof birthdayData === 'object') {
-      for (const key of Object.keys(birthdayData)) {
-        if (Array.isArray(birthdayData[key])) {
-          rawCustomers = birthdayData[key];
-          break;
-        }
-      }
-    }
-    
-    console.log(`Found ${rawCustomers.length} total customers with birthdays`);
+    console.log(`Found ${allCustomers?.length || 0} customers with birthday and phone in database`);
 
-    // Filter customers with birthdays today
-    const todayBirthdays: Customer[] = rawCustomers
-      .map((c) => {
-        let birthdayIso = '';
-        const rawBirth = c.birthdate || c.birthday;
+    // Filter customers whose birthday matches today (day and month)
+    const todayBirthdays: Customer[] = (allCustomers || [])
+      .filter((c) => {
+        if (!c.birthday || !c.phone) return false;
+        
+        // Parse birthday - format could be YYYY-MM-DD, DD/MM/YYYY, etc.
+        const raw = String(c.birthday);
+        let day: number, month: number;
 
-        if (rawBirth) {
-          const parts = String(rawBirth).split(/[\/\-]/);
-          if (parts.length === 3) {
-            const [day, month, year] = parts;
-            const date = new Date(Number(year), Number(month) - 1, Number(day));
-            if (!isNaN(date.getTime())) {
-              birthdayIso = date.toISOString();
+        if (raw.includes('-')) {
+          // ISO format: YYYY-MM-DD
+          const parts = raw.split('-');
+          if (parts.length >= 3) {
+            // Could be YYYY-MM-DD or DD-MM-YYYY
+            if (parts[0].length === 4) {
+              month = parseInt(parts[1]);
+              day = parseInt(parts[2]);
+            } else {
+              day = parseInt(parts[0]);
+              month = parseInt(parts[1]);
             }
-          }
+          } else return false;
+        } else if (raw.includes('/')) {
+          // BR format: DD/MM/YYYY
+          const parts = raw.split('/');
+          if (parts.length >= 2) {
+            day = parseInt(parts[0]);
+            month = parseInt(parts[1]);
+          } else return false;
+        } else {
+          return false;
         }
 
-        if (!birthdayIso) return null;
-
-        const birthday = new Date(birthdayIso);
-        if (birthday.getDate() !== currentDay || birthday.getMonth() !== currentMonth) {
-          return null;
-        }
-
-        return {
-          id: String(c.id ?? c.customer_id ?? ''),
-          name: c.name ?? '',
-          phone: c.phone ?? c.cellphone ?? undefined,
-          birthday: birthdayIso,
-        } as Customer;
+        return day === currentDay && month === currentMonth;
       })
-      .filter((c): c is Customer => c !== null && !!c.phone);
+      .map((c) => ({
+        id: String(c.advbox_id),
+        name: c.name,
+        phone: c.phone!,
+        birthday: c.birthday!,
+      }));
 
     console.log(`Found ${todayBirthdays.length} customers with birthdays today`);
 
