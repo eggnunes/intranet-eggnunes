@@ -1,37 +1,31 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+## Plano: Correção de mensagens de aniversário e limites de boletos Asaas
 
-### Causa Raiz
+### Problema 1: Mensagens de aniversário falhando
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+**Diagnóstico:** A função `chatguru-birthday-messages` não possui logs recentes, o que indica que a invocação está falhando antes de executar ou retornando erro silencioso. O problema principal é a chamada interna `supabase.functions.invoke('advbox-integration/customer-birthdays')` feita com um cliente Supabase criado com a Service Role Key, mas passando o header de Authorization do usuário manualmente. Isso pode gerar conflito na autenticação.
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+**Correção:**
+- Alterar `chatguru-birthday-messages/index.ts` para buscar aniversários diretamente da tabela `advbox_customers_cache` no banco (que já contém os dados sincronizados), em vez de invocar a edge function `advbox-integration` internamente (que é propensa a falhas de autenticação e timeout)
+- Isso elimina a dependência de uma chamada função-para-função, que é frágil
+- Manter toda a lógica de envio via ChatGuru e logging existente
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+### Problema 2: Limite de boletos Asaas (máximo 12)
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+**Diagnóstico:** No arquivo `AsaasNovaCobranca.tsx`, linha 858:
 ```
+Array.from({ length: billingType === 'CREDIT_CARD' ? 20 : 11 }, (_, i) => i + 2)
+```
+Para boleto, gera apenas opções de 2 a 12 parcelas. Para cartão, gera de 2 a 21.
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+**Correção:**
+- Boleto: Expandir para até 60 parcelas (limite da API Asaas para boleto)
+- Cartão: Manter até 21 parcelas (limite Asaas para cartão de crédito)
+- Ajustar a validação correspondente (linha 498-500) para aceitar os novos limites
+- Atualizar o select dropdown para usar scroll e mostrar todas as opções
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
-
-### Solucao
-
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
-
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
-
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+### Arquivos modificados
+- `supabase/functions/chatguru-birthday-messages/index.ts` — buscar aniversários direto do banco
+- `src/components/financeiro/asaas/AsaasNovaCobranca.tsx` — expandir limites de parcelas
 
