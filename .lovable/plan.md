@@ -1,30 +1,37 @@
 
 
-## Plano: Corrigir sincronização incompleta de clientes Advbox
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-### Problema identificado
-A tabela `advbox_customers` contém apenas **4.021 registros**, mas o Advbox tem significativamente mais clientes. O cliente "Marcelo Alves da Cunha" não está na tabela local. O registro de sync mostra `total_processed: 9500` mas `last_offset: 0` — indicando que o offset não foi salvo corretamente, fazendo com que cada execução reinicie do zero e nunca alcance clientes cadastrados em posições posteriores da API.
+### Causa Raiz
 
-### Correções
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-**1. Corrigir a edge function `sync-advbox-customers/index.ts`**
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-- Após um sync completo (`status: completed`), a próxima execução inicia do offset 0 (resync total) — isso está correto
-- Porém, quando o sync é parcial e o registro já existe com `last_offset: 0`, o sistema fica preso. Preciso garantir que o offset seja salvo corretamente em todas as saídas parciais
-- Adicionar log do offset real ao salvar como partial
-- Quando o sync completa totalmente, marcar como `completed` e limpar registros parciais antigos para que o próximo ciclo faça um resync limpo
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-**2. Forçar resync completo via migração SQL**
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-- Limpar registros de sync antigos/corrompidos da tabela `advbox_sync_status` para `sync_type = 'customers'`
-- Isso permitirá que a próxima execução do cron comece do zero e percorra todos os clientes
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+```
 
-**3. Melhorar o desempenho da sync**
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
 
-- Reduzir `DELAY_BETWEEN_REQUESTS` de 500ms para 300ms para processar mais clientes dentro do limite de 50 segundos
-- Isso permitirá cobrir mais registros por execução, acelerando a sincronização completa
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
 
-### Arquivos modificados
-- `supabase/functions/sync-advbox-customers/index.ts` — corrigir persistência do offset e delay
-- Migração SQL — limpar registros de sync corrompidos
+### Solucao
+
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
 

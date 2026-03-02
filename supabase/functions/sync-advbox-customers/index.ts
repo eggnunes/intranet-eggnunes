@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const startTime = Date.now();
-  const MAX_RUNTIME_MS = 50000; // Stop gracefully after 50s to avoid 60s timeout
+  const MAX_RUNTIME_MS = 50000;
 
   try {
     console.log('Starting incremental sync of ADVBox customers...');
@@ -90,11 +90,24 @@ Deno.serve(async (req) => {
       .select('*')
       .eq('sync_type', 'customers')
       .eq('status', 'partial')
-      .order('created_at', { ascending: false })
+      .order('completed_at', { ascending: false })
       .limit(1)
       .single();
 
-    let startOffset = lastSync?.last_offset || 0;
+    let startOffset = 0;
+    if (lastSync && lastSync.last_offset && lastSync.last_offset > 0) {
+      startOffset = lastSync.last_offset;
+      console.log(`Resuming from previous partial sync, last_offset: ${startOffset}`);
+    } else {
+      console.log('No valid partial sync found, starting from offset 0');
+    }
+
+    // Delete old partial/completed records to keep table clean (keep only current run)
+    await supabase
+      .from('advbox_sync_status')
+      .delete()
+      .eq('sync_type', 'customers')
+      .in('status', ['partial', 'completed']);
 
     // Create sync status record (concurrency lock)
     const { data: syncRecord, error: syncInsertError } = await supabase
@@ -120,7 +133,7 @@ Deno.serve(async (req) => {
     let hasMore = true;
     let totalUpserted = 0;
     let iterations = 0;
-    const DELAY_BETWEEN_REQUESTS = 500;
+    const DELAY_BETWEEN_REQUESTS = 300;
 
     try {
       while (hasMore) {
@@ -130,7 +143,7 @@ Deno.serve(async (req) => {
           
           // Mark as partial so next invocation continues
           if (syncId) {
-            await supabase
+            const { error: updateErr } = await supabase
               .from('advbox_sync_status')
               .update({
                 status: 'partial',
@@ -139,6 +152,12 @@ Deno.serve(async (req) => {
                 completed_at: new Date().toISOString(),
               })
               .eq('id', syncId);
+            
+            if (updateErr) {
+              console.error(`Failed to save partial status:`, updateErr);
+            } else {
+              console.log(`Partial status saved successfully: offset=${offset}, processed=${totalUpserted}`);
+            }
           }
 
           return new Response(
@@ -185,7 +204,6 @@ Deno.serve(async (req) => {
 
           if (upsertError) {
             console.error(`Upsert error at offset ${offset}:`, upsertError);
-            // Continue despite errors - don't lose progress
           } else {
             totalUpserted += batch.length;
           }
@@ -193,8 +211,8 @@ Deno.serve(async (req) => {
           offset += items.length;
           iterations++;
 
-          // Update progress
-          if (syncId && iterations % 5 === 0) {
+          // Update progress every 3 iterations (more frequent)
+          if (syncId && iterations % 3 === 0) {
             await supabase
               .from('advbox_sync_status')
               .update({
@@ -212,7 +230,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Completed fully
+      // Completed fully - clean up and mark as completed
       if (syncId) {
         await supabase
           .from('advbox_sync_status')
@@ -241,7 +259,7 @@ Deno.serve(async (req) => {
       console.error('Sync error:', errorMsg);
 
       if (syncId) {
-        await supabase
+        const { error: updateErr } = await supabase
           .from('advbox_sync_status')
           .update({
             status: 'partial',
@@ -251,6 +269,12 @@ Deno.serve(async (req) => {
             completed_at: new Date().toISOString(),
           })
           .eq('id', syncId);
+        
+        if (updateErr) {
+          console.error('Failed to save error status:', updateErr);
+        } else {
+          console.log(`Error status saved: offset=${offset}, processed=${totalUpserted}`);
+        }
       }
 
       return new Response(
