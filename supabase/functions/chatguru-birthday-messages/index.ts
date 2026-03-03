@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, x-region',
 };
 
 // Dialog ID do template de aniversário aprovado pela Meta no ChatGuru
@@ -13,6 +13,8 @@ const BRAZILIAN_PHONE_REGEX = /^55[1-9][0-9]9?[0-9]{8}$/;
 
 // Interval between messages: 3 minutes (180000ms)
 const BULK_INTERVAL_MS = 3 * 60 * 1000;
+
+const ADVBOX_API_BASE = 'https://app.advbox.com.br/api/v1';
 
 interface Customer {
   id: string;
@@ -171,6 +173,62 @@ async function sendBirthdayViaDialog(phone: string, customerName: string): Promi
   throw new Error('Falha ao enviar mensagem via WhatsApp');
 }
 
+async function fetchBirthdaysFromAdvbox(): Promise<any[]> {
+  const ADVBOX_TOKEN = Deno.env.get('ADVBOX_API_TOKEN');
+  if (!ADVBOX_TOKEN) {
+    throw new Error('ADVBOX_API_TOKEN não configurado');
+  }
+
+  console.log('[Advbox] Fetching birthdays directly from Advbox API...');
+
+  let allCustomers: any[] = [];
+  let offset = 0;
+  const limit = 100;
+  let hasMore = true;
+
+  while (hasMore) {
+    const url = `${ADVBOX_API_BASE}/customers?limit=${limit}&offset=${offset}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${ADVBOX_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    });
+
+    if (response.status === 429) {
+      console.log('[Advbox] Rate limited, waiting 3s...');
+      await new Promise(r => setTimeout(r, 3000));
+      continue;
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Advbox API error: ${response.status} - ${text.substring(0, 200)}`);
+    }
+
+    const data = await response.json();
+    const items = data.data || [];
+    const totalCount = data.totalCount || 0;
+
+    allCustomers = allCustomers.concat(items);
+    offset += items.length;
+
+    if (items.length < limit || (totalCount > 0 && offset >= totalCount)) {
+      hasMore = false;
+    }
+
+    // Small delay between requests
+    if (hasMore) {
+      await new Promise(r => setTimeout(r, 300));
+    }
+  }
+
+  console.log(`[Advbox] Fetched ${allCustomers.length} total customers from API`);
+  return allCustomers;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -236,34 +294,30 @@ Deno.serve(async (req) => {
     const currentMonth = brazilTime.getMonth() + 1; // 1-indexed
     console.log(`Checking birthdays for: day=${currentDay}, month=${currentMonth}`);
 
-    // Fetch customers with birthdays today directly from advbox_customers table
-    const { data: allCustomers, error: customersError } = await supabase
-      .from('advbox_customers')
-      .select('advbox_id, name, phone, birthday')
-      .not('birthday', 'is', null)
-      .not('phone', 'is', null);
-
-    if (customersError) {
-      console.error('Error fetching customers:', customersError);
-      throw new Error('Erro ao buscar clientes do banco de dados');
-    }
-
-    console.log(`Found ${allCustomers?.length || 0} customers with birthday and phone in database`);
+    // Fetch customers directly from Advbox API (same source as the UI)
+    const allAdvboxCustomers = await fetchBirthdaysFromAdvbox();
 
     // Filter customers whose birthday matches today (day and month)
-    const todayBirthdays: Customer[] = (allCustomers || [])
-      .filter((c) => {
-        if (!c.birthday || !c.phone) return false;
-        
-        // Parse birthday - format could be YYYY-MM-DD, DD/MM/YYYY, etc.
-        const raw = String(c.birthday);
-        let day: number, month: number;
+    const todayBirthdays: Customer[] = allAdvboxCustomers
+      .filter((c: any) => {
+        const rawBirth = c.birthdate || c.birthday || c.birth_date;
+        const rawPhone = c.cellphone || c.mobile_phone || c.phone;
+        if (!rawBirth || !rawPhone) return false;
 
-        if (raw.includes('-')) {
-          // ISO format: YYYY-MM-DD
+        const raw = String(rawBirth);
+        let day: number | undefined, month: number | undefined;
+
+        if (raw.includes('/')) {
+          // BR format: DD/MM/YYYY
+          const parts = raw.split('/');
+          if (parts.length >= 2) {
+            day = parseInt(parts[0]);
+            month = parseInt(parts[1]);
+          }
+        } else if (raw.includes('-')) {
+          // ISO format: YYYY-MM-DD or DD-MM-YYYY
           const parts = raw.split('-');
           if (parts.length >= 3) {
-            // Could be YYYY-MM-DD or DD-MM-YYYY
             if (parts[0].length === 4) {
               month = parseInt(parts[1]);
               day = parseInt(parts[2]);
@@ -271,28 +325,20 @@ Deno.serve(async (req) => {
               day = parseInt(parts[0]);
               month = parseInt(parts[1]);
             }
-          } else return false;
-        } else if (raw.includes('/')) {
-          // BR format: DD/MM/YYYY
-          const parts = raw.split('/');
-          if (parts.length >= 2) {
-            day = parseInt(parts[0]);
-            month = parseInt(parts[1]);
-          } else return false;
-        } else {
-          return false;
+          }
         }
 
+        if (!day || !month) return false;
         return day === currentDay && month === currentMonth;
       })
-      .map((c) => ({
-        id: String(c.advbox_id),
-        name: c.name,
-        phone: c.phone!,
-        birthday: c.birthday!,
+      .map((c: any) => ({
+        id: String(c.id ?? c.customer_id ?? ''),
+        name: c.name ?? '',
+        phone: c.cellphone || c.mobile_phone || c.phone,
+        birthday: c.birthdate || c.birthday || c.birth_date,
       }));
 
-    console.log(`Found ${todayBirthdays.length} customers with birthdays today`);
+    console.log(`Found ${todayBirthdays.length} customers with birthdays today from Advbox API`);
 
     // Fetch exclusions
     const { data: exclusions } = await supabase

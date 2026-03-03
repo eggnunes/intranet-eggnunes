@@ -193,8 +193,8 @@ Deno.serve(async (req) => {
             cpf: customer.cpf || null,
             cnpj: customer.cnpj || null,
             email: customer.email || null,
-            phone: customer.phone || customer.mobile_phone || null,
-            birthday: customer.birthday || null,
+            phone: customer.cellphone || customer.mobile_phone || customer.phone || null,
+            birthday: customer.birthdate || customer.birthday || customer.birth_date || null,
             synced_at: new Date().toISOString(),
           }));
 

@@ -429,10 +429,18 @@ export default function AniversariosClientes() {
       const results = data?.results;
 
       if (results) {
-        toast({
-          title: 'Mensagens enviadas!',
-          description: `${results.sent} mensagem(ns) enviada(s) com sucesso. ${results.failed > 0 ? `${results.failed} falhou(aram).` : ''}`,
-        });
+        if (results.total === 0) {
+          toast({
+            title: 'Nenhum aniversariante elegível',
+            description: 'Nenhum aniversariante elegível encontrado para envio hoje. Verifique se há clientes com aniversário hoje e telefone cadastrado.',
+            variant: 'destructive',
+          });
+        } else {
+          toast({
+            title: 'Mensagens enviadas!',
+            description: `${results.sent} mensagem(ns) enviada(s) com sucesso. ${results.failed > 0 ? `${results.failed} falhou(aram).` : ''}`,
+          });
+        }
 
         // Mostrar erros detalhados se houver
         if (results.errors && results.errors.length > 0) {

@@ -1,47 +1,37 @@
 
-Objetivo: corrigir o envio de aniversários que está retornando “0 mensagens enviadas”.
 
-Diagnóstico confirmado:
-- A função `chatguru-birthday-messages` busca aniversariantes em `advbox_customers`.
-- Hoje, essa tabela está com `birthday` vazio para todos os registros (`with_birthday = 0`), então o filtro do dia sempre resulta em 0.
-- A tela de aniversários usa outra origem (`advbox-integration/customer-birthdays`), por isso mostra clientes, mas o envio não encontra ninguém.
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-Plano de correção
+### Causa Raiz
 
-1) Corrigir a fonte de dados do envio (principal)
-- Arquivo: `supabase/functions/chatguru-birthday-messages/index.ts`
-- Alterar o carregamento de aniversariantes para usar diretamente o endpoint do Advbox de aniversários (`/customers/birthdays`) com `ADVBOX_API_TOKEN` (mesma origem lógica da tela).
-- Normalizar campos com fallback robusto:
-  - ID: `id || customer_id`
-  - Telefone: `cellphone || mobile_phone || phone`
-  - Data: `birthdate || birthday`
-- Manter filtro por dia/mês (timezone Brasil), exclusões (`customer_birthday_exclusions`) e validação de telefone.
-- Resultado: envio passa a usar a mesma base que o usuário vê na tela, eliminando divergência “lista mostra X / envio manda 0”.
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-2) Melhorar feedback no front para caso sem elegíveis
-- Arquivo: `src/pages/AniversariosClientes.tsx`
-- Ajustar toast de retorno:
-  - Se `results.total === 0`, mostrar aviso claro (“Nenhum aniversariante elegível encontrado para envio hoje”) em vez de mensagem de sucesso genérica.
-  - Manter sucesso normal quando `sent > 0`.
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-3) Prevenir recorrência no cache local (consistência de dados)
-- Arquivo: `supabase/functions/sync-advbox-customers/index.ts`
-- Corrigir mapeamento de campos no sync:
-  - `birthday`: usar `customer.birthdate || customer.birthday || customer.birth_date`
-  - `phone`: usar `customer.cellphone || customer.mobile_phone || customer.phone`
-- Isso evita continuar gravando aniversários como nulos no banco local.
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-Validação pós-implementação
-- Teste funcional no módulo:
-  1. Abrir “Aniversários de Clientes”.
-  2. Clicar em “Enviar Mensagens de Aniversário”.
-  3. Confirmar que não aparece mais “0 enviadas” quando houver elegíveis.
-- Verificar logs:
-  - `chatguru_birthday_messages_log` deve receber novos registros `sent`/`failed`.
-- Verificar consistência:
-  - Conferir se os nomes elegíveis na tela batem com os processados na função.
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-Detalhes técnicos (resumo)
-- Causa raiz: divergência entre fonte de dados da UI e fonte de dados do envio.
-- Correção estrutural: unificar a origem de aniversariantes para o envio + ajustar sync para não persistir campos críticos como nulos.
-- Impacto esperado: envio volta a funcionar imediatamente e sem inconsistência entre tela e processamento.
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+```
+
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+
+### Solucao
+
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+
