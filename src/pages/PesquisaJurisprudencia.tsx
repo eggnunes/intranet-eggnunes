@@ -850,7 +850,7 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                               )}
                             </div>
                             <p className="text-sm text-muted-foreground">
-                              {item.source && `Fonte: ${item.source} • `}
+                              {item.author_name} • {item.source && `Fonte: ${item.source} • `}
                               {format(new Date(item.created_at), "dd/MM/yyyy", { locale: ptBR })}
                             </p>
                             {item.notes && (
