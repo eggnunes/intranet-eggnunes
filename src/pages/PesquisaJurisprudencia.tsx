@@ -693,7 +693,7 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate">{item.query}</p>
                             <p className="text-sm text-muted-foreground">
-                              {format(new Date(item.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                              {item.author_name} • {format(new Date(item.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                             </p>
                           </div>
                           <div className="flex gap-2 shrink-0">
