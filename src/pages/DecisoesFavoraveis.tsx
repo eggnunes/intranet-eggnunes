@@ -273,20 +273,26 @@ export default function DecisoesFavoraveis() {
     try {
       const { data: session } = await supabase.auth.getSession();
       if (!session.session) throw new Error('Not authenticated');
-      const response = await supabase.functions.invoke('advbox-integration/lawsuits-full', {
+      const response = await supabase.functions.invoke(`advbox-integration/lawsuits-by-customer?customer_id=${clientId}`, {
         headers: { Authorization: `Bearer ${session.session.access_token}` },
       });
       if (response.error) throw response.error;
-      const allLawsuits = response.data?.data?.items || response.data?.data || [];
-      const filteredLawsuits = allLawsuits.filter((l: any) => 
-        l.customer_id?.toString() === clientId || l.customers?.some((c: any) => c.id?.toString() === clientId)
-      );
-      setClientLawsuits(filteredLawsuits.map((l: any) => ({
+      const lawsuits = response.data?.data || [];
+      const mapped = lawsuits.map((l: any) => ({
         id: l.id,
-        number: l.number || l.lawsuit_number || '',
+        number: l.number || l.lawsuit_number || l.process_number || '',
         court: l.court || l.tribunal || '',
         court_division: l.court_division || l.vara || l.camara || '',
-      })));
+      }));
+      setClientLawsuits(mapped);
+      // Auto-preencher se houver apenas 1 processo
+      if (mapped.length === 1 && mapped[0].number) {
+        setFormData(prev => ({
+          ...prev,
+          process_number: mapped[0].number,
+          court: mapped[0].court || prev.court,
+        }));
+      }
     } catch (error) {
       console.error('Error fetching lawsuits:', error);
       setClientLawsuits([]);

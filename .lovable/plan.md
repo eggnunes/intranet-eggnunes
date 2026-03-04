@@ -1,30 +1,37 @@
 
 
-## Problema Identificado
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-A função `fetchClientLawsuits` (linha 270-296 do `DecisoesFavoraveis.tsx`) tem dois problemas:
+### Causa Raiz
 
-### 1. Acesso incorreto à estrutura de dados da resposta
-A resposta do endpoint `lawsuits-full` retorna `{ data: items[] }`, mas o código acessa `response.data?.data?.items || response.data?.data`, que resulta em caminho errado. `supabase.functions.invoke` retorna `{ data, error }` onde `data` já é o body da resposta, então os lawsuits estão em `response.data?.data` (o array direto), mas o filtro subsequente falha.
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-### 2. Filtro client-side por `customer_id` não funciona
-O código na linha 281-283 filtra por `l.customer_id?.toString() === clientId` ou `l.customers?.some(...)`. Os objetos de processo do Advbox provavelmente não possuem `customer_id` como campo direto — a associação cliente-processo na API Advbox usa outra estrutura de dados (campo `client` ou array `clients`).
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-## Solução
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-Em vez de buscar TODOS os processos via API e filtrar client-side (ineficiente e propenso a erro), criar um **novo endpoint no edge function** que busca processos diretamente pelo `customer_id` usando a API do Advbox (`/lawsuits?customer_id=X`), ou alternativamente usar o endpoint existente `/lawsuits/{id}` por customer.
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-A abordagem mais confiável é adicionar um novo case `lawsuits-by-customer` no edge function que faz a query filtrada na API do Advbox, e atualizar o `fetchClientLawsuits` no frontend para usar esse novo endpoint.
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+```
 
-### Mudanças:
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
 
-**1. `supabase/functions/advbox-integration/index.ts`** — Adicionar case `lawsuits-by-customer`:
-- Receber `customer_id` como query param
-- Chamar `/lawsuits?customer_id={id}&limit=100` na API do Advbox
-- Retornar os processos filtrados diretamente
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
 
-**2. `src/pages/DecisoesFavoraveis.tsx`** — Atualizar `fetchClientLawsuits`:
-- Chamar o novo endpoint `advbox-integration/lawsuits-by-customer?customer_id=X`
-- Corrigir o mapeamento de campos (`number`, `court`, `court_division`) para usar os nomes corretos da API
-- Se o resultado tiver apenas 1 processo, auto-selecionar preenchendo o número do processo automaticamente
+### Solucao
+
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
 
