@@ -469,6 +469,44 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Endpoint para buscar processos de um cliente específico
+      case 'lawsuits-by-customer': {
+        const customerId = url.searchParams.get('customer_id');
+        if (!customerId) {
+          return new Response(JSON.stringify({ error: 'customer_id is required' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        console.log(`Fetching lawsuits for customer_id=${customerId}...`);
+
+        try {
+          const response = await makeAdvboxRequest({
+            endpoint: `/lawsuits?customer_id=${customerId}&limit=100`,
+          });
+
+          const items = response.data || [];
+          console.log(`Found ${items.length} lawsuits for customer ${customerId}`);
+
+          return new Response(JSON.stringify({
+            data: items,
+            totalCount: response.totalCount || items.length,
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } catch (error) {
+          console.error('Error fetching lawsuits by customer:', error);
+          return new Response(JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error',
+            data: [],
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
       // Endpoint para buscar processos recentes por data
       // ESTRATÉGIA: Buscar TODOS os processos com paginação completa e filtrar
       // A API Advbox retorna processos ordenados por ID (mais antigo primeiro),
