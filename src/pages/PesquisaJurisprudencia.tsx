@@ -20,6 +20,8 @@ interface SearchHistory {
   query: string;
   response: string;
   created_at: string;
+  user_id: string;
+  author_name?: string;
 }
 
 interface SavedJurisprudence {
@@ -31,6 +33,8 @@ interface SavedJurisprudence {
   court: string | null;
   category: string | null;
   created_at: string;
+  user_id: string;
+  author_name?: string;
 }
 
 interface JurisprudenciaItem {
