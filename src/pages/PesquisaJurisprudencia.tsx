@@ -621,7 +621,7 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                   Histórico de Pesquisas
                 </CardTitle>
                 <CardDescription>
-                  Suas últimas 50 pesquisas realizadas
+                  Últimas 50 pesquisas realizadas pela equipe
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
