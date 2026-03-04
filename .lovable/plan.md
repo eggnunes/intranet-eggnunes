@@ -1,37 +1,34 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+## Plano: Tornar pesquisas e jurisprudências salvas visíveis para todos os usuários
 
-### Causa Raiz
+### Problema
+As políticas RLS de SELECT nas tabelas `jurisprudence_searches` e `saved_jurisprudence` filtram por `user_id = auth.uid()`, fazendo com que cada usuário veja apenas seus próprios registros.
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+### Correção
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+**1. Atualizar políticas RLS (migração SQL)**
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+Substituir as políticas de SELECT de ambas as tabelas para permitir leitura por qualquer usuário aprovado:
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+- `jurisprudence_searches`: DROP policy "Usuários podem ver suas próprias pesquisas" → CREATE policy com `USING (public.is_approved(auth.uid()))`
+- `saved_jurisprudence`: DROP policy "Usuários podem ver suas jurisprudências salvas" → CREATE policy com `USING (public.is_approved(auth.uid()))`
 
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-```
+As políticas de INSERT, UPDATE e DELETE permanecem restritas ao próprio usuário (sem alteração).
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+**2. Atualizar frontend (`src/pages/PesquisaJurisprudencia.tsx`)**
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+- Nas funções `fetchHistory` e `fetchSaved`: remover qualquer filtro `.eq('user_id', ...)` se existir (atualmente não há filtro explícito no código, então a mudança de RLS já resolve).
+- Adicionar exibição do nome do autor em cada item do histórico e jurisprudências salvas, fazendo join com `profiles`:
+  - Alterar queries para incluir `user_id` e fazer um select com informação do perfil, ou buscar separadamente.
+- Restringir exclusão apenas ao autor do registro (mostrar botão de delete apenas quando `item.user_id === user?.id` ou quando o usuário é sócio).
 
-### Solucao
+**3. Atualizar `src/pages/Profile.tsx`**
 
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+- Na seção de jurisprudências salvas do perfil, manter o filtro `.eq('user_id', user.id)` para mostrar apenas as do próprio usuário nessa página específica.
 
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
-
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+### Arquivos modificados
+- Migração SQL — 2 políticas RLS atualizadas
+- `src/pages/PesquisaJurisprudencia.tsx` — exibir autor, restringir botão de exclusão
+- `src/pages/Profile.tsx` — adicionar filtro explícito por user_id (caso não tenha)
 
