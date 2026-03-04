@@ -102,12 +102,16 @@ export default function PesquisaJurisprudencia() {
     try {
       const { data, error } = await supabase
         .from('jurisprudence_searches')
-        .select('*')
+        .select('*, profiles:user_id(full_name)')
         .order('created_at', { ascending: false })
         .limit(50);
 
       if (error) throw error;
-      setSearchHistory(data || []);
+      const enriched = (data || []).map((item: any) => ({
+        ...item,
+        author_name: item.profiles?.full_name || 'Usuário',
+      }));
+      setSearchHistory(enriched);
     } catch (error) {
       console.error('Erro ao carregar histórico:', error);
     } finally {
@@ -119,11 +123,15 @@ export default function PesquisaJurisprudencia() {
     try {
       const { data, error } = await supabase
         .from('saved_jurisprudence')
-        .select('*')
+        .select('*, profiles:user_id(full_name)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setSavedJurisprudence(data || []);
+      const enriched = (data || []).map((item: any) => ({
+        ...item,
+        author_name: item.profiles?.full_name || 'Usuário',
+      }));
+      setSavedJurisprudence(enriched);
     } catch (error) {
       console.error('Erro ao carregar jurisprudências salvas:', error);
     } finally {
