@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Layout } from '@/components/Layout';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +21,8 @@ interface SearchHistory {
   query: string;
   response: string;
   created_at: string;
+  user_id: string;
+  author_name?: string;
 }
 
 interface SavedJurisprudence {
@@ -31,6 +34,8 @@ interface SavedJurisprudence {
   court: string | null;
   category: string | null;
   created_at: string;
+  user_id: string;
+  author_name?: string;
 }
 
 interface JurisprudenciaItem {
@@ -55,6 +60,7 @@ interface ParsedResult {
 
 export default function PesquisaJurisprudencia() {
   const { user } = useAuth();
+  const { profile } = useUserRole();
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<string | null>(null);
@@ -98,12 +104,16 @@ export default function PesquisaJurisprudencia() {
     try {
       const { data, error } = await supabase
         .from('jurisprudence_searches')
-        .select('*')
+        .select('*, profiles:user_id(full_name)')
         .order('created_at', { ascending: false })
         .limit(50);
 
       if (error) throw error;
-      setSearchHistory(data || []);
+      const enriched = (data || []).map((item: any) => ({
+        ...item,
+        author_name: item.profiles?.full_name || 'Usuário',
+      }));
+      setSearchHistory(enriched);
     } catch (error) {
       console.error('Erro ao carregar histórico:', error);
     } finally {
@@ -115,11 +125,15 @@ export default function PesquisaJurisprudencia() {
     try {
       const { data, error } = await supabase
         .from('saved_jurisprudence')
-        .select('*')
+        .select('*, profiles:user_id(full_name)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setSavedJurisprudence(data || []);
+      const enriched = (data || []).map((item: any) => ({
+        ...item,
+        author_name: item.profiles?.full_name || 'Usuário',
+      }));
+      setSavedJurisprudence(enriched);
     } catch (error) {
       console.error('Erro ao carregar jurisprudências salvas:', error);
     } finally {
@@ -609,7 +623,7 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                   Histórico de Pesquisas
                 </CardTitle>
                 <CardDescription>
-                  Suas últimas 50 pesquisas realizadas
+                  Últimas 50 pesquisas realizadas pela equipe
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -681,7 +695,7 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate">{item.query}</p>
                             <p className="text-sm text-muted-foreground">
-                              {format(new Date(item.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                              {item.author_name} • {format(new Date(item.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                             </p>
                           </div>
                           <div className="flex gap-2 shrink-0">
@@ -699,13 +713,15 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                             >
                               <Save className="h-4 w-4" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleDeleteHistory(item.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            {(item.user_id === user?.id || profile?.position === 'socio') && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => handleDeleteHistory(item.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -836,7 +852,7 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                               )}
                             </div>
                             <p className="text-sm text-muted-foreground">
-                              {item.source && `Fonte: ${item.source} • `}
+                              {item.author_name} • {item.source && `Fonte: ${item.source} • `}
                               {format(new Date(item.created_at), "dd/MM/yyyy", { locale: ptBR })}
                             </p>
                             {item.notes && (
@@ -853,13 +869,15 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                             >
                               <Download className="h-4 w-4" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleDeleteSaved(item.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            {(item.user_id === user?.id || profile?.position === 'socio') && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => handleDeleteSaved(item.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                         <div className="mt-3 bg-muted/50 rounded p-3 text-sm max-h-40 overflow-y-auto whitespace-pre-wrap">
