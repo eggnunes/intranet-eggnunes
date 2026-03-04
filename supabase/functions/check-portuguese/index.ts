@@ -1,9 +1,40 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import JSZip from "https://esm.sh/jszip@3.10.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+async function extractTextFromDocx(base64: string): Promise<string> {
+  const binaryStr = atob(base64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+
+  const zip = await JSZip.loadAsync(bytes);
+  const docXml = await zip.file("word/document.xml")?.async("string");
+  if (!docXml) throw new Error("Arquivo DOCX inválido: word/document.xml não encontrado.");
+
+  // Extract text from <w:t> tags, preserving paragraph breaks
+  const paragraphs: string[] = [];
+  const paraRegex = /<w:p[\s>][\s\S]*?<\/w:p>/g;
+  let paraMatch;
+  while ((paraMatch = paraRegex.exec(docXml)) !== null) {
+    const texts: string[] = [];
+    const textRegex = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g;
+    let textMatch;
+    while ((textMatch = textRegex.exec(paraMatch[0])) !== null) {
+      texts.push(textMatch[1]);
+    }
+    if (texts.length > 0) {
+      paragraphs.push(texts.join(""));
+    }
+  }
+
+  return paragraphs.join("\n");
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -20,47 +51,56 @@ serve(async (req) => {
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     const ext = file_name.split(".").pop()?.toLowerCase();
-    const mimeType = ext === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    const isDocx = ext === "docx" || ext === "doc";
 
-    // Step 1: Extract text using Gemini Flash (multimodal)
-    console.log("Step 1: Extracting text from document...");
-    const extractResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Extraia TODO o texto deste documento de forma fiel, mantendo a estrutura de parágrafos. Retorne apenas o texto extraído, sem comentários adicionais.",
-              },
-              {
-                type: "image_url",
-                image_url: { url: `data:${mimeType};base64,${file_base64}` },
-              },
-            ],
-          },
-        ],
-      }),
-    });
+    let extractedText: string;
 
-    if (!extractResponse.ok) {
-      const status = extractResponse.status;
-      if (status === 429) return new Response(JSON.stringify({ error: "Limite de requisições atingido. Tente novamente em alguns minutos." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      if (status === 402) return new Response(JSON.stringify({ error: "Créditos insuficientes para processar o documento." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      const errText = await extractResponse.text();
-      console.error("Extract error:", status, errText);
-      return new Response(JSON.stringify({ error: "Erro ao extrair texto do documento." }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (isDocx) {
+      // DOCX: extract text locally (Gemini doesn't support DOCX multimodal)
+      console.log("Step 1: Extracting text from DOCX locally...");
+      extractedText = await extractTextFromDocx(file_base64);
+    } else {
+      // PDF: use Gemini multimodal
+      console.log("Step 1: Extracting text from PDF via Gemini...");
+      const mimeType = "application/pdf";
+      const extractResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: "Extraia TODO o texto deste documento de forma fiel, mantendo a estrutura de parágrafos. Retorne apenas o texto extraído, sem comentários adicionais.",
+                },
+                {
+                  type: "image_url",
+                  image_url: { url: `data:${mimeType};base64,${file_base64}` },
+                },
+              ],
+            },
+          ],
+        }),
+      });
+
+      if (!extractResponse.ok) {
+        const status = extractResponse.status;
+        if (status === 429) return new Response(JSON.stringify({ error: "Limite de requisições atingido. Tente novamente em alguns minutos." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        if (status === 402) return new Response(JSON.stringify({ error: "Créditos insuficientes para processar o documento." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        const errText = await extractResponse.text();
+        console.error("Extract error:", status, errText);
+        return new Response(JSON.stringify({ error: "Erro ao extrair texto do documento." }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const extractData = await extractResponse.json();
+      extractedText = extractData.choices?.[0]?.message?.content || "";
     }
-
-    const extractData = await extractResponse.json();
-    const extractedText = extractData.choices?.[0]?.message?.content;
 
     if (!extractedText || extractedText.trim().length < 20) {
       return new Response(JSON.stringify({ error: "Não foi possível extrair texto suficiente do documento." }), {
@@ -149,7 +189,6 @@ Regras:
 
     const analyzeData = await analyzeResponse.json();
     
-    // Parse tool call response
     const toolCall = analyzeData.choices?.[0]?.message?.tool_calls?.[0];
     let erros: any[] = [];
 
