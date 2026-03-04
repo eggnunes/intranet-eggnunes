@@ -1,37 +1,41 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+## Problema
 
-### Causa Raiz
+A edge function `check-portuguese` envia arquivos DOCX como `image_url` para o Gemini, mas o Gemini **não suporta DOCX como entrada multimodal** — apenas imagens e PDFs. Isso causa erro 400 `Unsupported MIME type`.
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+## Solução
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+Extrair o texto de arquivos DOCX **no servidor** antes de enviar ao Gemini. Como DOCX é um arquivo ZIP contendo XMLs, podemos:
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+1. **Decodificar o base64** do arquivo DOCX
+2. **Descompactar o ZIP** usando a API nativa `JSZip` ou parsing manual do XML
+3. **Extrair o texto** do `word/document.xml` (o XML principal do DOCX)
+4. **Para PDFs**: continuar usando o Gemini multimodal (já funciona)
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+### Mudanças no arquivo `supabase/functions/check-portuguese/index.ts`:
 
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+- Adicionar função `extractTextFromDocx(base64: string)` que:
+  - Decodifica base64 → Uint8Array
+  - Usa `fflate` (biblioteca leve de unzip disponível no Deno) para descompactar
+  - Lê `word/document.xml` e extrai texto via regex (remove tags XML, preserva parágrafos)
+- Alterar o fluxo do Step 1:
+  - Se **PDF** → continua usando Gemini multimodal (como está)
+  - Se **DOCX** → extrai texto localmente, pula a chamada multimodal do Gemini
+- O Step 2 (análise gramatical) permanece inalterado — ele já recebe texto puro
+
+### Dependência
+- Usar `JSZip` via `https://esm.sh/jszip@3.10.1` (compatível com Deno) para descompactar o DOCX
+
+### Fluxo revisado
+
+```text
+DOCX → base64 decode → unzip → parse XML → texto puro ─┐
+PDF  → Gemini multimodal → texto puro ─────────────────┤
+                                                        ├→ Step 2: Análise gramatical (Gemini Pro)
+                                                        │
+                                                        └→ Resultado com erros
 ```
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
-
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
-
-### Solucao
-
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
-
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
-
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+Nenhuma mudança no frontend — apenas a edge function é atualizada.
 
