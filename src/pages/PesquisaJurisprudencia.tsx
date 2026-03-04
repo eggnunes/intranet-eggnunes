@@ -60,6 +60,7 @@ interface ParsedResult {
 
 export default function PesquisaJurisprudencia() {
   const { user } = useAuth();
+  const { profile } = useUserRole();
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<string | null>(null);
