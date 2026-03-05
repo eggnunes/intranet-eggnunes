@@ -144,6 +144,23 @@ export default function DecisoesFavoraveis() {
   const { user } = useAuth();
   const { isSocioOrRafael } = useAdminPermissions();
   const queryClient = useQueryClient();
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: async ({ id, field, value }: { id: string; field: 'was_posted' | 'evaluation_requested' | 'was_evaluated'; value: boolean }) => {
+      const { error } = await supabase
+        .from('favorable_decisions')
+        .update({ [field]: value })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['favorable-decisions'] });
+      toast.success('Status atualizado com sucesso');
+    },
+    onError: () => {
+      toast.error('Erro ao atualizar status');
+    },
+  });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingDecision, setEditingDecision] = useState<FavorableDecision | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
