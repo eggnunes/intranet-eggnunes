@@ -1054,22 +1054,40 @@ export default function DecisoesFavoraveis() {
                             <TableCell className="py-2">
                               <div className="flex justify-center gap-1">
                                 <Tooltip>
-                                  <TooltipTrigger>
-                                    {decision.was_posted ? <CheckCircle className="h-4 w-4 text-green-600" /> : <XCircle className="h-4 w-4 text-muted-foreground" />}
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="cursor-pointer hover:opacity-70 transition-opacity"
+                                      onClick={() => toggleStatusMutation.mutate({ id: decision.id, field: 'was_posted', value: !decision.was_posted })}
+                                    >
+                                      {decision.was_posted ? <CheckCircle className="h-4 w-4 text-green-600" /> : <XCircle className="h-4 w-4 text-muted-foreground" />}
+                                    </button>
                                   </TooltipTrigger>
-                                  <TooltipContent>{decision.was_posted ? 'Postado' : 'Não postado'}</TooltipContent>
+                                  <TooltipContent>Clique para {decision.was_posted ? 'desmarcar' : 'marcar'} como postado</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
-                                  <TooltipTrigger>
-                                    {decision.was_evaluated || decision.evaluation_requested ? <CheckCircle className="h-4 w-4 text-blue-600" /> : <XCircle className="h-4 w-4 text-muted-foreground" />}
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="cursor-pointer hover:opacity-70 transition-opacity"
+                                      onClick={() => toggleStatusMutation.mutate({ id: decision.id, field: 'evaluation_requested', value: !decision.evaluation_requested })}
+                                    >
+                                      {decision.was_evaluated || decision.evaluation_requested ? <CheckCircle className="h-4 w-4 text-blue-600" /> : <XCircle className="h-4 w-4 text-muted-foreground" />}
+                                    </button>
                                   </TooltipTrigger>
-                                  <TooltipContent>{(decision.was_evaluated || decision.evaluation_requested) ? 'Avaliação pedida' : 'Avaliação não pedida'}</TooltipContent>
+                                  <TooltipContent>Clique para {decision.evaluation_requested ? 'desmarcar' : 'marcar'} avaliação pedida</TooltipContent>
                                 </Tooltip>
                                 <Tooltip>
-                                  <TooltipTrigger>
-                                    {decision.was_evaluated ? <CheckCircle className="h-4 w-4 text-green-600" /> : <XCircle className="h-4 w-4 text-red-500" />}
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="cursor-pointer hover:opacity-70 transition-opacity"
+                                      onClick={() => toggleStatusMutation.mutate({ id: decision.id, field: 'was_evaluated', value: !decision.was_evaluated })}
+                                    >
+                                      {decision.was_evaluated ? <CheckCircle className="h-4 w-4 text-green-600" /> : <XCircle className="h-4 w-4 text-red-500" />}
+                                    </button>
                                   </TooltipTrigger>
-                                  <TooltipContent>{decision.was_evaluated ? 'Cliente avaliou no Google' : 'Cliente não avaliou'}</TooltipContent>
+                                  <TooltipContent>Clique para {decision.was_evaluated ? 'desmarcar' : 'marcar'} que cliente avaliou</TooltipContent>
                                 </Tooltip>
                               </div>
                             </TableCell>
