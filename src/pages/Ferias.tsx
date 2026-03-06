@@ -142,14 +142,14 @@ const SPECIAL_USER_PERIODS: Record<string, {
   '1b5787c3-c10d-4e0b-8699-83d0a2215dea': { // Jordânia Luíze Guedes Almeida
     periods: [
       {
-        start: '2023-10-01',
+        start: '2024-01-15',
         end: '2024-09-30',
-        totalDays: 20,
-        note: 'Período 2023/2024 - Totalmente gozado',
+        totalDays: 15,
+        note: 'Estágio (15/01/2024 a 30/09/2024) - Totalmente gozado',
         fullyUsed: true
       }
     ],
-    regularPeriodsStartFrom: '2024-10-01' // Regular 20-day periods start from here
+    regularPeriodsStartFrom: '2024-10-01' // Período aquisitivo como assistente/advogada com 20 dias úteis
   }
 };
 
