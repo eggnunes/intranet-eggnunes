@@ -4130,6 +4130,45 @@ export type Database = {
           },
         ]
       }
+      fornecedores_uteis: {
+        Row: {
+          categoria: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          endereco: string | null
+          id: string
+          nome: string
+          observacoes: string | null
+          telefone: string | null
+          updated_at: string
+        }
+        Insert: {
+          categoria?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          telefone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          categoria?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          endereco?: string | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          telefone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       forum_notifications: {
         Row: {
           created_at: string
@@ -6679,6 +6718,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      senhas_uteis: {
+        Row: {
+          categoria: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          observacoes: string | null
+          senha: string | null
+          titulo: string
+          updated_at: string
+          url: string | null
+          usuario: string | null
+        }
+        Insert: {
+          categoria?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          observacoes?: string | null
+          senha?: string | null
+          titulo: string
+          updated_at?: string
+          url?: string | null
+          usuario?: string | null
+        }
+        Update: {
+          categoria?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          observacoes?: string | null
+          senha?: string | null
+          titulo?: string
+          updated_at?: string
+          url?: string | null
+          usuario?: string | null
+        }
+        Relationships: []
       }
       sheets_advbox_sync: {
         Row: {
