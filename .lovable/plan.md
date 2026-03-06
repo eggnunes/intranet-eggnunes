@@ -1,37 +1,42 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+# Plano: Corrigir férias da Jordânia
 
-### Causa Raiz
+## Problema
+1. **Saldo fantasma**: A tabela `vacation_balance` tem registros antigos (2025: 4 dias usados, 2026: 2 dias usados) que não foram limpos quando as solicitações foram excluídas. A exclusão de `vacation_requests` não recalcula automaticamente o `vacation_balance`.
+2. **Configuração especial desatualizada**: O `SPECIAL_USER_PERIODS` para a Jordânia (ID `1b5787c3-c10d-4e0b-8699-83d0a2215dea`) está configurado com período `2023-10-01` a `2024-09-30` com 20 dias, mas o correto segundo o usuário é:
+   - **Período estagiária**: 15/01/2024 a 30/09/2024, 15 dias úteis, 100% gozado
+   - **Período atual (assistente→advogada)**: a partir de 01/10/2024, 20 dias úteis (período aquisitivo de 01/10/2024 a 30/09/2025)
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+## Solução
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+### 1. Limpar `vacation_balance` — SQL (data fix)
+Deletar os dois registros fantasma da Jordânia na tabela `vacation_balance`.
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+### 2. Corrigir `SPECIAL_USER_PERIODS` — Código
+Atualizar a configuração em `src/pages/Ferias.tsx` (linhas 142-153):
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+```typescript
+'1b5787c3-c10d-4e0b-8699-83d0a2215dea': {
+  periods: [
+    {
+      start: '2024-01-15',
+      end: '2024-09-30',
+      totalDays: 15,
+      note: 'Estágio (15/01/2024 a 30/09/2024) - Totalmente gozado',
+      fullyUsed: true
+    }
+  ],
+  regularPeriodsStartFrom: '2024-10-01'
+}
 ```
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+Isso faz com que:
+- O primeiro período apareça como 15 dias / 15 dias usados (100% gozado) no gráfico
+- Os períodos regulares de 20 dias comecem a partir de 01/10/2024
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
-
-### Solucao
-
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
-
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
-
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+### Resultado
+- O gráfico mostrará o período de estágio como totalmente gozado (15/15 dias)
+- O período aquisitivo 01/10/2024 a 30/09/2025 terá 20 dias disponíveis (0 usados, já que tudo foi apagado)
+- Não haverá mais "2 dias fantasma"
 
