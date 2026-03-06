@@ -115,9 +115,22 @@ export default function PublicacoesDJE() {
   // Filtros de resultados (client-side)
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroLeitura, setFiltroLeitura] = useState<'todas' | 'lidas' | 'nao_lidas'>('todas');
-  const [filtroPeriodo, setFiltroPeriodo] = useState<'todos' | '7' | '30' | '90'>('todos');
+  const [filtroPeriodo, setFiltroPeriodo] = useState<'todos' | '7' | '30' | '90' | 'dia' | 'custom'>('todos');
+  const [filtroDataDia, setFiltroDataDia] = useState('');
+  const [filtroDataCustomInicio, setFiltroDataCustomInicio] = useState('');
+  const [filtroDataCustomFim, setFiltroDataCustomFim] = useState('');
+  const [filtroAdvogado, setFiltroAdvogado] = useState('todos');
   const [filtroFonte, setFiltroFonte] = useState<'todas' | 'DataJud' | 'ComunicaPJe'>('todas');
   const [ordenacao, setOrdenacao] = useState<'recente' | 'antigo' | 'tribunal'>('recente');
+
+  // Extract unique attorney names for filter
+  const advogadosUnicos = useMemo(() => {
+    const nomes = new Set<string>();
+    publicacoes.forEach(p => {
+      if (p.nome_advogado) nomes.add(p.nome_advogado);
+    });
+    return Array.from(nomes).sort();
+  }, [publicacoes]);
 
   useEffect(() => {
     // If we have cached data, just refresh in background
