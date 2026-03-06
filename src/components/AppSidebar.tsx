@@ -288,6 +288,7 @@ export function AppSidebar() {
         { icon: DoorOpen, path: '/sala-reuniao', label: 'Sala de Reunião' },
         { icon: Camera, path: '/galeria-eventos', label: 'Galeria de Eventos' },
         { icon: FolderOpen, path: '/documentos-uteis', label: 'Documentos Úteis' },
+        { icon: Phone, path: '/cadastros-uteis', label: 'Cadastros Úteis' },
       ],
     },
     {

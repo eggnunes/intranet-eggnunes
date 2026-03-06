@@ -69,6 +69,7 @@ import CorretorPortugues from "./pages/CorretorPortugues";
 import PublicacoesDJE from "./pages/PublicacoesDJE";
 import ResetPassword from "./pages/ResetPassword";
 import GestaoFolgas from "./pages/GestaoFolgas";
+import CadastrosUteis from "./pages/CadastrosUteis";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient({
@@ -573,6 +574,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <GestaoFolgas />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/cadastros-uteis"
+              element={
+                <ProtectedRoute>
+                  <CadastrosUteis />
                 </ProtectedRoute>
               }
             />
