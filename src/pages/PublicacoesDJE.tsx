@@ -634,7 +634,7 @@ export default function PublicacoesDJE() {
                   </SelectContent>
                 </Select>
                 <Select value={filtroPeriodo} onValueChange={(v) => setFiltroPeriodo(v as any)}>
-                  <SelectTrigger className="w-[150px] h-9">
+                  <SelectTrigger className="w-[180px] h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -642,8 +642,37 @@ export default function PublicacoesDJE() {
                     <SelectItem value="7">Últimos 7 dias</SelectItem>
                     <SelectItem value="30">Últimos 30 dias</SelectItem>
                     <SelectItem value="90">Últimos 90 dias</SelectItem>
+                    <SelectItem value="dia">Data específica</SelectItem>
+                    <SelectItem value="custom">Intervalo customizado</SelectItem>
                   </SelectContent>
                 </Select>
+                {filtroPeriodo === 'dia' && (
+                  <Input
+                    type="date"
+                    value={filtroDataDia}
+                    onChange={e => setFiltroDataDia(e.target.value)}
+                    className="w-[160px] h-9"
+                  />
+                )}
+                {filtroPeriodo === 'custom' && (
+                  <>
+                    <Input
+                      type="date"
+                      value={filtroDataCustomInicio}
+                      onChange={e => setFiltroDataCustomInicio(e.target.value)}
+                      className="w-[150px] h-9"
+                      placeholder="Início"
+                    />
+                    <span className="text-muted-foreground text-sm">até</span>
+                    <Input
+                      type="date"
+                      value={filtroDataCustomFim}
+                      onChange={e => setFiltroDataCustomFim(e.target.value)}
+                      className="w-[150px] h-9"
+                      placeholder="Fim"
+                    />
+                  </>
+                )}
                 <Select value={filtroFonte} onValueChange={(v) => setFiltroFonte(v as any)}>
                   <SelectTrigger className="w-[160px] h-9">
                     <SelectValue />
@@ -654,6 +683,19 @@ export default function PublicacoesDJE() {
                     <SelectItem value="ComunicaPJe">Comunica PJe</SelectItem>
                   </SelectContent>
                 </Select>
+                {advogadosUnicos.length > 1 && (
+                  <Select value={filtroAdvogado} onValueChange={setFiltroAdvogado}>
+                    <SelectTrigger className="w-[180px] h-9">
+                      <SelectValue placeholder="Advogado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos advogados</SelectItem>
+                      {advogadosUnicos.map(nome => (
+                        <SelectItem key={nome} value={nome}>{nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <Select value={ordenacao} onValueChange={(v) => setOrdenacao(v as any)}>
                   <SelectTrigger className="w-[160px] h-9">
                     <SelectValue />
