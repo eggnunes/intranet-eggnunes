@@ -1,37 +1,54 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+# Plano: Cadastro de Fornecedores/Telefones Úteis + Cofre de Senhas
 
-### Causa Raiz
+## Resumo
+Criar duas funcionalidades dentro de uma nova página `/cadastros-uteis`:
+1. **Telefones/Fornecedores**: visível a todos, editável apenas por admins
+2. **Senhas Úteis**: visível e editável apenas por admins
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+## Banco de Dados (2 tabelas + RLS)
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
-
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
-
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+### Tabela `fornecedores_uteis`
+```sql
+id UUID PK, nome TEXT NOT NULL, telefone TEXT, categoria TEXT,
+email TEXT, endereco TEXT, observacoes TEXT, 
+created_by UUID, created_at, updated_at
 ```
+- RLS: SELECT para `is_approved(auth.uid())`, INSERT/UPDATE/DELETE para `is_admin_or_socio(auth.uid())`
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+### Tabela `senhas_uteis`
+```sql
+id UUID PK, titulo TEXT NOT NULL, usuario TEXT, senha TEXT, 
+url TEXT, categoria TEXT, observacoes TEXT,
+created_by UUID, created_at, updated_at
+```
+- RLS: todas as operações restritas a `is_admin_or_socio(auth.uid())`
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+## Frontend
 
-### Solucao
+### Nova página `src/pages/CadastrosUteis.tsx`
+- Tabs: "Fornecedores" | "Senhas" (aba Senhas só aparece para admins/sócios)
+- **Aba Fornecedores**:
+  - Tabela com busca por nome/categoria/telefone
+  - Filtros: categoria (dropdown dinâmico extraído dos dados)
+  - Máscara de telefone usando `maskPhone` existente
+  - Dialog de cadastro/edição (apenas admins)
+  - Botão copiar telefone
+- **Aba Senhas** (somente admins):
+  - Tabela com busca por título/categoria
+  - Campo senha com toggle mostrar/ocultar (eye icon)
+  - Botão copiar senha
+  - Dialog de cadastro/edição
+  - Filtro por categoria
 
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+### Sidebar
+- Adicionar "Cadastros Úteis" no grupo ADMINISTRATIVO com ícone `Phone`
 
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+### Rota
+- Adicionar `/cadastros-uteis` em `App.tsx` com `ProtectedRoute`
 
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+## Segurança
+- Senhas armazenadas em texto na tabela com RLS restritivo (apenas admins)
+- Nenhuma senha exposta no frontend para não-admins (a query nem é executada)
 
