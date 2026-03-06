@@ -334,7 +334,7 @@ export default function PublicacoesDJE() {
     }
 
     return result;
-  }, [publicacoes, filtroTexto, filtroLeitura, filtroFonte, filtroPeriodo, ordenacao]);
+  }, [publicacoes, filtroTexto, filtroLeitura, filtroFonte, filtroPeriodo, filtroDataDia, filtroDataCustomInicio, filtroDataCustomFim, filtroAdvogado, ordenacao]);
 
   const toggleRead = async (pub: Publicacao) => {
     try {
