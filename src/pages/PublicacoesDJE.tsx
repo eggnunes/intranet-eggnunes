@@ -292,13 +292,36 @@ export default function PublicacoesDJE() {
     }
 
     // Period filter
-    if (filtroPeriodo !== 'todos') {
+    if (filtroPeriodo === 'dia' && filtroDataDia) {
+      result = result.filter(p => {
+        if (!p.data_disponibilizacao) return false;
+        return p.data_disponibilizacao.substring(0, 10) === filtroDataDia;
+      });
+    } else if (filtroPeriodo === 'custom') {
+      if (filtroDataCustomInicio) {
+        result = result.filter(p => {
+          if (!p.data_disponibilizacao) return false;
+          return p.data_disponibilizacao.substring(0, 10) >= filtroDataCustomInicio;
+        });
+      }
+      if (filtroDataCustomFim) {
+        result = result.filter(p => {
+          if (!p.data_disponibilizacao) return false;
+          return p.data_disponibilizacao.substring(0, 10) <= filtroDataCustomFim;
+        });
+      }
+    } else if (filtroPeriodo !== 'todos') {
       const dias = parseInt(filtroPeriodo);
       const limite = subDays(new Date(), dias);
       result = result.filter(p => {
         if (!p.data_disponibilizacao) return false;
         return new Date(p.data_disponibilizacao) >= limite;
       });
+    }
+
+    // Attorney filter
+    if (filtroAdvogado !== 'todos') {
+      result = result.filter(p => p.nome_advogado === filtroAdvogado);
     }
 
     // Sort - use created_at (insertion order = Diário order) instead of data_disponibilizacao
