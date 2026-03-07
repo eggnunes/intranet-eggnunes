@@ -1452,12 +1452,13 @@ Deno.serve(async (req) => {
       }
 
       case 'complete-task': {
-        const body = await req.json();
-        const data = await makeAdvboxRequest({ 
-          endpoint: `/posts/${body.task_id}/complete`, 
-          method: 'POST'
-        });
-        return new Response(JSON.stringify(data), {
+        // A API do ADVBox não possui endpoint para concluir/atualizar tarefas.
+        // A conclusão deve ser feita localmente na tabela advbox_tasks.
+        return new Response(JSON.stringify({ 
+          error: 'A API do ADVBox não possui endpoint para concluir tarefas. Use a atualização local na tabela advbox_tasks.',
+          limitation: true 
+        }), {
+          status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
