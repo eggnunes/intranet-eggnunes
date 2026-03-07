@@ -382,9 +382,14 @@ export default function TarefasAdvbox() {
       const task = tasks.find(t => t.id === taskId);
       const previousStatus = task?.status || 'unknown';
 
-      const { error } = await supabase.functions.invoke('advbox-integration/complete-task', {
-        body: { task_id: taskId },
-      });
+      // Atualizar localmente na tabela advbox_tasks (API do ADVBox não possui endpoint para concluir tarefas)
+      const { error } = await supabase
+        .from('advbox_tasks')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', taskId);
 
       if (error) throw error;
 
@@ -396,13 +401,13 @@ export default function TarefasAdvbox() {
           previous_status: previousStatus,
           new_status: 'completed',
           changed_by: user.id,
-          notes: 'Tarefa marcada como concluída'
+          notes: 'Tarefa concluída na intranet (limitação da API do ADVBox)'
         });
       }
 
       toast({
-        title: 'Tarefa concluída',
-        description: 'A tarefa foi marcada como concluída.',
+        title: 'Tarefa concluída na intranet',
+        description: 'A conclusão no ADVBox deve ser feita manualmente (limitação da API).',
       });
 
       fetchTasks();
