@@ -1,37 +1,49 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+# Diagnóstico: Conclusão de Tarefas no ADVBox via API
 
-### Causa Raiz
+## Problema Identificado
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+Após análise aprofundada da documentação oficial da API do ADVBox (https://api.softwareadvbox.com.br), identifiquei a causa raiz do problema:
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+**A API do ADVBox NÃO possui endpoint para concluir/atualizar tarefas.**
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+A API disponibiliza apenas **2 endpoints** para tarefas (Posts):
+- `GET /posts` — Listar tarefas
+- `POST /posts` — Criar nova tarefa
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+Não existe `PUT /posts/{id}`, `PATCH /posts/{id}`, nem `/posts/{id}/complete`. O código atual tenta chamar `/posts/${task_id}/complete` (linha 1457 da edge function), que é um endpoint inexistente, resultando em erro.
 
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-```
+## Confirmação
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+A página de referência da API lista explicitamente:
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+| Recurso | Endpoints | Operações |
+|---------|-----------|-----------|
+| Posts   | 2         | Listar e Criar |
 
-### Solucao
+Isso é uma **limitação da API do ADVBox** — ela não expõe funcionalidade de atualização ou conclusão de tarefas via API.
 
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+## Solução Proposta
 
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+Como não é possível concluir a tarefa no ADVBox via API, a melhor abordagem é:
 
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+1. **Marcar localmente como concluída** na tabela `advbox_tasks` (já funciona)
+2. **Informar o usuário** de que a conclusão no ADVBox não é possível via API, mostrando um aviso claro na interface
+3. **Ajustar o comportamento**: em vez de chamar o endpoint inexistente e falhar, atualizar apenas o banco local e exibir um toast informando que a conclusão foi registrada na intranet mas precisa ser feita manualmente no ADVBox
 
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+### Alterações
+
+**Arquivo: `src/pages/TarefasAdvbox.tsx`**
+- Modificar `handleCompleteTask` para atualizar diretamente na tabela `advbox_tasks` (status = 'completed', completed_at = now) em vez de chamar a edge function
+- Exibir toast informativo: "Tarefa concluída na intranet. A conclusão no ADVBox deve ser feita manualmente (limitação da API)."
+
+**Arquivo: `supabase/functions/advbox-integration/index.ts`**
+- Remover ou comentar o case `complete-task` que chama endpoint inexistente
+- Adicionar case alternativo que apenas retorna erro informativo sobre a limitação
+
+### Resultado
+- O botão "Concluir" funcionará sem erros, atualizando o status localmente
+- O usuário será informado da limitação da API do ADVBox
+- Quando a sincronização periódica rodar, se a tarefa for concluída manualmente no ADVBox, o status será atualizado automaticamente
 
