@@ -317,7 +317,7 @@ export default function ControlePrazos() {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(0);
-  }, [filterAdvogado, filterTipoTarefa, filterStatus, filterDateFrom, filterDateTo]);
+  }, [filterAdvogado, filterTipoTarefa, filterStatus, filterDateFrom, filterDateTo, filterPrazoFatalFrom, filterPrazoFatalTo]);
 
   // Pagination
   const totalPages = Math.ceil(filteredTasks.length / PAGE_SIZE);
