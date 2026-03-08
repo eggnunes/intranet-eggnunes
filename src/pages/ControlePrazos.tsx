@@ -59,6 +59,8 @@ interface ProcessedTask extends AdvboxTask {
   verificacao: PrazoVerificacao | null;
 }
 
+const PAGE_SIZE = 50;
+
 export default function ControlePrazos() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -70,6 +72,7 @@ export default function ControlePrazos() {
   const [selectedTask, setSelectedTask] = useState<ProcessedTask | null>(null);
   const [verifyObservacoes, setVerifyObservacoes] = useState('');
   const [verifyStatus, setVerifyStatus] = useState<'verificado' | 'com_pendencia'>('verificado');
+  const [currentPage, setCurrentPage] = useState(0);
 
   // Filters
   const [filterAdvogado, setFilterAdvogado] = useState<string>('all');
@@ -81,23 +84,38 @@ export default function ControlePrazos() {
     fetchData();
   }, []);
 
+  const fetchAllTasks = async (): Promise<AdvboxTask[]> => {
+    const batchSize = 1000;
+    let allTasks: AdvboxTask[] = [];
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('advbox_tasks')
+        .select('id, advbox_id, title, task_type, due_date, status, assigned_users, process_number, raw_data, completed_at')
+        .order('due_date', { ascending: false })
+        .range(offset, offset + batchSize - 1);
+
+      if (error) throw error;
+      allTasks = allTasks.concat((data as AdvboxTask[]) || []);
+      hasMore = (data?.length || 0) === batchSize;
+      offset += batchSize;
+    }
+    return allTasks;
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [tasksRes, verificacoesRes] = await Promise.all([
-        supabase
-          .from('advbox_tasks')
-          .select('id, advbox_id, title, task_type, due_date, status, assigned_users, process_number, raw_data, completed_at')
-          .order('due_date', { ascending: false }),
-        supabase
-          .from('prazo_verificacoes')
-          .select('*'),
+      const [allTasks, verificacoesRes] = await Promise.all([
+        fetchAllTasks(),
+        supabase.from('prazo_verificacoes').select('*'),
       ]);
 
-      if (tasksRes.error) throw tasksRes.error;
       if (verificacoesRes.error) throw verificacoesRes.error;
 
-      setTasks((tasksRes.data as AdvboxTask[]) || []);
+      setTasks(allTasks);
       setVerificacoes((verificacoesRes.data as PrazoVerificacao[]) || []);
     } catch (error: any) {
       console.error('Erro ao carregar dados:', error);
