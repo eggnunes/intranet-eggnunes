@@ -125,6 +125,8 @@ export default function ControlePrazos() {
   const [filterDateTo, setFilterDateTo] = useState<Date | undefined>(undefined);
   const [filterPrazoFatalFrom, setFilterPrazoFatalFrom] = useState<Date | undefined>(undefined);
   const [filterPrazoFatalTo, setFilterPrazoFatalTo] = useState<Date | undefined>(undefined);
+  const [filterEventoFrom, setFilterEventoFrom] = useState<Date | undefined>(undefined);
+  const [filterEventoTo, setFilterEventoTo] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
     fetchData();
