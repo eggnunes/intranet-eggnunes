@@ -462,7 +462,7 @@ export default function ControlePrazos() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredTasks.map(task => (
+                    {paginatedTasks.map(task => (
                       <TableRow key={task.id} className={cn(task.status === 'completed' && 'opacity-60')}>
                         <TableCell className="font-mono text-xs">
                           {task.process_number || <span className="text-muted-foreground italic">Sem número</span>}
