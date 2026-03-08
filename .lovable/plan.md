@@ -1,37 +1,34 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+# Diagnóstico: Carregamento de Tarefas no Controle de Prazos
 
-### Causa Raiz
+## Dados do Banco
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+- **5.570 tarefas** sincronizadas do ADVBox (5.233 pendentes, 337 concluídas)
+- **Zero duplicatas** — a coluna `advbox_id` é única, então cada tarefa do ADVBox existe apenas uma vez no banco
+- **Zero verificações** registradas ainda (tabela `prazo_verificacoes` vazia)
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+## Problema Identificado: Limite de 1.000 Linhas
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+A consulta na página `ControlePrazos.tsx` (linha 88-91) **não especifica um limite**, então o banco retorna no máximo **1.000 registros** (limite padrão). Isso significa que **4.570 tarefas estão sendo ignoradas** e não aparecem na tela.
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+## Sobre Duplicidade
 
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-```
+Não há risco de duplicidade. A sincronização usa `upsert` com `onConflict: 'advbox_id'`, garantindo que cada tarefa do ADVBox exista apenas uma vez. A planilha do SharePoint não é importada separadamente — os dados vêm exclusivamente da API do ADVBox. Se uma tarefa está na planilha e no ADVBox, ela aparece apenas uma vez.
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+## Solução
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+### Arquivo: `src/pages/ControlePrazos.tsx`
 
-### Solucao
+1. **Paginação na query** — Implementar carregamento de todas as tarefas com múltiplas queries de 1.000 registros cada (loop até buscar tudo), ou adicionar paginação na interface (páginas de 50/100 itens)
+2. **Abordagem recomendada**: Paginação na interface com controles de página (mais performático para 5.570+ registros), mantendo os filtros server-side quando possível
 
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+### Detalhes técnicos
+- Adicionar `.range(from, to)` na query com controle de página
+- Exibir controles de paginação (anterior/próximo/total)
+- Manter contagem total com query separada `count`
+- Os filtros de exclusão de task_type e "Mariana" continuam aplicados client-side após a busca
 
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
-
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+### Filtro de task_types
+O filtro de exclusão já funciona corretamente — usa `.includes()` então "ACOMPANHAR DECISÃO" filtra tanto tarefas com tipo exato quanto "ACOMPANHAR DECISÃO/DESPACHO" (1.102 tarefas serão corretamente excluídas).
 
