@@ -5293,6 +5293,36 @@ export type Database = {
         }
         Relationships: []
       }
+      prazo_verificacoes: {
+        Row: {
+          advbox_task_id: string
+          created_at: string | null
+          id: string
+          observacoes: string | null
+          status: string | null
+          verificado_em: string | null
+          verificado_por: string | null
+        }
+        Insert: {
+          advbox_task_id: string
+          created_at?: string | null
+          id?: string
+          observacoes?: string | null
+          status?: string | null
+          verificado_em?: string | null
+          verificado_por?: string | null
+        }
+        Update: {
+          advbox_task_id?: string
+          created_at?: string | null
+          id?: string
+          observacoes?: string | null
+          status?: string | null
+          verificado_em?: string | null
+          verificado_por?: string | null
+        }
+        Relationships: []
+      }
       product_template_associations: {
         Row: {
           contra_partida_template_id: string | null
