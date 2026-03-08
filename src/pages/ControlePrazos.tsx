@@ -399,7 +399,7 @@ export default function ControlePrazos() {
               <Filter className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium">Filtros</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+             <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
               <Select value={filterAdvogado} onValueChange={setFilterAdvogado}>
                 <SelectTrigger>
                   <SelectValue placeholder="Advogado" />
@@ -408,6 +408,18 @@ export default function ControlePrazos() {
                   <SelectItem value="all">Todos os advogados</SelectItem>
                   {advogados.map(adv => (
                     <SelectItem key={adv} value={adv}>{adv}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={filterTipoTarefa} onValueChange={setFilterTipoTarefa}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Tipo de Tarefa" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os tipos</SelectItem>
+                  {tiposTarefa.map(tipo => (
+                    <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -460,7 +472,7 @@ export default function ControlePrazos() {
                 </PopoverContent>
               </Popover>
             </div>
-            {(filterAdvogado !== 'all' || filterStatus !== 'all' || filterDateFrom || filterDateTo) && (
+            {(filterAdvogado !== 'all' || filterStatus !== 'all' || filterTipoTarefa !== 'all' || filterDateFrom || filterDateTo) && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -468,6 +480,7 @@ export default function ControlePrazos() {
                 onClick={() => {
                   setFilterAdvogado('all');
                   setFilterStatus('all');
+                  setFilterTipoTarefa('all');
                   setFilterDateFrom(undefined);
                   setFilterDateTo(undefined);
                 }}
