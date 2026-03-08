@@ -1,37 +1,23 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+# Plano: Indicador de Prazos Vencidos + Exportação Excel/PDF
 
-### Causa Raiz
+## Arquivo: `src/pages/ControlePrazos.tsx`
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+### 1. Indicador visual de prazos vencidos (vermelho)
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+- Adicionar lógica `isPrazoVencido`: prazo fatal < hoje AND não verificado AND não concluído
+- Na `TableRow`, aplicar `bg-red-50 dark:bg-red-950/20 border-l-4 border-l-red-500` quando vencido
+- No badge (`getVerificacaoBadge`), quando vencido e pendente, mostrar badge vermelho "VENCIDO" em vez de amarelo "Pendente"
+- Na coluna "Prazo Fatal", colorir texto em vermelho (`text-red-600 font-bold`) quando vencido
+- Adicionar novo card de stats: "Prazos Vencidos" com ícone `AlertTriangle` em vermelho, contando tarefas vencidas não verificadas
+- Adicionar opção "vencido" no filtro de status
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+### 2. Exportação Excel e PDF
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-```
-
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
-
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
-
-### Solucao
-
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
-
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
-
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+- Adicionar dois botões no header: "Exportar Excel" e "Exportar PDF"
+- **Excel**: usar `xlsx` (já instalado) — exporta `filteredTasks` com colunas: Nº Processo, Tarefa, Advogado, Data Publicação, Prazo Interno, Prazo Fatal, Status
+- **PDF**: usar `jspdf` + `jspdf-autotable` (já instalados) — gera tabela formatada com logo e título
+- Ambos exportam os dados filtrados (respeitam filtros ativos)
+- Importar `FileSpreadsheet` e `FileText` do lucide para ícones dos botões
 
