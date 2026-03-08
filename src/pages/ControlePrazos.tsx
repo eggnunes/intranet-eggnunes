@@ -125,6 +125,8 @@ export default function ControlePrazos() {
   const [filterDateTo, setFilterDateTo] = useState<Date | undefined>(undefined);
   const [filterPrazoFatalFrom, setFilterPrazoFatalFrom] = useState<Date | undefined>(undefined);
   const [filterPrazoFatalTo, setFilterPrazoFatalTo] = useState<Date | undefined>(undefined);
+  const [filterEventoFrom, setFilterEventoFrom] = useState<Date | undefined>(undefined);
+  const [filterEventoTo, setFilterEventoTo] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
     fetchData();
@@ -310,14 +312,24 @@ export default function ControlePrazos() {
         endOfDay.setHours(23, 59, 59, 999);
         if (fatalDate > endOfDay) return false;
       }
+      if (filterEventoFrom && task.prazo_interno) {
+        const eventoDate = new Date(task.prazo_interno);
+        if (eventoDate < filterEventoFrom) return false;
+      }
+      if (filterEventoTo && task.prazo_interno) {
+        const eventoDate = new Date(task.prazo_interno);
+        const endOfDay = new Date(filterEventoTo);
+        endOfDay.setHours(23, 59, 59, 999);
+        if (eventoDate > endOfDay) return false;
+      }
       return true;
     });
-  }, [processedTasks, filterAdvogado, filterTipoTarefa, filterStatus, filterDateFrom, filterDateTo, filterPrazoFatalFrom, filterPrazoFatalTo]);
+  }, [processedTasks, filterAdvogado, filterTipoTarefa, filterStatus, filterDateFrom, filterDateTo, filterPrazoFatalFrom, filterPrazoFatalTo, filterEventoFrom, filterEventoTo]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(0);
-  }, [filterAdvogado, filterTipoTarefa, filterStatus, filterDateFrom, filterDateTo, filterPrazoFatalFrom, filterPrazoFatalTo]);
+  }, [filterAdvogado, filterTipoTarefa, filterStatus, filterDateFrom, filterDateTo, filterPrazoFatalFrom, filterPrazoFatalTo, filterEventoFrom, filterEventoTo]);
 
   // Pagination
   const totalPages = Math.ceil(filteredTasks.length / PAGE_SIZE);
@@ -640,8 +652,43 @@ export default function ControlePrazos() {
                   />
                 </PopoverContent>
               </Popover>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("justify-start text-left font-normal", !filterEventoFrom && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {filterEventoFrom ? format(filterEventoFrom, 'dd/MM/yyyy') : 'Evento início'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={filterEventoFrom}
+                    onSelect={setFilterEventoFrom}
+                    locale={ptBR}
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("justify-start text-left font-normal", !filterEventoTo && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {filterEventoTo ? format(filterEventoTo, 'dd/MM/yyyy') : 'Evento fim'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={filterEventoTo}
+                    onSelect={setFilterEventoTo}
+                    locale={ptBR}
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
-            {(filterAdvogado !== 'all' || filterStatus !== 'all' || filterTipoTarefa !== 'all' || filterDateFrom || filterDateTo || filterPrazoFatalFrom || filterPrazoFatalTo) && (
+            {(filterAdvogado !== 'all' || filterStatus !== 'all' || filterTipoTarefa !== 'all' || filterDateFrom || filterDateTo || filterPrazoFatalFrom || filterPrazoFatalTo || filterEventoFrom || filterEventoTo) && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -654,6 +701,8 @@ export default function ControlePrazos() {
                   setFilterDateTo(undefined);
                   setFilterPrazoFatalFrom(undefined);
                   setFilterPrazoFatalTo(undefined);
+                  setFilterEventoFrom(undefined);
+                  setFilterEventoTo(undefined);
                 }}
               >
                 Limpar filtros
