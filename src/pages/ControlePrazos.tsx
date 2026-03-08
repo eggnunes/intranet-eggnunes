@@ -19,15 +19,41 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { parseLocalDate, formatLocalDate } from '@/lib/dateUtils';
 
-// Task types to EXCLUDE from deadline control
-const EXCLUDED_TASK_TYPES = [
-  'ACOMPANHAR DECISÃO',
-  'ACOMPANHAR DESPACHO',
-  'ATENDIMENTO',
-  'ATENDIMENTO PRESENCIAL',
-  'LIGAÇÃO TELEFÔNICA',
-  'LIGAÇÕES TELEFÔNICAS',
-  'REUNIÃO',
+// Keywords that identify procedural deadlines (inclusion logic)
+const INCLUDED_TASK_KEYWORDS = [
+  'PETIÇÃO',
+  'PROTOCOLO',
+  'EMBARGOS',
+  'IMPUGNAÇÃO',
+  'CONTRARRAZÕES',
+  'RECURSO',
+  'APELAÇÃO',
+  'AGRAVO',
+  'CUMPRIMENTO DE SENTENÇA',
+  'MANIFESTAÇÃO',
+  'ALEGAÇÕES FINAIS',
+  'CONTRAMINUTA',
+  'AUDIÊNCIA',
+  'DISTRIBUIÇÃO',
+  'EMENDA À INICIAL',
+  'COMPLEMENTAÇÃO',
+  'ANÁLISE DE DECISÃO',
+  'ELABORAÇÃO DE CÁLCULO',
+  'AVALIAR DOCUMENTAÇÃO',
+  'REQUERIMENTO',
+  'SUSTENTAÇÃO ORAL',
+  'PREPARAR SUSTENTAÇÃO',
+  'INSTRUIR DOCUMENTOS',
+  'PRECATÓRIO',
+  'CORREÇÃO PEQUENA',
+  'REVISÃO DE PETIÇÃO',
+  'PESQUISA DE JURISPRUDÊNCIA',
+  'ANÁLISE DE CASO',
+  'GUIA DE CUSTAS',
+  'DEPÓSITO JUDICIAL',
+  'PREPARAR TESTEMUNHA',
+  'CARTA DE INTIMAÇÃO',
+  'INTIMAÇÃO DE TESTEMUNHA',
 ];
 
 interface AdvboxTask {
