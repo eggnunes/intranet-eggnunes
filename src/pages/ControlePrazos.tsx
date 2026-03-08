@@ -246,6 +246,15 @@ export default function ControlePrazos() {
     return Array.from(set).sort();
   }, [processedTasks]);
 
+  // Get unique task types for filter dropdown
+  const tiposTarefa = useMemo(() => {
+    const set = new Set<string>();
+    processedTasks.forEach(t => {
+      if (t.task_type) set.add(t.task_type);
+    });
+    return Array.from(set).sort();
+  }, [processedTasks]);
+
   // Apply filters
   const filteredTasks = useMemo(() => {
     return processedTasks.filter(task => {
