@@ -59,6 +59,8 @@ interface ProcessedTask extends AdvboxTask {
   verificacao: PrazoVerificacao | null;
 }
 
+const PAGE_SIZE = 50;
+
 export default function ControlePrazos() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -70,6 +72,7 @@ export default function ControlePrazos() {
   const [selectedTask, setSelectedTask] = useState<ProcessedTask | null>(null);
   const [verifyObservacoes, setVerifyObservacoes] = useState('');
   const [verifyStatus, setVerifyStatus] = useState<'verificado' | 'com_pendencia'>('verificado');
+  const [currentPage, setCurrentPage] = useState(0);
 
   // Filters
   const [filterAdvogado, setFilterAdvogado] = useState<string>('all');
@@ -81,23 +84,38 @@ export default function ControlePrazos() {
     fetchData();
   }, []);
 
+  const fetchAllTasks = async (): Promise<AdvboxTask[]> => {
+    const batchSize = 1000;
+    let allTasks: AdvboxTask[] = [];
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('advbox_tasks')
+        .select('id, advbox_id, title, task_type, due_date, status, assigned_users, process_number, raw_data, completed_at')
+        .order('due_date', { ascending: false })
+        .range(offset, offset + batchSize - 1);
+
+      if (error) throw error;
+      allTasks = allTasks.concat((data as AdvboxTask[]) || []);
+      hasMore = (data?.length || 0) === batchSize;
+      offset += batchSize;
+    }
+    return allTasks;
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [tasksRes, verificacoesRes] = await Promise.all([
-        supabase
-          .from('advbox_tasks')
-          .select('id, advbox_id, title, task_type, due_date, status, assigned_users, process_number, raw_data, completed_at')
-          .order('due_date', { ascending: false }),
-        supabase
-          .from('prazo_verificacoes')
-          .select('*'),
+      const [allTasks, verificacoesRes] = await Promise.all([
+        fetchAllTasks(),
+        supabase.from('prazo_verificacoes').select('*'),
       ]);
 
-      if (tasksRes.error) throw tasksRes.error;
       if (verificacoesRes.error) throw verificacoesRes.error;
 
-      setTasks((tasksRes.data as AdvboxTask[]) || []);
+      setTasks(allTasks);
       setVerificacoes((verificacoesRes.data as PrazoVerificacao[]) || []);
     } catch (error: any) {
       console.error('Erro ao carregar dados:', error);
@@ -204,20 +222,15 @@ export default function ControlePrazos() {
   // Apply filters
   const filteredTasks = useMemo(() => {
     return processedTasks.filter(task => {
-      // Filter by lawyer
       if (filterAdvogado !== 'all') {
         const users = (task.assigned_users || '').split(',').map(u => u.trim());
         if (!users.includes(filterAdvogado)) return false;
       }
-
-      // Filter by verification status
       if (filterStatus !== 'all') {
         if (filterStatus === 'pendente' && task.verificacao) return false;
         if (filterStatus === 'verificado' && task.verificacao?.status !== 'verificado') return false;
         if (filterStatus === 'com_pendencia' && task.verificacao?.status !== 'com_pendencia') return false;
       }
-
-      // Filter by date range (data publicacao)
       if (filterDateFrom && task.data_publicacao) {
         const pubDate = new Date(task.data_publicacao);
         if (pubDate < filterDateFrom) return false;
@@ -228,10 +241,21 @@ export default function ControlePrazos() {
         endOfDay.setHours(23, 59, 59, 999);
         if (pubDate > endOfDay) return false;
       }
-
       return true;
     });
   }, [processedTasks, filterAdvogado, filterStatus, filterDateFrom, filterDateTo]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [filterAdvogado, filterStatus, filterDateFrom, filterDateTo]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredTasks.length / PAGE_SIZE);
+  const paginatedTasks = useMemo(() => {
+    const start = currentPage * PAGE_SIZE;
+    return filteredTasks.slice(start, start + PAGE_SIZE);
+  }, [filteredTasks, currentPage]);
 
   const getVerificacaoBadge = (task: ProcessedTask) => {
     if (task.status === 'completed') {
@@ -438,7 +462,7 @@ export default function ControlePrazos() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredTasks.map(task => (
+                    {paginatedTasks.map(task => (
                       <TableRow key={task.id} className={cn(task.status === 'completed' && 'opacity-60')}>
                         <TableCell className="font-mono text-xs">
                           {task.process_number || <span className="text-muted-foreground italic">Sem número</span>}
@@ -470,8 +494,33 @@ export default function ControlePrazos() {
                 </Table>
               </div>
             )}
-            <div className="p-3 border-t text-xs text-muted-foreground">
-              Exibindo {filteredTasks.length} de {processedTasks.length} tarefas
+            <div className="p-3 border-t flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                Exibindo {currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, filteredTasks.length)} de {filteredTasks.length} tarefas (total no banco: {tasks.length})
+              </span>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === 0}
+                    onClick={() => setCurrentPage(p => p - 1)}
+                  >
+                    Anterior
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Página {currentPage + 1} de {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage >= totalPages - 1}
+                    onClick={() => setCurrentPage(p => p + 1)}
+                  >
+                    Próxima
+                  </Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
