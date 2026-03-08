@@ -222,20 +222,15 @@ export default function ControlePrazos() {
   // Apply filters
   const filteredTasks = useMemo(() => {
     return processedTasks.filter(task => {
-      // Filter by lawyer
       if (filterAdvogado !== 'all') {
         const users = (task.assigned_users || '').split(',').map(u => u.trim());
         if (!users.includes(filterAdvogado)) return false;
       }
-
-      // Filter by verification status
       if (filterStatus !== 'all') {
         if (filterStatus === 'pendente' && task.verificacao) return false;
         if (filterStatus === 'verificado' && task.verificacao?.status !== 'verificado') return false;
         if (filterStatus === 'com_pendencia' && task.verificacao?.status !== 'com_pendencia') return false;
       }
-
-      // Filter by date range (data publicacao)
       if (filterDateFrom && task.data_publicacao) {
         const pubDate = new Date(task.data_publicacao);
         if (pubDate < filterDateFrom) return false;
@@ -246,10 +241,21 @@ export default function ControlePrazos() {
         endOfDay.setHours(23, 59, 59, 999);
         if (pubDate > endOfDay) return false;
       }
-
       return true;
     });
   }, [processedTasks, filterAdvogado, filterStatus, filterDateFrom, filterDateTo]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [filterAdvogado, filterStatus, filterDateFrom, filterDateTo]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredTasks.length / PAGE_SIZE);
+  const paginatedTasks = useMemo(() => {
+    const start = currentPage * PAGE_SIZE;
+    return filteredTasks.slice(start, start + PAGE_SIZE);
+  }, [filteredTasks, currentPage]);
 
   const getVerificacaoBadge = (task: ProcessedTask) => {
     if (task.status === 'completed') {
