@@ -212,9 +212,9 @@ export default function ControlePrazos() {
 
     return tasks
       .filter(task => {
-        // Exclude irrelevant task types
+        // Include only procedural deadline task types
         const taskType = (task.task_type || task.title || '').toUpperCase();
-        if (EXCLUDED_TASK_TYPES.some(excluded => taskType.includes(excluded))) return false;
+        if (!INCLUDED_TASK_KEYWORDS.some(keyword => taskType.includes(keyword))) return false;
 
         // Exclude tasks assigned exclusively to Mariana
         const assignedUsers = task.assigned_users || '';
