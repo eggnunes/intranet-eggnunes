@@ -247,6 +247,7 @@ export function AppSidebar() {
         { icon: AlertCircle, path: '/movimentacoes-advbox', label: 'Movimentações' },
         { icon: Bell, path: '/publicacoes', label: 'Publicações' },
         { icon: CheckSquare, path: '/tarefas-advbox', label: 'Tarefas', badgeCount: criticalTasksCount },
+        ...(profile?.position === 'socio' || isAdmin ? [{ icon: ClipboardList, path: '/controle-prazos', label: 'Controle de Prazos' }] : []),
         { icon: DollarSign, path: '/relatorios-financeiros', label: 'Financeiro' },
         { icon: Cake, path: '/aniversarios-clientes', label: 'Aniversários Clientes' },
       ],
