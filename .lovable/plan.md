@@ -1,81 +1,37 @@
 
 
-# Diagnóstico: Tarefas Irrelevantes no Controle de Prazos
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-## Problema
+### Causa Raiz
 
-O filtro atual usa `.includes()` genérico (ex: "ATENDIMENTO" exclui qualquer tipo com essa palavra), mas NÃO exclui tipos administrativos/operacionais que não são prazos processuais. Resultado: **~2.600 tarefas** aparecem quando deveriam ser muito menos.
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-### Tipos que estão aparecendo mas NÃO são prazos processuais:
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-| Tipo | Qtd | Por que não é prazo |
-|------|-----|---------------------|
-| AGUARDANDO DOCUMENTOS CLIENTE | 283 | Espera passiva |
-| ATRIBUIR E-MAIL / NOTA DE EXPEDIENTE / TAREFA | 554* | Tarefa administrativa |
-| COMENTÁRIO | 493* | Nota interna |
-| ALERTA DE TAREFA EXCLUÍDA | 115* | Notificação do sistema |
-| ACOMPANHAR TRÂNSITO EM JULGADO | 97 | Acompanhamento |
-| ACOMPANHAR PAGAMENTO | 42 | Financeiro |
-| MANDAR/RESPONDER E-MAIL | 99 | Comunicação |
-| TENTATIVA DE CONTATO COM O CLIENTE | 50 | Comunicação |
-| REUNIÃO SOBRE O CASO DO CLIENTE | ~100 | Reunião |
-| ANÁLISE DA PASTA DO CLIENTE | 70 | Análise |
-| RECADO PARA PARCEIRO | 9 | Comunicação |
-| ENCAMINHAR INTIMAÇÕES DIÁRIAS | 49 | Tarefa da própria Mariana |
-| GERAR RELATÓRIOS MENSAIS | 25 | Administrativo |
-| RELATÓRIO DIÁRIO DA CONTROLADORIA | 31 | Administrativo |
-| CONFERÊNCIA DAS PETIÇÕES | 31 | Administrativo |
-| RELATÓRIO PROCESSUAL | 19 | Administrativo |
-| ENVIO DE LINK DE AVALIAÇÃO | 6 | Administrativo |
-| COBRAR HONORÁRIOS | 5 | Financeiro |
-| EMISSÃO DE BOLETO | 6 | Financeiro |
-| ENCERRAR PASTA DE CLIENTE | 9 | Administrativo |
-| ELABORAÇÃO DE PROCURAÇÃO/SUBSTABELECIMENTO | 9 | Documento interno |
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-Os tipos que SÃO prazos processuais reais (petições, protocolos, embargos, audiências, cumprimento de sentença, etc.) somam algo em torno de **~1.300 tarefas** — um número muito mais realista.
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-## Solução
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+```
 
-Inverter a lógica: em vez de excluir tipos específicos, **incluir apenas os tipos que são prazos processuais**. Isso é mais seguro porque novos tipos administrativos criados no ADVBox não vão poluir a lista.
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
 
-### Tipos a INCLUIR (prazos processuais):
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
 
-- Todas as PETIÇÕES (inicial, intermediária, ciência, esboço, etc.)
-- PROTOCOLO ELETRÔNICO DE PETIÇÃO
-- EMBARGOS DE DECLARAÇÃO
-- IMPUGNAÇÃO À CONTESTAÇÃO
-- CONTRARRAZÕES DE RECURSO
-- APELAÇÃO/RECURSO INOMINADO
-- AGRAVO EM RESP/REXT
-- RECURSO EXTRAORDINÁRIO
-- CUMPRIMENTO DE SENTENÇA
-- MANIFESTAÇÃO SOBRE IMPUGNAÇÃO
-- ALEGAÇÕES FINAIS
-- CONTRAMINUTA DE AGRAVO
-- AUDIÊNCIAS (conciliação, instrução/julgamento)
-- DISTRIBUIÇÃO DE PROCESSO ELETRÔNICO
-- EMENDA À INICIAL
-- COMPLEMENTAÇÃO DA PETIÇÃO
-- ANÁLISE DE DECISÃO PARA FINS DE RECURSO
-- ELABORAÇÃO DE CÁLCULO
-- AVALIAR DOCUMENTAÇÃO COMPROBATÓRIA
-- REQUERIMENTO ADMINISTRATIVO (judicial)
-- SUSTENTAÇÃO ORAL
-- PREPARAR SUSTENTAÇÃO ORAL
-- INSTRUIR DOCUMENTOS PRECATÓRIO
-- CORREÇÃO PEQUENA DE PETIÇÃO/CÁLCULO
-- REVISÃO DE PETIÇÃO
-- PESQUISA DE JURISPRUDÊNCIA
-- ANÁLISE DE CASO JURÍDICO
-- EMISSÃO DE GUIA DE CUSTAS/DEPÓSITO JUDICIAL
-- PREPARAR TESTEMUNHAS PARA AUDIÊNCIA
-- ELABORAR CARTA DE INTIMAÇÃO DE TESTEMUNHA
+### Solucao
 
-### Alterações no `src/pages/ControlePrazos.tsx`
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
 
-1. **Substituir `EXCLUDED_TASK_TYPES`** por `INCLUDED_TASK_KEYWORDS` — lista de palavras-chave que identificam prazos processuais (PETIÇÃO, PROTOCOLO, EMBARGOS, IMPUGNAÇÃO, RECURSO, CUMPRIMENTO, AUDIÊNCIA, etc.)
-2. **Filtro por inclusão**: tarefa aparece apenas se o `task_type` contém uma das keywords
-3. **Manter exclusão Mariana-only** e adicionar exclusão explícita dos 7 tipos do documento
-4. **Adicionar filtro por tipo de tarefa** no painel de filtros (dropdown)
-5. **Resultado esperado**: ~1.300 tarefas em vez de 4.000+
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
 

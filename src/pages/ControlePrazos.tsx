@@ -19,15 +19,41 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { parseLocalDate, formatLocalDate } from '@/lib/dateUtils';
 
-// Task types to EXCLUDE from deadline control
-const EXCLUDED_TASK_TYPES = [
-  'ACOMPANHAR DECISÃO',
-  'ACOMPANHAR DESPACHO',
-  'ATENDIMENTO',
-  'ATENDIMENTO PRESENCIAL',
-  'LIGAÇÃO TELEFÔNICA',
-  'LIGAÇÕES TELEFÔNICAS',
-  'REUNIÃO',
+// Keywords that identify procedural deadlines (inclusion logic)
+const INCLUDED_TASK_KEYWORDS = [
+  'PETIÇÃO',
+  'PROTOCOLO',
+  'EMBARGOS',
+  'IMPUGNAÇÃO',
+  'CONTRARRAZÕES',
+  'RECURSO',
+  'APELAÇÃO',
+  'AGRAVO',
+  'CUMPRIMENTO DE SENTENÇA',
+  'MANIFESTAÇÃO',
+  'ALEGAÇÕES FINAIS',
+  'CONTRAMINUTA',
+  'AUDIÊNCIA',
+  'DISTRIBUIÇÃO',
+  'EMENDA À INICIAL',
+  'COMPLEMENTAÇÃO',
+  'ANÁLISE DE DECISÃO',
+  'ELABORAÇÃO DE CÁLCULO',
+  'AVALIAR DOCUMENTAÇÃO',
+  'REQUERIMENTO',
+  'SUSTENTAÇÃO ORAL',
+  'PREPARAR SUSTENTAÇÃO',
+  'INSTRUIR DOCUMENTOS',
+  'PRECATÓRIO',
+  'CORREÇÃO PEQUENA',
+  'REVISÃO DE PETIÇÃO',
+  'PESQUISA DE JURISPRUDÊNCIA',
+  'ANÁLISE DE CASO',
+  'GUIA DE CUSTAS',
+  'DEPÓSITO JUDICIAL',
+  'PREPARAR TESTEMUNHA',
+  'CARTA DE INTIMAÇÃO',
+  'INTIMAÇÃO DE TESTEMUNHA',
 ];
 
 interface AdvboxTask {
@@ -77,6 +103,7 @@ export default function ControlePrazos() {
   // Filters
   const [filterAdvogado, setFilterAdvogado] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterTipoTarefa, setFilterTipoTarefa] = useState<string>('all');
   const [filterDateFrom, setFilterDateFrom] = useState<Date | undefined>(undefined);
   const [filterDateTo, setFilterDateTo] = useState<Date | undefined>(undefined);
 
@@ -185,9 +212,9 @@ export default function ControlePrazos() {
 
     return tasks
       .filter(task => {
-        // Exclude irrelevant task types
+        // Include only procedural deadline task types
         const taskType = (task.task_type || task.title || '').toUpperCase();
-        if (EXCLUDED_TASK_TYPES.some(excluded => taskType.includes(excluded))) return false;
+        if (!INCLUDED_TASK_KEYWORDS.some(keyword => taskType.includes(keyword))) return false;
 
         // Exclude tasks assigned exclusively to Mariana
         const assignedUsers = task.assigned_users || '';
@@ -219,12 +246,24 @@ export default function ControlePrazos() {
     return Array.from(set).sort();
   }, [processedTasks]);
 
+  // Get unique task types for filter dropdown
+  const tiposTarefa = useMemo(() => {
+    const set = new Set<string>();
+    processedTasks.forEach(t => {
+      if (t.task_type) set.add(t.task_type);
+    });
+    return Array.from(set).sort();
+  }, [processedTasks]);
+
   // Apply filters
   const filteredTasks = useMemo(() => {
     return processedTasks.filter(task => {
       if (filterAdvogado !== 'all') {
         const users = (task.assigned_users || '').split(',').map(u => u.trim());
         if (!users.includes(filterAdvogado)) return false;
+      }
+      if (filterTipoTarefa !== 'all') {
+        if ((task.task_type || '') !== filterTipoTarefa) return false;
       }
       if (filterStatus !== 'all') {
         if (filterStatus === 'pendente' && task.verificacao) return false;
@@ -243,12 +282,12 @@ export default function ControlePrazos() {
       }
       return true;
     });
-  }, [processedTasks, filterAdvogado, filterStatus, filterDateFrom, filterDateTo]);
+  }, [processedTasks, filterAdvogado, filterTipoTarefa, filterStatus, filterDateFrom, filterDateTo]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(0);
-  }, [filterAdvogado, filterStatus, filterDateFrom, filterDateTo]);
+  }, [filterAdvogado, filterTipoTarefa, filterStatus, filterDateFrom, filterDateTo]);
 
   // Pagination
   const totalPages = Math.ceil(filteredTasks.length / PAGE_SIZE);
@@ -360,7 +399,7 @@ export default function ControlePrazos() {
               <Filter className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium">Filtros</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+             <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
               <Select value={filterAdvogado} onValueChange={setFilterAdvogado}>
                 <SelectTrigger>
                   <SelectValue placeholder="Advogado" />
@@ -369,6 +408,18 @@ export default function ControlePrazos() {
                   <SelectItem value="all">Todos os advogados</SelectItem>
                   {advogados.map(adv => (
                     <SelectItem key={adv} value={adv}>{adv}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={filterTipoTarefa} onValueChange={setFilterTipoTarefa}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Tipo de Tarefa" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os tipos</SelectItem>
+                  {tiposTarefa.map(tipo => (
+                    <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -421,7 +472,7 @@ export default function ControlePrazos() {
                 </PopoverContent>
               </Popover>
             </div>
-            {(filterAdvogado !== 'all' || filterStatus !== 'all' || filterDateFrom || filterDateTo) && (
+            {(filterAdvogado !== 'all' || filterStatus !== 'all' || filterTipoTarefa !== 'all' || filterDateFrom || filterDateTo) && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -429,6 +480,7 @@ export default function ControlePrazos() {
                 onClick={() => {
                   setFilterAdvogado('all');
                   setFilterStatus('all');
+                  setFilterTipoTarefa('all');
                   setFilterDateFrom(undefined);
                   setFilterDateTo(undefined);
                 }}
