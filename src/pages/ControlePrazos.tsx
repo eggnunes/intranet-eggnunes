@@ -123,6 +123,8 @@ export default function ControlePrazos() {
   const [filterTipoTarefa, setFilterTipoTarefa] = useState<string>('all');
   const [filterDateFrom, setFilterDateFrom] = useState<Date | undefined>(undefined);
   const [filterDateTo, setFilterDateTo] = useState<Date | undefined>(undefined);
+  const [filterPrazoFatalFrom, setFilterPrazoFatalFrom] = useState<Date | undefined>(undefined);
+  const [filterPrazoFatalTo, setFilterPrazoFatalTo] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
     fetchData();
