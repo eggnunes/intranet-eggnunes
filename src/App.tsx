@@ -28,6 +28,7 @@ import ProcessosDashboard from "./pages/ProcessosDashboard";
 import AniversariosClientes from "./pages/AniversariosClientes";
 import PublicacoesFeed from "./pages/PublicacoesFeed";
 import TarefasAdvbox from "./pages/TarefasAdvbox";
+import ControlePrazos from "./pages/ControlePrazos";
 import RelatoriosFinanceiros from "./pages/RelatoriosFinanceiros";
 import AdvboxConfig from "./pages/AdvboxConfig";
 import AdvboxAnalytics from "./pages/AdvboxAnalytics";
