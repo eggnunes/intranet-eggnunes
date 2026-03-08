@@ -1,37 +1,43 @@
 
+## Plano: Adicionar Filtros de Data para "Data de Publicação" e "Prazo Fatal"
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+### Análise Atual
+O arquivo `src/pages/ControlePrazos.tsx` já possui:
+- Filtro de range de data por **"Data de Publicação"** (`filterDateFrom`/`filterDateTo` linhas 124-125)
+- Lógica de filtro para essas datas (linhas 291-300)
+- UI com 2 Popovers/Calendar para seleção (linhas 560-594)
 
-### Causa Raiz
+O usuário solicita filtro também por **"Prazo Fatal"** (data range).
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+### Alterações Necessárias
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+**1. Adicionar Estados de Filtro (linhas 120-125)**
+- `filterPrazoFatalFrom: Date | undefined` — início do range de prazo fatal
+- `filterPrazoFatalTo: Date | undefined` — fim do range de prazo fatal
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+**2. Expandir Lógica de Filtro (linhas 276-303)**
+- Adicionar condições para filtrar por `prazo_fatal` (semelhante ao `data_publicacao`)
+- Range: `task.prazo_fatal >= filterPrazoFatalFrom` e `task.prazo_fatal <= filterPrazoFatalTo`
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+**3. Adicionar Dependência no useEffect (linha 308)**
+- Incluir `filterPrazoFatalFrom` e `filterPrazoFatalTo` nas dependências
 
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-```
+**4. Expandir UI dos Filtros (linhas 515-612)**
+- Reordenar grid de 5 colunas para **6 colunas** (adicionar 2 novos botões):
+  1. Advogado
+  2. Tipo de Tarefa
+  3. Status
+  4. Data Publicação (Início)
+  5. Data Publicação (Fim)
+  6. Prazo Fatal (Início) — **NOVO**
+  7. Prazo Fatal (Fim) — **NOVO**
+- Ou reorganizar em 2 linhas para melhor visualização
+- Adicionar 2 Popovers com Calendar para seleção de Prazo Fatal
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+**5. Atualizar Botão "Limpar Filtros" (linhas 596-611)**
+- Resetar também `filterPrazoFatalFrom` e `filterPrazoFatalTo`
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
-
-### Solucao
-
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
-
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
-
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
-
+### Impacto
+- Nenhuma mudança na estrutura de dados
+- Apenas lógica de filtro client-side adicional
+- Melhora a capacidade de exploração dos dados pela coordenadora
