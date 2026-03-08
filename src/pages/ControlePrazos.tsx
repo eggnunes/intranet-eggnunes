@@ -494,8 +494,33 @@ export default function ControlePrazos() {
                 </Table>
               </div>
             )}
-            <div className="p-3 border-t text-xs text-muted-foreground">
-              Exibindo {filteredTasks.length} de {processedTasks.length} tarefas
+            <div className="p-3 border-t flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                Exibindo {currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, filteredTasks.length)} de {filteredTasks.length} tarefas (total no banco: {tasks.length})
+              </span>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === 0}
+                    onClick={() => setCurrentPage(p => p - 1)}
+                  >
+                    Anterior
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Página {currentPage + 1} de {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage >= totalPages - 1}
+                    onClick={() => setCurrentPage(p => p + 1)}
+                  >
+                    Próxima
+                  </Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
