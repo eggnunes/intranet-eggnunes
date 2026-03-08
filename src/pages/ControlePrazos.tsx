@@ -573,7 +573,7 @@ export default function ControlePrazos() {
                 <PopoverTrigger asChild>
                   <Button variant="outline" className={cn("justify-start text-left font-normal", !filterDateFrom && "text-muted-foreground")}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {filterDateFrom ? format(filterDateFrom, 'dd/MM/yyyy') : 'Data início'}
+                    {filterDateFrom ? format(filterDateFrom, 'dd/MM/yyyy') : 'Publicação início'}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -591,7 +591,7 @@ export default function ControlePrazos() {
                 <PopoverTrigger asChild>
                   <Button variant="outline" className={cn("justify-start text-left font-normal", !filterDateTo && "text-muted-foreground")}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {filterDateTo ? format(filterDateTo, 'dd/MM/yyyy') : 'Data fim'}
+                    {filterDateTo ? format(filterDateTo, 'dd/MM/yyyy') : 'Publicação fim'}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -604,8 +604,44 @@ export default function ControlePrazos() {
                   />
                 </PopoverContent>
               </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("justify-start text-left font-normal", !filterPrazoFatalFrom && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {filterPrazoFatalFrom ? format(filterPrazoFatalFrom, 'dd/MM/yyyy') : 'Prazo Fatal início'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={filterPrazoFatalFrom}
+                    onSelect={setFilterPrazoFatalFrom}
+                    locale={ptBR}
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("justify-start text-left font-normal", !filterPrazoFatalTo && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {filterPrazoFatalTo ? format(filterPrazoFatalTo, 'dd/MM/yyyy') : 'Prazo Fatal fim'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={filterPrazoFatalTo}
+                    onSelect={setFilterPrazoFatalTo}
+                    locale={ptBR}
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
-            {(filterAdvogado !== 'all' || filterStatus !== 'all' || filterTipoTarefa !== 'all' || filterDateFrom || filterDateTo) && (
+            {(filterAdvogado !== 'all' || filterStatus !== 'all' || filterTipoTarefa !== 'all' || filterDateFrom || filterDateTo || filterPrazoFatalFrom || filterPrazoFatalTo) && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -616,6 +652,8 @@ export default function ControlePrazos() {
                   setFilterTipoTarefa('all');
                   setFilterDateFrom(undefined);
                   setFilterDateTo(undefined);
+                  setFilterPrazoFatalFrom(undefined);
+                  setFilterPrazoFatalTo(undefined);
                 }}
               >
                 Limpar filtros
