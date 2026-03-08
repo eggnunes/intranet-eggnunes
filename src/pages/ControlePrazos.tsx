@@ -262,6 +262,9 @@ export default function ControlePrazos() {
         const users = (task.assigned_users || '').split(',').map(u => u.trim());
         if (!users.includes(filterAdvogado)) return false;
       }
+      if (filterTipoTarefa !== 'all') {
+        if ((task.task_type || '') !== filterTipoTarefa) return false;
+      }
       if (filterStatus !== 'all') {
         if (filterStatus === 'pendente' && task.verificacao) return false;
         if (filterStatus === 'verificado' && task.verificacao?.status !== 'verificado') return false;
@@ -279,12 +282,12 @@ export default function ControlePrazos() {
       }
       return true;
     });
-  }, [processedTasks, filterAdvogado, filterStatus, filterDateFrom, filterDateTo]);
+  }, [processedTasks, filterAdvogado, filterTipoTarefa, filterStatus, filterDateFrom, filterDateTo]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(0);
-  }, [filterAdvogado, filterStatus, filterDateFrom, filterDateTo]);
+  }, [filterAdvogado, filterTipoTarefa, filterStatus, filterDateFrom, filterDateTo]);
 
   // Pagination
   const totalPages = Math.ceil(filteredTasks.length / PAGE_SIZE);
