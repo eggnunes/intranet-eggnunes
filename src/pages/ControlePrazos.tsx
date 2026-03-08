@@ -103,6 +103,7 @@ export default function ControlePrazos() {
   // Filters
   const [filterAdvogado, setFilterAdvogado] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterTipoTarefa, setFilterTipoTarefa] = useState<string>('all');
   const [filterDateFrom, setFilterDateFrom] = useState<Date | undefined>(undefined);
   const [filterDateTo, setFilterDateTo] = useState<Date | undefined>(undefined);
 
