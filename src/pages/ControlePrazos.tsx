@@ -300,9 +300,19 @@ export default function ControlePrazos() {
         endOfDay.setHours(23, 59, 59, 999);
         if (pubDate > endOfDay) return false;
       }
+      if (filterPrazoFatalFrom && task.prazo_fatal) {
+        const fatalDate = new Date(task.prazo_fatal);
+        if (fatalDate < filterPrazoFatalFrom) return false;
+      }
+      if (filterPrazoFatalTo && task.prazo_fatal) {
+        const fatalDate = new Date(task.prazo_fatal);
+        const endOfDay = new Date(filterPrazoFatalTo);
+        endOfDay.setHours(23, 59, 59, 999);
+        if (fatalDate > endOfDay) return false;
+      }
       return true;
     });
-  }, [processedTasks, filterAdvogado, filterTipoTarefa, filterStatus, filterDateFrom, filterDateTo]);
+  }, [processedTasks, filterAdvogado, filterTipoTarefa, filterStatus, filterDateFrom, filterDateTo, filterPrazoFatalFrom, filterPrazoFatalTo]);
 
   // Reset page when filters change
   useEffect(() => {
