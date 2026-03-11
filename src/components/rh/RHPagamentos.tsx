@@ -159,6 +159,9 @@ export function RHPagamentos() {
   const [editCargoTipo, setEditCargoTipo] = useState<string | null>(null);
   const [editCargoId, setEditCargoId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingIds, setDeletingIds] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchData();
