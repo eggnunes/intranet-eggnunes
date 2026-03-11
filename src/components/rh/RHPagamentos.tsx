@@ -1546,6 +1546,9 @@ export function RHPagamentos() {
                         <FileText className="h-4 w-4 mr-1" />
                         {pag.recibo_gerado ? 'Reimprimir' : 'Gerar'}
                       </Button>
+                      <Button variant="ghost" size="sm" onClick={() => confirmDeleteSingle(pag.id)} className="text-destructive hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
