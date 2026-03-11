@@ -160,10 +160,10 @@ const Mensagens = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const aiMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const aiAudioChunksRef = useRef<Blob[]>([]);
-  const aiRecordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const aiRecordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Check if user is socio
   useEffect(() => {
