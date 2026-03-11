@@ -785,6 +785,62 @@ export function RHPagamentos() {
     }
   };
 
+  const confirmDeleteSingle = (pagId: string) => {
+    setDeletingIds([pagId]);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteBatch = () => {
+    if (selectedForBatch.length === 0) {
+      toast.error('Selecione pelo menos um pagamento');
+      return;
+    }
+    setDeletingIds([...selectedForBatch]);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeletePagamentos = async () => {
+    if (deletingIds.length === 0) return;
+    setDeleting(true);
+    try {
+      // Get the payments to delete to check for linked financial entries
+      const pagsToDelete = pagamentos.filter(p => deletingIds.includes(p.id));
+
+      // 1. Delete payment items first
+      const { error: itensError } = await supabase
+        .from('rh_pagamento_itens')
+        .delete()
+        .in('pagamento_id', deletingIds);
+      if (itensError) throw itensError;
+
+      // 2. Delete the payments
+      const { error: pagError } = await supabase
+        .from('rh_pagamentos')
+        .delete()
+        .in('id', deletingIds);
+      if (pagError) throw pagError;
+
+      // 3. Delete linked financial entries if any
+      const finIds = pagsToDelete
+        .map((p: any) => p.lancamento_financeiro_id)
+        .filter(Boolean);
+      if (finIds.length > 0) {
+        await supabase.from('fin_lancamentos').delete().in('id', finIds);
+      }
+
+      // Update local state
+      setPagamentos(prev => prev.filter(p => !deletingIds.includes(p.id)));
+      setSelectedForBatch(prev => prev.filter(id => !deletingIds.includes(id)));
+      toast.success(`${deletingIds.length} pagamento(s) excluído(s) com sucesso`);
+    } catch (error: any) {
+      toast.error('Erro ao excluir: ' + error.message);
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmOpen(false);
+      setDeletingIds([]);
+    }
+  };
+
   const gerarRecibosEmLote = async () => {
     if (selectedForBatch.length === 0) {
       toast.error('Selecione pelo menos um pagamento');
