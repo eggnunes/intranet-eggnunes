@@ -1,37 +1,72 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+# Plano: Coluna "Cliente" + Cadastro Manual de Prazos
 
-### Causa Raiz
+## Resumo
+1. Extrair nome do cliente do `raw_data.lawsuit.customers[]` e exibi-lo como nova coluna na tabela
+2. Criar tabela `prazos_manuais` para prazos cadastrados manualmente (sem vínculo obrigatório ao ADVBox)
+3. Adicionar dialog "Cadastrar Novo Prazo" com busca de clientes do ADVBox (mesma lógica do `DecisoesFavoraveis.tsx`)
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
-
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
-
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
-
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+## Dados disponíveis
+O campo `raw_data.lawsuit.customers` já contém o nome do cliente vinculado ao processo. Exemplo:
+```json
+{ "lawsuit": { "customers": [{ "name": "FULANO DE TAL", "customer_id": 123 }] } }
 ```
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+## Alterações
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+### 1. Migração: Criar tabela `prazos_manuais`
+```sql
+CREATE TABLE public.prazos_manuais (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  cliente_nome TEXT NOT NULL,
+  cliente_advbox_id INTEGER,
+  process_number TEXT,
+  task_type TEXT NOT NULL,
+  titulo TEXT NOT NULL,
+  prazo_interno DATE,
+  prazo_fatal DATE,
+  advogado_responsavel TEXT,
+  observacoes TEXT,
+  status TEXT DEFAULT 'pendente',
+  created_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE public.prazos_manuais ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Approved users can manage prazos_manuais" ON public.prazos_manuais
+  FOR ALL TO authenticated USING (public.is_approved(auth.uid())) WITH CHECK (public.is_approved(auth.uid()));
+```
 
-### Solucao
+### 2. `ControlePrazos.tsx` — Coluna "Cliente"
 
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+- Na interface `ProcessedTask`, adicionar `cliente_nome: string | null`
+- No `processedTasks` (useMemo), extrair: `rawData.lawsuit?.customers?.[0]?.name || null`
+- Na `TableHeader`, adicionar coluna "Cliente" entre "Nº Processo" e "Tarefa"
+- Na `TableRow`, renderizar o nome do cliente
+- Incluir "Cliente" nas exportações Excel/PDF
 
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+### 3. `ControlePrazos.tsx` — Mesclar prazos manuais com ADVBox
 
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- Buscar `prazos_manuais` no `fetchData`
+- Converter prazos manuais no mesmo formato `ProcessedTask` (com `advbox_id: 0`, `is_manual: true`)
+- Mesclar na lista de tarefas processadas
 
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+### 4. `ControlePrazos.tsx` — Dialog "Cadastrar Novo Prazo"
+
+- Botão "Novo Prazo" no header (ícone `Plus`)
+- Dialog com campos:
+  - **Cliente** (busca na `advbox_customers` com `.ilike`, mesmo padrão do `DecisoesFavoraveis.tsx` — mínimo 2 caracteres, com botão "Sincronizar" caso não encontre)
+  - **Nº Processo** (opcional, texto livre — pode ficar vazio)
+  - **Tipo de Tarefa** (select com as keywords existentes)
+  - **Título** (texto)
+  - **Advogado Responsável** (select com advogados já conhecidos)
+  - **Prazo Interno** (date picker)
+  - **Prazo Fatal** (date picker)
+  - **Observações** (textarea)
+- Salvar na tabela `prazos_manuais`
+- Prazos manuais aparecem na tabela com badge "Manual" diferenciado
+
+### Arquivo editado
+- `src/pages/ControlePrazos.tsx`
 
