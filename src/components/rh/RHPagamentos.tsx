@@ -1706,6 +1706,45 @@ export function RHPagamentos() {
           )}
         </DialogContent>
       </Dialog>
+      {/* Dialog de Confirmação de Exclusão */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletingIds.length === 1 ? (
+                <>
+                  Tem certeza que deseja excluir este pagamento de{' '}
+                  <strong>{pagamentos.find(p => p.id === deletingIds[0])?.profiles.full_name}</strong>?
+                  {pagamentos.find(p => p.id === deletingIds[0])?.recibo_gerado && (
+                    <span className="block mt-2 text-destructive font-medium">
+                      ⚠️ Este pagamento já teve recibo gerado.
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  Tem certeza que deseja excluir <strong>{deletingIds.length} pagamentos</strong>?
+                  {pagamentos.filter(p => deletingIds.includes(p.id) && p.recibo_gerado).length > 0 && (
+                    <span className="block mt-2 text-destructive font-medium">
+                      ⚠️ {pagamentos.filter(p => deletingIds.includes(p.id) && p.recibo_gerado).length} pagamento(s) já tiveram recibo gerado.
+                    </span>
+                  )}
+                </>
+              )}
+              <span className="block mt-2">
+                Os itens do pagamento e lançamentos financeiros vinculados também serão excluídos. Esta ação não pode ser desfeita.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePagamentos} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleting ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
