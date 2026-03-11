@@ -481,7 +481,59 @@ export default function ControlePrazos() {
     return filteredTasks.slice(start, start + PAGE_SIZE);
   }, [filteredTasks, currentPage]);
 
-  const getVerificacaoBadge = (task: ProcessedTask) => {
+  // Bulk selection helpers
+  const verifiableTasks = useMemo(() => {
+    return paginatedTasks.filter(t => t.status !== 'completed' && !t.is_manual);
+  }, [paginatedTasks]);
+
+  const allPageSelected = verifiableTasks.length > 0 && verifiableTasks.every(t => selectedIds.has(String(t.advbox_id)));
+
+  const toggleSelectAll = () => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        verifiableTasks.forEach(t => next.delete(String(t.advbox_id)));
+      } else {
+        verifiableTasks.forEach(t => next.add(String(t.advbox_id)));
+      }
+      return next;
+    });
+  };
+
+  const toggleSelect = (advboxId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(advboxId)) next.delete(advboxId);
+      else next.add(advboxId);
+      return next;
+    });
+  };
+
+  const handleBulkVerify = async () => {
+    if (!user || selectedIds.size === 0) return;
+    setBulkVerifying(true);
+    try {
+      const records = Array.from(selectedIds).map(id => ({
+        advbox_task_id: id,
+        verificado_por: user.id,
+        status: bulkVerifyStatus,
+        observacoes: bulkVerifyObs || null,
+      }));
+      const { error } = await supabase.from('prazo_verificacoes').insert(records);
+      if (error) throw error;
+      toast({ title: `${records.length} prazos verificados em bloco` });
+      setBulkVerifyOpen(false);
+      setBulkVerifyObs('');
+      setBulkVerifyStatus('verificado');
+      setSelectedIds(new Set());
+      await fetchData();
+    } catch (error: any) {
+      toast({ title: 'Erro na verificação em bloco', description: error.message, variant: 'destructive' });
+    } finally {
+      setBulkVerifying(false);
+    }
+  };
+
     if (task.is_manual) {
       return (
         <div className="flex items-center gap-1">
