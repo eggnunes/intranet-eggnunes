@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -158,6 +159,9 @@ export function RHPagamentos() {
   const [editCargoTipo, setEditCargoTipo] = useState<string | null>(null);
   const [editCargoId, setEditCargoId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingIds, setDeletingIds] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -781,6 +785,62 @@ export function RHPagamentos() {
     }
   };
 
+  const confirmDeleteSingle = (pagId: string) => {
+    setDeletingIds([pagId]);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteBatch = () => {
+    if (selectedForBatch.length === 0) {
+      toast.error('Selecione pelo menos um pagamento');
+      return;
+    }
+    setDeletingIds([...selectedForBatch]);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeletePagamentos = async () => {
+    if (deletingIds.length === 0) return;
+    setDeleting(true);
+    try {
+      // Get the payments to delete to check for linked financial entries
+      const pagsToDelete = pagamentos.filter(p => deletingIds.includes(p.id));
+
+      // 1. Delete payment items first
+      const { error: itensError } = await supabase
+        .from('rh_pagamento_itens')
+        .delete()
+        .in('pagamento_id', deletingIds);
+      if (itensError) throw itensError;
+
+      // 2. Delete the payments
+      const { error: pagError } = await supabase
+        .from('rh_pagamentos')
+        .delete()
+        .in('id', deletingIds);
+      if (pagError) throw pagError;
+
+      // 3. Delete linked financial entries if any
+      const finIds = pagsToDelete
+        .map((p: any) => p.lancamento_financeiro_id)
+        .filter(Boolean);
+      if (finIds.length > 0) {
+        await supabase.from('fin_lancamentos').delete().in('id', finIds);
+      }
+
+      // Update local state
+      setPagamentos(prev => prev.filter(p => !deletingIds.includes(p.id)));
+      setSelectedForBatch(prev => prev.filter(id => !deletingIds.includes(id)));
+      toast.success(`${deletingIds.length} pagamento(s) excluído(s) com sucesso`);
+    } catch (error: any) {
+      toast.error('Erro ao excluir: ' + error.message);
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmOpen(false);
+      setDeletingIds([]);
+    }
+  };
+
   const gerarRecibosEmLote = async () => {
     if (selectedForBatch.length === 0) {
       toast.error('Selecione pelo menos um pagamento');
@@ -1054,10 +1114,16 @@ export function RHPagamentos() {
               className="w-48"
             />
             {selectedForBatch.length > 0 && (
-              <Button onClick={gerarRecibosEmLote} variant="outline">
-                <Printer className="h-4 w-4 mr-2" />
-                Gerar {selectedForBatch.length} Recibos
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={confirmDeleteBatch} variant="destructive" size="sm">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir {selectedForBatch.length} Selecionado(s)
+                </Button>
+                <Button onClick={gerarRecibosEmLote} variant="outline">
+                  <Printer className="h-4 w-4 mr-2" />
+                  Gerar {selectedForBatch.length} Recibos
+                </Button>
+              </div>
             )}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
@@ -1480,6 +1546,9 @@ export function RHPagamentos() {
                         <FileText className="h-4 w-4 mr-1" />
                         {pag.recibo_gerado ? 'Reimprimir' : 'Gerar'}
                       </Button>
+                      <Button variant="ghost" size="sm" onClick={() => confirmDeleteSingle(pag.id)} className="text-destructive hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -1637,6 +1706,45 @@ export function RHPagamentos() {
           )}
         </DialogContent>
       </Dialog>
+      {/* Dialog de Confirmação de Exclusão */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletingIds.length === 1 ? (
+                <>
+                  Tem certeza que deseja excluir este pagamento de{' '}
+                  <strong>{pagamentos.find(p => p.id === deletingIds[0])?.profiles.full_name}</strong>?
+                  {pagamentos.find(p => p.id === deletingIds[0])?.recibo_gerado && (
+                    <span className="block mt-2 text-destructive font-medium">
+                      ⚠️ Este pagamento já teve recibo gerado.
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  Tem certeza que deseja excluir <strong>{deletingIds.length} pagamentos</strong>?
+                  {pagamentos.filter(p => deletingIds.includes(p.id) && p.recibo_gerado).length > 0 && (
+                    <span className="block mt-2 text-destructive font-medium">
+                      ⚠️ {pagamentos.filter(p => deletingIds.includes(p.id) && p.recibo_gerado).length} pagamento(s) já tiveram recibo gerado.
+                    </span>
+                  )}
+                </>
+              )}
+              <span className="block mt-2">
+                Os itens do pagamento e lançamentos financeiros vinculados também serão excluídos. Esta ação não pode ser desfeita.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePagamentos} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleting ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
