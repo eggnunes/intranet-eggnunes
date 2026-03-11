@@ -261,22 +261,46 @@ export default function ControlePrazos() {
     }
   };
 
+  const handleDirectVerify = async (task: ProcessedTask) => {
+    if (!user) return;
+    setVerifyingId(task.advbox_id);
+    try {
+      const { data, error } = await supabase.from('prazo_verificacoes').insert({
+        advbox_task_id: String(task.advbox_id),
+        verificado_por: user.id,
+        status: 'verificado',
+        observacoes: null,
+      }).select();
+      if (error) throw error;
+      if (data && data[0]) {
+        setVerificacoes(prev => [...prev, data[0] as PrazoVerificacao]);
+      }
+      toast({ title: 'Prazo verificado ✅' });
+    } catch (error: any) {
+      toast({ title: 'Erro ao verificar', description: error.message, variant: 'destructive' });
+    } finally {
+      setVerifyingId(null);
+    }
+  };
+
   const handleVerify = async () => {
     if (!selectedTask || !user) return;
     try {
-      const { error } = await supabase.from('prazo_verificacoes').insert({
+      const { data, error } = await supabase.from('prazo_verificacoes').insert({
         advbox_task_id: String(selectedTask.advbox_id),
         verificado_por: user.id,
         status: verifyStatus,
         observacoes: verifyObservacoes || null,
-      });
+      }).select();
       if (error) throw error;
+      if (data && data[0]) {
+        setVerificacoes(prev => [...prev, data[0] as PrazoVerificacao]);
+      }
       toast({ title: verifyStatus === 'verificado' ? 'Prazo verificado' : 'Pendência registrada' });
       setVerifyDialogOpen(false);
       setVerifyObservacoes('');
       setVerifyStatus('verificado');
       setSelectedTask(null);
-      await fetchData();
     } catch (error: any) {
       toast({ title: 'Erro ao registrar verificação', description: error.message, variant: 'destructive' });
     }
