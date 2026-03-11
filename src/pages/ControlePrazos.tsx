@@ -1007,13 +1007,24 @@ export default function ControlePrazos() {
                           <TableCell className="text-right">
                             {isVerifiable && (
                               task.verificacao ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openVerifyDialog(task)}
-                                >
-                                  Rever
-                                </Button>
+                                <div className="flex items-center gap-1 justify-end">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openVerifyDialog(task)}
+                                  >
+                                    Rever
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    disabled={verifyingId === task.advbox_id}
+                                    onClick={() => handleUndoVerify(task)}
+                                    title="Desfazer verificação"
+                                  >
+                                    {verifyingId === task.advbox_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+                                  </Button>
+                                </div>
                               ) : (
                                 <Button
                                   size="sm"
