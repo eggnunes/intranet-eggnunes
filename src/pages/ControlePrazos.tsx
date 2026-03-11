@@ -320,7 +320,7 @@ export default function ControlePrazos() {
     }
   };
 
-
+  const handleSaveNewPrazo = async () => {
     if (!newPrazo.cliente_nome || !newPrazo.task_type || !newPrazo.titulo) {
       toast({ title: 'Preencha os campos obrigatórios: Cliente, Tipo de Tarefa e Título', variant: 'destructive' });
       return;
