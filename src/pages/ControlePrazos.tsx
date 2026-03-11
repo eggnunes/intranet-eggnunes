@@ -108,6 +108,7 @@ export default function ControlePrazos() {
   const [bulkVerifyStatus, setBulkVerifyStatus] = useState<'verificado' | 'com_pendencia'>('verificado');
   const [bulkVerifyObs, setBulkVerifyObs] = useState('');
   const [bulkVerifying, setBulkVerifying] = useState(false);
+  const [verifyingId, setVerifyingId] = useState<number | null>(null);
 
   // New Prazo Dialog
   const [newPrazoOpen, setNewPrazoOpen] = useState(false);
