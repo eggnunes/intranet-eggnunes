@@ -544,14 +544,16 @@ export default function ControlePrazos() {
         status: bulkVerifyStatus,
         observacoes: bulkVerifyObs || null,
       }));
-      const { error } = await supabase.from('prazo_verificacoes').insert(records);
+      const { data, error } = await supabase.from('prazo_verificacoes').insert(records).select();
       if (error) throw error;
+      if (data) {
+        setVerificacoes(prev => [...prev, ...(data as PrazoVerificacao[])]);
+      }
       toast({ title: `${records.length} prazos verificados em bloco` });
       setBulkVerifyOpen(false);
       setBulkVerifyObs('');
       setBulkVerifyStatus('verificado');
       setSelectedIds(new Set());
-      await fetchData();
     } catch (error: any) {
       toast({ title: 'Erro na verificação em bloco', description: error.message, variant: 'destructive' });
     } finally {
