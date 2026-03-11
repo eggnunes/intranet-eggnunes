@@ -1114,10 +1114,16 @@ export function RHPagamentos() {
               className="w-48"
             />
             {selectedForBatch.length > 0 && (
-              <Button onClick={gerarRecibosEmLote} variant="outline">
-                <Printer className="h-4 w-4 mr-2" />
-                Gerar {selectedForBatch.length} Recibos
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={confirmDeleteBatch} variant="destructive" size="sm">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir {selectedForBatch.length} Selecionado(s)
+                </Button>
+                <Button onClick={gerarRecibosEmLote} variant="outline">
+                  <Printer className="h-4 w-4 mr-2" />
+                  Gerar {selectedForBatch.length} Recibos
+                </Button>
+              </div>
             )}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
