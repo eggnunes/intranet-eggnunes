@@ -990,13 +990,24 @@ export default function ControlePrazos() {
                           <TableCell>{getVerificacaoBadge(task)}</TableCell>
                           <TableCell className="text-right">
                             {isVerifiable && (
-                              <Button
-                                size="sm"
-                                variant={task.verificacao ? 'outline' : 'default'}
-                                onClick={() => openVerifyDialog(task)}
-                              >
-                                {task.verificacao ? 'Rever' : 'Verificar'}
-                              </Button>
+                              task.verificacao ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openVerifyDialog(task)}
+                                >
+                                  Rever
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  disabled={verifyingId === task.advbox_id}
+                                  onClick={() => handleDirectVerify(task)}
+                                >
+                                  {verifyingId === task.advbox_id ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                                  Verificar
+                                </Button>
+                              )
                             )}
                           </TableCell>
                         </TableRow>
