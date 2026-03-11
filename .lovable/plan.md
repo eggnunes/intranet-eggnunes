@@ -1,37 +1,34 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+# Plano: Excluir Pagamentos Duplicados no RH
 
-### Causa Raiz
+## Situação Atual
+O componente `RHPagamentos.tsx` já possui:
+- Checkboxes de seleção individual e "selecionar todos"
+- Estado `selectedForBatch` para rastrear seleções
+- Botão de editar e gerar recibo por linha
+- Status "cancelado" disponível na edição
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+**Não existe**: botão de excluir pagamento (nem individual nem em lote).
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+## Alterações em `src/components/rh/RHPagamentos.tsx`
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+### 1. Botão "Excluir" individual por linha
+- Adicionar ícone `Trash2` (já importado) ao lado do botão de editar em cada linha da tabela
+- Ao clicar, abrir `AlertDialog` de confirmação com nome do colaborador e mês
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+### 2. Exclusão em lote (batch)
+- Adicionar botão "Excluir Selecionados" que aparece quando há pagamentos selecionados via checkbox
+- Confirmação via `AlertDialog` mostrando quantidade de pagamentos a excluir
 
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-```
+### 3. Lógica de exclusão
+- Deletar os itens (`rh_pagamento_itens`) vinculados primeiro
+- Deletar o pagamento (`rh_pagamentos`)
+- Se houver `lancamento_financeiro_id` vinculado, deletar também o lançamento financeiro correspondente (`fin_lancamentos`)
+- Atualizar lista local após exclusão
+- Pagamentos com `recibo_gerado = true` exibem aviso extra na confirmação ("Este pagamento já teve recibo gerado")
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
-
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
-
-### Solucao
-
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
-
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
-
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+### 4. Proteção
+- Confirmação obrigatória antes de excluir
+- Toast de sucesso/erro após operação
 
