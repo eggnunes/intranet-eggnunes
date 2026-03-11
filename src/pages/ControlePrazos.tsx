@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -13,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { RefreshCw, CheckCircle2, AlertTriangle, Clock, CalendarIcon, Filter, FileSpreadsheet, FileText } from 'lucide-react';
+import { RefreshCw, CheckCircle2, AlertTriangle, Clock, CalendarIcon, Filter, FileSpreadsheet, FileText, Plus, Search, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -24,38 +25,15 @@ import autoTable from 'jspdf-autotable';
 
 // Keywords that identify procedural deadlines (inclusion logic)
 const INCLUDED_TASK_KEYWORDS = [
-  'PETIÇÃO',
-  'PROTOCOLO',
-  'EMBARGOS',
-  'IMPUGNAÇÃO',
-  'CONTRARRAZÕES',
-  'RECURSO',
-  'APELAÇÃO',
-  'AGRAVO',
-  'CUMPRIMENTO DE SENTENÇA',
-  'MANIFESTAÇÃO',
-  'ALEGAÇÕES FINAIS',
-  'CONTRAMINUTA',
-  'AUDIÊNCIA',
-  'DISTRIBUIÇÃO',
-  'EMENDA À INICIAL',
-  'COMPLEMENTAÇÃO',
-  'ANÁLISE DE DECISÃO',
-  'ELABORAÇÃO DE CÁLCULO',
-  'AVALIAR DOCUMENTAÇÃO',
-  'REQUERIMENTO',
-  'SUSTENTAÇÃO ORAL',
-  'PREPARAR SUSTENTAÇÃO',
-  'INSTRUIR DOCUMENTOS',
-  'PRECATÓRIO',
-  'CORREÇÃO PEQUENA',
-  'REVISÃO DE PETIÇÃO',
-  'PESQUISA DE JURISPRUDÊNCIA',
-  'ANÁLISE DE CASO',
-  'GUIA DE CUSTAS',
-  'DEPÓSITO JUDICIAL',
-  'PREPARAR TESTEMUNHA',
-  'CARTA DE INTIMAÇÃO',
+  'PETIÇÃO', 'PROTOCOLO', 'EMBARGOS', 'IMPUGNAÇÃO', 'CONTRARRAZÕES',
+  'RECURSO', 'APELAÇÃO', 'AGRAVO', 'CUMPRIMENTO DE SENTENÇA',
+  'MANIFESTAÇÃO', 'ALEGAÇÕES FINAIS', 'CONTRAMINUTA', 'AUDIÊNCIA',
+  'DISTRIBUIÇÃO', 'EMENDA À INICIAL', 'COMPLEMENTAÇÃO', 'ANÁLISE DE DECISÃO',
+  'ELABORAÇÃO DE CÁLCULO', 'AVALIAR DOCUMENTAÇÃO', 'REQUERIMENTO',
+  'SUSTENTAÇÃO ORAL', 'PREPARAR SUSTENTAÇÃO', 'INSTRUIR DOCUMENTOS',
+  'PRECATÓRIO', 'CORREÇÃO PEQUENA', 'REVISÃO DE PETIÇÃO',
+  'PESQUISA DE JURISPRUDÊNCIA', 'ANÁLISE DE CASO', 'GUIA DE CUSTAS',
+  'DEPÓSITO JUDICIAL', 'PREPARAR TESTEMUNHA', 'CARTA DE INTIMAÇÃO',
   'INTIMAÇÃO DE TESTEMUNHA',
 ];
 
@@ -86,6 +64,13 @@ interface ProcessedTask extends AdvboxTask {
   prazo_interno: string | null;
   prazo_fatal: string | null;
   verificacao: PrazoVerificacao | null;
+  cliente_nome: string | null;
+  is_manual?: boolean;
+}
+
+interface AdvboxClient {
+  id: number;
+  name: string;
 }
 
 const PAGE_SIZE = 50;
@@ -108,6 +93,7 @@ export default function ControlePrazos() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [tasks, setTasks] = useState<AdvboxTask[]>([]);
+  const [manualTasks, setManualTasks] = useState<any[]>([]);
   const [verificacoes, setVerificacoes] = useState<PrazoVerificacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -116,6 +102,25 @@ export default function ControlePrazos() {
   const [verifyObservacoes, setVerifyObservacoes] = useState('');
   const [verifyStatus, setVerifyStatus] = useState<'verificado' | 'com_pendencia'>('verificado');
   const [currentPage, setCurrentPage] = useState(0);
+
+  // New Prazo Dialog
+  const [newPrazoOpen, setNewPrazoOpen] = useState(false);
+  const [savingPrazo, setSavingPrazo] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
+  const [clientResults, setClientResults] = useState<AdvboxClient[]>([]);
+  const [loadingClients, setLoadingClients] = useState(false);
+  const [syncingClients, setSyncingClients] = useState(false);
+  const [newPrazo, setNewPrazo] = useState({
+    cliente_nome: '',
+    cliente_advbox_id: null as number | null,
+    process_number: '',
+    task_type: '',
+    titulo: '',
+    prazo_interno: undefined as Date | undefined,
+    prazo_fatal: undefined as Date | undefined,
+    advogado_responsavel: '',
+    observacoes: '',
+  });
 
   // Filters
   const [filterAdvogado, setFilterAdvogado] = useState<string>('all');
@@ -131,6 +136,33 @@ export default function ControlePrazos() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Client search effect
+  useEffect(() => {
+    if (clientSearch.length < 2) {
+      setClientResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setLoadingClients(true);
+      try {
+        const normalizedSearch = clientSearch.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        const { data, error } = await supabase
+          .from('advbox_customers')
+          .select('advbox_id, name')
+          .or(`name.ilike.%${clientSearch}%,name.ilike.%${normalizedSearch}%`)
+          .order('name')
+          .limit(50);
+        if (error) throw error;
+        setClientResults((data || []).map(c => ({ id: c.advbox_id, name: c.name })).filter(c => c.id && c.name));
+      } catch (error) {
+        console.error('Error searching clients:', error);
+      } finally {
+        setLoadingClients(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [clientSearch]);
 
   const fetchAllTasks = async (): Promise<AdvboxTask[]> => {
     const batchSize = 1000;
@@ -156,15 +188,18 @@ export default function ControlePrazos() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [allTasks, verificacoesRes] = await Promise.all([
+      const [allTasks, verificacoesRes, manuaisRes] = await Promise.all([
         fetchAllTasks(),
         supabase.from('prazo_verificacoes').select('*'),
+        supabase.from('prazos_manuais').select('*').order('created_at', { ascending: false }),
       ]);
 
       if (verificacoesRes.error) throw verificacoesRes.error;
+      if (manuaisRes.error) throw manuaisRes.error;
 
       setTasks(allTasks);
       setVerificacoes((verificacoesRes.data as PrazoVerificacao[]) || []);
+      setManualTasks(manuaisRes.data || []);
     } catch (error: any) {
       console.error('Erro ao carregar dados:', error);
       toast({ title: 'Erro ao carregar dados', description: error.message, variant: 'destructive' });
@@ -193,6 +228,32 @@ export default function ControlePrazos() {
     }
   };
 
+  const handleSyncClients = async () => {
+    setSyncingClients(true);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) throw new Error('Não autenticado');
+      const response = await supabase.functions.invoke('sync-advbox-customers', {
+        headers: { Authorization: `Bearer ${session.session.access_token}` },
+      });
+      const result = response.data;
+      if (result?.status === 'partial') {
+        toast({ title: `${result.total_upserted} clientes sincronizados. Clique novamente para continuar.` });
+      } else {
+        toast({ title: 'Clientes sincronizados do ADVBox' });
+      }
+      // Re-trigger search
+      if (clientSearch.length >= 2) {
+        setClientSearch(prev => prev + ' ');
+        setTimeout(() => setClientSearch(prev => prev.trim()), 50);
+      }
+    } catch (error: any) {
+      toast({ title: 'Erro ao sincronizar clientes', description: error.message, variant: 'destructive' });
+    } finally {
+      setSyncingClients(false);
+    }
+  };
+
   const handleVerify = async () => {
     if (!selectedTask || !user) return;
     try {
@@ -214,6 +275,59 @@ export default function ControlePrazos() {
     }
   };
 
+  const handleSaveNewPrazo = async () => {
+    if (!newPrazo.cliente_nome || !newPrazo.task_type || !newPrazo.titulo) {
+      toast({ title: 'Preencha os campos obrigatórios: Cliente, Tipo de Tarefa e Título', variant: 'destructive' });
+      return;
+    }
+    setSavingPrazo(true);
+    try {
+      const { error } = await supabase.from('prazos_manuais').insert({
+        cliente_nome: newPrazo.cliente_nome,
+        cliente_advbox_id: newPrazo.cliente_advbox_id,
+        process_number: newPrazo.process_number || null,
+        task_type: newPrazo.task_type,
+        titulo: newPrazo.titulo,
+        prazo_interno: newPrazo.prazo_interno ? format(newPrazo.prazo_interno, 'yyyy-MM-dd') : null,
+        prazo_fatal: newPrazo.prazo_fatal ? format(newPrazo.prazo_fatal, 'yyyy-MM-dd') : null,
+        advogado_responsavel: newPrazo.advogado_responsavel || null,
+        observacoes: newPrazo.observacoes || null,
+        created_by: user?.id,
+      });
+      if (error) throw error;
+      toast({ title: 'Prazo cadastrado com sucesso!' });
+      setNewPrazoOpen(false);
+      resetNewPrazoForm();
+      await fetchData();
+    } catch (error: any) {
+      toast({ title: 'Erro ao cadastrar prazo', description: error.message, variant: 'destructive' });
+    } finally {
+      setSavingPrazo(false);
+    }
+  };
+
+  const resetNewPrazoForm = () => {
+    setNewPrazo({
+      cliente_nome: '',
+      cliente_advbox_id: null,
+      process_number: '',
+      task_type: '',
+      titulo: '',
+      prazo_interno: undefined,
+      prazo_fatal: undefined,
+      advogado_responsavel: '',
+      observacoes: '',
+    });
+    setClientSearch('');
+    setClientResults([]);
+  };
+
+  const selectClient = (client: AdvboxClient) => {
+    setNewPrazo(prev => ({ ...prev, cliente_nome: client.name, cliente_advbox_id: client.id }));
+    setClientSearch(client.name);
+    setClientResults([]);
+  };
+
   const openVerifyDialog = (task: ProcessedTask) => {
     setSelectedTask(task);
     setVerifyObservacoes('');
@@ -231,30 +345,52 @@ export default function ControlePrazos() {
       }
     });
 
-    return tasks
+    const advboxProcessed = tasks
       .filter(task => {
-        // Include only procedural deadline task types
         const taskType = (task.task_type || task.title || '').toUpperCase();
         if (!INCLUDED_TASK_KEYWORDS.some(keyword => taskType.includes(keyword))) return false;
-
-        // Exclude tasks assigned exclusively to Mariana
         const assignedUsers = task.assigned_users || '';
         const users = assignedUsers.split(',').map(u => u.trim().toLowerCase()).filter(Boolean);
         if (users.length > 0 && users.every(u => u.includes('mariana'))) return false;
-
         return true;
       })
       .map(task => {
         const rawData = task.raw_data || {};
+        const customers = rawData.lawsuit?.customers || [];
+        const clienteName = customers.length > 0 ? customers[0].name : null;
         return {
           ...task,
           data_publicacao: rawData.created_at || null,
           prazo_interno: rawData.date || null,
           prazo_fatal: rawData.date_deadline || task.due_date || null,
           verificacao: verificacaoMap.get(String(task.advbox_id)) || null,
+          cliente_nome: clienteName,
+          is_manual: false,
         };
       });
-  }, [tasks, verificacoes]);
+
+    // Convert manual tasks to ProcessedTask format
+    const manualProcessed: ProcessedTask[] = manualTasks.map(mt => ({
+      id: mt.id,
+      advbox_id: 0,
+      title: mt.titulo,
+      task_type: mt.task_type,
+      due_date: mt.prazo_fatal,
+      status: mt.status === 'concluido' ? 'completed' : 'pending',
+      assigned_users: mt.advogado_responsavel,
+      process_number: mt.process_number,
+      raw_data: null,
+      completed_at: null,
+      data_publicacao: mt.created_at,
+      prazo_interno: mt.prazo_interno,
+      prazo_fatal: mt.prazo_fatal,
+      verificacao: verificacaoMap.get(mt.id) || null,
+      cliente_nome: mt.cliente_nome,
+      is_manual: true,
+    }));
+
+    return [...advboxProcessed, ...manualProcessed];
+  }, [tasks, verificacoes, manualTasks]);
 
   // Get unique lawyers for filter dropdown
   const advogados = useMemo(() => {
@@ -339,6 +475,13 @@ export default function ControlePrazos() {
   }, [filteredTasks, currentPage]);
 
   const getVerificacaoBadge = (task: ProcessedTask) => {
+    if (task.is_manual) {
+      return (
+        <div className="flex items-center gap-1">
+          <Badge className="bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-300">Manual</Badge>
+        </div>
+      );
+    }
     if (task.status === 'completed') {
       return <Badge className="bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-300">Concluída no ADVBox</Badge>;
     }
@@ -357,7 +500,6 @@ export default function ControlePrazos() {
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
     try {
-      // Handle ISO datetime strings
       if (dateStr.includes('T') || dateStr.length > 10) {
         return format(new Date(dateStr), 'dd/MM/yyyy', { locale: ptBR });
       }
@@ -368,6 +510,7 @@ export default function ControlePrazos() {
   };
 
   const getTaskStatusLabel = (task: ProcessedTask): string => {
+    if (task.is_manual) return 'Manual';
     if (task.status === 'completed') return 'Concluída no ADVBox';
     if (!task.verificacao && isPrazoVencido(task)) return 'VENCIDO';
     if (!task.verificacao) return 'Pendente';
@@ -378,6 +521,7 @@ export default function ControlePrazos() {
   // Export helpers
   const getExportData = useCallback(() => {
     return filteredTasks.map(task => ({
+      'Cliente': task.cliente_nome || '-',
       'Nº Processo': task.process_number || 'Sem número',
       'Tarefa': task.title,
       'Tipo': task.task_type || '-',
@@ -398,7 +542,6 @@ export default function ControlePrazos() {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Controle de Prazos');
-    // Auto-size columns
     const colWidths = Object.keys(data[0]).map(key => ({
       wch: Math.max(key.length, ...data.map(row => String((row as any)[key]).length)) + 2
     }));
@@ -445,7 +588,7 @@ export default function ControlePrazos() {
   }, [getExportData, toast]);
 
   // Stats
-  const totalPendentes = processedTasks.filter(t => !t.verificacao && t.status !== 'completed').length;
+  const totalPendentes = processedTasks.filter(t => !t.verificacao && t.status !== 'completed' && !t.is_manual).length;
   const totalVerificados = processedTasks.filter(t => t.verificacao?.status === 'verificado').length;
   const totalComPendencia = processedTasks.filter(t => t.verificacao?.status === 'com_pendencia').length;
   const totalConcluidas = processedTasks.filter(t => t.status === 'completed').length;
@@ -461,7 +604,11 @@ export default function ControlePrazos() {
               Acompanhamento de prazos processuais das tarefas do ADVBox
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button onClick={() => { resetNewPrazoForm(); setNewPrazoOpen(true); }} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Novo Prazo
+            </Button>
             <Button onClick={handleExportExcel} variant="outline" size="sm" className="gap-2">
               <FileSpreadsheet className="h-4 w-4" />
               Excel
@@ -589,13 +736,7 @@ export default function ControlePrazos() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={filterDateFrom}
-                    onSelect={setFilterDateFrom}
-                    locale={ptBR}
-                    className="p-3 pointer-events-auto"
-                  />
+                  <Calendar mode="single" selected={filterDateFrom} onSelect={setFilterDateFrom} locale={ptBR} className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
 
@@ -607,13 +748,7 @@ export default function ControlePrazos() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={filterDateTo}
-                    onSelect={setFilterDateTo}
-                    locale={ptBR}
-                    className="p-3 pointer-events-auto"
-                  />
+                  <Calendar mode="single" selected={filterDateTo} onSelect={setFilterDateTo} locale={ptBR} className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
 
@@ -625,13 +760,7 @@ export default function ControlePrazos() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={filterPrazoFatalFrom}
-                    onSelect={setFilterPrazoFatalFrom}
-                    locale={ptBR}
-                    className="p-3 pointer-events-auto"
-                  />
+                  <Calendar mode="single" selected={filterPrazoFatalFrom} onSelect={setFilterPrazoFatalFrom} locale={ptBR} className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
 
@@ -643,15 +772,10 @@ export default function ControlePrazos() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={filterPrazoFatalTo}
-                    onSelect={setFilterPrazoFatalTo}
-                    locale={ptBR}
-                    className="p-3 pointer-events-auto"
-                  />
+                  <Calendar mode="single" selected={filterPrazoFatalTo} onSelect={setFilterPrazoFatalTo} locale={ptBR} className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
+
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className={cn("justify-start text-left font-normal", !filterEventoFrom && "text-muted-foreground")}>
@@ -660,13 +784,7 @@ export default function ControlePrazos() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={filterEventoFrom}
-                    onSelect={setFilterEventoFrom}
-                    locale={ptBR}
-                    className="p-3 pointer-events-auto"
-                  />
+                  <Calendar mode="single" selected={filterEventoFrom} onSelect={setFilterEventoFrom} locale={ptBR} className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
 
@@ -678,13 +796,7 @@ export default function ControlePrazos() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={filterEventoTo}
-                    onSelect={setFilterEventoTo}
-                    locale={ptBR}
-                    className="p-3 pointer-events-auto"
-                  />
+                  <Calendar mode="single" selected={filterEventoTo} onSelect={setFilterEventoTo} locale={ptBR} className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
             </div>
@@ -723,6 +835,7 @@ export default function ControlePrazos() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Cliente</TableHead>
                       <TableHead>Nº Processo</TableHead>
                       <TableHead>Tarefa</TableHead>
                       <TableHead>Advogado</TableHead>
@@ -741,9 +854,13 @@ export default function ControlePrazos() {
                           key={task.id}
                           className={cn(
                             task.status === 'completed' && 'opacity-60',
-                            vencido && 'bg-red-50 dark:bg-red-950/20 border-l-4 border-l-red-500'
+                            vencido && 'bg-red-50 dark:bg-red-950/20 border-l-4 border-l-red-500',
+                            task.is_manual && 'bg-purple-50/50 dark:bg-purple-950/10'
                           )}
                         >
+                          <TableCell className="text-sm max-w-[150px] truncate" title={task.cliente_nome || ''}>
+                            {task.cliente_nome || <span className="text-muted-foreground italic">-</span>}
+                          </TableCell>
                           <TableCell className="font-mono text-xs">
                             {task.process_number || <span className="text-muted-foreground italic">Sem número</span>}
                           </TableCell>
@@ -760,7 +877,7 @@ export default function ControlePrazos() {
                           </TableCell>
                           <TableCell>{getVerificacaoBadge(task)}</TableCell>
                           <TableCell className="text-right">
-                            {task.status !== 'completed' && (
+                            {task.status !== 'completed' && !task.is_manual && (
                               <Button
                                 size="sm"
                                 variant={task.verificacao ? 'outline' : 'default'}
@@ -783,23 +900,13 @@ export default function ControlePrazos() {
               </span>
               {totalPages > 1 && (
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage === 0}
-                    onClick={() => setCurrentPage(p => p - 1)}
-                  >
+                  <Button variant="outline" size="sm" disabled={currentPage === 0} onClick={() => setCurrentPage(p => p - 1)}>
                     Anterior
                   </Button>
                   <span className="text-xs text-muted-foreground">
                     Página {currentPage + 1} de {totalPages}
                   </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage >= totalPages - 1}
-                    onClick={() => setCurrentPage(p => p + 1)}
-                  >
+                  <Button variant="outline" size="sm" disabled={currentPage >= totalPages - 1} onClick={() => setCurrentPage(p => p + 1)}>
                     Próxima
                   </Button>
                 </div>
@@ -843,6 +950,170 @@ export default function ControlePrazos() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setVerifyDialogOpen(false)}>Cancelar</Button>
               <Button onClick={handleVerify}>Registrar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* New Prazo Dialog */}
+        <Dialog open={newPrazoOpen} onOpenChange={setNewPrazoOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Cadastrar Novo Prazo</DialogTitle>
+              <DialogDescription>
+                Cadastre um prazo manualmente. O número do processo é opcional.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+              {/* Client search */}
+              <div className="space-y-2">
+                <Label>Cliente *</Label>
+                <div className="relative">
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar cliente do ADVBox (mín. 2 caracteres)..."
+                        value={clientSearch}
+                        onChange={(e) => {
+                          setClientSearch(e.target.value);
+                          setNewPrazo(prev => ({ ...prev, cliente_nome: e.target.value, cliente_advbox_id: null }));
+                        }}
+                        className="pl-9"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSyncClients}
+                      disabled={syncingClients}
+                      className="shrink-0"
+                    >
+                      {syncingClients ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  {loadingClients && (
+                    <div className="absolute z-10 w-full mt-1 p-2 bg-popover border rounded-md shadow-md text-sm text-muted-foreground">
+                      Buscando...
+                    </div>
+                  )}
+                  {clientResults.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-md max-h-40 overflow-y-auto">
+                      {clientResults.map(client => (
+                        <button
+                          key={client.id}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                          onClick={() => selectClient(client)}
+                        >
+                          {client.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {newPrazo.cliente_advbox_id && (
+                  <p className="text-xs text-muted-foreground">✓ Cliente selecionado do ADVBox (ID: {newPrazo.cliente_advbox_id})</p>
+                )}
+              </div>
+
+              {/* Process number */}
+              <div className="space-y-2">
+                <Label>Nº Processo (opcional)</Label>
+                <Input
+                  placeholder="Ex: 0000000-00.0000.0.00.0000"
+                  value={newPrazo.process_number}
+                  onChange={(e) => setNewPrazo(prev => ({ ...prev, process_number: e.target.value }))}
+                />
+              </div>
+
+              {/* Task type */}
+              <div className="space-y-2">
+                <Label>Tipo de Tarefa *</Label>
+                <Select value={newPrazo.task_type} onValueChange={(v) => setNewPrazo(prev => ({ ...prev, task_type: v }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INCLUDED_TASK_KEYWORDS.map(kw => (
+                      <SelectItem key={kw} value={kw}>{kw}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Title */}
+              <div className="space-y-2">
+                <Label>Título *</Label>
+                <Input
+                  placeholder="Descrição do prazo..."
+                  value={newPrazo.titulo}
+                  onChange={(e) => setNewPrazo(prev => ({ ...prev, titulo: e.target.value }))}
+                />
+              </div>
+
+              {/* Advogado */}
+              <div className="space-y-2">
+                <Label>Advogado Responsável</Label>
+                <Select value={newPrazo.advogado_responsavel} onValueChange={(v) => setNewPrazo(prev => ({ ...prev, advogado_responsavel: v }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o advogado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {advogados.map(adv => (
+                      <SelectItem key={adv} value={adv}>{adv}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Prazo Interno */}
+              <div className="space-y-2">
+                <Label>Prazo Interno</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !newPrazo.prazo_interno && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {newPrazo.prazo_interno ? format(newPrazo.prazo_interno, 'dd/MM/yyyy') : 'Selecionar data'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={newPrazo.prazo_interno} onSelect={(d) => setNewPrazo(prev => ({ ...prev, prazo_interno: d }))} locale={ptBR} className="p-3 pointer-events-auto" />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Prazo Fatal */}
+              <div className="space-y-2">
+                <Label>Prazo Fatal</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !newPrazo.prazo_fatal && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {newPrazo.prazo_fatal ? format(newPrazo.prazo_fatal, 'dd/MM/yyyy') : 'Selecionar data'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={newPrazo.prazo_fatal} onSelect={(d) => setNewPrazo(prev => ({ ...prev, prazo_fatal: d }))} locale={ptBR} className="p-3 pointer-events-auto" />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Observações */}
+              <div className="space-y-2">
+                <Label>Observações</Label>
+                <Textarea
+                  placeholder="Anotações adicionais..."
+                  value={newPrazo.observacoes}
+                  onChange={(e) => setNewPrazo(prev => ({ ...prev, observacoes: e.target.value }))}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNewPrazoOpen(false)}>Cancelar</Button>
+              <Button onClick={handleSaveNewPrazo} disabled={savingPrazo}>
+                {savingPrazo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Cadastrar
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

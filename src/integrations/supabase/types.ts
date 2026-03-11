@@ -5323,6 +5323,57 @@ export type Database = {
         }
         Relationships: []
       }
+      prazos_manuais: {
+        Row: {
+          advogado_responsavel: string | null
+          cliente_advbox_id: number | null
+          cliente_nome: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          observacoes: string | null
+          prazo_fatal: string | null
+          prazo_interno: string | null
+          process_number: string | null
+          status: string | null
+          task_type: string
+          titulo: string
+          updated_at: string | null
+        }
+        Insert: {
+          advogado_responsavel?: string | null
+          cliente_advbox_id?: number | null
+          cliente_nome: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          observacoes?: string | null
+          prazo_fatal?: string | null
+          prazo_interno?: string | null
+          process_number?: string | null
+          status?: string | null
+          task_type: string
+          titulo: string
+          updated_at?: string | null
+        }
+        Update: {
+          advogado_responsavel?: string | null
+          cliente_advbox_id?: number | null
+          cliente_nome?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          observacoes?: string | null
+          prazo_fatal?: string | null
+          prazo_interno?: string | null
+          process_number?: string | null
+          status?: string | null
+          task_type?: string
+          titulo?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       product_template_associations: {
         Row: {
           contra_partida_template_id: string | null
