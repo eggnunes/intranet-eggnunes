@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { RefreshCw, CheckCircle2, AlertTriangle, Clock, CalendarIcon, Filter, FileSpreadsheet, FileText, Plus, Search, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -102,6 +103,11 @@ export default function ControlePrazos() {
   const [verifyObservacoes, setVerifyObservacoes] = useState('');
   const [verifyStatus, setVerifyStatus] = useState<'verificado' | 'com_pendencia'>('verificado');
   const [currentPage, setCurrentPage] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkVerifyOpen, setBulkVerifyOpen] = useState(false);
+  const [bulkVerifyStatus, setBulkVerifyStatus] = useState<'verificado' | 'com_pendencia'>('verificado');
+  const [bulkVerifyObs, setBulkVerifyObs] = useState('');
+  const [bulkVerifying, setBulkVerifying] = useState(false);
 
   // New Prazo Dialog
   const [newPrazoOpen, setNewPrazoOpen] = useState(false);
@@ -335,6 +341,7 @@ export default function ControlePrazos() {
     setVerifyDialogOpen(true);
   };
 
+
   // Process tasks: filter excluded types, extract dates from raw_data, match verificacoes
   const processedTasks: ProcessedTask[] = useMemo(() => {
     const verificacaoMap = new Map<string, PrazoVerificacao>();
@@ -474,7 +481,59 @@ export default function ControlePrazos() {
     return filteredTasks.slice(start, start + PAGE_SIZE);
   }, [filteredTasks, currentPage]);
 
-  const getVerificacaoBadge = (task: ProcessedTask) => {
+  // Bulk selection helpers
+  const verifiableTasks = useMemo(() => {
+    return paginatedTasks.filter(t => t.status !== 'completed' && !t.is_manual);
+  }, [paginatedTasks]);
+
+  const allPageSelected = verifiableTasks.length > 0 && verifiableTasks.every(t => selectedIds.has(String(t.advbox_id)));
+
+  const toggleSelectAll = () => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        verifiableTasks.forEach(t => next.delete(String(t.advbox_id)));
+      } else {
+        verifiableTasks.forEach(t => next.add(String(t.advbox_id)));
+      }
+      return next;
+    });
+  };
+
+  const toggleSelect = (advboxId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(advboxId)) next.delete(advboxId);
+      else next.add(advboxId);
+      return next;
+    });
+  };
+
+  const handleBulkVerify = async () => {
+    if (!user || selectedIds.size === 0) return;
+    setBulkVerifying(true);
+    try {
+      const records = Array.from(selectedIds).map(id => ({
+        advbox_task_id: id,
+        verificado_por: user.id,
+        status: bulkVerifyStatus,
+        observacoes: bulkVerifyObs || null,
+      }));
+      const { error } = await supabase.from('prazo_verificacoes').insert(records);
+      if (error) throw error;
+      toast({ title: `${records.length} prazos verificados em bloco` });
+      setBulkVerifyOpen(false);
+      setBulkVerifyObs('');
+      setBulkVerifyStatus('verificado');
+      setSelectedIds(new Set());
+      await fetchData();
+    } catch (error: any) {
+      toast({ title: 'Erro na verificação em bloco', description: error.message, variant: 'destructive' });
+    } finally {
+      setBulkVerifying(false);
+    }
+  };
+
     if (task.is_manual) {
       return (
         <div className="flex items-center gap-1">
@@ -826,6 +885,19 @@ export default function ControlePrazos() {
         {/* Table */}
         <Card>
           <CardContent className="p-0">
+            {/* Bulk verify bar */}
+            {selectedIds.size > 0 && (
+              <div className="p-3 border-b bg-muted/50 flex items-center justify-between">
+                <span className="text-sm font-medium">{selectedIds.size} tarefa(s) selecionada(s)</span>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setSelectedIds(new Set())}>Limpar seleção</Button>
+                  <Button size="sm" onClick={() => { setBulkVerifyObs(''); setBulkVerifyStatus('verificado'); setBulkVerifyOpen(true); }}>
+                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                    Verificar Selecionados
+                  </Button>
+                </div>
+              </div>
+            )}
             {loading ? (
               <div className="p-8 text-center text-muted-foreground">Carregando...</div>
             ) : filteredTasks.length === 0 ? (
@@ -835,6 +907,9 @@ export default function ControlePrazos() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-10">
+                        <Checkbox checked={allPageSelected} onCheckedChange={toggleSelectAll} />
+                      </TableHead>
                       <TableHead>Cliente</TableHead>
                       <TableHead>Nº Processo</TableHead>
                       <TableHead>Tarefa</TableHead>
@@ -849,15 +924,26 @@ export default function ControlePrazos() {
                   <TableBody>
                     {paginatedTasks.map(task => {
                       const vencido = isPrazoVencido(task);
+                      const isVerifiable = task.status !== 'completed' && !task.is_manual;
+                      const taskKey = String(task.advbox_id);
                       return (
                         <TableRow
                           key={task.id}
                           className={cn(
                             task.status === 'completed' && 'opacity-60',
                             vencido && 'bg-red-50 dark:bg-red-950/20 border-l-4 border-l-red-500',
-                            task.is_manual && 'bg-purple-50/50 dark:bg-purple-950/10'
+                            task.is_manual && 'bg-purple-50/50 dark:bg-purple-950/10',
+                            selectedIds.has(taskKey) && 'bg-primary/5'
                           )}
                         >
+                          <TableCell>
+                            {isVerifiable ? (
+                              <Checkbox
+                                checked={selectedIds.has(taskKey)}
+                                onCheckedChange={() => toggleSelect(taskKey)}
+                              />
+                            ) : null}
+                          </TableCell>
                           <TableCell className="text-sm max-w-[150px] truncate" title={task.cliente_nome || ''}>
                             {task.cliente_nome || <span className="text-muted-foreground italic">-</span>}
                           </TableCell>
@@ -877,7 +963,7 @@ export default function ControlePrazos() {
                           </TableCell>
                           <TableCell>{getVerificacaoBadge(task)}</TableCell>
                           <TableCell className="text-right">
-                            {task.status !== 'completed' && !task.is_manual && (
+                            {isVerifiable && (
                               <Button
                                 size="sm"
                                 variant={task.verificacao ? 'outline' : 'default'}
@@ -1113,6 +1199,48 @@ export default function ControlePrazos() {
               <Button onClick={handleSaveNewPrazo} disabled={savingPrazo}>
                 {savingPrazo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Cadastrar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Bulk Verify Dialog */}
+        <Dialog open={bulkVerifyOpen} onOpenChange={setBulkVerifyOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Verificar em Bloco</DialogTitle>
+              <DialogDescription>
+                Aplicar verificação para {selectedIds.size} tarefa(s) selecionada(s)
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Status da verificação</label>
+                <Select value={bulkVerifyStatus} onValueChange={(v) => setBulkVerifyStatus(v as 'verificado' | 'com_pendencia')}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="verificado">✅ Verificado — prazo cumprido</SelectItem>
+                    <SelectItem value="com_pendencia">⚠️ Com pendência</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Observações (opcional)</label>
+                <Textarea
+                  className="mt-1"
+                  placeholder="Anotações para todos os selecionados..."
+                  value={bulkVerifyObs}
+                  onChange={(e) => setBulkVerifyObs(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setBulkVerifyOpen(false)}>Cancelar</Button>
+              <Button onClick={handleBulkVerify} disabled={bulkVerifying}>
+                {bulkVerifying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Verificar {selectedIds.size} tarefa(s)
               </Button>
             </DialogFooter>
           </DialogContent>
