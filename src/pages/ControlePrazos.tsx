@@ -1203,6 +1203,48 @@ export default function ControlePrazos() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Bulk Verify Dialog */}
+        <Dialog open={bulkVerifyOpen} onOpenChange={setBulkVerifyOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Verificar em Bloco</DialogTitle>
+              <DialogDescription>
+                Aplicar verificação para {selectedIds.size} tarefa(s) selecionada(s)
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Status da verificação</label>
+                <Select value={bulkVerifyStatus} onValueChange={(v) => setBulkVerifyStatus(v as 'verificado' | 'com_pendencia')}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="verificado">✅ Verificado — prazo cumprido</SelectItem>
+                    <SelectItem value="com_pendencia">⚠️ Com pendência</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Observações (opcional)</label>
+                <Textarea
+                  className="mt-1"
+                  placeholder="Anotações para todos os selecionados..."
+                  value={bulkVerifyObs}
+                  onChange={(e) => setBulkVerifyObs(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setBulkVerifyOpen(false)}>Cancelar</Button>
+              <Button onClick={handleBulkVerify} disabled={bulkVerifying}>
+                {bulkVerifying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Verificar {selectedIds.size} tarefa(s)
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
