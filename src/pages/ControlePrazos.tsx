@@ -534,6 +534,7 @@ export default function ControlePrazos() {
     }
   };
 
+  const getVerificacaoBadge = (task: ProcessedTask) => {
     if (task.is_manual) {
       return (
         <div className="flex items-center gap-1">
