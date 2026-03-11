@@ -15,7 +15,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { RefreshCw, CheckCircle2, AlertTriangle, Clock, CalendarIcon, Filter, FileSpreadsheet, FileText, Plus, Search, Loader2 } from 'lucide-react';
+import { RefreshCw, CheckCircle2, AlertTriangle, Clock, CalendarIcon, Filter, FileSpreadsheet, FileText, Plus, Search, Loader2, Undo2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -303,6 +303,20 @@ export default function ControlePrazos() {
       setSelectedTask(null);
     } catch (error: any) {
       toast({ title: 'Erro ao registrar verificação', description: error.message, variant: 'destructive' });
+    }
+  };
+  const handleUndoVerify = async (task: ProcessedTask) => {
+    if (!task.verificacao || !user) return;
+    setVerifyingId(task.advbox_id);
+    try {
+      const { error } = await supabase.from('prazo_verificacoes').delete().eq('id', task.verificacao.id);
+      if (error) throw error;
+      setVerificacoes(prev => prev.filter(v => v.id !== task.verificacao!.id));
+      toast({ title: 'Verificação desfeita' });
+    } catch (error: any) {
+      toast({ title: 'Erro ao desfazer', description: error.message, variant: 'destructive' });
+    } finally {
+      setVerifyingId(null);
     }
   };
 
@@ -993,13 +1007,24 @@ export default function ControlePrazos() {
                           <TableCell className="text-right">
                             {isVerifiable && (
                               task.verificacao ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openVerifyDialog(task)}
-                                >
-                                  Rever
-                                </Button>
+                                <div className="flex items-center gap-1 justify-end">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openVerifyDialog(task)}
+                                  >
+                                    Rever
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    disabled={verifyingId === task.advbox_id}
+                                    onClick={() => handleUndoVerify(task)}
+                                    title="Desfazer verificação"
+                                  >
+                                    {verifyingId === task.advbox_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+                                  </Button>
+                                </div>
                               ) : (
                                 <Button
                                   size="sm"
