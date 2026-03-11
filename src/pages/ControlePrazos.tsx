@@ -305,8 +305,22 @@ export default function ControlePrazos() {
       toast({ title: 'Erro ao registrar verificação', description: error.message, variant: 'destructive' });
     }
   };
+  const handleUndoVerify = async (task: ProcessedTask) => {
+    if (!task.verificacao || !user) return;
+    setVerifyingId(task.advbox_id);
+    try {
+      const { error } = await supabase.from('prazo_verificacoes').delete().eq('id', task.verificacao.id);
+      if (error) throw error;
+      setVerificacoes(prev => prev.filter(v => v.id !== task.verificacao!.id));
+      toast({ title: 'Verificação desfeita' });
+    } catch (error: any) {
+      toast({ title: 'Erro ao desfazer', description: error.message, variant: 'destructive' });
+    } finally {
+      setVerifyingId(null);
+    }
+  };
 
-  const handleSaveNewPrazo = async () => {
+
     if (!newPrazo.cliente_nome || !newPrazo.task_type || !newPrazo.titulo) {
       toast({ title: 'Preencha os campos obrigatórios: Cliente, Tipo de Tarefa e Título', variant: 'destructive' });
       return;
