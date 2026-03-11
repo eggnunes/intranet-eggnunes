@@ -108,6 +108,7 @@ export default function ControlePrazos() {
   const [bulkVerifyStatus, setBulkVerifyStatus] = useState<'verificado' | 'com_pendencia'>('verificado');
   const [bulkVerifyObs, setBulkVerifyObs] = useState('');
   const [bulkVerifying, setBulkVerifying] = useState(false);
+  const [verifyingId, setVerifyingId] = useState<number | null>(null);
 
   // New Prazo Dialog
   const [newPrazoOpen, setNewPrazoOpen] = useState(false);
@@ -260,22 +261,46 @@ export default function ControlePrazos() {
     }
   };
 
+  const handleDirectVerify = async (task: ProcessedTask) => {
+    if (!user) return;
+    setVerifyingId(task.advbox_id);
+    try {
+      const { data, error } = await supabase.from('prazo_verificacoes').insert({
+        advbox_task_id: String(task.advbox_id),
+        verificado_por: user.id,
+        status: 'verificado',
+        observacoes: null,
+      }).select();
+      if (error) throw error;
+      if (data && data[0]) {
+        setVerificacoes(prev => [...prev, data[0] as PrazoVerificacao]);
+      }
+      toast({ title: 'Prazo verificado ✅' });
+    } catch (error: any) {
+      toast({ title: 'Erro ao verificar', description: error.message, variant: 'destructive' });
+    } finally {
+      setVerifyingId(null);
+    }
+  };
+
   const handleVerify = async () => {
     if (!selectedTask || !user) return;
     try {
-      const { error } = await supabase.from('prazo_verificacoes').insert({
+      const { data, error } = await supabase.from('prazo_verificacoes').insert({
         advbox_task_id: String(selectedTask.advbox_id),
         verificado_por: user.id,
         status: verifyStatus,
         observacoes: verifyObservacoes || null,
-      });
+      }).select();
       if (error) throw error;
+      if (data && data[0]) {
+        setVerificacoes(prev => [...prev, data[0] as PrazoVerificacao]);
+      }
       toast({ title: verifyStatus === 'verificado' ? 'Prazo verificado' : 'Pendência registrada' });
       setVerifyDialogOpen(false);
       setVerifyObservacoes('');
       setVerifyStatus('verificado');
       setSelectedTask(null);
-      await fetchData();
     } catch (error: any) {
       toast({ title: 'Erro ao registrar verificação', description: error.message, variant: 'destructive' });
     }
@@ -519,14 +544,16 @@ export default function ControlePrazos() {
         status: bulkVerifyStatus,
         observacoes: bulkVerifyObs || null,
       }));
-      const { error } = await supabase.from('prazo_verificacoes').insert(records);
+      const { data, error } = await supabase.from('prazo_verificacoes').insert(records).select();
       if (error) throw error;
+      if (data) {
+        setVerificacoes(prev => [...prev, ...(data as PrazoVerificacao[])]);
+      }
       toast({ title: `${records.length} prazos verificados em bloco` });
       setBulkVerifyOpen(false);
       setBulkVerifyObs('');
       setBulkVerifyStatus('verificado');
       setSelectedIds(new Set());
-      await fetchData();
     } catch (error: any) {
       toast({ title: 'Erro na verificação em bloco', description: error.message, variant: 'destructive' });
     } finally {
@@ -965,13 +992,24 @@ export default function ControlePrazos() {
                           <TableCell>{getVerificacaoBadge(task)}</TableCell>
                           <TableCell className="text-right">
                             {isVerifiable && (
-                              <Button
-                                size="sm"
-                                variant={task.verificacao ? 'outline' : 'default'}
-                                onClick={() => openVerifyDialog(task)}
-                              >
-                                {task.verificacao ? 'Rever' : 'Verificar'}
-                              </Button>
+                              task.verificacao ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openVerifyDialog(task)}
+                                >
+                                  Rever
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  disabled={verifyingId === task.advbox_id}
+                                  onClick={() => handleDirectVerify(task)}
+                                >
+                                  {verifyingId === task.advbox_id ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                                  Verificar
+                                </Button>
+                              )
                             )}
                           </TableCell>
                         </TableRow>
