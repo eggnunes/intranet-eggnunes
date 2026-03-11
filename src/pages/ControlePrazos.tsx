@@ -885,6 +885,19 @@ export default function ControlePrazos() {
         {/* Table */}
         <Card>
           <CardContent className="p-0">
+            {/* Bulk verify bar */}
+            {selectedIds.size > 0 && (
+              <div className="p-3 border-b bg-muted/50 flex items-center justify-between">
+                <span className="text-sm font-medium">{selectedIds.size} tarefa(s) selecionada(s)</span>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setSelectedIds(new Set())}>Limpar seleção</Button>
+                  <Button size="sm" onClick={() => { setBulkVerifyObs(''); setBulkVerifyStatus('verificado'); setBulkVerifyOpen(true); }}>
+                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                    Verificar Selecionados
+                  </Button>
+                </div>
+              </div>
+            )}
             {loading ? (
               <div className="p-8 text-center text-muted-foreground">Carregando...</div>
             ) : filteredTasks.length === 0 ? (
@@ -894,6 +907,9 @@ export default function ControlePrazos() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-10">
+                        <Checkbox checked={allPageSelected} onCheckedChange={toggleSelectAll} />
+                      </TableHead>
                       <TableHead>Cliente</TableHead>
                       <TableHead>Nº Processo</TableHead>
                       <TableHead>Tarefa</TableHead>
@@ -908,15 +924,26 @@ export default function ControlePrazos() {
                   <TableBody>
                     {paginatedTasks.map(task => {
                       const vencido = isPrazoVencido(task);
+                      const isVerifiable = task.status !== 'completed' && !task.is_manual;
+                      const taskKey = String(task.advbox_id);
                       return (
                         <TableRow
                           key={task.id}
                           className={cn(
                             task.status === 'completed' && 'opacity-60',
                             vencido && 'bg-red-50 dark:bg-red-950/20 border-l-4 border-l-red-500',
-                            task.is_manual && 'bg-purple-50/50 dark:bg-purple-950/10'
+                            task.is_manual && 'bg-purple-50/50 dark:bg-purple-950/10',
+                            selectedIds.has(taskKey) && 'bg-primary/5'
                           )}
                         >
+                          <TableCell>
+                            {isVerifiable ? (
+                              <Checkbox
+                                checked={selectedIds.has(taskKey)}
+                                onCheckedChange={() => toggleSelect(taskKey)}
+                              />
+                            ) : null}
+                          </TableCell>
                           <TableCell className="text-sm max-w-[150px] truncate" title={task.cliente_nome || ''}>
                             {task.cliente_nome || <span className="text-muted-foreground italic">-</span>}
                           </TableCell>
@@ -936,7 +963,7 @@ export default function ControlePrazos() {
                           </TableCell>
                           <TableCell>{getVerificacaoBadge(task)}</TableCell>
                           <TableCell className="text-right">
-                            {task.status !== 'completed' && !task.is_manual && (
+                            {isVerifiable && (
                               <Button
                                 size="sm"
                                 variant={task.verificacao ? 'outline' : 'default'}
