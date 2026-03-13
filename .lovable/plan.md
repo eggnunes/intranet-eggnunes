@@ -1,37 +1,27 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+# Diagnóstico: Erro ao enviar mensagens de aniversário
 
-### Causa Raiz
+## Problema Identificado
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+O erro **"Failed to send a request to the Edge Function"** ocorre porque a função `chatguru-birthday-messages` está configurada com `verify_jwt = true` no `config.toml`. Com o sistema de signing-keys atual, essa configuração causa rejeição da requisição antes mesmo do código da função executar.
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+A função já faz validação de autenticação internamente (verifica token, busca usuário, confirma role admin), então a verificação JWT na camada de infraestrutura é redundante e está bloqueando as chamadas.
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+## Correção
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+**Arquivo**: `supabase/config.toml`
 
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+Alterar:
+```toml
+[functions.chatguru-birthday-messages]
+verify_jwt = false
 ```
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+A segurança é mantida porque a função já valida internamente:
+1. Verifica `Authorization` header (linha 245-251)
+2. Valida token com `getUser` (linha 254)
+3. Confirma role `admin` (linha 263-275)
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
-
-### Solucao
-
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
-
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
-
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+Nenhuma outra alteração é necessária.
 
