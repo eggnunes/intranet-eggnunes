@@ -1,37 +1,44 @@
 
+Diagnóstico objetivo
+- O erro persiste porque a função `chatguru-birthday-messages` ainda faz varredura completa de clientes via `/customers` com paginação (`fetchBirthdaysFromAdvbox()`), mesmo após as mudanças anteriores.
+- Esse trecho continua vulnerável a rate limit (`429`) e pode consumir o tempo total antes de enviar qualquer mensagem, gerando no front o erro genérico “Failed to send a request to the Edge Function”.
+- Ou seja: o gargalo principal está na etapa de busca de aniversariantes, não no envio em si.
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+Plano de correção (implementação)
+1) Corrigir a fonte dos aniversariantes no backend (arquivo: `supabase/functions/chatguru-birthday-messages/index.ts`)
+- Remover a estratégia de buscar todos os clientes (`/customers` com offset/limit).
+- Implementar busca otimizada:
+  - Prioridade 1: usar lista recebida do front (clientes de hoje já carregados na tela).
+  - Fallback: buscar via endpoint específico de aniversários (`/customers/birthdays`) em chamada única.
+- Manter filtro final por dia/mês (BRT), telefone válido e exclusões do banco.
 
-### Causa Raiz
+2) Tornar a execução previsível por lote
+- Adicionar limite fixo por execução (`MAX_MESSAGES_PER_RUN`, ex.: 30–40) antes do loop de envio.
+- Continuar com idempotência por dia (`chatguru_birthday_messages_log`) para que cada novo clique processe apenas pendentes.
+- Preservar retorno com `sent`, `failed`, `remaining`, `alreadySentToday`.
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+3) Ajustar o front para reduzir dependência de busca externa no clique (arquivo: `src/pages/AniversariosClientes.tsx`)
+- No envio, passar para a função os aniversariantes elegíveis de hoje (já disponíveis no estado da página).
+- Manter UX atual de “processamento parcial” quando `remaining > 0` (clicar novamente continua sem duplicar).
+- Melhorar tratamento de erro para diferenciar:
+  - falha de conectividade/sessão;
+  - erro retornado pela função (401/403/500).
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+4) Endurecer validações sem perder segurança
+- Manter validação de admin no backend.
+- Manter exclusões e idempotência sempre no servidor (mesmo recebendo lista do front), para impedir envios indevidos/duplicados.
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+5) Validação pós-implementação
+- Testar o botão “Enviar Mensagens de Aniversário” com usuário admin autenticado.
+- Confirmar que:
+  - não aparece mais “Failed to send a request...”;
+  - retorno traz contadores corretos;
+  - novo clique processa apenas `remaining`;
+  - não há duplicidade no mesmo dia em `chatguru_birthday_messages_log`.
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-```
-
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
-
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
-
-### Solucao
-
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
-
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
-
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
-
+Detalhes técnicos (resumo)
+- Arquivos a alterar:
+  - `supabase/functions/chatguru-birthday-messages/index.ts`
+  - `src/pages/AniversariosClientes.tsx`
+- Sem migração de banco nesta correção (usaremos estruturas já existentes: exclusões + log).
+- Resultado esperado: envio estável, sem timeout por varredura massiva, com continuidade segura por lotes.
