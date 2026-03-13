@@ -429,25 +429,31 @@ export default function AniversariosClientes() {
       const results = data?.results;
 
       if (results) {
-        if (results.total === 0) {
+        if (results.total === 0 && (!results.alreadySentToday || results.alreadySentToday === 0)) {
           toast({
             title: 'Nenhum aniversariante elegível',
             description: 'Nenhum aniversariante elegível encontrado para envio hoje. Verifique se há clientes com aniversário hoje e telefone cadastrado.',
             variant: 'destructive',
           });
+        } else if (results.total === 0 && results.alreadySentToday > 0) {
+          toast({
+            title: 'Mensagens já enviadas',
+            description: `Todas as ${results.alreadySentToday} mensagens de hoje já foram enviadas anteriormente.`,
+          });
+        } else if (results.remaining > 0) {
+          toast({
+            title: 'Processamento parcial',
+            description: `${results.sent} enviada(s), ${results.remaining} pendente(s). Clique novamente para continuar o envio.${results.alreadySentToday > 0 ? ` (${results.alreadySentToday} já enviadas antes)` : ''}`,
+          });
         } else {
           toast({
             title: 'Mensagens enviadas!',
-            description: `${results.sent} mensagem(ns) enviada(s) com sucesso. ${results.failed > 0 ? `${results.failed} falhou(aram).` : ''}`,
+            description: `${results.sent} mensagem(ns) enviada(s) com sucesso.${results.failed > 0 ? ` ${results.failed} falhou(aram).` : ''}${results.alreadySentToday > 0 ? ` (${results.alreadySentToday} já enviadas antes)` : ''}`,
           });
         }
 
-        // Mostrar erros detalhados se houver
         if (results.errors && results.errors.length > 0) {
           console.error('Errors sending messages:', results.errors);
-          results.errors.forEach((err: any) => {
-            console.error(`Failed for ${err.customer}:`, err.error);
-          });
         }
       } else {
         toast({

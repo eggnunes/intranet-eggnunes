@@ -1,47 +1,37 @@
 
-Diagnóstico (já validado em logs)
-- Do I know what the issue is? Sim.
-- A função `chatguru-birthday-messages` está estourando tempo de execução no backend.
-- Evidências:
-  - logs mostram busca massiva de clientes (`~10.440`) com vários `429` (rate limit) antes de iniciar envio;
-  - chamada termina com timeout de gateway (504/limite da plataforma), então o front recebe “Failed to send a request to the Edge Function”;
-  - além disso, o intervalo de `3 minutos` entre mensagens torna inviável concluir o processo numa chamada HTTP síncrona.
 
-Plano de correção (implementação)
-1) Refatorar a função para executar dentro do limite de tempo
-- Arquivo: `supabase/functions/chatguru-birthday-messages/index.ts`
-- Trocar a estratégia de busca:
-  - parar de paginar `/customers` completo;
-  - buscar aniversariantes por endpoint específico de aniversário (chamada única) e filtrar por dia/mês em BRT.
-- Adicionar timeout por requisição externa (`fetch` com `AbortController`) para Advbox/ChatGuru, evitando travamento silencioso.
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-2) Tornar o envio idempotente (sem duplicar em reexecuções)
-- Antes de enviar, consultar `chatguru_birthday_messages_log` para “já enviados hoje” (fuso BRT).
-- Excluir esses clientes da fila do envio.
-- Resultado: se houver nova tentativa, só segue com os pendentes.
+### Causa Raiz
 
-3) Eliminar o gargalo de espera longa
-- Remover espera de 3 minutos dentro da mesma execução HTTP.
-- Usar throttle curto (ex.: 1–2s) apenas para não disparar tudo de uma vez.
-- Incluir “guardrail” de tempo total (ex.: ~130s): se estiver perto do limite, encerra com sucesso parcial e retorna quantos faltam.
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-4) Melhorar retorno para o front
-- Retornar payload com:
-  - `sent`, `failed`, `remaining`, `alreadySentToday`.
-- Arquivo: `src/pages/AniversariosClientes.tsx`
-  - ajustar toast para mostrar “processamento parcial” quando houver `remaining > 0`;
-  - instrução clara de “clicar novamente para concluir pendentes” (sem duplicar os já enviados).
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-5) Validação pós-ajuste
-- Testar fluxo real no botão “Enviar mensagens”.
-- Confirmar que:
-  - não ocorre mais “Failed to send a request…”;
-  - logs da função fecham com resposta 200;
-  - reexecução não duplica cliente já enviado no dia;
-  - histórico de falhas/sucessos continua preenchendo corretamente.
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-Escopo de arquivos
-- `supabase/functions/chatguru-birthday-messages/index.ts` (principal)
-- `src/pages/AniversariosClientes.tsx` (feedback de resultado no front)
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-Sem necessidade de nova tabela/migração para esta correção imediata.
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+```
+
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+
+### Solucao
+
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+
