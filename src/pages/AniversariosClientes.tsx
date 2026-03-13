@@ -420,7 +420,27 @@ export default function AniversariosClientes() {
     setSendingMessages(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('chatguru-birthday-messages');
+      // Build today's eligible customers list from frontend state
+      const excludedIds = new Set(exclusions.map(e => e.customer_id));
+      const now = new Date();
+      const todayCustomers = customers
+        .filter(c => {
+          const birthday = new Date(c.birthday);
+          return birthday.getDate() === now.getDate() &&
+                 birthday.getMonth() === now.getMonth() &&
+                 !excludedIds.has(c.id) &&
+                 c.phone;
+        })
+        .map(c => ({
+          id: c.id,
+          name: c.name,
+          phone: c.phone,
+          birthday: c.birthday,
+        }));
+
+      const { data, error } = await supabase.functions.invoke('chatguru-birthday-messages', {
+        body: { customers: todayCustomers },
+      });
 
       if (error) {
         throw error;
