@@ -155,3 +155,6 @@ verify_jwt = false
 
 [functions.analyze-decision]
 verify_jwt = true
+
+[functions.generate-automation-message]
+verify_jwt = true

@@ -7689,6 +7689,53 @@ export type Database = {
           },
         ]
       }
+      whatsapp_automation_rules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          interval_seconds: number
+          is_active: boolean
+          message_template: string
+          name: string
+          send_via: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          interval_seconds?: number
+          is_active?: boolean
+          message_template?: string
+          name: string
+          send_via?: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          interval_seconds?: number
+          is_active?: boolean
+          message_template?: string
+          name?: string
+          send_via?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_automation_rules_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_comment_mentions: {
         Row: {
           comment_id: string

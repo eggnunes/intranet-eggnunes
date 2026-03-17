@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MessageCircle, Clock, FileText, Tag } from 'lucide-react';
+import { MessageCircle, Clock, FileText, Tag, Bot } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -10,6 +10,7 @@ import { ChatArea, InternalComment } from '@/components/whatsapp/ChatArea';
 import { ScheduledMessages } from '@/components/whatsapp/ScheduledMessages';
 import { TemplatesManager } from '@/components/whatsapp/TemplatesManager';
 import { TagsManager } from '@/components/whatsapp/TagsManager';
+import { AutomationsManager } from '@/components/whatsapp/AutomationsManager';
 import { ZapiConnectionBanner } from '@/components/whatsapp/ZapiConnectionBanner';
 import { useZapiConnection } from '@/hooks/useZapiConnection';
 
@@ -282,6 +283,10 @@ export default function WhatsAppAvisos() {
               <Tag className="h-4 w-4" />
               Tags
             </TabsTrigger>
+            <TabsTrigger value="automacoes" className="gap-2">
+              <Bot className="h-4 w-4" />
+              Automações
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="conversas" className="mt-4">
@@ -321,6 +326,10 @@ export default function WhatsAppAvisos() {
 
           <TabsContent value="tags" className="mt-4">
             <TagsManager />
+          </TabsContent>
+
+          <TabsContent value="automacoes" className="mt-4">
+            <AutomationsManager />
           </TabsContent>
         </Tabs>
       </div>
