@@ -30,20 +30,17 @@ export const useSessionRefresh = () => {
     }
   }, [signOut]);
 
-  const retryWithRefresh = useCallback(async <T,>(
-    operation: () => Promise<{ data: T | null; error: { message: string } | null }>
-  ): Promise<{ data: T | null; error: { message: string } | null }> => {
+  const retryWithRefresh = useCallback(async <T extends { error: { message: string } | null }>(
+    operation: () => PromiseLike<T>
+  ): Promise<T> => {
     const result = await operation();
 
     if (result.error && isJwtError(result.error.message)) {
       console.log('JWT error detected, attempting session refresh...');
       const refreshed = await ensureValidSession();
       if (refreshed) {
-        // Retry once after refresh
         return await operation();
       }
-      // If refresh failed, ensureValidSession already handled signout/toast
-      return result;
     }
 
     return result;
