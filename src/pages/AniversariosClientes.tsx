@@ -449,7 +449,12 @@ export default function AniversariosClientes() {
       const results = data?.results;
 
       if (results) {
-        if (results.total === 0 && (!results.alreadySentToday || results.alreadySentToday === 0)) {
+        if (results.backgroundProcessing) {
+          toast({
+            title: 'Envio iniciado via WhatsApp Avisos',
+            description: `${results.total} mensagem(ns) serão enviadas em background com intervalo de segurança. Acompanhe no histórico.`,
+          });
+        } else if (results.total === 0 && (!results.alreadySentToday || results.alreadySentToday === 0)) {
           toast({
             title: 'Nenhum aniversariante elegível',
             description: 'Nenhum aniversariante elegível encontrado para envio hoje. Verifique se há clientes com aniversário hoje e telefone cadastrado.',
@@ -468,7 +473,7 @@ export default function AniversariosClientes() {
         } else {
           toast({
             title: 'Mensagens enviadas!',
-            description: `${results.sent} mensagem(ns) enviada(s) com sucesso.${results.failed > 0 ? ` ${results.failed} falhou(aram).` : ''}${results.alreadySentToday > 0 ? ` (${results.alreadySentToday} já enviadas antes)` : ''}`,
+            description: `${results.sent} mensagem(ns) enviada(s) com sucesso via WhatsApp Avisos.${results.failed > 0 ? ` ${results.failed} falhou(aram).` : ''}${results.alreadySentToday > 0 ? ` (${results.alreadySentToday} já enviadas antes)` : ''}`,
           });
         }
 
@@ -478,7 +483,7 @@ export default function AniversariosClientes() {
       } else {
         toast({
           title: 'Mensagens processadas',
-          description: 'As mensagens de aniversário foram processadas.',
+          description: 'As mensagens de aniversário foram processadas via WhatsApp Avisos.',
         });
       }
     } catch (error: any) {
