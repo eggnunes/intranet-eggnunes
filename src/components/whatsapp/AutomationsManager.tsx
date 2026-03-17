@@ -173,7 +173,7 @@ export function AutomationsManager() {
   const handlePreview = (template: string) => {
     let text = template;
     Object.entries(VARIABLE_EXAMPLES).forEach(([key, value]) => {
-      text = text.replaceAll(key, value);
+      text = text.split(key).join(value);
     });
     setPreviewText(text);
     setPreviewOpen(true);
