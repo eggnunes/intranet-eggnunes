@@ -145,6 +145,7 @@ function SenhaDialog({
   onSave: () => void;
 }) {
   const { user } = useAuth();
+  const { retryWithRefresh } = useSessionRefresh();
   const [titulo, setTitulo] = useState('');
   const [usuario, setUsuario] = useState('');
   const [senhaVal, setSenhaVal] = useState('');
@@ -181,12 +182,11 @@ function SenhaDialog({
       created_by: user?.id,
     };
 
-    let error;
-    if (senha) {
-      ({ error } = await supabase.from('senhas_uteis').update(payload).eq('id', senha.id));
-    } else {
-      ({ error } = await supabase.from('senhas_uteis').insert(payload));
-    }
+    const { error } = await retryWithRefresh(() =>
+      senha
+        ? supabase.from('senhas_uteis').update(payload).eq('id', senha.id)
+        : supabase.from('senhas_uteis').insert(payload)
+    );
     setSaving(false);
     if (error) { toast.error('Erro ao salvar: ' + error.message); return; }
     toast.success(senha ? 'Senha atualizada!' : 'Senha cadastrada!');
