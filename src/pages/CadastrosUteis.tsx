@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useSessionRefresh } from '@/hooks/useSessionRefresh';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Layout } from '@/components/Layout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -50,6 +51,7 @@ function FornecedorDialog({
   onSave: () => void;
 }) {
   const { user } = useAuth();
+  const { retryWithRefresh } = useSessionRefresh();
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [categoria, setCategoria] = useState('');
@@ -84,12 +86,11 @@ function FornecedorDialog({
       created_by: user?.id,
     };
 
-    let error;
-    if (fornecedor) {
-      ({ error } = await supabase.from('fornecedores_uteis').update(payload).eq('id', fornecedor.id));
-    } else {
-      ({ error } = await supabase.from('fornecedores_uteis').insert(payload));
-    }
+    const { error } = await retryWithRefresh(() =>
+      fornecedor
+        ? supabase.from('fornecedores_uteis').update(payload).eq('id', fornecedor.id)
+        : supabase.from('fornecedores_uteis').insert(payload)
+    );
     setSaving(false);
     if (error) { toast.error('Erro ao salvar: ' + error.message); return; }
     toast.success(fornecedor ? 'Fornecedor atualizado!' : 'Fornecedor cadastrado!');
@@ -145,6 +146,7 @@ function SenhaDialog({
   onSave: () => void;
 }) {
   const { user } = useAuth();
+  const { retryWithRefresh } = useSessionRefresh();
   const [titulo, setTitulo] = useState('');
   const [usuario, setUsuario] = useState('');
   const [senhaVal, setSenhaVal] = useState('');
@@ -181,12 +183,11 @@ function SenhaDialog({
       created_by: user?.id,
     };
 
-    let error;
-    if (senha) {
-      ({ error } = await supabase.from('senhas_uteis').update(payload).eq('id', senha.id));
-    } else {
-      ({ error } = await supabase.from('senhas_uteis').insert(payload));
-    }
+    const { error } = await retryWithRefresh(() =>
+      senha
+        ? supabase.from('senhas_uteis').update(payload).eq('id', senha.id)
+        : supabase.from('senhas_uteis').insert(payload)
+    );
     setSaving(false);
     if (error) { toast.error('Erro ao salvar: ' + error.message); return; }
     toast.success(senha ? 'Senha atualizada!' : 'Senha cadastrada!');
@@ -329,9 +330,11 @@ export default function CadastrosUteis() {
     toast.success(`${label} copiado!`);
   };
 
+  const { retryWithRefresh } = useSessionRefresh();
+
   const handleDeleteForn = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este fornecedor?')) return;
-    const { error } = await supabase.from('fornecedores_uteis').delete().eq('id', id);
+    const { error } = await retryWithRefresh(() => supabase.from('fornecedores_uteis').delete().eq('id', id));
     if (error) { toast.error('Erro ao excluir'); return; }
     toast.success('Fornecedor excluído');
     fetchFornecedores();
@@ -339,7 +342,7 @@ export default function CadastrosUteis() {
 
   const handleDeleteSenha = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir esta senha?')) return;
-    const { error } = await supabase.from('senhas_uteis').delete().eq('id', id);
+    const { error } = await retryWithRefresh(() => supabase.from('senhas_uteis').delete().eq('id', id));
     if (error) { toast.error('Erro ao excluir'); return; }
     toast.success('Senha excluída');
     fetchSenhas();

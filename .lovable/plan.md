@@ -1,72 +1,37 @@
 
 
-# Correção: Erro "JWT expirado" ao cadastrar fornecedores
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-## Diagnóstico
+### Causa Raiz
 
-O erro **não é de Edge Function** — a operação de cadastro usa chamada direta ao banco (`supabase.from('fornecedores_uteis').insert()`). O token JWT do usuário expirou e o auto-refresh falhou silenciosamente, resultando no erro "JWT expirado" ao tentar inserir.
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-As políticas RLS estão corretas. O problema é puramente de sessão expirada não tratada.
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-## Correção
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-### 1. Adicionar tratamento de sessão expirada no save do fornecedor (`src/pages/CadastrosUteis.tsx`)
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-Antes de executar insert/update, tentar refresh da sessão. Se o erro retornado contiver "JWT" ou "token", forçar refresh e retentar automaticamente uma vez. Se falhar de novo, redirecionar para login.
-
-### 2. Criar hook utilitário reutilizável (`src/hooks/useSessionRefresh.tsx`)
-
-Hook que expõe uma função `ensureValidSession()`:
-- Chama `supabase.auth.refreshSession()`
-- Se falhar, chama `signOut()` e redireciona para `/auth`
-- Retorna `true` se sessão válida, `false` se expirada
-
-### 3. Aplicar no componente de fornecedores
-
-No `handleSave`:
-- Chamar `ensureValidSession()` antes do insert/update
-- Se o erro for JWT-related, tentar refresh + retry uma vez
-- Se persistir, mostrar toast "Sessão expirada, faça login novamente" e redirecionar
-
-### Detalhes técnicos
-
-```typescript
-// useSessionRefresh.tsx
-export const useSessionRefresh = () => {
-  const { signOut } = useAuth();
-  
-  const ensureValidSession = async () => {
-    const { data, error } = await supabase.auth.refreshSession();
-    if (error || !data.session) {
-      await signOut();
-      return false;
-    }
-    return true;
-  };
-
-  const retryWithRefresh = async <T,>(operation: () => Promise<T>): Promise<T> => {
-    try {
-      return await operation();
-    } catch (e: any) {
-      if (e?.message?.toLowerCase().includes('jwt')) {
-        const refreshed = await ensureValidSession();
-        if (refreshed) return await operation();
-      }
-      throw e;
-    }
-  };
-
-  return { ensureValidSession, retryWithRefresh };
-};
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 ```
 
-No `CadastrosUteis.tsx`, o save fará:
-1. `await ensureValidSession()` — se falso, aborta
-2. Executa insert/update normalmente
-3. Se erro contém "JWT"/"token", tenta refresh + retry
-4. Se falhar novamente, toast + redirect para `/auth`
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
 
-### Arquivos alterados
-- `src/hooks/useSessionRefresh.tsx` (novo)
-- `src/pages/CadastrosUteis.tsx` (tratamento de erro no save, delete)
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+
+### Solucao
+
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
 
