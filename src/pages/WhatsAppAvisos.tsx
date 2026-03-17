@@ -327,6 +327,10 @@ export default function WhatsAppAvisos() {
           <TabsContent value="tags" className="mt-4">
             <TagsManager />
           </TabsContent>
+
+          <TabsContent value="automacoes" className="mt-4">
+            <AutomationsManager />
+          </TabsContent>
         </Tabs>
       </div>
     </Layout>
