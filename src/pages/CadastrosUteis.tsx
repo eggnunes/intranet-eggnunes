@@ -50,6 +50,7 @@ function FornecedorDialog({
   onSave: () => void;
 }) {
   const { user } = useAuth();
+  const { retryWithRefresh } = useSessionRefresh();
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [categoria, setCategoria] = useState('');
@@ -84,12 +85,11 @@ function FornecedorDialog({
       created_by: user?.id,
     };
 
-    let error;
-    if (fornecedor) {
-      ({ error } = await supabase.from('fornecedores_uteis').update(payload).eq('id', fornecedor.id));
-    } else {
-      ({ error } = await supabase.from('fornecedores_uteis').insert(payload));
-    }
+    const { error } = await retryWithRefresh(() =>
+      fornecedor
+        ? supabase.from('fornecedores_uteis').update(payload).eq('id', fornecedor.id)
+        : supabase.from('fornecedores_uteis').insert(payload)
+    );
     setSaving(false);
     if (error) { toast.error('Erro ao salvar: ' + error.message); return; }
     toast.success(fornecedor ? 'Fornecedor atualizado!' : 'Fornecedor cadastrado!');
