@@ -329,9 +329,11 @@ export default function CadastrosUteis() {
     toast.success(`${label} copiado!`);
   };
 
+  const { retryWithRefresh } = useSessionRefresh();
+
   const handleDeleteForn = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este fornecedor?')) return;
-    const { error } = await supabase.from('fornecedores_uteis').delete().eq('id', id);
+    const { error } = await retryWithRefresh(() => supabase.from('fornecedores_uteis').delete().eq('id', id));
     if (error) { toast.error('Erro ao excluir'); return; }
     toast.success('Fornecedor excluído');
     fetchFornecedores();
@@ -339,7 +341,7 @@ export default function CadastrosUteis() {
 
   const handleDeleteSenha = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir esta senha?')) return;
-    const { error } = await supabase.from('senhas_uteis').delete().eq('id', id);
+    const { error } = await retryWithRefresh(() => supabase.from('senhas_uteis').delete().eq('id', id));
     if (error) { toast.error('Erro ao excluir'); return; }
     toast.success('Senha excluída');
     fetchSenhas();
