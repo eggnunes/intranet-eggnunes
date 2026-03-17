@@ -786,7 +786,7 @@ export default function AniversariosClientes() {
               que têm telefone cadastrado e que não estão marcados como "não enviar".
             </p>
             <p className="text-sm text-muted-foreground mt-2">
-              O template pré-aprovado "aniversario" será utilizado para o envio via WhatsApp.
+              As mensagens serão enviadas via WhatsApp Avisos (Z-API) com intervalo de segurança entre cada envio para evitar bloqueios.
             </p>
           </div>
           <DialogFooter>
