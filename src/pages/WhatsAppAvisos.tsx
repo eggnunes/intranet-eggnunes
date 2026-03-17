@@ -10,6 +10,7 @@ import { ChatArea, InternalComment } from '@/components/whatsapp/ChatArea';
 import { ScheduledMessages } from '@/components/whatsapp/ScheduledMessages';
 import { TemplatesManager } from '@/components/whatsapp/TemplatesManager';
 import { TagsManager } from '@/components/whatsapp/TagsManager';
+import { AutomationsManager } from '@/components/whatsapp/AutomationsManager';
 import { ZapiConnectionBanner } from '@/components/whatsapp/ZapiConnectionBanner';
 import { useZapiConnection } from '@/hooks/useZapiConnection';
 
