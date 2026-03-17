@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MessageCircle, Clock, FileText, Tag } from 'lucide-react';
+import { MessageCircle, Clock, FileText, Tag, Bot } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
