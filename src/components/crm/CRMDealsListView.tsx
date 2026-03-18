@@ -54,6 +54,9 @@ interface CRMDealsListViewProps {
   onViewDeal: (deal: any) => void;
 }
 
+type SortColumn = 'name' | 'owner' | 'lead_score' | 'stage' | 'value' | 'created_at' | 'status';
+type SortDir = 'asc' | 'desc';
+
 export const CRMDealsListView = ({
   deals,
   stages,
