@@ -833,8 +833,20 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
   return (
     <div className="space-y-4">
       {/* Search and Filters */}
+      {/* View Toggle + Search */}
       <div className="space-y-3">
         <div className="flex items-center gap-4 flex-wrap">
+          <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as 'kanban' | 'list')}>
+            <ToggleGroupItem value="kanban" aria-label="Visão de Funil" className="gap-1.5 px-3">
+              <LayoutGrid className="h-4 w-4" />
+              <span className="hidden sm:inline text-sm">Funil</span>
+            </ToggleGroupItem>
+            <ToggleGroupItem value="list" aria-label="Visão de Lista" className="gap-1.5 px-3">
+              <List className="h-4 w-4" />
+              <span className="hidden sm:inline text-sm">Lista</span>
+            </ToggleGroupItem>
+          </ToggleGroup>
+
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
