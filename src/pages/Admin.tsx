@@ -272,6 +272,7 @@ export default function Admin() {
       oab_number: user.oab_number,
       oab_state: user.oab_state,
       is_active: user.is_active,
+      is_suspended: user.is_suspended,
       is_admin: adminUsers.some(a => a.id === user.id),
       telefone: user.telefone,
       cpf: user.cpf,
