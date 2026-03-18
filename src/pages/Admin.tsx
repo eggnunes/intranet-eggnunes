@@ -251,7 +251,8 @@ export default function Admin() {
     const matchesSearch = user.full_name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(userSearchQuery.toLowerCase());
     const matchesStatus = userStatusFilter === 'all' || 
-      (userStatusFilter === 'active' && user.is_active) ||
+      (userStatusFilter === 'active' && user.is_active && !user.is_suspended) ||
+      (userStatusFilter === 'suspended' && user.is_active && user.is_suspended) ||
       (userStatusFilter === 'inactive' && !user.is_active);
     return matchesSearch && matchesStatus;
   });
