@@ -12,13 +12,11 @@ const TVMode = () => {
   const [now, setNow] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
 
-  // Clock
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  // KPI: Leads
   const { data: leadsCount = 0, refetch: refetchLeads } = useQuery({
     queryKey: ['tv-leads'],
     queryFn: async () => {
@@ -27,7 +25,6 @@ const TVMode = () => {
     },
   });
 
-  // KPI: Agendamentos (meetings)
   const { data: meetingsCount = 0, refetch: refetchMeetings } = useQuery({
     queryKey: ['tv-meetings'],
     queryFn: async () => {
@@ -36,7 +33,6 @@ const TVMode = () => {
     },
   });
 
-  // KPI: Contratos fechados
   const { data: wonCount = 0, refetch: refetchWon } = useQuery({
     queryKey: ['tv-won'],
     queryFn: async () => {
@@ -45,11 +41,10 @@ const TVMode = () => {
     },
   });
 
-  // Funnel: deals by stage
   const { data: funnelData = [], refetch: refetchFunnel } = useQuery({
     queryKey: ['tv-funnel'],
     queryFn: async () => {
-      const { data: stages } = await supabase.from('crm_deal_stages').select('id, name, position').order('position');
+      const { data: stages } = await supabase.from('crm_deal_stages').select('id, name, order_index').order('order_index');
       if (!stages?.length) return [];
       const { data: deals } = await supabase.from('crm_deals').select('stage_id');
       const countMap: Record<string, number> = {};
@@ -58,43 +53,52 @@ const TVMode = () => {
     },
   });
 
-  // Latest movements
   const { data: movements = [], refetch: refetchMovements } = useQuery({
     queryKey: ['tv-movements'],
     queryFn: async () => {
       const { data } = await supabase
         .from('crm_deal_history')
-        .select('id, action, details, created_at, deal_id, user_id')
+        .select('id, notes, created_at, deal_id, changed_by, from_stage_id, to_stage_id')
         .order('created_at', { ascending: false })
         .limit(30);
       if (!data?.length) return [];
 
-      const userIds = [...new Set(data.map(m => m.user_id).filter(Boolean))];
-      const dealIds = [...new Set(data.map(m => m.deal_id).filter(Boolean))];
+      const userIds = [...new Set(data.map(m => m.changed_by).filter(Boolean))] as string[];
+      const dealIds = [...new Set(data.map(m => m.deal_id).filter(Boolean))] as string[];
+      const stageIds = [...new Set(data.flatMap(m => [m.from_stage_id, m.to_stage_id]).filter(Boolean))] as string[];
 
-      const [{ data: profiles }, { data: deals }] = await Promise.all([
-        userIds.length ? supabase.from('profiles').select('id, full_name').in('id', userIds) : { data: [] },
-        dealIds.length ? supabase.from('crm_deals').select('id, name, value').in('id', dealIds) : { data: [] },
+      const [{ data: profiles }, { data: deals }, { data: stages }] = await Promise.all([
+        userIds.length ? supabase.from('profiles').select('id, full_name').in('id', userIds) : { data: [] as { id: string; full_name: string }[] },
+        dealIds.length ? supabase.from('crm_deals').select('id, name, value').in('id', dealIds) : { data: [] as { id: string; name: string; value: number | null }[] },
+        stageIds.length ? supabase.from('crm_deal_stages').select('id, name').in('id', stageIds) : { data: [] as { id: string; name: string }[] },
       ]);
 
       const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p.full_name]));
       const dealMap = Object.fromEntries((deals || []).map(d => [d.id, d]));
+      const stageMap = Object.fromEntries((stages || []).map(s => [s.id, s.name]));
 
       return data.map(m => {
-        const userName = profileMap[m.user_id] || 'Alguém';
-        const deal = dealMap[m.deal_id];
+        const userName = m.changed_by ? (profileMap[m.changed_by] || 'Alguém') : 'Sistema';
+        const deal = m.deal_id ? dealMap[m.deal_id] : null;
         const dealName = deal?.name || 'negócio';
         const value = deal?.value ? ` de R$ ${Number(deal.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '';
-        let text = `${userName} atualizou ${dealName}`;
-        if (m.action === 'won') text = `${userName} fechou ${dealName}${value} 🎉`;
-        else if (m.action === 'stage_change') text = `${userName} moveu ${dealName} de etapa`;
-        else if (m.action === 'created') text = `${userName} criou ${dealName}${value}`;
+        
+        let text: string;
+        if (m.from_stage_id && m.to_stage_id) {
+          const from = stageMap[m.from_stage_id] || '?';
+          const to = stageMap[m.to_stage_id] || '?';
+          text = `${userName} moveu ${dealName}: ${from} → ${to}`;
+        } else if (m.to_stage_id && !m.from_stage_id) {
+          text = `${userName} criou ${dealName}${value}`;
+        } else {
+          text = `${userName} atualizou ${dealName}`;
+        }
+        if (m.notes) text += ` — ${m.notes}`;
         return { id: m.id, text, time: m.created_at };
       });
     },
   });
 
-  // Auto-refresh every 30s
   useEffect(() => {
     const t = setInterval(async () => {
       setRefreshing(true);
@@ -196,7 +200,6 @@ const TVMode = () => {
         </aside>
       </div>
 
-      {/* Auto-scroll CSS */}
       <style>{`
         @keyframes tv-scroll {
           0% { transform: translateY(0); }
