@@ -176,14 +176,16 @@ Deno.serve(async (req) => {
 
     if (forceResend) {
       // Mark previous "sent" entries as "resent" to allow re-processing
-      await supabase
+      const { data: updateData, error: updateError } = await supabase
         .from('chatguru_birthday_messages_log')
         .update({ status: 'resent', error_message: 'Reenvio forçado pelo administrador' })
         .eq('status', 'sent')
-        .gte('created_at', todayStart);
+        .gte('created_at', todayStart)
+        .select('id');
       
-      console.log('Force resend: marked previous entries as "resent"');
-      alreadySentToday = 0;
+      const updatedCount = updateData?.length || 0;
+      console.log(`Force resend: marked ${updatedCount} previous entries as "resent"${updateError ? `, error: ${updateError.message}` : ''}`);
+      // alreadySentIds stays empty, alreadySentToday stays 0 — no blocking
     } else {
       const { data: alreadySentData } = await supabase
         .from('chatguru_birthday_messages_log')
@@ -273,6 +275,7 @@ Deno.serve(async (req) => {
             alreadySentToday,
             errors: [],
             backgroundProcessing: true,
+            forceResend,
           },
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
@@ -339,7 +342,7 @@ Deno.serve(async (req) => {
     console.log('Birthday automation completed:', results);
 
     return new Response(
-      JSON.stringify({ success: true, message: 'Automação de mensagens de aniversário concluída', results }),
+      JSON.stringify({ success: true, message: 'Automação de mensagens de aniversário concluída', results: { ...results, forceResend } }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
   } catch (error: unknown) {

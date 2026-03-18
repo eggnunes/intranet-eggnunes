@@ -452,9 +452,11 @@ export default function AniversariosClientes() {
       const results = data?.results;
 
       if (results) {
+        const wasForceResend = forceResend || results.forceResend;
+        
         if (results.backgroundProcessing) {
           toast({
-            title: 'Envio iniciado via WhatsApp Avisos',
+            title: wasForceResend ? 'Reenvio iniciado via WhatsApp Avisos' : 'Envio iniciado via WhatsApp Avisos',
             description: `${results.total} mensagem(ns) serão enviadas em background com intervalo de segurança. Acompanhe no histórico.`,
           });
         } else if (results.total === 0 && (!results.alreadySentToday || results.alreadySentToday === 0)) {
@@ -463,7 +465,7 @@ export default function AniversariosClientes() {
             description: 'Nenhum aniversariante elegível encontrado para envio hoje. Verifique se há clientes com aniversário hoje e telefone cadastrado.',
             variant: 'destructive',
           });
-        } else if (results.total === 0 && results.alreadySentToday > 0) {
+        } else if (results.total === 0 && results.alreadySentToday > 0 && !wasForceResend) {
           toast({
             title: 'Mensagens já enviadas',
             description: `Todas as ${results.alreadySentToday} mensagens de hoje já foram enviadas anteriormente. Use "Reenviar" se precisar enviar novamente.`,
@@ -471,12 +473,12 @@ export default function AniversariosClientes() {
         } else if (results.remaining > 0) {
           toast({
             title: 'Processamento parcial',
-            description: `${results.sent} enviada(s), ${results.remaining} pendente(s). Clique novamente para continuar o envio.${results.alreadySentToday > 0 ? ` (${results.alreadySentToday} já enviadas antes)` : ''}`,
+            description: `${results.sent} enviada(s), ${results.remaining} pendente(s). Clique novamente para continuar o envio.`,
           });
         } else {
           toast({
-            title: 'Mensagens enviadas!',
-            description: `${results.sent} mensagem(ns) enviada(s) com sucesso via WhatsApp Avisos.${results.failed > 0 ? ` ${results.failed} falhou(aram).` : ''}${results.alreadySentToday > 0 ? ` (${results.alreadySentToday} já enviadas antes)` : ''}`,
+            title: wasForceResend ? 'Reenvio concluído!' : 'Mensagens enviadas!',
+            description: `${results.sent} mensagem(ns) enviada(s) com sucesso via WhatsApp Avisos.${results.failed > 0 ? ` ${results.failed} falhou(aram).` : ''}`,
           });
         }
 
