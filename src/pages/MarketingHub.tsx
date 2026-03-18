@@ -144,7 +144,7 @@ export default function MarketingHub() {
 
   const deletePub = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('marketing_publications').delete().eq('id', id);
+      const { error } = await supabase.from('marketing_publications' as any).delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => { toast.success('Publicação removida'); refetchPubs(); },
