@@ -482,6 +482,10 @@ export const CRMDashboard = () => {
           <CRMWhatsAppLogs />
         </TabsContent>
 
+        <TabsContent value="dailylog" className="mt-6">
+          <CRMDailyLog />
+        </TabsContent>
+
         <TabsContent value="automation" className="mt-6">
           <MarketingAutomation />
         </TabsContent>
