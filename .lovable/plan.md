@@ -1,41 +1,37 @@
 
 
-# Pesquisa de Humor
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-## Resumo
-Criar uma nova pagina `/pesquisa-humor` com sistema de pesquisa de humor diario, historico pessoal com grafico de tendencia, e painel de gestao para socios/admins com dados agregados e alertas.
+### Causa Raiz
 
-## Implementacao
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-### 1. Migracao SQL — tabela `mood_surveys`
-Campos: `id` (UUID), `user_id` (UUID ref profiles), `mood` (TEXT — muito_bom, bom, neutro, ruim, muito_ruim), `observacoes` (TEXT nullable), `created_at` (TIMESTAMPTZ default now()).
-RLS: usuarios autenticados aprovados podem inserir/ler os proprios registros. Admins e socios podem ler todos.
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-### 2. Nova pagina `src/pages/PesquisaHumor.tsx`
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-**Para todos os usuarios:**
-- **Botao "Registrar Humor"** abre Dialog/modal:
-  - Pergunta: "Como esta seu humor hoje?"
-  - 5 opcoes com emojis: 😄 Muito Bom, 🙂 Bom, 😐 Neutro, 😟 Ruim, 😢 Muito Ruim
-  - Campo de observacoes (Textarea, opcional)
-  - Botao "Enviar" — insere na `mood_surveys`, limita 1 por dia
-- **Historico pessoal:**
-  - Grafico de linha (Recharts LineChart) com tendencia dos ultimos 30 dias (mood mapeado 1-5)
-  - Tabela com Data, Humor (badge + emoji), Observacoes
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-**Para gestores (isAdmin ou position = 'socio'):**
-- Aba/secao adicional "Visao Geral":
-  - Grafico de barras agregado: distribuicao de humor de todos os funcionarios no periodo
-  - Filtro por departamento/position (socio, advogado, estagiario, comercial, administrativo)
-  - Alertas: cards destacando usuarios com humor "ruim" ou "muito_ruim" nos ultimos 7 dias
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+```
 
-### 3. Rota e sidebar
-- Rota `/pesquisa-humor` no `App.tsx`
-- Link no `AppSidebar.tsx` na secao de RH com icone `SmilePlus`
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
 
-### Arquivos
-1. **Migracao SQL** — tabela `mood_surveys` + RLS
-2. **`src/pages/PesquisaHumor.tsx`** (novo)
-3. **`src/App.tsx`** — rota
-4. **`src/components/AppSidebar.tsx`** — link
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+
+### Solucao
+
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
 

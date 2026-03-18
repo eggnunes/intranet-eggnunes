@@ -5057,6 +5057,41 @@ export type Database = {
           },
         ]
       }
+      mood_surveys: {
+        Row: {
+          created_at: string
+          id: string
+          mood: string
+          observacoes: string | null
+          survey_date: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mood: string
+          observacoes?: string | null
+          survey_date?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mood?: string
+          observacoes?: string | null
+          survey_date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mood_surveys_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       objeto_contrato_templates: {
         Row: {
           created_at: string
