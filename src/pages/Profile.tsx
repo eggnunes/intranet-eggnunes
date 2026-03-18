@@ -186,6 +186,9 @@ export default function Profile() {
   const [pagamentosGrafico, setPagamentosGrafico] = useState<PagamentoGrafico[]>([]);
   const [pontuacaoAdvbox, setPontuacaoAdvbox] = useState<PontuacaoAdvbox[]>([]);
   const [loadingCep, setLoadingCep] = useState(false);
+  const [vacationRequests, setVacationRequests] = useState<VacationRequest[]>([]);
+  const [folgas, setFolgas] = useState<Folga[]>([]);
+  const [homeOfficeSchedules, setHomeOfficeSchedules] = useState<HomeOfficeSchedule[]>([]);
 
   // Fetch viewing profile if viewing another user
   useEffect(() => {
