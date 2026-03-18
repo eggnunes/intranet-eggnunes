@@ -1825,6 +1825,59 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_daily_logs: {
+        Row: {
+          calls_made: number
+          contracts_signed: number
+          created_at: string
+          follow_ups: number
+          id: string
+          log_date: string
+          meetings_held: number
+          new_leads: number
+          notes: string | null
+          proposals_sent: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          calls_made?: number
+          contracts_signed?: number
+          created_at?: string
+          follow_ups?: number
+          id?: string
+          log_date?: string
+          meetings_held?: number
+          new_leads?: number
+          notes?: string | null
+          proposals_sent?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          calls_made?: number
+          contracts_signed?: number
+          created_at?: string
+          follow_ups?: number
+          id?: string
+          log_date?: string
+          meetings_held?: number
+          new_leads?: number
+          notes?: string | null
+          proposals_sent?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_daily_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_deal_history: {
         Row: {
           changed_by: string | null

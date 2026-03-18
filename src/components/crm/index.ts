@@ -5,3 +5,4 @@ export { CRMActivities } from './CRMActivities';
 export { CRMSettings } from './CRMSettings';
 export { CRMTasks } from './CRMTasks';
 export { MarketingAutomation } from './MarketingAutomation';
+export { CRMDailyLog } from './CRMDailyLog';
