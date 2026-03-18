@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, Calendar, Settings, LayoutDashboard, BarChart3, Bell, Star, MessageSquare, Clock, CheckCircle2 } from 'lucide-react';
+import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, Calendar, Settings, LayoutDashboard, BarChart3, Bell, Star, MessageSquare, Clock, CheckCircle2, Zap } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CRMContactsList } from './CRMContactsList';
@@ -17,6 +17,7 @@ import { CRMLeadScoring } from './CRMLeadScoring';
 import { CRMFollowUp } from './CRMFollowUp';
 import { CRMWhatsAppLogs } from './CRMWhatsAppLogs';
 import { CRMTasks } from './CRMTasks';
+import { MarketingAutomation } from './MarketingAutomation';
 import { useUserRole } from '@/hooks/useUserRole';
 
 interface CRMStats {
@@ -315,6 +316,10 @@ export const CRMDashboard = () => {
             <MessageSquare className="h-3.5 w-3.5" />
             WhatsApp
           </TabsTrigger>
+          <TabsTrigger value="automation" className="flex items-center gap-1">
+            <Zap className="h-3.5 w-3.5" />
+            Automação
+          </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="settings" className="flex items-center gap-1">
               <Settings className="h-3.5 w-3.5" />
@@ -470,6 +475,10 @@ export const CRMDashboard = () => {
         
         <TabsContent value="whatsapp" className="mt-6">
           <CRMWhatsAppLogs />
+        </TabsContent>
+
+        <TabsContent value="automation" className="mt-6">
+          <MarketingAutomation />
         </TabsContent>
         
         {isAdmin && (
