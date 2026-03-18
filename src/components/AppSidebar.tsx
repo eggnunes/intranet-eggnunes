@@ -270,6 +270,7 @@ export function AppSidebar() {
         { icon: CalendarDays, path: '/gestao-folgas', label: 'Gestão de Folgas' },
         { icon: Home, path: '/home-office', label: 'Home Office' },
         { icon: UserPlus, path: '/contratacao', label: 'Recrutamento' },
+        { icon: SmilePlus, path: '/pesquisa-humor', label: 'Pesquisa de Humor' },
         { icon: BookOpen, path: '/onboarding', label: 'Onboarding' },
         ...(profile?.position === 'socio' || isAdmin ? [{ icon: DollarSign, path: '/rh', label: 'RH / Pagamentos' }] : []),
       ],
