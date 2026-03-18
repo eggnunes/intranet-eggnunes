@@ -80,6 +80,7 @@ export function VacationDashboard({ onEditRequest, onDeleteRequest }: VacationDa
         .select('id, full_name, avatar_url, position, join_date')
         .eq('approval_status', 'approved')
         .eq('is_active', true)
+        .eq('is_suspended', false)
         .order('full_name')
     ]);
 

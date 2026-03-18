@@ -54,7 +54,7 @@ export function ConversationFilters({ filters, onFiltersChange, onClose }: Conve
   useEffect(() => {
     const fetchData = async () => {
       const [profilesRes, tagsRes] = await Promise.all([
-        supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name'),
+        supabase.from('profiles').select('id, full_name').eq('is_active', true).eq('is_suspended', false).order('full_name'),
         supabase.from('whatsapp_tags').select('id, name, color').order('name'),
       ]);
       if (profilesRes.data) setProfiles(profilesRes.data);

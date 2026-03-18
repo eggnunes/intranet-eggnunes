@@ -65,6 +65,7 @@ export function RHDashboard() {
         .select('id, full_name')
         .eq('approval_status', 'approved')
         .eq('is_active', true)
+        .eq('is_suspended', false)
         .order('full_name');
 
       if (error) throw error;

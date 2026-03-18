@@ -97,6 +97,7 @@ export function PromocaoDialog({ open, onOpenChange, colaborador, promocaoParaEd
           .select('id, full_name, cargo_id, position')
           .eq('approval_status', 'approved')
           .eq('is_active', true)
+          .eq('is_suspended', false)
           .order('full_name')
       ]);
 
