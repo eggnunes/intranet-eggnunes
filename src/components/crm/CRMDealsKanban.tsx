@@ -1000,113 +1000,31 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
         )}
       </div>
 
+      {/* List View */}
+      {viewMode === 'list' && (
+        <CRMDealsListView
+          deals={deals.filter(deal => {
+            if (!searchTerm) return true;
+            return deal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              deal.contact?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              deal.product_name?.toLowerCase().includes(searchTerm.toLowerCase());
+          })}
+          stages={stages}
+          profiles={profiles}
+          formatCurrency={formatCurrency}
+          onMoveDeal={handleMoveToStage}
+          onViewDeal={handleViewDeal}
+        />
+      )}
+
       {/* Kanban Board with DnD */}
+      {viewMode === 'kanban' && (
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        {/* Container do Kanban com scroll horizontal - SOLUÇÃO DEFINITIVA */}
-        <div 
-          id="crm-kanban-scroll"
-          className="kanban-scroll-container"
-          style={{
-            width: 'calc(100% + 2rem)',
-            marginLeft: '-1rem',
-            marginRight: '-1rem',
-            paddingLeft: '1rem',
-            paddingRight: '1rem',
-            overflowX: 'scroll',
-            overflowY: 'visible',
-            WebkitOverflowScrolling: 'touch',
-            paddingBottom: '1rem',
-          }}
-        >
-          <div 
-            style={{
-              display: 'flex',
-              gap: '20px',
-              paddingTop: '8px',
-              paddingBottom: '8px',
-              width: 'fit-content',
-              minWidth: '100%',
-            }}
-          >
-            {stages.map((stage, index) => {
-              const stageDeals = getStageDeals(stage.id);
-              const stageValue = getStageValue(stage.id);
-
-              return (
-                <DroppableColumn
-                  key={stage.id}
-                  stage={stage}
-                  index={index}
-                  stageDeals={stageDeals}
-                  stageValue={stageValue}
-                  getStageHeaderColor={getStageHeaderColor}
-                  getStageColumnColor={getStageColumnColor}
-                  formatCurrency={formatCurrency}
-                >
-                  {stageDeals.map((deal) => (
-                    <DraggableDealCard
-                      key={deal.id}
-                      deal={deal}
-                      stage={stage}
-                      stages={stages}
-                      onMove={handleMoveToStage}
-                      onView={handleViewDeal}
-                      movingDeal={movingDeal}
-                      formatCurrency={formatCurrency}
-                      profiles={profiles}
-                    />
-                  ))}
-                </DroppableColumn>
-              );
-            })}
-          </div>
-        </div>
-        
-        {/* CSS para scrollbar sempre visível */}
-        <style>{`
-          .kanban-scroll-container {
-            scrollbar-width: auto !important;
-            scrollbar-color: hsl(var(--primary)) hsl(var(--muted));
-          }
-          .kanban-scroll-container::-webkit-scrollbar {
-            height: 14px !important;
-            display: block !important;
-          }
-          .kanban-scroll-container::-webkit-scrollbar-track {
-            background: hsl(var(--muted));
-            border-radius: 7px;
-          }
-          .kanban-scroll-container::-webkit-scrollbar-thumb {
-            background: hsl(var(--primary));
-            border-radius: 7px;
-            border: 2px solid hsl(var(--muted));
-          }
-          .kanban-scroll-container::-webkit-scrollbar-thumb:hover {
-            background: hsl(var(--primary) / 0.8);
-          }
-        `}</style>
-
-        {/* Drag Overlay */}
-        <DragOverlay>
-          {activeDeal ? (
-            <Card className="w-72 shadow-2xl border-2 border-primary bg-white dark:bg-slate-950 rounded-lg opacity-90">
-              <CardContent className="p-3">
-                <p className="font-semibold text-sm">{activeDeal.name}</p>
-                {activeDeal.value > 0 && (
-                  <p className="text-xs text-emerald-600 font-medium mt-1">
-                    {formatCurrency(activeDeal.value)}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
 
       {/* Deal Detail Modal */}
       <Dialog open={!!selectedDeal} onOpenChange={() => { setSelectedDeal(null); setIsEditing(false); }}>
