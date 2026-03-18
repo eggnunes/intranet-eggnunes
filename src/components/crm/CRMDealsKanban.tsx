@@ -359,7 +359,9 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
     utmSource: 'all',
   });
   const [showFilters, setShowFilters] = useState(false);
-  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>(() => {
+    return (localStorage.getItem('crm-view-mode') as 'kanban' | 'list') || 'kanban';
+  });
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -836,7 +838,7 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
       {/* View Toggle + Search */}
       <div className="space-y-3">
         <div className="flex items-center gap-4 flex-wrap">
-          <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as 'kanban' | 'list')}>
+          <ToggleGroup type="single" value={viewMode} onValueChange={(v) => { if (v) { setViewMode(v as 'kanban' | 'list'); localStorage.setItem('crm-view-mode', v); } }}>
             <ToggleGroupItem value="kanban" aria-label="Visão de Funil" className="gap-1.5 px-3">
               <LayoutGrid className="h-4 w-4" />
               <span className="hidden sm:inline text-sm">Funil</span>
@@ -1014,6 +1016,7 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
           formatCurrency={formatCurrency}
           onMoveDeal={handleMoveToStage}
           onViewDeal={handleViewDeal as any}
+          onRefresh={fetchDeals}
         />
       )}
 
