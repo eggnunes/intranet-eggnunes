@@ -342,7 +342,7 @@ Deno.serve(async (req) => {
     console.log('Birthday automation completed:', results);
 
     return new Response(
-      JSON.stringify({ success: true, message: 'Automação de mensagens de aniversário concluída', results }),
+      JSON.stringify({ success: true, message: 'Automação de mensagens de aniversário concluída', results: { ...results, forceResend } }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
   } catch (error: unknown) {
