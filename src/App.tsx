@@ -613,6 +613,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/viabilidade"
+              element={
+                <ProtectedRoute>
+                  <Viabilidade />
+                </ProtectedRoute>
+              }
+            />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

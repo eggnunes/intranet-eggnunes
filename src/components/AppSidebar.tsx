@@ -37,6 +37,7 @@ import {
   FileSignature,
   Users,
   Target,
+  ClipboardCheck,
   UserPlus,
   CalendarDays,
   Home,
