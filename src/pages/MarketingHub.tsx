@@ -126,7 +126,7 @@ export default function MarketingHub() {
         }).eq('id', pub.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('marketing_publications').insert({
+        const { error } = await supabase.from('marketing_publications' as any).insert({
           title: pub.title, description: pub.description, platform: pub.platform,
           scheduled_date: pub.scheduled_date, status: pub.status, created_by: profile?.id,
         });
