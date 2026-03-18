@@ -66,6 +66,9 @@ interface ApprovedUser {
   oab_number: string | null;
   oab_state: string | null;
   is_active: boolean;
+  is_suspended: boolean;
+  suspended_reason: string | null;
+  suspended_at: string | null;
   telefone: string | null;
   cpf: string | null;
   endereco_cep: string | null;
