@@ -7970,6 +7970,39 @@ export type Database = {
           },
         ]
       }
+      viabilidade_clientes: {
+        Row: {
+          cpf: string
+          created_at: string
+          created_by: string
+          id: string
+          nome: string
+          observacoes: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cpf: string
+          created_at?: string
+          created_by: string
+          id?: string
+          nome: string
+          observacoes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cpf?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       whatsapp_automation_rules: {
         Row: {
           created_at: string
