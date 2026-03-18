@@ -476,6 +476,10 @@ export const CRMDashboard = () => {
         <TabsContent value="whatsapp" className="mt-6">
           <CRMWhatsAppLogs />
         </TabsContent>
+
+        <TabsContent value="automation" className="mt-6">
+          <MarketingAutomation />
+        </TabsContent>
         
         {isAdmin && (
           <TabsContent value="settings" className="mt-6">
