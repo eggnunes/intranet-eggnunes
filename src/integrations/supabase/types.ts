@@ -7972,33 +7972,60 @@ export type Database = {
       }
       viabilidade_clientes: {
         Row: {
+          analise_realizada_em: string | null
           cpf: string
           created_at: string
           created_by: string
+          data_nascimento: string | null
+          descricao_caso: string | null
+          documentos: Json | null
+          email: string | null
+          endereco: string | null
           id: string
           nome: string
           observacoes: string | null
+          parecer_viabilidade: string | null
           status: string
+          telefone: string | null
+          tipo_acao: string | null
           updated_at: string
         }
         Insert: {
+          analise_realizada_em?: string | null
           cpf: string
           created_at?: string
           created_by: string
+          data_nascimento?: string | null
+          descricao_caso?: string | null
+          documentos?: Json | null
+          email?: string | null
+          endereco?: string | null
           id?: string
           nome: string
           observacoes?: string | null
+          parecer_viabilidade?: string | null
           status?: string
+          telefone?: string | null
+          tipo_acao?: string | null
           updated_at?: string
         }
         Update: {
+          analise_realizada_em?: string | null
           cpf?: string
           created_at?: string
           created_by?: string
+          data_nascimento?: string | null
+          descricao_caso?: string | null
+          documentos?: Json | null
+          email?: string | null
+          endereco?: string | null
           id?: string
           nome?: string
           observacoes?: string | null
+          parecer_viabilidade?: string | null
           status?: string
+          telefone?: string | null
+          tipo_acao?: string | null
           updated_at?: string
         }
         Relationships: []
