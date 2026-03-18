@@ -19,6 +19,7 @@ import { CRMWhatsAppLogs } from './CRMWhatsAppLogs';
 import { CRMTasks } from './CRMTasks';
 import { MarketingAutomation } from './MarketingAutomation';
 import { CRMDailyLog } from './CRMDailyLog';
+import { CRMCampaigns } from './CRMCampaigns';
 import { useUserRole } from '@/hooks/useUserRole';
 
 interface CRMStats {
