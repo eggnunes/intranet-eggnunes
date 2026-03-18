@@ -102,6 +102,30 @@ interface PontuacaoAdvbox {
   percentual_conclusao: number;
 }
 
+interface VacationRequest {
+  id: string;
+  start_date: string;
+  end_date: string;
+  business_days: number;
+  status: string;
+  created_at: string;
+}
+
+interface Folga {
+  id: string;
+  data_folga: string;
+  motivo: string;
+  observacoes: string | null;
+  created_at: string;
+}
+
+interface HomeOfficeSchedule {
+  id: string;
+  date: string;
+  status: string;
+  created_at: string;
+}
+
 export default function Profile() {
   const { user } = useAuth();
   const { profile, loading, isAdmin } = useUserRole();
