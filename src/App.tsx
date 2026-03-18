@@ -74,6 +74,7 @@ import CadastrosUteis from "./pages/CadastrosUteis";
 import TVMode from "./pages/TVMode";
 import MarketingHub from "./pages/MarketingHub";
 import Viabilidade from "./pages/Viabilidade";
+import ViabilidadeNovo from "./pages/ViabilidadeNovo";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient({
