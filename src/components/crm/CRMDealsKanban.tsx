@@ -1016,6 +1016,7 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
           formatCurrency={formatCurrency}
           onMoveDeal={handleMoveToStage}
           onViewDeal={handleViewDeal as any}
+          onRefresh={fetchDeals}
         />
       )}
 
