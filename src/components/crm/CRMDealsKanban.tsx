@@ -1008,12 +1008,12 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
             return deal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
               deal.contact?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
               deal.product_name?.toLowerCase().includes(searchTerm.toLowerCase());
-          })}
-          stages={stages}
+          }) as any}
+          stages={stages as any}
           profiles={profiles}
           formatCurrency={formatCurrency}
           onMoveDeal={handleMoveToStage}
-          onViewDeal={handleViewDeal}
+          onViewDeal={handleViewDeal as any}
         />
       )}
 
