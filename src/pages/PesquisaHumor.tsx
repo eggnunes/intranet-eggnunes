@@ -43,12 +43,11 @@ const PesquisaHumor = () => {
     queryKey: ['mood-today', user?.id],
     queryFn: async () => {
       const today = format(new Date(), 'yyyy-MM-dd');
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('mood_surveys')
         .select('*')
         .eq('user_id', user!.id)
-        .gte('created_at', `${today}T00:00:00`)
-        .lt('created_at', `${today}T23:59:59`)
+        .eq('survey_date', today)
         .maybeSingle();
       return data;
     },
