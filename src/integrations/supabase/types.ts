@@ -4902,6 +4902,53 @@ export type Database = {
           },
         ]
       }
+      marketing_publications: {
+        Row: {
+          campaign_id: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          platform: string
+          scheduled_date: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          platform?: string
+          scheduled_date: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          platform?: string
+          scheduled_date?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_publications_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "crm_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meeting_room_bookings: {
         Row: {
           booking_date: string
