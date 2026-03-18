@@ -147,6 +147,7 @@ export default function Admin() {
     oab_number: string | null;
     oab_state: string | null;
     is_active: boolean;
+    is_suspended: boolean;
     is_admin: boolean;
     telefone: string | null;
     cpf: string | null;
