@@ -316,6 +316,10 @@ export const CRMDashboard = () => {
             <MessageSquare className="h-3.5 w-3.5" />
             WhatsApp
           </TabsTrigger>
+          <TabsTrigger value="automation" className="flex items-center gap-1">
+            <Zap className="h-3.5 w-3.5" />
+            Automação
+          </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="settings" className="flex items-center gap-1">
               <Settings className="h-3.5 w-3.5" />
