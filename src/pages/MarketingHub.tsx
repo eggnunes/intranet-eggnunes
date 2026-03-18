@@ -83,8 +83,8 @@ export default function MarketingHub() {
     queryFn: async () => {
       const start = startOfMonth(calendarMonth);
       const end = endOfMonth(calendarMonth);
-      const { data } = await supabase
-        .from('marketing_publications')
+      const { data } = await (supabase
+        .from('marketing_publications' as any))
         .select('*')
         .gte('scheduled_date', start.toISOString())
         .lte('scheduled_date', end.toISOString())
