@@ -12,7 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { toast } from 'sonner';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, addDays } from 'date-fns';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -29,9 +29,6 @@ interface DailyLog {
   notes: string | null;
   created_at: string;
   updated_at: string;
-}
-
-interface DailyLogWithProfile extends DailyLog {
   profiles?: { full_name: string } | null;
 }
 
@@ -45,11 +42,10 @@ export const CRMDailyLog = () => {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [existingLog, setExistingLog] = useState<DailyLog | null>(null);
-  const [logs, setLogs] = useState<DailyLogWithProfile[]>([]);
-  const [teamLogs, setTeamLogs] = useState<DailyLogWithProfile[]>([]);
+  const [logs, setLogs] = useState<DailyLog[]>([]);
+  const [teamLogs, setTeamLogs] = useState<DailyLog[]>([]);
   const [periodFilter, setPeriodFilter] = useState<'week' | 'month'>('week');
 
-  // Form state
   const [callsMade, setCallsMade] = useState(0);
   const [meetingsHeld, setMeetingsHeld] = useState(0);
   const [proposalsSent, setProposalsSent] = useState(0);
@@ -69,7 +65,7 @@ export const CRMDailyLog = () => {
   const fetchLogForDate = async () => {
     if (!user) return;
     setLoading(true);
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from('crm_daily_logs')
       .select('*')
       .eq('user_id', user.id)
@@ -92,8 +88,7 @@ export const CRMDailyLog = () => {
     setLoading(false);
   };
 
-  const fetchHistory = async () => {
-    if (!user) return;
+  const getDateRange = () => {
     const now = new Date();
     const start = periodFilter === 'week'
       ? format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd')
@@ -101,8 +96,13 @@ export const CRMDailyLog = () => {
     const end = periodFilter === 'week'
       ? format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd')
       : format(endOfMonth(now), 'yyyy-MM-dd');
+    return { start, end };
+  };
 
-    const { data } = await supabase
+  const fetchHistory = async () => {
+    if (!user) return;
+    const { start, end } = getDateRange();
+    const { data } = await (supabase as any)
       .from('crm_daily_logs')
       .select('*')
       .eq('user_id', user.id)
@@ -114,22 +114,15 @@ export const CRMDailyLog = () => {
   };
 
   const fetchTeamLogs = async () => {
-    const now = new Date();
-    const start = periodFilter === 'week'
-      ? format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd')
-      : format(startOfMonth(now), 'yyyy-MM-dd');
-    const end = periodFilter === 'week'
-      ? format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd')
-      : format(endOfMonth(now), 'yyyy-MM-dd');
-
-    const { data } = await supabase
+    const { start, end } = getDateRange();
+    const { data } = await (supabase as any)
       .from('crm_daily_logs')
       .select('*, profiles(full_name)')
       .gte('log_date', start)
       .lte('log_date', end)
       .order('log_date', { ascending: false });
 
-    setTeamLogs((data || []) as DailyLogWithProfile[]);
+    setTeamLogs((data || []) as DailyLog[]);
   };
 
   const resetForm = () => {
@@ -160,14 +153,14 @@ export const CRMDailyLog = () => {
 
     try {
       if (existingLog) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('crm_daily_logs')
           .update(payload)
           .eq('id', existingLog.id);
         if (error) throw error;
         toast.success('Registro atualizado com sucesso!');
       } else {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('crm_daily_logs')
           .insert(payload);
         if (error) throw error;
@@ -195,7 +188,6 @@ export const CRMDailyLog = () => {
     { calls: 0, meetings: 0, proposals: 0, contracts: 0, leads: 0, followUps: 0 }
   );
 
-  // Chart data from history
   const chartData = [...logs].reverse().map(log => ({
     date: format(new Date(log.log_date + 'T12:00:00'), 'dd/MM', { locale: ptBR }),
     Ligações: log.calls_made,
@@ -204,7 +196,6 @@ export const CRMDailyLog = () => {
     Contratos: log.contracts_signed,
   }));
 
-  // Team summary
   const teamSummary = isAdmin ? Object.values(
     teamLogs.reduce((acc, log) => {
       const name = (log.profiles as any)?.full_name || 'Desconhecido';
@@ -231,71 +222,30 @@ export const CRMDailyLog = () => {
         {label}
       </Label>
       <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
-          onClick={() => onChange(Math.max(0, value - 1))}
-        >
-          -
-        </Button>
-        <Input
-          type="number"
-          min={0}
-          value={value}
-          onChange={(e) => onChange(Math.max(0, parseInt(e.target.value) || 0))}
-          className="w-20 text-center"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
-          onClick={() => onChange(value + 1)}
-        >
-          +
-        </Button>
+        <Button type="button" variant="outline" size="icon" className="h-8 w-8" onClick={() => onChange(Math.max(0, value - 1))}>-</Button>
+        <Input type="number" min={0} value={value} onChange={(e) => onChange(Math.max(0, parseInt(e.target.value) || 0))} className="w-20 text-center" />
+        <Button type="button" variant="outline" size="icon" className="h-8 w-8" onClick={() => onChange(value + 1)}>+</Button>
       </div>
     </div>
   );
 
   return (
     <div className="space-y-6">
-      {/* View Mode Tabs */}
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          variant={viewMode === 'form' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setViewMode('form')}
-        >
-          <Calendar className="h-4 w-4 mr-1" />
-          Registrar
+        <Button variant={viewMode === 'form' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('form')}>
+          <Calendar className="h-4 w-4 mr-1" />Registrar
         </Button>
-        <Button
-          variant={viewMode === 'history' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setViewMode('history')}
-        >
-          <TrendingUp className="h-4 w-4 mr-1" />
-          Meu Histórico
+        <Button variant={viewMode === 'history' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('history')}>
+          <TrendingUp className="h-4 w-4 mr-1" />Meu Histórico
         </Button>
         {isAdmin && (
-          <Button
-            variant={viewMode === 'team' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('team')}
-          >
-            <Users className="h-4 w-4 mr-1" />
-            Visão da Equipe
+          <Button variant={viewMode === 'team' ? 'default' : 'outline'} size="sm" onClick={() => setViewMode('team')}>
+            <Users className="h-4 w-4 mr-1" />Visão da Equipe
           </Button>
         )}
-
         <div className="ml-auto">
           <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as 'week' | 'month')}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="week">Esta Semana</SelectItem>
               <SelectItem value="month">Este Mês</SelectItem>
@@ -304,41 +254,29 @@ export const CRMDailyLog = () => {
         </div>
       </div>
 
-      {/* FORM VIEW */}
       {viewMode === 'form' && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-lg">Registro Diário</CardTitle>
-                <CardDescription>
-                  {existingLog ? 'Atualize' : 'Registre'} suas atividades do dia
-                </CardDescription>
+                <CardDescription>{existingLog ? 'Atualize' : 'Registre'} suas atividades do dia</CardDescription>
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="icon" onClick={() => setSelectedDate(format(addDays(new Date(selectedDate + 'T12:00:00'), -1), 'yyyy-MM-dd'))}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-[160px]"
-                />
+                <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-[160px]" />
                 <Button variant="ghost" size="icon" onClick={() => setSelectedDate(format(addDays(new Date(selectedDate + 'T12:00:00'), 1), 'yyyy-MM-dd'))}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
             </div>
-            {existingLog && (
-              <Badge variant="secondary" className="w-fit">Registro existente — editando</Badge>
-            )}
+            {existingLog && <Badge variant="secondary" className="w-fit">Registro existente — editando</Badge>}
           </CardHeader>
           <CardContent className="space-y-6">
             {loading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
+              <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : (
               <>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -349,17 +287,10 @@ export const CRMDailyLog = () => {
                   <StatField icon={UserPlus} label="Novos Leads" value={newLeads} onChange={setNewLeads} color="text-cyan-500" />
                   <StatField icon={RotateCcw} label="Follow-ups" value={followUps} onChange={setFollowUps} color="text-amber-500" />
                 </div>
-
                 <div className="space-y-2">
                   <Label>Observações</Label>
-                  <Textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Anotações do dia, destaques, dificuldades..."
-                    rows={3}
-                  />
+                  <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anotações do dia, destaques, dificuldades..." rows={3} />
                 </div>
-
                 <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
                   {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                   {existingLog ? 'Atualizar Registro' : 'Salvar Registro'}
@@ -370,10 +301,8 @@ export const CRMDailyLog = () => {
         </Card>
       )}
 
-      {/* HISTORY VIEW */}
       {viewMode === 'history' && (
         <div className="space-y-6">
-          {/* Totals */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
               { label: 'Ligações', value: totals.calls, color: 'text-blue-500' },
@@ -392,12 +321,9 @@ export const CRMDailyLog = () => {
             ))}
           </div>
 
-          {/* Chart */}
           {chartData.length > 0 && (
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Evolução Diária</CardTitle>
-              </CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-base">Evolução Diária</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={chartData}>
@@ -416,7 +342,6 @@ export const CRMDailyLog = () => {
             </Card>
           )}
 
-          {/* Table */}
           <Card>
             <CardContent className="pt-4">
               <Table>
@@ -434,11 +359,7 @@ export const CRMDailyLog = () => {
                 </TableHeader>
                 <TableBody>
                   {logs.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                        Nenhum registro no período
-                      </TableCell>
-                    </TableRow>
+                    <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhum registro no período</TableCell></TableRow>
                   ) : logs.map(log => (
                     <TableRow key={log.id}>
                       <TableCell>{format(new Date(log.log_date + 'T12:00:00'), 'dd/MM/yyyy')}</TableCell>
@@ -458,54 +379,45 @@ export const CRMDailyLog = () => {
         </div>
       )}
 
-      {/* TEAM VIEW (Admin only) */}
       {viewMode === 'team' && isAdmin && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Resumo da Equipe</CardTitle>
-              <CardDescription>
-                {periodFilter === 'week' ? 'Esta semana' : 'Este mês'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Vendedor</TableHead>
-                    <TableHead className="text-center">Dias</TableHead>
-                    <TableHead className="text-center">Ligações</TableHead>
-                    <TableHead className="text-center">Reuniões</TableHead>
-                    <TableHead className="text-center">Propostas</TableHead>
-                    <TableHead className="text-center">Contratos</TableHead>
-                    <TableHead className="text-center">Leads</TableHead>
-                    <TableHead className="text-center">Follow-ups</TableHead>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Resumo da Equipe</CardTitle>
+            <CardDescription>{periodFilter === 'week' ? 'Esta semana' : 'Este mês'}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Vendedor</TableHead>
+                  <TableHead className="text-center">Dias</TableHead>
+                  <TableHead className="text-center">Ligações</TableHead>
+                  <TableHead className="text-center">Reuniões</TableHead>
+                  <TableHead className="text-center">Propostas</TableHead>
+                  <TableHead className="text-center">Contratos</TableHead>
+                  <TableHead className="text-center">Leads</TableHead>
+                  <TableHead className="text-center">Follow-ups</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {teamSummary.length === 0 ? (
+                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhum registro no período</TableCell></TableRow>
+                ) : teamSummary.map((member: any) => (
+                  <TableRow key={member.name}>
+                    <TableCell className="font-medium">{member.name}</TableCell>
+                    <TableCell className="text-center">{member.days}</TableCell>
+                    <TableCell className="text-center">{member.calls}</TableCell>
+                    <TableCell className="text-center">{member.meetings}</TableCell>
+                    <TableCell className="text-center">{member.proposals}</TableCell>
+                    <TableCell className="text-center font-semibold text-green-600">{member.contracts}</TableCell>
+                    <TableCell className="text-center">{member.leads}</TableCell>
+                    <TableCell className="text-center">{member.followUps}</TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {teamSummary.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                        Nenhum registro no período
-                      </TableCell>
-                    </TableRow>
-                  ) : teamSummary.map((member: any) => (
-                    <TableRow key={member.name}>
-                      <TableCell className="font-medium">{member.name}</TableCell>
-                      <TableCell className="text-center">{member.days}</TableCell>
-                      <TableCell className="text-center">{member.calls}</TableCell>
-                      <TableCell className="text-center">{member.meetings}</TableCell>
-                      <TableCell className="text-center">{member.proposals}</TableCell>
-                      <TableCell className="text-center font-semibold text-green-600">{member.contracts}</TableCell>
-                      <TableCell className="text-center">{member.leads}</TableCell>
-                      <TableCell className="text-center">{member.followUps}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
