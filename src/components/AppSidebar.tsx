@@ -227,6 +227,7 @@ export function AppSidebar() {
         { icon: FileSignature, path: '/setor-comercial/contratos', label: 'Contratos' },
         { icon: Users, path: '/crm', label: 'CRM' },
         { icon: Users, path: '/parceiros', label: 'Parceiros' },
+        { icon: TrendingUp, path: '/negocios/marketing', label: 'Marketing Hub' },
         ...(profile?.position === 'socio' ? [{ icon: Target, path: '/lead-tracking', label: 'Tracking de Leads' }] : []),
       ],
     },

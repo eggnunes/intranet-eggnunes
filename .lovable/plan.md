@@ -1,46 +1,37 @@
 
 
-# Marketing Hub
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-## O que já existe
-- `CRMCampaigns` — grid de campanhas com ROI, investimento, leads e receita (dentro do CRM)
-- `MarketingAutomation` — automações de marketing (dentro do CRM)
-- Não existe página dedicada de Marketing Hub, nem integração Meta Ads, nem calendário de publicações, nem funil dedicado, nem relatórios ROI com gráficos
+### Causa Raiz
 
-## Plano
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-### 1. Nova tabela `marketing_publications` (migração)
-Para o calendário de publicações planejadas:
-- `id`, `title`, `description`, `platform` (facebook/instagram/linkedin/google/tiktok), `scheduled_date`, `status` (draft/scheduled/published), `campaign_id` (FK optional para crm_campaigns), `created_by`, `created_at`
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-### 2. Nova página `src/pages/MarketingHub.tsx`
-Página standalone com 5 abas + filtros globais + greeting dinâmico.
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-**Header**:
-- Greeting dinâmico: "Bom dia/Boa tarde/Boa noite, [nome]" baseado em `new Date().getHours()`
-- Filtros globais persistentes acima das tabs:
-  - Seletor de conta Meta (dropdown, dados mockados inicialmente — sem API real do Meta sem token)
-  - Seletor de período: últimos 7, 30, 90 dias ou custom (date range picker)
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-**Aba 1 — Campanhas**: Reutiliza `CRMCampaigns` existente, passando filtro de período como prop
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+```
 
-**Aba 2 — Meta Ads**: Cards de métricas simuladas (Impressões, Cliques, CTR, CPC, Gastos) + tabela de anúncios. Dados mockados com aviso "Conecte sua conta Meta Ads para dados reais". Estrutura pronta para integração futura via edge function
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
 
-**Aba 3 — Calendário**: Calendário mensal mostrando publicações de `marketing_publications`. Criar/editar publicações via dialog. Dias com publicações marcados visualmente
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
 
-**Aba 4 — Relatórios ROI**: Gráficos Recharts (BarChart ROI por campanha, LineChart evolução temporal, PieChart distribuição por plataforma). Dados de `crm_campaigns`
+### Solucao
 
-**Aba 5 — Funil**: Visualização do funil de vendas usando BarChart horizontal (Leads → Qualificados → Propostas → Fechados). Dados de `crm_deals` + `crm_deal_stages`
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
 
-### 3. Rota no `App.tsx`
-- `/negocios/marketing` dentro de `ProtectedRoute` + `Layout`
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
 
-### 4. Link no sidebar
-- Adicionar "Marketing Hub" no `AppSidebar.tsx` na seção de negócios
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
 
-### Arquivos
-1. **Migração SQL** — tabela `marketing_publications` + RLS
-2. **`src/pages/MarketingHub.tsx`** (novo) — página completa com 5 abas
-3. **`src/App.tsx`** — rota
-4. **`src/components/AppSidebar.tsx`** — link no menu
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
 
