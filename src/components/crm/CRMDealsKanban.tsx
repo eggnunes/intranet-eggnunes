@@ -1025,6 +1025,72 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
+        {/* Container do Kanban com scroll horizontal */}
+        <div 
+          id="crm-kanban-scroll"
+          className="kanban-scroll-container"
+          style={{
+            width: 'calc(100% + 2rem)',
+            marginLeft: '-1rem',
+            overflowX: 'auto',
+            overflowY: 'hidden',
+            paddingLeft: '1rem',
+            paddingRight: '1rem',
+            paddingBottom: '1rem',
+          }}
+        >
+          <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
+            {stages.map((stage, index) => {
+              const stageDeals = getStageDeals(stage.id);
+              const stageValue = getStageValue(stage.id);
+              return (
+                <DroppableColumn
+                  key={stage.id}
+                  stage={stage}
+                  index={index}
+                  stageDeals={stageDeals}
+                  stageValue={stageValue}
+                  getStageHeaderColor={getStageHeaderColor}
+                  getStageColumnColor={getStageColumnColor}
+                  formatCurrency={formatCurrency}
+                >
+                  {stageDeals.map(deal => (
+                    <DraggableDealCard
+                      key={deal.id}
+                      deal={deal}
+                      stage={stage}
+                      stages={stages}
+                      onMove={handleMoveToStage}
+                      onView={handleViewDeal}
+                      movingDeal={movingDeal}
+                      formatCurrency={formatCurrency}
+                      profiles={profiles}
+                    />
+                  ))}
+                </DroppableColumn>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Drag Overlay */}
+        <DragOverlay>
+          {activeDeal ? (
+            <Card className="w-72 shadow-2xl border-2 border-primary bg-background rounded-lg opacity-90">
+              <CardContent className="p-3">
+                <p className="font-semibold text-sm">{activeDeal.name}</p>
+                {activeDeal.contact && (
+                  <p className="text-xs text-muted-foreground mt-1">{activeDeal.contact.name}</p>
+                )}
+                {activeDeal.value > 0 && (
+                  <p className="text-xs font-semibold mt-1">{formatCurrency(activeDeal.value)}</p>
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+      )}
 
       {/* Deal Detail Modal */}
       <Dialog open={!!selectedDeal} onOpenChange={() => { setSelectedDeal(null); setIsEditing(false); }}>
