@@ -20,6 +20,7 @@ import { CRMTasks } from './CRMTasks';
 import { MarketingAutomation } from './MarketingAutomation';
 import { CRMDailyLog } from './CRMDailyLog';
 import { CRMCampaigns } from './CRMCampaigns';
+import { CRMRanking } from './CRMRanking';
 import { useUserRole } from '@/hooks/useUserRole';
 
 interface CRMStats {
