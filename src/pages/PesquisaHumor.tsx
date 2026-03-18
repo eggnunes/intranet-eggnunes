@@ -75,7 +75,7 @@ const PesquisaHumor = () => {
     queryKey: ['mood-all', isGestor],
     queryFn: async () => {
       const since = subDays(new Date(), 30).toISOString();
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('mood_surveys')
         .select('*, profiles:user_id(full_name, position)')
         .gte('created_at', since)
