@@ -282,6 +282,146 @@ function RulesTab() {
   );
 }
 
+// ─── Segment Cards ───────────────────────────────────────────────────
+
+interface SegmentDef {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  color: string;
+  filter: (q: any) => any;
+}
+
+const SEGMENTS: SegmentDef[] = [
+  {
+    key: 'hot',
+    label: 'Leads Quentes',
+    icon: <Flame className="h-4 w-4" />,
+    color: 'text-red-600 bg-red-500/10',
+    filter: (q: any) => q.gte('lead_score', 70),
+  },
+  {
+    key: 'warm',
+    label: 'Leads Mornos',
+    icon: <Thermometer className="h-4 w-4" />,
+    color: 'text-amber-600 bg-amber-500/10',
+    filter: (q: any) => q.gte('lead_score', 30).lt('lead_score', 70),
+  },
+  {
+    key: 'cold',
+    label: 'Leads Frios',
+    icon: <Snowflake className="h-4 w-4" />,
+    color: 'text-blue-600 bg-blue-500/10',
+    filter: (q: any) => q.lt('lead_score', 30).not('lead_score', 'is', null),
+  },
+  {
+    key: 'no_contact',
+    label: 'Não Contatados',
+    icon: <UserX className="h-4 w-4" />,
+    color: 'text-muted-foreground bg-muted',
+    filter: (q: any) => q.is('lead_score', null),
+  },
+  {
+    key: 'converted',
+    label: 'Convertidos',
+    icon: <Trophy className="h-4 w-4" />,
+    color: 'text-green-600 bg-green-500/10',
+    filter: (q: any) => q.not('last_conversion', 'is', null),
+  },
+];
+
+function SegmentCards() {
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const results: Record<string, number> = {};
+      await Promise.all(
+        SEGMENTS.map(async (seg) => {
+          const q = seg.filter(
+            supabase.from('crm_contacts').select('*', { count: 'exact', head: true })
+          );
+          const { count } = await q;
+          results[seg.key] = count || 0;
+        })
+      );
+      setCounts(results);
+      setLoading(false);
+    })();
+  }, []);
+
+  const handleExport = async (seg: SegmentDef) => {
+    setExporting(seg.key);
+    try {
+      let allData: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      while (true) {
+        const q = seg.filter(
+          supabase.from('crm_contacts').select('name, email, phone, company, city, state, lead_score')
+        ).range(page * pageSize, (page + 1) * pageSize - 1);
+        const { data } = await q;
+        if (!data || data.length === 0) break;
+        allData = [...allData, ...data];
+        if (data.length < pageSize) break;
+        page++;
+      }
+
+      if (allData.length === 0) {
+        toast.error('Nenhum contato neste segmento');
+        return;
+      }
+
+      const csvHeader = 'Nome,Email,Telefone,Empresa,Cidade,Estado,Score';
+      const csvRows = allData.map((r: any) =>
+        `"${r.name || ''}","${r.email || ''}","${r.phone || ''}","${r.company || ''}","${r.city || ''}","${r.state || ''}","${r.lead_score ?? ''}"`
+      );
+      const blob = new Blob([csvHeader + '\n' + csvRows.join('\n')], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `segmento_${seg.key}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`${allData.length} contatos exportados`);
+    } catch {
+      toast.error('Erro ao exportar');
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  if (loading) return <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>;
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+      {SEGMENTS.map((seg) => (
+        <Card key={seg.key} className="relative group">
+          <CardContent className="pt-4 pb-3 text-center">
+            <div className={`inline-flex items-center justify-center rounded-full p-2 mb-2 ${seg.color}`}>
+              {seg.icon}
+            </div>
+            <p className="text-2xl font-bold">{(counts[seg.key] || 0).toLocaleString('pt-BR')}</p>
+            <p className="text-xs text-muted-foreground">{seg.label}</p>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="mt-1 h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => handleExport(seg)}
+              disabled={exporting === seg.key}
+            >
+              {exporting === seg.key ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Download className="h-3 w-3 mr-1" />}
+              Exportar
+            </Button>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 function LeadListsTab() {
   const [lists, setLists] = useState<LeadList[]>([]);
   const [loading, setLoading] = useState(true);
@@ -307,7 +447,6 @@ function LeadListsTab() {
       .select('*')
       .order('created_at', { ascending: false });
     const items = (data as any[]) || [];
-    // Get match counts
     const enriched = await Promise.all(items.map(async (list) => {
       const count = await countMatching(list.filters);
       return { ...list, _matchCount: count };
@@ -319,11 +458,11 @@ function LeadListsTab() {
   useEffect(() => { fetchLists(); }, [fetchLists]);
 
   const buildQuery = (filters: Record<string, any>) => {
-    let q = supabase.from('crm_contacts').select('id, name, email, phone, company, state, city, score, created_at', { count: 'exact' });
+    let q = supabase.from('crm_contacts').select('id, name, email, phone, company, state, city, lead_score, created_at', { count: 'exact' });
     if (filters.state) q = q.eq('state', filters.state);
     if (filters.city) q = q.ilike('city', `%${filters.city}%`);
     if (filters.company) q = q.ilike('company', `%${filters.company}%`);
-    if (filters.min_score) q = q.gte('score', Number(filters.min_score));
+    if (filters.min_score) q = q.gte('lead_score', Number(filters.min_score));
     if (filters.days_ago) {
       const d = new Date(); d.setDate(d.getDate() - Number(filters.days_ago));
       q = q.gte('created_at', d.toISOString());
@@ -384,10 +523,30 @@ function LeadListsTab() {
     toast.success('Lista excluída'); fetchLists();
   };
 
+  const handleExportList = async (list: LeadList) => {
+    const { data } = await buildQuery(list.filters).limit(5000);
+    if (!data || data.length === 0) { toast.error('Nenhum contato'); return; }
+    const csvHeader = 'Nome,Email,Telefone,Empresa,Cidade,Estado,Score';
+    const csvRows = data.map((r: any) =>
+      `"${r.name || ''}","${r.email || ''}","${r.phone || ''}","${r.company || ''}","${r.city || ''}","${r.state || ''}","${r.lead_score ?? ''}"`
+    );
+    const blob = new Blob([csvHeader + '\n' + csvRows.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lista_${list.name.replace(/\s+/g, '_')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`${data.length} contatos exportados`);
+  };
+
   if (loading) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-4">
+      {/* Segment Cards */}
+      <SegmentCards />
+
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold">Listas Dinâmicas de Leads</h3>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -458,6 +617,9 @@ function LeadListsTab() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <Button size="sm" variant="outline" onClick={() => handleExportList(list)}>
+                      <Download className="h-4 w-4 mr-1" /> Exportar
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => handleExpand(list)}>
                       <Eye className="h-4 w-4 mr-1" /> {expandedId === list.id ? 'Fechar' : 'Ver Leads'}
                     </Button>

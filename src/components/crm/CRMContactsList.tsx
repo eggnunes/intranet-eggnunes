@@ -499,6 +499,17 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
         </div>
         
         <Badge variant="secondary">{filteredContacts.length} contatos</Badge>
+
+        <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
+          <Upload className="h-4 w-4 mr-2" />
+          Importar CSV
+        </Button>
+
+        <CRMContactsImport
+          open={importDialogOpen}
+          onOpenChange={setImportDialogOpen}
+          onImportComplete={fetchContacts}
+        />
       </div>
 
       {/* Contacts table */}
