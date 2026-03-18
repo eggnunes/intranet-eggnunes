@@ -1,37 +1,51 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+# Página de Novo Cliente para Viabilidade
 
-### Causa Raiz
+## Resumo
+Criar nova página `/viabilidade/novo` com formulário completo de cadastro de cliente, análise de viabilidade via IA (Lovable AI) e persistência no banco.
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+## O que já existe
+- Tabela `viabilidade_clientes` com campos: `nome`, `cpf`, `status`, `observacoes`, `created_by`
+- Página `/viabilidade` com dashboard e listagem
+- Bucket `documents` para uploads
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+## Implementação
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+### 1. Migração SQL
+Adicionar colunas à tabela `viabilidade_clientes`:
+- `data_nascimento` (DATE)
+- `telefone` (TEXT)
+- `email` (TEXT)
+- `endereco` (TEXT)
+- `tipo_acao` (TEXT) -- civel, trabalhista, previdenciario, tributario
+- `descricao_caso` (TEXT)
+- `documentos` (JSONB DEFAULT '[]') -- array de paths no storage
+- `parecer_viabilidade` (TEXT) -- resultado da análise IA
+- `analise_realizada_em` (TIMESTAMPTZ)
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+### 2. Nova página `src/pages/ViabilidadeNovo.tsx`
+- **Formulário completo**: Nome, CPF (com máscara), Data Nascimento (datepicker), Telefone (máscara), Email, Endereço, Tipo de Ação (Select), Descrição do Caso (Textarea), Upload de Documentos (múltiplo, bucket `documents`)
+- **Botão "Analisar Viabilidade"**: chama edge function `analyze-viability` com dados do formulário, usa Lovable AI (gemini-2.5-flash) para gerar parecer jurídico
+- **Feedback visual**: Progress bar + skeleton enquanto IA processa
+- **Resultado**: Card com parecer da IA, recomendação (viável/inviável/necessita mais dados), pontos relevantes
+- **Botão "Salvar"**: insere na `viabilidade_clientes` com status baseado no resultado da análise
 
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-```
+### 3. Edge function `supabase/functions/analyze-viability/index.ts`
+- Recebe dados do cliente + tipo de ação + descrição
+- Chama Lovable AI (gemini-2.5-flash) com prompt jurídico para avaliar viabilidade
+- Retorna parecer estruturado (recomendação, justificativa, pontos de atenção)
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+### 4. Rota no `App.tsx`
+- `/viabilidade/novo` com `ProtectedRoute` + `Layout`
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+### 5. Link na página Viabilidade
+- Atualizar botão "Novo Cliente" para navegar para `/viabilidade/novo` em vez de abrir dialog
 
-### Solucao
-
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
-
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
-
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+### Arquivos
+1. **Migração SQL** -- novas colunas na `viabilidade_clientes`
+2. **`src/pages/ViabilidadeNovo.tsx`** (novo) -- formulário completo
+3. **`supabase/functions/analyze-viability/index.ts`** (novo) -- análise IA
+4. **`src/App.tsx`** -- rota
+5. **`src/pages/Viabilidade.tsx`** -- atualizar botão "Novo Cliente"
 
