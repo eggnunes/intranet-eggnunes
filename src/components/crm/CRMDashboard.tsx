@@ -322,6 +322,10 @@ export const CRMDashboard = () => {
             <ClipboardList className="h-3.5 w-3.5" />
             Diário
           </TabsTrigger>
+          <TabsTrigger value="campaigns" className="flex items-center gap-1">
+            <Megaphone className="h-3.5 w-3.5" />
+            Campanhas
+          </TabsTrigger>
           <TabsTrigger value="automation" className="flex items-center gap-1">
             <Zap className="h-3.5 w-3.5" />
             Automação
