@@ -6,6 +6,7 @@ import { RHMenus } from '@/components/rh/RHMenus';
 import { RHCargos, RHPagamentos, RHDashboard, RHColaboradores, RHColaboradorDashboard, RHAdiantamentos, RHPromocoes, RHFolgas } from '@/components/rh';
 import { ColaboradorPerfilUnificado } from '@/components/rh/ColaboradorPerfilUnificado';
 import { useUserRole } from '@/hooks/useUserRole';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function RH() {
   const navigate = useNavigate();
