@@ -120,7 +120,7 @@ export default function MarketingHub() {
   const savePub = useMutation({
     mutationFn: async (pub: any) => {
       if (pub.id) {
-        const { error } = await supabase.from('marketing_publications').update({
+        const { error } = await supabase.from('marketing_publications' as any).update({
           title: pub.title, description: pub.description, platform: pub.platform,
           scheduled_date: pub.scheduled_date, status: pub.status,
         }).eq('id', pub.id);
