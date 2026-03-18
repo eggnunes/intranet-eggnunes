@@ -30,7 +30,7 @@ export function InternalCommentInput({ conversationId, onCommentSent, onCancel }
 
   useEffect(() => {
     const fetchProfiles = async () => {
-      const { data } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name');
+      const { data } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).eq('is_suspended', false).order('full_name');
       if (data) setProfiles(data);
     };
     fetchProfiles();

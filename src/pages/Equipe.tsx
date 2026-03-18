@@ -68,6 +68,8 @@ export default function Equipe() {
       .from('profiles')
       .select('id, full_name, email, avatar_url, position, oab_number, oab_state, birth_date, join_date, telefone')
       .eq('approval_status', 'approved')
+      .eq('is_active', true)
+      .eq('is_suspended', false)
       .order('full_name');
 
     if (!error && data) {

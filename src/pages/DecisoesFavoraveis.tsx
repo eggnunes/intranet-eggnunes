@@ -402,7 +402,8 @@ export default function DecisoesFavoraveis() {
             .from('profiles')
             .select('id')
             .eq('approval_status', 'approved')
-            .eq('is_active', true);
+            .eq('is_active', true)
+            .eq('is_suspended', false);
 
           if (approvedUsers && approvedUsers.length > 0) {
             const notifications = approvedUsers

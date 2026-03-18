@@ -179,6 +179,7 @@ export function RHPagamentos() {
           .select('id, full_name, email, position, cargo_id')
           .eq('approval_status', 'approved')
           .eq('is_active', true)
+          .eq('is_suspended', false)
           .order('full_name'),
         supabase
           .from('rh_rubricas')

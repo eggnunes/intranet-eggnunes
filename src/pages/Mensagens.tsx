@@ -202,6 +202,7 @@ const Mensagens = () => {
         .select('id, full_name, avatar_url, position')
         .eq('approval_status', 'approved')
         .eq('is_active', true)
+        .eq('is_suspended', false)
         .neq('id', user?.id || '');
 
       setAvailableUsers(data || []);

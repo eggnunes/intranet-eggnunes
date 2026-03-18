@@ -157,6 +157,8 @@ const CaixinhaDesabafo = () => {
         .select('id, full_name, position, email')
         .eq('position', 'socio')
         .eq('approval_status', 'approved')
+        .eq('is_active', true)
+        .eq('is_suspended', false)
         .neq('id', user?.id || '');
       
       setSocios(data || []);

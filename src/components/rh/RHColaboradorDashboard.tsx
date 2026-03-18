@@ -84,6 +84,7 @@ export function RHColaboradorDashboard() {
         .select('id, full_name, email, position, avatar_url, join_date, salario, cargo_id')
         .eq('approval_status', 'approved')
         .eq('is_active', true)
+        .eq('is_suspended', false)
         .order('full_name');
 
       if (colabError) throw colabError;

@@ -12,7 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, MessageSquareHeart, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck, Lock, Pencil, Key, UserX, UserCheck, Circle, ClipboardList, Sparkles } from 'lucide-react';
+import { Check, X, Shield, UserPlus, History, Lightbulb, MessageSquare, MessageSquareHeart, ThumbsUp, ChevronDown, ChevronUp, Filter, Users, CalendarCheck, Lock, Pencil, Key, UserX, UserCheck, Circle, ClipboardList, Sparkles, PauseCircle, PlayCircle } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { AuditLogHistory } from '@/components/AuditLogHistory';
 import { AdminUpdatesManager } from '@/components/AdminUpdatesManager';
 
@@ -66,6 +67,9 @@ interface ApprovedUser {
   oab_number: string | null;
   oab_state: string | null;
   is_active: boolean;
+  is_suspended: boolean;
+  suspended_reason: string | null;
+  suspended_at: string | null;
   telefone: string | null;
   cpf: string | null;
   endereco_cep: string | null;
@@ -143,6 +147,7 @@ export default function Admin() {
     oab_number: string | null;
     oab_state: string | null;
     is_active: boolean;
+    is_suspended: boolean;
     is_admin: boolean;
     telefone: string | null;
     cpf: string | null;
@@ -159,6 +164,9 @@ export default function Admin() {
   const [newPassword, setNewPassword] = useState('');
   const [resettingPassword, setResettingPassword] = useState(false);
   const [isRafael, setIsRafael] = useState(false);
+  const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
+  const [suspendReason, setSuspendReason] = useState('');
+  const [suspendingUserId, setSuspendingUserId] = useState<string | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { isSocioOrRafael } = useAdminPermissions();
@@ -212,7 +220,7 @@ export default function Admin() {
   const fetchApprovedUsers = async () => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, email, full_name, avatar_url, position, join_date, birth_date, oab_number, oab_state, is_active, telefone, cpf, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado')
+      .select('id, email, full_name, avatar_url, position, join_date, birth_date, oab_number, oab_state, is_active, is_suspended, suspended_reason, suspended_at, telefone, cpf, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado')
       .eq('approval_status', 'approved')
       .order('full_name');
     setApprovedUsers(data || []);
@@ -247,7 +255,8 @@ export default function Admin() {
     const matchesSearch = user.full_name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(userSearchQuery.toLowerCase());
     const matchesStatus = userStatusFilter === 'all' || 
-      (userStatusFilter === 'active' && user.is_active) ||
+      (userStatusFilter === 'active' && user.is_active && !user.is_suspended) ||
+      (userStatusFilter === 'suspended' && user.is_active && user.is_suspended) ||
       (userStatusFilter === 'inactive' && !user.is_active);
     return matchesSearch && matchesStatus;
   });
@@ -263,6 +272,7 @@ export default function Admin() {
       oab_number: user.oab_number,
       oab_state: user.oab_state,
       is_active: user.is_active,
+      is_suspended: user.is_suspended,
       is_admin: adminUsers.some(a => a.id === user.id),
       telefone: user.telefone,
       cpf: user.cpf,
@@ -378,11 +388,10 @@ export default function Admin() {
   };
 
   const handleToggleUserActive = async (user: ApprovedUser) => {
-    // Prevent deactivating Rafael
     if (user.email === 'rafael@eggnunes.com.br') {
       toast({
         title: 'Operação não permitida',
-        description: 'O criador da intranet não pode ser inativado',
+        description: 'O criador da intranet não pode ser desligado',
         variant: 'destructive',
       });
       return;
@@ -390,9 +399,17 @@ export default function Admin() {
 
     const newActiveStatus = !user.is_active;
     
+    const updateData: any = { is_active: newActiveStatus };
+    // When reactivating, also unsuspend
+    if (newActiveStatus) {
+      updateData.is_suspended = false;
+      updateData.suspended_reason = null;
+      updateData.suspended_at = null;
+    }
+    
     const { error } = await supabase
       .from('profiles')
-      .update({ is_active: newActiveStatus })
+      .update(updateData)
       .eq('id', user.id);
 
     if (error) {
@@ -403,11 +420,50 @@ export default function Admin() {
       });
     } else {
       toast({
-        title: newActiveStatus ? 'Usuário Reativado' : 'Usuário Inativado',
+        title: newActiveStatus ? 'Colaborador Reativado' : 'Colaborador Desligado',
         description: newActiveStatus 
           ? `${user.full_name} agora pode acessar o sistema novamente`
-          : `${user.full_name} não poderá mais acessar o sistema`,
+          : `${user.full_name} foi desligado e não poderá mais acessar o sistema`,
       });
+      fetchApprovedUsers();
+    }
+  };
+
+  const handleSuspendUser = async (userId: string, reason: string) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ 
+        is_suspended: true, 
+        suspended_reason: reason || null,
+        suspended_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (error) {
+      toast({ title: 'Erro', description: 'Erro ao suspender usuário', variant: 'destructive' });
+    } else {
+      toast({ title: 'Acesso Suspenso', description: 'O acesso do colaborador foi suspenso temporariamente' });
+      fetchApprovedUsers();
+      setSuspendDialogOpen(false);
+      setSuspendReason('');
+      setSuspendingUserId(null);
+    }
+  };
+
+  const handleUnsuspendUser = async (userId: string) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ 
+        is_suspended: false, 
+        suspended_reason: null,
+        suspended_at: null
+      })
+      .eq('id', userId);
+
+    if (error) {
+      toast({ title: 'Erro', description: 'Erro ao reativar acesso', variant: 'destructive' });
+    } else {
+      toast({ title: 'Acesso Reativado', description: 'O colaborador pode acessar o sistema novamente' });
       fetchApprovedUsers();
     }
   };
@@ -977,7 +1033,8 @@ export default function Admin() {
                     <SelectContent>
                       <SelectItem value="all">Todos</SelectItem>
                       <SelectItem value="active">Ativos</SelectItem>
-                      <SelectItem value="inactive">Inativos</SelectItem>
+                      <SelectItem value="suspended">Suspensos</SelectItem>
+                      <SelectItem value="inactive">Desligados</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1034,11 +1091,17 @@ export default function Admin() {
                             </div>
                           </div>
                         <div className="flex items-center gap-3">
-                          {/* Inactive badge */}
+                          {/* Status badges */}
                           {!user.is_active && (
                             <Badge variant="destructive" className="gap-1">
                               <UserX className="w-3 h-3" />
-                              Inativo
+                              Desligado
+                            </Badge>
+                          )}
+                          {user.is_active && user.is_suspended && (
+                            <Badge variant="outline" className="gap-1 border-orange-400 text-orange-600 dark:text-orange-400">
+                              <PauseCircle className="w-3 h-3" />
+                              Suspenso
                             </Badge>
                           )}
                           {/* Admin badge */}
@@ -1638,7 +1701,40 @@ export default function Admin() {
                       )
                     )}
 
-                    {/* Inativar/Reativar */}
+                    {/* Suspender/Reativar Acesso */}
+                    {editingUserData.email !== 'rafael@eggnunes.com.br' && editingUserData.is_active && (
+                      editingUserData.is_suspended ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="default"
+                          onClick={async () => {
+                            await handleUnsuspendUser(editingUserData.id);
+                            setEditingUserData({ ...editingUserData, is_suspended: false });
+                          }}
+                        >
+                          <PlayCircle className="w-4 h-4 mr-1" />
+                          Reativar Acesso
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="text-orange-600 hover:text-orange-600"
+                          onClick={() => {
+                            setSuspendingUserId(editingUserData.id);
+                            setSuspendReason('');
+                            setSuspendDialogOpen(true);
+                          }}
+                        >
+                          <PauseCircle className="w-4 h-4 mr-1" />
+                          Suspender Acesso
+                        </Button>
+                      )
+                    )}
+
+                    {/* Desligar/Reativar Colaborador */}
                     {editingUserData.email !== 'rafael@eggnunes.com.br' && (
                       <Button
                         type="button"
@@ -1648,7 +1744,7 @@ export default function Admin() {
                           const user = approvedUsers.find(u => u.id === editingUserData.id);
                           if (user) {
                             await handleToggleUserActive(user);
-                            setEditingUserData({ ...editingUserData, is_active: !editingUserData.is_active });
+                            setEditingUserData({ ...editingUserData, is_active: !editingUserData.is_active, is_suspended: false });
                           }
                         }}
                         className={editingUserData.is_active ? 'text-destructive hover:text-destructive' : ''}
@@ -1656,12 +1752,12 @@ export default function Admin() {
                         {editingUserData.is_active ? (
                           <>
                             <UserX className="w-4 h-4 mr-1" />
-                            Inativar
+                            Desligar Colaborador
                           </>
                         ) : (
                           <>
                             <UserCheck className="w-4 h-4 mr-1" />
-                            Reativar
+                            Reativar Colaborador
                           </>
                         )}
                       </Button>
@@ -1710,6 +1806,42 @@ export default function Admin() {
               </Button>
               <Button onClick={handleResetPassword} disabled={resettingPassword || !newPassword || newPassword.length < 6}>
                 {resettingPassword ? 'Redefinindo...' : 'Redefinir Senha'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog de Suspensão */}
+        <Dialog open={suspendDialogOpen} onOpenChange={setSuspendDialogOpen}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Suspender Acesso</DialogTitle>
+              <DialogDescription>
+                O colaborador não poderá acessar a intranet enquanto estiver suspenso. Essa ação é reversível.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="suspend-reason">Motivo da Suspensão (opcional)</Label>
+                <Textarea
+                  id="suspend-reason"
+                  value={suspendReason}
+                  onChange={(e) => setSuspendReason(e.target.value)}
+                  placeholder="Ex: Licença médica, férias prolongadas..."
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSuspendDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                variant="destructive"
+                onClick={() => suspendingUserId && handleSuspendUser(suspendingUserId, suspendReason)}
+              >
+                <PauseCircle className="w-4 h-4 mr-1" />
+                Suspender Acesso
               </Button>
             </DialogFooter>
           </DialogContent>

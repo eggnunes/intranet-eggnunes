@@ -58,6 +58,7 @@ export function RHColaboradores() {
           .select('id, full_name, email, position, avatar_url, cargo_id, contrato_associado_registrado')
           .eq('approval_status', 'approved')
           .eq('is_active', true)
+          .eq('is_suspended', false)
           .order('full_name'),
         supabase
           .from('rh_cargos')

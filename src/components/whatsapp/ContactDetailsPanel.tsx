@@ -59,7 +59,7 @@ export function ContactDetailsPanel({
   }, [conversationId]);
 
   const fetchProfiles = async () => {
-    const { data } = await supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).order('full_name');
+    const { data } = await supabase.from('profiles').select('id, full_name, avatar_url').eq('is_active', true).eq('is_suspended', false).order('full_name');
     if (data) setProfiles(data);
   };
 
