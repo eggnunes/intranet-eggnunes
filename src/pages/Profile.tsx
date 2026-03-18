@@ -121,8 +121,9 @@ interface Folga {
 
 interface HomeOfficeSchedule {
   id: string;
-  date: string;
-  status: string;
+  day_of_week: number;
+  month: number;
+  year: number;
   created_at: string;
 }
 
