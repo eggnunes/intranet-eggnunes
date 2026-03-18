@@ -73,6 +73,7 @@ import GestaoFolgas from "./pages/GestaoFolgas";
 import CadastrosUteis from "./pages/CadastrosUteis";
 import TVMode from "./pages/TVMode";
 import MarketingHub from "./pages/MarketingHub";
+import Viabilidade from "./pages/Viabilidade";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient({
