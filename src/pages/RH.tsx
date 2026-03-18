@@ -12,13 +12,13 @@ export default function RH() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { isAdmin, profile } = useUserRole();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   
   const colaboradorId = searchParams.get('colaboradorId');
   const colaboradorTab = searchParams.get('tab') || 'dados';
   const isSocio = profile?.position === 'socio';
   const canAccess = isAdmin || isSocio;
-  const { user } = useAuth();
   const isSelfProfile = colaboradorId && user && colaboradorId === user.id;
 
   // Se não tem permissão (exceto se for o próprio perfil), redireciona
