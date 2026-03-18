@@ -93,6 +93,7 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
   const [profiles, setProfiles] = useState<Record<string, { full_name: string }>>({});
   const [contactDealsMap, setContactDealsMap] = useState<Record<string, { owner_id: string | null; product_name: string | null; campaign_name: string | null }>>({});
   const [profissoesDisponiveis, setProfissoesDisponiveis] = useState<string[]>([]);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchContacts();

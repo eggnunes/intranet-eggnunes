@@ -233,12 +233,16 @@ export const CRMContactsImport = ({ open, onOpenChange, onImportComplete }: CRMC
 
     for (let i = 0; i < valid.length; i += batchSize) {
       const batch = valid.slice(i, i + batchSize);
-      const { error } = await supabase.from('crm_contacts').insert(batch);
+      const { error } = await supabase.from('crm_contacts').insert(
+        batch as any
+      );
 
       if (error) {
         // If batch fails, try one-by-one
         for (const record of batch) {
-          const { error: singleErr } = await supabase.from('crm_contacts').insert(record);
+          const { error: singleErr } = await supabase.from('crm_contacts').insert(
+            record as any
+          );
           if (singleErr) {
             allErrors.push({
               row: 0,
