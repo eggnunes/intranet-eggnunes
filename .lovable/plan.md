@@ -1,45 +1,37 @@
 
 
-# Perfil Completo do Colaborador — Acessível via Admin e pelo Próprio Usuário
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-## Problema Atual
+### Causa Raiz
 
-1. **Na página Admin (Usuários)**: ao clicar em um colaborador, abre apenas um dialog de edição — não há link para ver o perfil completo com férias, folgas, pagamentos, etc.
-2. **Na página Perfil (`/profile`)**: o colaborador vê seus dados pessoais, mas **não vê férias, folgas, home office, promoções, histórico salarial** — esses dados só existem no `ColaboradorPerfilUnificado`, que é restrito a admins/sócios (página `/rh`).
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-## Solução
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-### 1. Adicionar botão "Ver Perfil Completo" na página Admin
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-Na listagem de usuários em `src/pages/Admin.tsx`, ao lado do botão "Editar Perfil", adicionar um botão/ícone que navega para `/rh?colaboradorId={userId}`, abrindo o perfil unificado completo.
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-### 2. Enriquecer a página Perfil (`/profile`) com dados completos
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+```
 
-Em `src/pages/Profile.tsx`, adicionar seções que já existem no `ColaboradorPerfilUnificado`:
-- **Férias**: histórico de `vacation_requests` do usuário (períodos, dias, status)
-- **Folgas**: registros de `rh_folgas` do usuário
-- **Home Office**: utilizações de `home_office_schedules` do usuário
-- **Promoções**: histórico de `rh_promocoes`
-- **Férias Informais**: componente `InformalVacationSummary` (apenas para admins/sócios, como já está)
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
 
-Esses dados serão visíveis ao **próprio usuário** (sem necessidade de ser admin). Dados financeiros sensíveis (pagamentos, salário) já estão no perfil e continuam com as regras atuais.
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
 
-### 3. Permitir que o próprio usuário acesse seu perfil unificado no RH
+### Solucao
 
-Em `src/pages/RH.tsx`, ajustar a lógica de acesso: se o `colaboradorId` na URL é o **próprio usuário logado**, permitir o acesso mesmo sem ser admin/sócio. Isso garante que o link do Admin também funcione corretamente.
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
 
-Alternativamente (e mais simples): como já vamos adicionar os dados na página `/profile`, o acesso pelo próprio usuário fica em `/profile` e o acesso admin fica via `/rh`.
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
 
-## Arquivos a editar
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
 
-1. **`src/pages/Admin.tsx`** — adicionar botão "Ver Perfil" que navega para `/rh?colaboradorId=X`
-2. **`src/pages/Profile.tsx`** — adicionar seções de férias, folgas, home office e promoções, buscando dados do próprio usuário logado
-3. **`src/pages/RH.tsx`** — permitir acesso ao perfil unificado quando o `colaboradorId` é o próprio usuário (para que o link do admin funcione para o próprio admin vendo seu perfil)
-
-## Regras de Acesso
-
-- **Perfil próprio (`/profile`)**: qualquer usuário autenticado vê seus próprios dados completos
-- **Perfil de outro colaborador (`/rh?colaboradorId=X`)**: apenas admins e sócios
-- Dados financeiros (pagamentos, salário) no perfil próprio mantêm a visibilidade atual
-- Documentos médicos continuam restritos a admins/sócios
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
 
