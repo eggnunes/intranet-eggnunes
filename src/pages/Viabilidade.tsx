@@ -42,6 +42,7 @@ function maskCpf(cpf: string) {
 }
 
 export default function Viabilidade() {
+  const navigate = useNavigate();
   const { profile, isAdmin } = useUserRole();
   const [clientes, setClientes] = useState<ViabilidadeCliente[]>([]);
   const [loading, setLoading] = useState(true);
