@@ -18,6 +18,9 @@ export interface UserProfile {
   oab_number: string | null;
   oab_state: string | null;
   join_date: string | null;
+  is_active: boolean;
+  is_suspended: boolean;
+  suspended_reason: string | null;
 }
 
 export const useUserRole = () => {
@@ -27,7 +30,6 @@ export const useUserRole = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Safety timeout - se demorar mais de 10 segundos, forçar loading false
     const safetyTimeout = setTimeout(() => {
       if (loading) {
         console.warn('useUserRole: Safety timeout triggered');
@@ -39,7 +41,6 @@ export const useUserRole = () => {
   }, [loading]);
 
   useEffect(() => {
-    // Aguardar auth carregar antes de verificar usuário
     if (authLoading) {
       return;
     }
@@ -52,7 +53,6 @@ export const useUserRole = () => {
     }
 
     const fetchRoleAndProfile = async () => {
-      // Buscar perfil
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -61,7 +61,6 @@ export const useUserRole = () => {
 
       setProfile(profileData);
 
-      // Buscar role
       const { data: roleData } = await supabase
         .from('user_roles')
         .select('role')
@@ -75,5 +74,13 @@ export const useUserRole = () => {
     fetchRoleAndProfile();
   }, [user, authLoading]);
 
-  return { role, profile, loading, isAdmin: role === 'admin', isApproved: profile?.approval_status === 'approved' };
+  return { 
+    role, 
+    profile, 
+    loading, 
+    isAdmin: role === 'admin', 
+    isApproved: profile?.approval_status === 'approved',
+    isSuspended: profile?.is_suspended === true,
+    isInactive: profile?.is_active === false,
+  };
 };
