@@ -88,7 +88,7 @@ const PesquisaHumor = () => {
   const submitMood = useMutation({
     mutationFn: async () => {
       if (!selectedMood || !user) throw new Error('Selecione um humor');
-      const { error } = await supabase.from('mood_surveys').insert({
+      const { error } = await (supabase as any).from('mood_surveys').insert({
         user_id: user.id,
         mood: selectedMood,
         observacoes: observacoes.trim() || null,
