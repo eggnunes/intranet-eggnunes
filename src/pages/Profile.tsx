@@ -1765,7 +1765,111 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
           </Card>
         )}
 
-        {/* Histórico de Salário */}
+        {/* Férias */}
+        {vacationRequests.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Palmtree className="w-5 h-5" />
+                Histórico de Férias
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Período</TableHead>
+                    <TableHead>Dias</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {vacationRequests.map((vac) => (
+                    <TableRow key={vac.id}>
+                      <TableCell>
+                        {format(new Date(vac.start_date + 'T12:00:00'), 'dd/MM/yyyy')} - {format(new Date(vac.end_date + 'T12:00:00'), 'dd/MM/yyyy')}
+                      </TableCell>
+                      <TableCell>{vac.business_days} dias</TableCell>
+                      <TableCell>
+                        <Badge variant={vac.status === 'approved' ? 'default' : vac.status === 'rejected' ? 'destructive' : 'secondary'}>
+                          {vac.status === 'approved' ? 'Aprovado' : vac.status === 'rejected' ? 'Rejeitado' : 'Pendente'}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Folgas */}
+        {folgas.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Coffee className="w-5 h-5" />
+                Histórico de Folgas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Motivo</TableHead>
+                    <TableHead>Observações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {folgas.map((f) => (
+                    <TableRow key={f.id}>
+                      <TableCell>{format(new Date(f.data_folga + 'T12:00:00'), 'dd/MM/yyyy')}</TableCell>
+                      <TableCell>{f.motivo}</TableCell>
+                      <TableCell className="text-muted-foreground">{f.observacoes || '-'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Home Office */}
+        {homeOfficeSchedules.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Home className="w-5 h-5" />
+                Histórico de Home Office
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {(() => {
+                  const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                  const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                  const grouped: Record<string, number[]> = {};
+                  homeOfficeSchedules.forEach(s => {
+                    const key = `${monthNames[s.month - 1]}/${s.year}`;
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(s.day_of_week);
+                  });
+                  return Object.entries(grouped).map(([period, days]) => (
+                    <div key={period} className="border rounded-lg p-3">
+                      <p className="font-medium text-sm">{period}</p>
+                      <div className="flex gap-1 mt-1">
+                        {days.sort().map((d, i) => (
+                          <Badge key={i} variant="secondary" className="text-xs">{dayNames[d]}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {historicoSalario.length > 0 && (
           <Card>
             <CardHeader>
