@@ -254,6 +254,8 @@ const HomeOffice = () => {
       .select('id, full_name, avatar_url, position')
       .eq('position', 'advogado')
       .eq('approval_status', 'approved')
+      .eq('is_active', true)
+      .eq('is_suspended', false)
       .order('full_name');
 
     if (error) {

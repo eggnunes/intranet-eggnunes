@@ -69,7 +69,9 @@ export default function ForumTopic() {
     const { data } = await supabase
       .from('profiles')
       .select('id, full_name, avatar_url')
-      .eq('approval_status', 'approved');
+      .eq('approval_status', 'approved')
+      .eq('is_active', true)
+      .eq('is_suspended', false);
     
     if (data) setAllUsers(data as UserProfile[]);
   };

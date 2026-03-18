@@ -33,6 +33,8 @@ export default function Aniversarios() {
       .from('profiles')
       .select('id, full_name, avatar_url, birth_date, position')
       .eq('approval_status', 'approved')
+      .eq('is_active', true)
+      .eq('is_suspended', false)
       .not('birth_date', 'is', null)
       .order('birth_date', { ascending: true });
 
