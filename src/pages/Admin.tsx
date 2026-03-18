@@ -386,11 +386,10 @@ export default function Admin() {
   };
 
   const handleToggleUserActive = async (user: ApprovedUser) => {
-    // Prevent deactivating Rafael
     if (user.email === 'rafael@eggnunes.com.br') {
       toast({
         title: 'Operação não permitida',
-        description: 'O criador da intranet não pode ser inativado',
+        description: 'O criador da intranet não pode ser desligado',
         variant: 'destructive',
       });
       return;
@@ -398,9 +397,17 @@ export default function Admin() {
 
     const newActiveStatus = !user.is_active;
     
+    const updateData: any = { is_active: newActiveStatus };
+    // When reactivating, also unsuspend
+    if (newActiveStatus) {
+      updateData.is_suspended = false;
+      updateData.suspended_reason = null;
+      updateData.suspended_at = null;
+    }
+    
     const { error } = await supabase
       .from('profiles')
-      .update({ is_active: newActiveStatus })
+      .update(updateData)
       .eq('id', user.id);
 
     if (error) {
@@ -411,11 +418,50 @@ export default function Admin() {
       });
     } else {
       toast({
-        title: newActiveStatus ? 'Usuário Reativado' : 'Usuário Inativado',
+        title: newActiveStatus ? 'Colaborador Reativado' : 'Colaborador Desligado',
         description: newActiveStatus 
           ? `${user.full_name} agora pode acessar o sistema novamente`
-          : `${user.full_name} não poderá mais acessar o sistema`,
+          : `${user.full_name} foi desligado e não poderá mais acessar o sistema`,
       });
+      fetchApprovedUsers();
+    }
+  };
+
+  const handleSuspendUser = async (userId: string, reason: string) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ 
+        is_suspended: true, 
+        suspended_reason: reason || null,
+        suspended_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (error) {
+      toast({ title: 'Erro', description: 'Erro ao suspender usuário', variant: 'destructive' });
+    } else {
+      toast({ title: 'Acesso Suspenso', description: 'O acesso do colaborador foi suspenso temporariamente' });
+      fetchApprovedUsers();
+      setSuspendDialogOpen(false);
+      setSuspendReason('');
+      setSuspendingUserId(null);
+    }
+  };
+
+  const handleUnsuspendUser = async (userId: string) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ 
+        is_suspended: false, 
+        suspended_reason: null,
+        suspended_at: null
+      })
+      .eq('id', userId);
+
+    if (error) {
+      toast({ title: 'Erro', description: 'Erro ao reativar acesso', variant: 'destructive' });
+    } else {
+      toast({ title: 'Acesso Reativado', description: 'O colaborador pode acessar o sistema novamente' });
       fetchApprovedUsers();
     }
   };
