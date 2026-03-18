@@ -1,36 +1,37 @@
 
 
-# Página de Campanhas de Marketing
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-## Resumo
+### Causa Raiz
 
-Criar uma página dedicada para gerenciar campanhas de marketing (Facebook, Instagram, Google, etc.) com cards visuais, métricas de ROI, e modal de criação/edição. Será uma nova aba "Campanhas" dentro do CRM Dashboard.
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-## Banco de Dados
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-Nova tabela `crm_campaigns` com campos:
-- `id`, `name`, `platform` (facebook, instagram, google, linkedin, tiktok, outro), `type` (trafego, conversao, branding), `investment` (numeric), `start_date`, `end_date`, `status` (active, paused, completed), `created_by` (FK profiles), `created_at`, `updated_at`
-- Leads gerados e fechamentos serão calculados em tempo real a partir de `crm_contacts` (campo `traffic_source`) e `crm_deals` (campo `campaign_name` + `won`)
-- RLS: authenticated users can view all; only admins/sócios or creator can insert/update/delete
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-## Componente: `CRMCampaigns.tsx`
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-1. **Grid de cards** com cores por plataforma (Facebook=azul, Instagram=rosa, Google=amarelo, LinkedIn=azul escuro, TikTok=preto)
-2. Cada card mostra: nome, plataforma badge, tipo, investimento, leads (contados de `crm_contacts`), fechamentos (contados de `crm_deals` won), ROI calculado
-3. **Botão "Nova Campanha"** visível apenas para admin/sócio
-4. **Botão "Editar"** em cada card (mesmo controle de acesso)
-5. **Modal de criação/edição** com: nome, plataforma (select), tipo (select), investimento (input numérico), data início e fim (datepickers)
-6. Animações via CSS (fade-in nos cards) — não usaremos Framer Motion pois não está instalado no projeto; usaremos as animações Tailwind existentes
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+```
 
-## Integração
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
 
-- Nova aba "Campanhas" no `CRMDashboard.tsx` (ícone `Megaphone`)
-- Exportar componente no `src/components/crm/index.ts`
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
 
-## Arquivos
+### Solucao
 
-1. **Migração SQL** — criar tabela `crm_campaigns` com RLS
-2. **`src/components/crm/CRMCampaigns.tsx`** (novo)
-3. **`src/components/crm/CRMDashboard.tsx`** — adicionar aba
-4. **`src/components/crm/index.ts`** — exportar
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
 
