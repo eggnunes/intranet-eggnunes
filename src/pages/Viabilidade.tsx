@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useUserRole } from '@/hooks/useUserRole';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -41,6 +42,7 @@ function maskCpf(cpf: string) {
 }
 
 export default function Viabilidade() {
+  const navigate = useNavigate();
   const { profile, isAdmin } = useUserRole();
   const [clientes, setClientes] = useState<ViabilidadeCliente[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,10 +163,9 @@ export default function Viabilidade() {
             <h1 className="text-2xl font-bold text-foreground">Dashboard de Viabilidade</h1>
             <p className="text-sm text-muted-foreground">Gerencie a análise de viabilidade dos clientes</p>
           </div>
+          <Button onClick={() => navigate('/viabilidade/novo')}><Plus className="h-4 w-4 mr-2" />Novo Cliente</Button>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={openNewDialog}><Plus className="h-4 w-4 mr-2" />Novo Cliente</Button>
-            </DialogTrigger>
+            <DialogTrigger asChild><span /></DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>{editingCliente ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
