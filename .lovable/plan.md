@@ -1,37 +1,42 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+# Análise e Implementação de Funcionalidades Faltantes
 
-### Causa Raiz
+## O que ja existe
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+- **PROMPT 2.3 (Automação de Marketing)**: Ja implementado em `MarketingAutomation.tsx` com regras (gatilho + ação), toggle ativo/inativo, log de execuções e listas dinâmicas. Nao precisa reimplementar.
+- **PROMPT 2.2 (Segmentação)**: Parcialmente existe nas "Listas Dinâmicas" do `MarketingAutomation.tsx`, com filtros por estado, cidade, período e score.
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+## O que falta
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+### 1. Importação em Lote de Contatos (PROMPT 2.1) — NOVO
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+Criar componente `CRMContactsImport.tsx` e integrar ao `CRMContactsList.tsx` com botão "Importar".
 
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-```
+**Funcionalidades:**
+- Upload de CSV (XLSX via parsing nativo não é viável sem lib; focaremos em CSV que cobre 95% dos casos)
+- Preview dos dados em tabela antes de importar
+- Mapeamento de colunas: usuario arrasta/seleciona qual coluna do CSV corresponde a qual campo (name, email, phone, company, city, state, etc.)
+- Validação: email regex, telefone formato, campos obrigatórios (nome), detecção de duplicatas por email
+- Barra de progresso durante importação em batch (inserts de 50 em 50)
+- Relatório final: total importados, total erros, download CSV dos erros
+- Opção "Ignorar erros e continuar"
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+### 2. Melhorar Segmentação de Leads (PROMPT 2.2) — APRIMORAR
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+Adicionar ao `MarketingAutomation.tsx` (aba "Listas Dinâmicas"):
+- Segmentos pré-definidos: Leads quentes, mornos, frios, não contatados, convertidos
+- Cards com contagem por segmento no topo da aba
+- Botão "Exportar" segmento como CSV
 
-### Solucao
+Não implementaremos lógica AND/OR complexa nem envio em massa de email/WhatsApp pois isso exigiria infraestrutura de email marketing e aquecimento de número que já foi definido como restrito.
 
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+## Arquivos
 
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+1. **`src/components/crm/CRMContactsImport.tsx`** (novo) — Dialog completo de importação CSV
+2. **`src/components/crm/CRMContactsList.tsx`** — adicionar botão "Importar" que abre o dialog
+3. **`src/components/crm/MarketingAutomation.tsx`** — adicionar segmentos pré-definidos com contagens na aba de Listas Dinâmicas
 
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+## Sem mudanças no banco de dados
+Todas as funcionalidades usam a tabela `crm_contacts` existente.
 
