@@ -163,6 +163,9 @@ export default function Admin() {
   const [newPassword, setNewPassword] = useState('');
   const [resettingPassword, setResettingPassword] = useState(false);
   const [isRafael, setIsRafael] = useState(false);
+  const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
+  const [suspendReason, setSuspendReason] = useState('');
+  const [suspendingUserId, setSuspendingUserId] = useState<string | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { isSocioOrRafael } = useAdminPermissions();
