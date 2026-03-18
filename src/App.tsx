@@ -71,6 +71,7 @@ import PublicacoesDJE from "./pages/PublicacoesDJE";
 import ResetPassword from "./pages/ResetPassword";
 import GestaoFolgas from "./pages/GestaoFolgas";
 import CadastrosUteis from "./pages/CadastrosUteis";
+import TVMode from "./pages/TVMode";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient({
@@ -591,6 +592,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <CadastrosUteis />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/negocios/tv"
+              element={
+                <ProtectedRoute>
+                  <TVMode />
                 </ProtectedRoute>
               }
             />

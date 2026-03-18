@@ -1,27 +1,37 @@
 
 
-# Modo TV para Escritório
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-## Resumo
-Criar página fullscreen `/negocios/tv` para exibição em TVs, com dark mode forçado, funil de vendas (Recharts), KPIs e feed de movimentações com auto-scroll. Dados atualizados a cada 30s.
+### Causa Raiz
 
-## O que não existe
-Nenhuma página TV Mode existe no projeto. Funcionalidade totalmente nova.
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-## Implementação
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-### 1. Nova página `src/pages/TVMode.tsx`
-- Layout 100vh sem sidebar/header, dark mode forçado via classe `dark` no container
-- **Topo**: logo (`/logo-eggnunes.png`), relógio digital (atualizado a cada segundo via `setInterval`), data formatada
-- **Centro**: Funil de vendas usando `FunnelChart` ou `BarChart` horizontal do Recharts, com dados de `crm_deal_stages` + contagem de deals por stage. Cards grandes com KPIs: Total Leads (`crm_contacts`), Agendamentos (`crm_activities` tipo meeting), Contratos Fechados (`crm_deals` where `won = true`)
-- **Lateral direita**: Lista "Últimas Movimentações" de `crm_deal_history` com joins em `crm_deals` e `profiles`, auto-scroll CSS animation
-- **Auto-refresh**: `setInterval` de 30s recarregando dados, indicador visual (spinner sutil)
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-### 2. Rota no `App.tsx`
-- Rota `/negocios/tv` **sem** `ProtectedRoute` wrapper com Layout — renderiza `TVMode` diretamente dentro de `ProtectedRoute` mas sem o `Layout` component
-- Importar e adicionar rota
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-### Arquivos
-1. **`src/pages/TVMode.tsx`** (novo) — página completa
-2. **`src/App.tsx`** — adicionar rota
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+```
+
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+
+### Solucao
+
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
 
