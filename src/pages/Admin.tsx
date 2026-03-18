@@ -1810,6 +1810,42 @@ export default function Admin() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Dialog de Suspensão */}
+        <Dialog open={suspendDialogOpen} onOpenChange={setSuspendDialogOpen}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Suspender Acesso</DialogTitle>
+              <DialogDescription>
+                O colaborador não poderá acessar a intranet enquanto estiver suspenso. Essa ação é reversível.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="suspend-reason">Motivo da Suspensão (opcional)</Label>
+                <Textarea
+                  id="suspend-reason"
+                  value={suspendReason}
+                  onChange={(e) => setSuspendReason(e.target.value)}
+                  placeholder="Ex: Licença médica, férias prolongadas..."
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSuspendDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                variant="destructive"
+                onClick={() => suspendingUserId && handleSuspendUser(suspendingUserId, suspendReason)}
+              >
+                <PauseCircle className="w-4 h-4 mr-1" />
+                Suspender Acesso
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
