@@ -1,37 +1,48 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+# Melhorias nas Tarefas do CRM
 
-### Causa Raiz
+## O que ja existe
+- Visao de Lista com filtros (tipo, prioridade, responsavel) e ordenacao
+- Visao de Calendario mensal
+- Dialog de criacao/edicao (titulo, tipo, prioridade, data/hora, descricao, vinculo deal/contato)
+- Acoes: concluir, editar, excluir
+- Resumo semanal (atrasadas, vencendo hoje, concluidas)
+- Notificacoes para tarefas proximas do vencimento
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+## O que falta implementar
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+### 1. Adicionar coluna `status` na tabela `crm_activities`
+- Migração: `ALTER TABLE crm_activities ADD COLUMN status TEXT DEFAULT 'pending'`
+- Valores: pending, in_progress, completed, cancelled
+- Atualizar registros existentes: `completed = true` vira `status = 'completed'`
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+### 2. Visao Kanban (por status)
+- 4 colunas: Pendente, Em Progresso, Concluida, Cancelada
+- Cards com titulo, tipo, prioridade e data
+- Clicar no card abre edicao
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+### 3. Visao Agenda (proximos 7 dias)
+- Lista agrupada por dia (Hoje, Amanha, etc)
+- Mostra tarefas pendentes ordenadas por horario
 
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-```
+### 4. Filtros adicionais
+- Filtro por status (pendente/em progresso/concluida/cancelada)
+- Toggle "Minhas tarefas" vs "Todas"
+- Filtro por periodo (data inicio/fim)
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+### 5. Melhorias no formulario
+- Seletor de responsavel (dropdown com profiles)
+- Botao "Duplicar tarefa" na lista
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+### 6. Atualizar logica de conclusao
+- Usar `status = 'completed'` em vez de apenas `completed = true`
+- Permitir mudar status diretamente na lista
 
-### Solucao
+## Arquivos modificados
+1. **Migração SQL** — adicionar coluna `status` a `crm_activities`
+2. **`src/components/crm/CRMTasks.tsx`** — adicionar Kanban, Agenda, filtros, duplicar, seletor responsavel
 
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
-
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
-
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+## Fora de escopo nesta iteracao
+Subtarefas, comentarios e lembretes exigiriam 3 novas tabelas e componentes complexos — podem ser adicionados depois se necessario.
 
