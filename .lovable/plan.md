@@ -1,37 +1,115 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+# Módulo de Automação e Segmentação de Leads (MarketingAutomation)
 
-### Causa Raiz
+## Resumo
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+Criar duas tabelas novas (`crm_automation_rules` para regras de automação e `crm_lead_lists` para listas dinâmicas), um componente frontend `MarketingAutomation.tsx` com interface completa, e uma Edge Function `process-crm-automation` que processa regras quando gatilhos são acionados.
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+## 1. Migração — Duas novas tabelas
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+```sql
+-- Regras de automação (gatilho → ação)
+CREATE TABLE public.crm_automation_rules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  trigger_type TEXT NOT NULL, -- 'lead_created', 'deal_stage_changed', 'score_reached', 'deal_won', 'deal_lost'
+  trigger_config JSONB DEFAULT '{}'::jsonb, -- ex: { "stage_id": "xxx", "min_score": 50 }
+  action_type TEXT NOT NULL, -- 'send_whatsapp', 'create_task', 'change_status', 'update_score', 'notify_owner'
+  action_config JSONB DEFAULT '{}'::jsonb, -- ex: { "message_template": "...", "task_title": "..." }
+  is_active BOOLEAN DEFAULT true,
+  executions_count INTEGER DEFAULT 0,
+  last_executed_at TIMESTAMPTZ,
+  created_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+-- Listas dinâmicas de leads
+CREATE TABLE public.crm_lead_lists (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  description TEXT,
+  filters JSONB NOT NULL DEFAULT '{}'::jsonb, -- { "state": "MG", "days_ago": 30, "min_score": 0 }
+  created_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
 
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+-- Log de execuções
+CREATE TABLE public.crm_automation_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  rule_id UUID REFERENCES public.crm_automation_rules(id) ON DELETE CASCADE,
+  trigger_entity_type TEXT, -- 'contact', 'deal'
+  trigger_entity_id UUID,
+  action_result JSONB,
+  success BOOLEAN DEFAULT true,
+  error_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.crm_automation_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.crm_lead_lists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.crm_automation_log ENABLE ROW LEVEL SECURITY;
+
+-- RLS: approved users can manage
+CREATE POLICY "Approved users manage automation rules" ON public.crm_automation_rules FOR ALL TO authenticated USING (public.is_approved(auth.uid()));
+CREATE POLICY "Approved users manage lead lists" ON public.crm_lead_lists FOR ALL TO authenticated USING (public.is_approved(auth.uid()));
+CREATE POLICY "Approved users view automation log" ON public.crm_automation_log FOR SELECT TO authenticated USING (public.is_approved(auth.uid()));
+CREATE POLICY "System inserts automation log" ON public.crm_automation_log FOR INSERT TO authenticated WITH CHECK (true);
 ```
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+## 2. Criar `src/components/crm/MarketingAutomation.tsx`
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+Componente com 3 abas:
 
-### Solucao
+**Aba "Regras de Automação":**
+- Lista de regras com nome, gatilho, ação, status (ativo/inativo), contagem de execuções
+- Toggle ativo/inativo por regra
+- Dialog de criação/edição com:
+  - Nome da regra
+  - Select de Gatilho: Lead criado, Deal movido para etapa X (mostra select de etapas), Score atingiu Y (input numérico), Deal ganho, Deal perdido
+  - Select de Ação: Enviar WhatsApp (input template), Criar tarefa (input título + tipo), Mudar status, Notificar responsável
+  - Configurações dinâmicas baseadas no tipo selecionado
 
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+**Aba "Listas Dinâmicas":**
+- Lista de listas salvas com nome, descrição, contagem de leads que correspondem
+- Dialog de criação com filtros: Estado (select), Cidade (input), Período (últimos X dias), Score mínimo, Origem/UTM, Empresa
+- Preview dos leads que correspondem aos filtros antes de salvar
+- Botão "Ver Leads" que expande mostrando a lista filtrada
 
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+**Aba "Log de Execuções":**
+- Tabela com histórico: data, regra, entidade afetada, resultado (sucesso/erro)
+- Filtro por regra e período
 
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+## 3. Edge Function `process-crm-automation`
 
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+- Recebe `{ trigger_type, entity_id, entity_data }` no body
+- Busca regras ativas que correspondem ao `trigger_type`
+- Para cada regra, verifica `trigger_config` (ex: stage_id correto, score >= min_score)
+- Executa a ação configurada:
+  - `send_whatsapp`: chama `zapi-send-message` internamente
+  - `create_task`: insere em `crm_activities`
+  - `notify_owner`: insere em `user_notifications`
+- Registra execução em `crm_automation_log`
+- `verify_jwt = true` no config.toml
+
+## 4. Integrar no CRMDashboard
+
+- Importar `MarketingAutomation`
+- Adicionar aba "Automação" com ícone `Zap` entre "WhatsApp" e "Config"
+- `<TabsContent value="automation"><MarketingAutomation /></TabsContent>`
+
+## 5. Atualizar `src/components/crm/index.ts`
+
+- Exportar `MarketingAutomation`
+
+## Arquivos
+
+1. **Migração SQL** — 3 tabelas + RLS
+2. **`src/components/crm/MarketingAutomation.tsx`** (novo)
+3. **`supabase/functions/process-crm-automation/index.ts`** (novo)
+4. **`supabase/config.toml`** — adicionar entry para nova function
+5. **`src/components/crm/CRMDashboard.tsx`** — nova aba
+6. **`src/components/crm/index.ts`** — exportar
 
