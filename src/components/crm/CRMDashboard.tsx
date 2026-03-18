@@ -327,6 +327,10 @@ export const CRMDashboard = () => {
             <Megaphone className="h-3.5 w-3.5" />
             Campanhas
           </TabsTrigger>
+          <TabsTrigger value="ranking" className="flex items-center gap-1">
+            <Trophy className="h-3.5 w-3.5" />
+            Ranking
+          </TabsTrigger>
           <TabsTrigger value="automation" className="flex items-center gap-1">
             <Zap className="h-3.5 w-3.5" />
             Automação
