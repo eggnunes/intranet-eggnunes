@@ -163,10 +163,9 @@ export default function Viabilidade() {
             <h1 className="text-2xl font-bold text-foreground">Dashboard de Viabilidade</h1>
             <p className="text-sm text-muted-foreground">Gerencie a análise de viabilidade dos clientes</p>
           </div>
+          <Button onClick={() => navigate('/viabilidade/novo')}><Plus className="h-4 w-4 mr-2" />Novo Cliente</Button>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={openNewDialog}><Plus className="h-4 w-4 mr-2" />Novo Cliente</Button>
-            </DialogTrigger>
+            <DialogTrigger asChild><span /></DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>{editingCliente ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
