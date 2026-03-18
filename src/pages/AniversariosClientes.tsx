@@ -806,7 +806,7 @@ export default function AniversariosClientes() {
             <Button variant="outline" onClick={() => setConfirmSendDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSendBirthdayMessages}>
+            <Button onClick={() => handleSendBirthdayMessages(false)}>
               <Send className="h-4 w-4 mr-2" />
               Confirmar Envio
             </Button>
