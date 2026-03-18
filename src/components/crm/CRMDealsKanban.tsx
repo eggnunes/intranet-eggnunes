@@ -359,7 +359,9 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
     utmSource: 'all',
   });
   const [showFilters, setShowFilters] = useState(false);
-  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>(() => {
+    return (localStorage.getItem('crm-view-mode') as 'kanban' | 'list') || 'kanban';
+  });
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
