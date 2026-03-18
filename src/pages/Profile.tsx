@@ -531,9 +531,10 @@ export default function Profile() {
     if (!user) return;
     const { data, error } = await supabase
       .from('home_office_schedules')
-      .select('id, date, status, created_at')
+      .select('id, day_of_week, month, year, created_at')
       .eq('user_id', user.id)
-      .order('date', { ascending: false })
+      .order('year', { ascending: false })
+      .order('month', { ascending: false })
       .limit(50);
     if (!error && data) setHomeOfficeSchedules(data as HomeOfficeSchedule[]);
   };
