@@ -1,0 +1,1 @@
+ALTER TABLE public.chatguru_birthday_messages_log ADD COLUMN IF NOT EXISTS send_via TEXT DEFAULT 'zapi';

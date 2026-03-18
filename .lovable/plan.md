@@ -1,28 +1,37 @@
 
 
-# Correção: Remover ChatGuru e Usar Apenas Z-API (WhatsApp de Avisos)
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-## Problema
-A edge function `chatguru-birthday-messages` ainda tem o ChatGuru como fallback padrão (linha 192: `sendVia = automationRule?.send_via || 'chatguru'`). Isso significa que se a regra de automação não for encontrada ou não tiver `send_via` definido, o sistema tenta enviar pelo ChatGuru em vez do Z-API. Além disso, mensagens registradas como "sent" pelo ChatGuru bloqueiam o reenvio via Z-API porque a verificação de idempotência não distingue o canal.
+### Causa Raiz
 
-## Solução
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-### 1. Edge Function `chatguru-birthday-messages/index.ts`
-- Alterar o default de `'chatguru'` para `'zapi'` na linha 192
-- Remover todo o código do ChatGuru (funções `setChatStatusToAttending` e `sendBirthdayViaDialog`) — simplifica e elimina o risco de uso acidental
-- Remover a validação de credenciais do ChatGuru (linhas 199-202)
-- Manter apenas a lógica de envio via Z-API
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-### 2. Migração SQL
-- Adicionar coluna `send_via` na tabela `chatguru_birthday_messages_log` para rastrear o canal
-- Marcar os 7 registros de hoje com status `sent` como `failed` (foram registrados via ChatGuru mas nunca entregues pelo Z-API), liberando o reenvio
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-### 3. Frontend `AniversariosClientes.tsx`
-- Adicionar botão "Reenviar Mensagens" quando `total === 0` e `alreadySentToday > 0`, passando `forceResend: true`
-- Na edge function, aceitar `forceResend` para ignorar a trava de idempotência
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-### Arquivos
-1. **`supabase/functions/chatguru-birthday-messages/index.ts`** — remover ChatGuru, default Z-API, suporte `forceResend`
-2. **Migração SQL** — coluna `send_via` + correção dos registros falsos
-3. **`src/pages/AniversariosClientes.tsx`** — botão de reenvio
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+```
+
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+
+### Solucao
+
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
 

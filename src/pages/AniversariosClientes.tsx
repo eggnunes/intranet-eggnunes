@@ -415,31 +415,34 @@ export default function AniversariosClientes() {
     return exclusions.some(e => e.customer_id === customerId);
   };
 
-  const handleSendBirthdayMessages = async () => {
+  const getTodayCustomers = () => {
+    const excludedIds = new Set(exclusions.map(e => e.customer_id));
+    const now = new Date();
+    return customers
+      .filter(c => {
+        const birthday = new Date(c.birthday);
+        return birthday.getDate() === now.getDate() &&
+               birthday.getMonth() === now.getMonth() &&
+               !excludedIds.has(c.id) &&
+               c.phone;
+      })
+      .map(c => ({
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        birthday: c.birthday,
+      }));
+  };
+
+  const handleSendBirthdayMessages = async (forceResend = false) => {
     setConfirmSendDialogOpen(false);
     setSendingMessages(true);
 
     try {
-      // Build today's eligible customers list from frontend state
-      const excludedIds = new Set(exclusions.map(e => e.customer_id));
-      const now = new Date();
-      const todayCustomers = customers
-        .filter(c => {
-          const birthday = new Date(c.birthday);
-          return birthday.getDate() === now.getDate() &&
-                 birthday.getMonth() === now.getMonth() &&
-                 !excludedIds.has(c.id) &&
-                 c.phone;
-        })
-        .map(c => ({
-          id: c.id,
-          name: c.name,
-          phone: c.phone,
-          birthday: c.birthday,
-        }));
+      const todayCustomers = getTodayCustomers();
 
       const { data, error } = await supabase.functions.invoke('chatguru-birthday-messages', {
-        body: { customers: todayCustomers },
+        body: { customers: todayCustomers, forceResend },
       });
 
       if (error) {
@@ -463,7 +466,7 @@ export default function AniversariosClientes() {
         } else if (results.total === 0 && results.alreadySentToday > 0) {
           toast({
             title: 'Mensagens já enviadas',
-            description: `Todas as ${results.alreadySentToday} mensagens de hoje já foram enviadas anteriormente.`,
+            description: `Todas as ${results.alreadySentToday} mensagens de hoje já foram enviadas anteriormente. Use "Reenviar" se precisar enviar novamente.`,
           });
         } else if (results.remaining > 0) {
           toast({
@@ -615,6 +618,16 @@ export default function AniversariosClientes() {
             >
               <Send className="h-4 w-4 mr-2" />
               {sendingMessages ? 'Enviando...' : 'Enviar Mensagens de Aniversário'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleSendBirthdayMessages(true)}
+              disabled={sendingMessages}
+              title="Reenviar ignorando mensagens já enviadas hoje"
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Reenviar Mensagens
             </Button>
             
             {filteredCustomers.length > 0 && (
@@ -793,7 +806,7 @@ export default function AniversariosClientes() {
             <Button variant="outline" onClick={() => setConfirmSendDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSendBirthdayMessages}>
+            <Button onClick={() => handleSendBirthdayMessages(false)}>
               <Send className="h-4 w-4 mr-2" />
               Confirmar Envio
             </Button>

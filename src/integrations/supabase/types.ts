@@ -1270,6 +1270,7 @@ export type Database = {
           error_message: string | null
           id: string
           message_text: string
+          send_via: string | null
           sent_at: string | null
           status: string
         }
@@ -1282,6 +1283,7 @@ export type Database = {
           error_message?: string | null
           id?: string
           message_text: string
+          send_via?: string | null
           sent_at?: string | null
           status?: string
         }
@@ -1294,6 +1296,7 @@ export type Database = {
           error_message?: string | null
           id?: string
           message_text?: string
+          send_via?: string | null
           sent_at?: string | null
           status?: string
         }
