@@ -619,6 +619,16 @@ export default function AniversariosClientes() {
               <Send className="h-4 w-4 mr-2" />
               {sendingMessages ? 'Enviando...' : 'Enviar Mensagens de Aniversário'}
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleSendBirthdayMessages(true)}
+              disabled={sendingMessages}
+              title="Reenviar ignorando mensagens já enviadas hoje"
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Reenviar Mensagens
+            </Button>
             
             {filteredCustomers.length > 0 && (
               <>
