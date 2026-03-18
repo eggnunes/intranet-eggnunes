@@ -5,19 +5,21 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Switch } from '@/components/ui/switch';
 import {
   List, CalendarDays, Plus, Phone, Mail, Users, RotateCcw,
   AlertTriangle, Clock, CheckCircle2, ChevronLeft, ChevronRight,
   ArrowUpDown, SortAsc, SortDesc, Trash2, Edit, Check, Loader2,
+  Columns3, CalendarRange, Copy, User,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isPast, isToday, startOfWeek, endOfWeek, addMonths, subMonths, parseISO, isValid } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isPast, isToday, startOfWeek, endOfWeek, addMonths, subMonths, parseISO, isValid, addDays, isBefore, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Activity {
   id: string;
@@ -33,6 +35,7 @@ interface Activity {
   created_by: string | null;
   created_at: string;
   priority: string | null;
+  status?: string | null;
 }
 
 interface Contact { id: string; name: string; company: string | null; }
@@ -41,6 +44,8 @@ interface Profile { id: string; full_name: string; }
 
 type SortCol = 'title' | 'type' | 'priority' | 'due_date' | 'created_at';
 type SortDir = 'asc' | 'desc';
+type ViewMode = 'list' | 'calendar' | 'kanban' | 'agenda';
+type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
 
 const TASK_TYPES = [
   { value: 'call', label: 'Ligação', icon: Phone },
@@ -56,19 +61,28 @@ const PRIORITIES = [
   { value: 'urgent', label: 'Urgente', color: 'bg-destructive/10 text-destructive' },
 ];
 
+const STATUSES: { value: TaskStatus; label: string; color: string }[] = [
+  { value: 'pending', label: 'Pendente', color: 'bg-yellow-500/10 text-yellow-600' },
+  { value: 'in_progress', label: 'Em Progresso', color: 'bg-blue-500/10 text-blue-600' },
+  { value: 'completed', label: 'Concluída', color: 'bg-green-500/10 text-green-600' },
+  { value: 'cancelled', label: 'Cancelada', color: 'bg-muted text-muted-foreground' },
+];
+
 const priorityOrder: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
 
 const getTypeInfo = (type: string) => TASK_TYPES.find(t => t.value === type) || TASK_TYPES[3];
 const getPriorityInfo = (p: string) => PRIORITIES.find(pr => pr.value === p) || PRIORITIES[1];
+const getStatusInfo = (s: string) => STATUSES.find(st => st.value === s) || STATUSES[0];
 
 export const CRMTasks = () => {
+  const { user } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Activity | null>(null);
 
@@ -76,6 +90,10 @@ export const CRMTasks = () => {
   const [filterType, setFilterType] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
   const [filterOwner, setFilterOwner] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [myTasksOnly, setMyTasksOnly] = useState(false);
+  const [filterDateStart, setFilterDateStart] = useState('');
+  const [filterDateEnd, setFilterDateEnd] = useState('');
 
   // Sorting
   const [sortCol, setSortCol] = useState<SortCol>('due_date');
@@ -88,7 +106,7 @@ export const CRMTasks = () => {
   const [form, setForm] = useState({
     title: '', type: 'call', priority: 'medium', due_date: '',
     description: '', linkType: 'none' as 'none' | 'deal' | 'contact',
-    deal_id: '', contact_id: '',
+    deal_id: '', contact_id: '', owner_id: '',
   });
 
   const fetchData = useCallback(async () => {
@@ -118,7 +136,7 @@ export const CRMTasks = () => {
     if (activities.length === 0) return;
     const now = new Date();
     const dueSoon = activities.filter(a => {
-      if (a.completed) return false;
+      if (a.completed || (a as any).status === 'completed' || (a as any).status === 'cancelled') return false;
       if (!a.due_date) return false;
       const d = parseISO(a.due_date);
       if (!isValid(d)) return false;
@@ -128,10 +146,10 @@ export const CRMTasks = () => {
     if (dueSoon.length > 0) {
       sendNotifications(dueSoon);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activities]);
 
   const sendNotifications = async (tasks: Activity[]) => {
-    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     for (const t of tasks) {
       await supabase.from('user_notifications').insert({
@@ -144,6 +162,10 @@ export const CRMTasks = () => {
     }
   };
 
+  const getTaskStatus = (a: Activity): TaskStatus => {
+    return ((a as any).status as TaskStatus) || (a.completed ? 'completed' : 'pending');
+  };
+
   // Summary
   const summary = useMemo(() => {
     const now = new Date();
@@ -151,14 +173,15 @@ export const CRMTasks = () => {
     const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
     let overdue = 0, dueToday = 0, completedWeek = 0;
     activities.forEach(a => {
-      if (!a.completed && a.due_date) {
+      const status = getTaskStatus(a);
+      if (status !== 'completed' && status !== 'cancelled' && a.due_date) {
         const d = parseISO(a.due_date);
         if (isValid(d)) {
           if (isPast(d) && !isToday(d)) overdue++;
           if (isToday(d)) dueToday++;
         }
       }
-      if (a.completed && a.completed_at) {
+      if (status === 'completed' && a.completed_at) {
         const c = parseISO(a.completed_at);
         if (isValid(c) && c >= weekStart && c <= weekEnd) completedWeek++;
       }
@@ -166,12 +189,32 @@ export const CRMTasks = () => {
     return { overdue, dueToday, completedWeek };
   }, [activities]);
 
-  // Filtered + sorted tasks for list
-  const filteredTasks = useMemo(() => {
-    let list = activities.filter(a => !a.completed);
+  // Apply common filters
+  const applyFilters = useCallback((list: Activity[]) => {
     if (filterType !== 'all') list = list.filter(a => a.type === filterType);
     if (filterPriority !== 'all') list = list.filter(a => (a.priority || 'medium') === filterPriority);
     if (filterOwner !== 'all') list = list.filter(a => a.owner_id === filterOwner);
+    if (filterStatus !== 'all') list = list.filter(a => getTaskStatus(a) === filterStatus);
+    if (myTasksOnly && user) list = list.filter(a => a.owner_id === user.id);
+    if (filterDateStart) {
+      const start = parseISO(filterDateStart);
+      list = list.filter(a => a.due_date && !isBefore(parseISO(a.due_date), start));
+    }
+    if (filterDateEnd) {
+      const end = parseISO(filterDateEnd);
+      list = list.filter(a => a.due_date && !isAfter(parseISO(a.due_date), addDays(end, 1)));
+    }
+    return list;
+  }, [filterType, filterPriority, filterOwner, filterStatus, myTasksOnly, filterDateStart, filterDateEnd, user]);
+
+  // Filtered + sorted tasks for list
+  const filteredTasks = useMemo(() => {
+    let list = applyFilters([...activities]);
+    // For list view, exclude completed/cancelled by default unless filterStatus is set
+    if (filterStatus === 'all') list = list.filter(a => {
+      const s = getTaskStatus(a);
+      return s !== 'completed' && s !== 'cancelled';
+    });
 
     list.sort((a, b) => {
       let cmp = 0;
@@ -188,7 +231,7 @@ export const CRMTasks = () => {
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return list;
-  }, [activities, filterType, filterPriority, filterOwner, sortCol, sortDir]);
+  }, [activities, applyFilters, filterStatus, sortCol, sortDir]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -202,7 +245,7 @@ export const CRMTasks = () => {
 
   const openCreate = () => {
     setEditingTask(null);
-    setForm({ title: '', type: 'call', priority: 'medium', due_date: '', description: '', linkType: 'none', deal_id: '', contact_id: '' });
+    setForm({ title: '', type: 'call', priority: 'medium', due_date: '', description: '', linkType: 'none', deal_id: '', contact_id: '', owner_id: user?.id || '' });
     setDialogOpen(true);
   };
 
@@ -217,6 +260,23 @@ export const CRMTasks = () => {
       linkType: task.deal_id ? 'deal' : task.contact_id ? 'contact' : 'none',
       deal_id: task.deal_id || '',
       contact_id: task.contact_id || '',
+      owner_id: task.owner_id || '',
+    });
+    setDialogOpen(true);
+  };
+
+  const handleDuplicate = (task: Activity) => {
+    setEditingTask(null);
+    setForm({
+      title: `${task.title} (cópia)`,
+      type: task.type,
+      priority: task.priority || 'medium',
+      due_date: task.due_date ? task.due_date.slice(0, 16) : '',
+      description: task.description || '',
+      linkType: task.deal_id ? 'deal' : task.contact_id ? 'contact' : 'none',
+      deal_id: task.deal_id || '',
+      contact_id: task.contact_id || '',
+      owner_id: task.owner_id || '',
     });
     setDialogOpen(true);
   };
@@ -225,7 +285,6 @@ export const CRMTasks = () => {
     if (!form.title.trim()) { toast.error('Título é obrigatório'); return; }
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
       const payload: any = {
         title: form.title,
@@ -235,6 +294,7 @@ export const CRMTasks = () => {
         description: form.description || null,
         deal_id: form.linkType === 'deal' ? form.deal_id || null : null,
         contact_id: form.linkType === 'contact' ? form.contact_id || null : null,
+        owner_id: form.owner_id || user.id,
       };
 
       if (editingTask) {
@@ -242,12 +302,11 @@ export const CRMTasks = () => {
         if (error) throw error;
         toast.success('Tarefa atualizada');
       } else {
-        payload.owner_id = user.id;
         payload.created_by = user.id;
+        payload.status = 'pending';
         const { error } = await supabase.from('crm_activities').insert(payload);
         if (error) throw error;
         toast.success('Tarefa criada');
-        // Notification
         await supabase.from('user_notifications').insert({
           user_id: user.id,
           title: '✅ Nova tarefa CRM criada',
@@ -265,13 +324,18 @@ export const CRMTasks = () => {
     }
   };
 
-  const handleComplete = async (id: string) => {
-    const { error } = await supabase.from('crm_activities').update({
-      completed: true,
-      completed_at: new Date().toISOString(),
-    }).eq('id', id);
-    if (error) { toast.error('Erro ao concluir tarefa'); return; }
-    toast.success('Tarefa concluída');
+  const handleStatusChange = async (id: string, newStatus: TaskStatus) => {
+    const updatePayload: any = { status: newStatus };
+    if (newStatus === 'completed') {
+      updatePayload.completed = true;
+      updatePayload.completed_at = new Date().toISOString();
+    } else {
+      updatePayload.completed = false;
+      updatePayload.completed_at = null;
+    }
+    const { error } = await supabase.from('crm_activities').update(updatePayload).eq('id', id);
+    if (error) { toast.error('Erro ao atualizar status'); return; }
+    toast.success(`Status alterado para ${getStatusInfo(newStatus).label}`);
     fetchData();
   };
 
@@ -307,6 +371,111 @@ export const CRMTasks = () => {
 
   const tasksOnDay = (day: Date) =>
     activities.filter(a => a.due_date && isSameDay(parseISO(a.due_date), day));
+
+  // Kanban data
+  const kanbanColumns: { status: TaskStatus; label: string; color: string }[] = [
+    { status: 'pending', label: 'Pendente', color: 'border-yellow-500/50' },
+    { status: 'in_progress', label: 'Em Progresso', color: 'border-blue-500/50' },
+    { status: 'completed', label: 'Concluída', color: 'border-green-500/50' },
+    { status: 'cancelled', label: 'Cancelada', color: 'border-muted' },
+  ];
+
+  const getKanbanTasks = (status: TaskStatus) => {
+    return applyFilters(activities).filter(a => getTaskStatus(a) === status);
+  };
+
+  // Agenda: next 7 days
+  const agendaDays = useMemo(() => {
+    const today = new Date();
+    const days = Array.from({ length: 7 }, (_, i) => addDays(today, i));
+    return days.map(day => {
+      const dayTasks = applyFilters(activities)
+        .filter(a => {
+          const s = getTaskStatus(a);
+          if (s === 'completed' || s === 'cancelled') return false;
+          return a.due_date && isSameDay(parseISO(a.due_date), day);
+        })
+        .sort((a, b) => {
+          if (!a.due_date || !b.due_date) return 0;
+          return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+        });
+      return { day, tasks: dayTasks };
+    });
+  }, [activities, applyFilters]);
+
+  const getDayLabel = (day: Date) => {
+    if (isToday(day)) return 'Hoje';
+    if (isSameDay(day, addDays(new Date(), 1))) return 'Amanhã';
+    return format(day, "EEEE, dd/MM", { locale: ptBR });
+  };
+
+  // Filters bar component
+  const FiltersBar = () => (
+    <div className="flex flex-wrap gap-2 items-center">
+      <Select value={filterType} onValueChange={setFilterType}>
+        <SelectTrigger className="w-[130px]"><SelectValue placeholder="Tipo" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Todos tipos</SelectItem>
+          {TASK_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      <Select value={filterPriority} onValueChange={setFilterPriority}>
+        <SelectTrigger className="w-[130px]"><SelectValue placeholder="Prioridade" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Todas</SelectItem>
+          {PRIORITIES.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      <Select value={filterStatus} onValueChange={setFilterStatus}>
+        <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Todos status</SelectItem>
+          {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      <Select value={filterOwner} onValueChange={setFilterOwner}>
+        <SelectTrigger className="w-[150px]"><SelectValue placeholder="Responsável" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Todos</SelectItem>
+          {profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      <div className="flex items-center gap-2">
+        <Switch checked={myTasksOnly} onCheckedChange={setMyTasksOnly} id="my-tasks" />
+        <label htmlFor="my-tasks" className="text-sm text-muted-foreground cursor-pointer">Minhas tarefas</label>
+      </div>
+      <Input type="date" value={filterDateStart} onChange={e => setFilterDateStart(e.target.value)} className="w-[140px]" placeholder="De" />
+      <Input type="date" value={filterDateEnd} onChange={e => setFilterDateEnd(e.target.value)} className="w-[140px]" placeholder="Até" />
+    </div>
+  );
+
+  // Task card for kanban
+  const TaskCard = ({ task }: { task: Activity }) => {
+    const typeInfo = getTypeInfo(task.type);
+    const prioInfo = getPriorityInfo(task.priority || 'medium');
+    const isOverdue = task.due_date && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date)) && getTaskStatus(task) !== 'completed';
+    const TypeIcon = typeInfo.icon;
+    return (
+      <Card
+        className={`cursor-pointer hover:shadow-md transition-shadow ${isOverdue ? 'border-destructive/50' : ''}`}
+        onClick={() => openEdit(task)}
+      >
+        <CardContent className="p-3 space-y-2">
+          <p className="font-medium text-sm leading-tight">{task.title}</p>
+          <div className="flex flex-wrap gap-1">
+            <Badge variant="outline" className="text-[10px] gap-0.5 px-1.5"><TypeIcon className="h-2.5 w-2.5" />{typeInfo.label}</Badge>
+            <Badge className={`${prioInfo.color} border-0 text-[10px] px-1.5`}>{prioInfo.label}</Badge>
+          </div>
+          {task.due_date && (
+            <p className={`text-xs ${isOverdue ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+              {format(parseISO(task.due_date), "dd/MM HH:mm")}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">{getOwnerName(task.owner_id)}</p>
+        </CardContent>
+      </Card>
+    );
+  };
 
   if (loading) {
     return <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -347,43 +516,23 @@ export const CRMTasks = () => {
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={viewMode} onValueChange={v => setViewMode(v as 'list' | 'calendar')} className="w-auto">
+        <Tabs value={viewMode} onValueChange={v => setViewMode(v as ViewMode)} className="w-auto">
           <TabsList>
             <TabsTrigger value="list" className="flex items-center gap-1"><List className="h-4 w-4" /> Lista</TabsTrigger>
+            <TabsTrigger value="kanban" className="flex items-center gap-1"><Columns3 className="h-4 w-4" /> Kanban</TabsTrigger>
+            <TabsTrigger value="agenda" className="flex items-center gap-1"><CalendarRange className="h-4 w-4" /> Agenda</TabsTrigger>
             <TabsTrigger value="calendar" className="flex items-center gap-1"><CalendarDays className="h-4 w-4" /> Calendário</TabsTrigger>
           </TabsList>
         </Tabs>
         <Button onClick={openCreate}><Plus className="h-4 w-4 mr-1" /> Nova Tarefa</Button>
       </div>
 
+      {/* Filters */}
+      <FiltersBar />
+
       {/* List View */}
       {viewMode === 'list' && (
         <Card>
-          <CardHeader className="pb-3">
-            <div className="flex flex-wrap gap-2">
-              <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="w-[140px]"><SelectValue placeholder="Tipo" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os tipos</SelectItem>
-                  {TASK_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={filterPriority} onValueChange={setFilterPriority}>
-                <SelectTrigger className="w-[140px]"><SelectValue placeholder="Prioridade" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  {PRIORITIES.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={filterOwner} onValueChange={setFilterOwner}>
-                <SelectTrigger className="w-[160px]"><SelectValue placeholder="Responsável" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
@@ -397,22 +546,24 @@ export const CRMTasks = () => {
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('priority')}>
                     <span className="flex items-center">Prioridade <SortIcon col="priority" /></span>
                   </TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('due_date')}>
                     <span className="flex items-center">Vencimento <SortIcon col="due_date" /></span>
                   </TableHead>
                   <TableHead>Vinculado a</TableHead>
                   <TableHead>Responsável</TableHead>
-                  <TableHead className="w-[120px]">Ações</TableHead>
+                  <TableHead className="w-[160px]">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredTasks.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhuma tarefa pendente</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhuma tarefa encontrada</TableCell></TableRow>
                 )}
                 {filteredTasks.map(task => {
                   const typeInfo = getTypeInfo(task.type);
                   const prioInfo = getPriorityInfo(task.priority || 'medium');
-                  const isOverdue = task.due_date && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date));
+                  const statusInfo = getStatusInfo(getTaskStatus(task));
+                  const isOverdue = task.due_date && isPast(parseISO(task.due_date)) && !isToday(parseISO(task.due_date)) && getTaskStatus(task) !== 'completed';
                   const TypeIcon = typeInfo.icon;
                   return (
                     <TableRow key={task.id} className={isOverdue ? 'bg-destructive/5' : ''}>
@@ -422,6 +573,16 @@ export const CRMTasks = () => {
                       </TableCell>
                       <TableCell>
                         <Badge className={prioInfo.color + ' border-0'}>{prioInfo.label}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Select value={getTaskStatus(task)} onValueChange={(v) => handleStatusChange(task.id, v as TaskStatus)}>
+                          <SelectTrigger className="h-7 w-[130px] text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
                       </TableCell>
                       <TableCell>
                         {task.due_date ? (
@@ -434,8 +595,11 @@ export const CRMTasks = () => {
                       <TableCell className="text-sm">{getOwnerName(task.owner_id)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
-                          <Button size="icon" variant="ghost" title="Concluir" onClick={() => handleComplete(task.id)}><Check className="h-4 w-4 text-green-600" /></Button>
+                          {getTaskStatus(task) !== 'completed' && (
+                            <Button size="icon" variant="ghost" title="Concluir" onClick={() => handleStatusChange(task.id, 'completed')}><Check className="h-4 w-4 text-green-600" /></Button>
+                          )}
                           <Button size="icon" variant="ghost" title="Editar" onClick={() => openEdit(task)}><Edit className="h-4 w-4" /></Button>
+                          <Button size="icon" variant="ghost" title="Duplicar" onClick={() => handleDuplicate(task)}><Copy className="h-4 w-4" /></Button>
                           <Button size="icon" variant="ghost" title="Excluir" onClick={() => handleDelete(task.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                         </div>
                       </TableCell>
@@ -446,6 +610,75 @@ export const CRMTasks = () => {
             </Table>
           </CardContent>
         </Card>
+      )}
+
+      {/* Kanban View */}
+      {viewMode === 'kanban' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {kanbanColumns.map(col => {
+            const tasks = getKanbanTasks(col.status);
+            return (
+              <div key={col.status} className={`rounded-lg border-t-4 ${col.color} bg-muted/30 p-3`}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-sm">{col.label}</h3>
+                  <Badge variant="secondary" className="text-xs">{tasks.length}</Badge>
+                </div>
+                <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+                  {tasks.map(task => <TaskCard key={task.id} task={task} />)}
+                  {tasks.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-6">Nenhuma tarefa</p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Agenda View */}
+      {viewMode === 'agenda' && (
+        <div className="space-y-4">
+          {agendaDays.map(({ day, tasks }) => (
+            <Card key={day.toISOString()}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base capitalize flex items-center gap-2">
+                  <CalendarRange className="h-4 w-4 text-primary" />
+                  {getDayLabel(day)}
+                  {!isToday(day) && <span className="text-sm text-muted-foreground font-normal">— {format(day, "dd/MM/yyyy")}</span>}
+                  <Badge variant="secondary" className="ml-auto text-xs">{tasks.length}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {tasks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">Nenhuma tarefa agendada</p>
+                ) : (
+                  <div className="space-y-2">
+                    {tasks.map(task => {
+                      const typeInfo = getTypeInfo(task.type);
+                      const prioInfo = getPriorityInfo(task.priority || 'medium');
+                      const TypeIcon = typeInfo.icon;
+                      return (
+                        <div
+                          key={task.id}
+                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                          onClick={() => openEdit(task)}
+                        >
+                          <div className="text-sm font-mono text-muted-foreground w-14">
+                            {task.due_date ? format(parseISO(task.due_date), "HH:mm") : '--:--'}
+                          </div>
+                          <TypeIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <span className="font-medium text-sm flex-1">{task.title}</span>
+                          <Badge className={`${prioInfo.color} border-0 text-[10px]`}>{prioInfo.label}</Badge>
+                          <span className="text-xs text-muted-foreground">{getOwnerName(task.owner_id)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
 
       {/* Calendar View */}
@@ -463,7 +696,6 @@ export const CRMTasks = () => {
               {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map(d => (
                 <div key={d} className="bg-muted p-2 text-center text-xs font-medium text-muted-foreground">{d}</div>
               ))}
-              {/* Empty cells before first day (Mon=0) */}
               {Array.from({ length: (firstDayOffset + 6) % 7 }).map((_, i) => (
                 <div key={`empty-${i}`} className="bg-background p-2 min-h-[80px]" />
               ))}
@@ -479,18 +711,15 @@ export const CRMTasks = () => {
                       {format(day, 'd')}
                     </span>
                     <div className="mt-1 space-y-0.5">
-                      {dayTasks.slice(0, 3).map(t => {
-                        const info = getTypeInfo(t.type);
-                        return (
-                          <div
-                            key={t.id}
-                            onClick={() => openEdit(t)}
-                            className={`text-[10px] leading-tight px-1 py-0.5 rounded cursor-pointer truncate ${t.completed ? 'line-through opacity-50 bg-muted' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}
-                          >
-                            {t.title}
-                          </div>
-                        );
-                      })}
+                      {dayTasks.slice(0, 3).map(t => (
+                        <div
+                          key={t.id}
+                          onClick={() => openEdit(t)}
+                          className={`text-[10px] leading-tight px-1 py-0.5 rounded cursor-pointer truncate ${getTaskStatus(t) === 'completed' ? 'line-through opacity-50 bg-muted' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}
+                        >
+                          {t.title}
+                        </div>
+                      ))}
                       {dayTasks.length > 3 && (
                         <span className="text-[10px] text-muted-foreground">+{dayTasks.length - 3}</span>
                       )}
@@ -533,6 +762,15 @@ export const CRMTasks = () => {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Responsável</label>
+              <Select value={form.owner_id} onValueChange={v => setForm(f => ({ ...f, owner_id: v }))}>
+                <SelectTrigger><SelectValue placeholder="Selecionar responsável..." /></SelectTrigger>
+                <SelectContent>
+                  {profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="text-sm font-medium">Data/Hora de Vencimento</label>
