@@ -17,6 +17,7 @@ import { CRMLeadScoring } from './CRMLeadScoring';
 import { CRMFollowUp } from './CRMFollowUp';
 import { CRMWhatsAppLogs } from './CRMWhatsAppLogs';
 import { CRMTasks } from './CRMTasks';
+import { MarketingAutomation } from './MarketingAutomation';
 import { useUserRole } from '@/hooks/useUserRole';
 
 interface CRMStats {
