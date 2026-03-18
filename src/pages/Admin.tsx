@@ -1040,11 +1040,17 @@ export default function Admin() {
                             </div>
                           </div>
                         <div className="flex items-center gap-3">
-                          {/* Inactive badge */}
+                          {/* Status badges */}
                           {!user.is_active && (
                             <Badge variant="destructive" className="gap-1">
                               <UserX className="w-3 h-3" />
-                              Inativo
+                              Desligado
+                            </Badge>
+                          )}
+                          {user.is_active && user.is_suspended && (
+                            <Badge variant="outline" className="gap-1 border-orange-400 text-orange-600 dark:text-orange-400">
+                              <PauseCircle className="w-3 h-3" />
+                              Suspenso
                             </Badge>
                           )}
                           {/* Admin badge */}
