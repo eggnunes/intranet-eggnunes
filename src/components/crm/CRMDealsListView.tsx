@@ -40,13 +40,9 @@ interface Deal {
   contact?: {
     name: string;
     lead_score: number | null;
-    [key: string]: unknown;
   };
   owner?: { id: string; full_name: string; email: string };
 }
-
-type SortColumn = 'name' | 'owner' | 'lead_score' | 'stage' | 'value' | 'created_at' | 'status';
-type SortDir = 'asc' | 'desc';
 
 interface CRMDealsListViewProps {
   deals: Deal[];
@@ -54,7 +50,8 @@ interface CRMDealsListViewProps {
   profiles: Record<string, { full_name: string; email: string }>;
   formatCurrency: (value: number) => string;
   onMoveDeal: (dealId: string, newStageId: string, currentStageId: string) => Promise<void>;
-  onViewDeal: (deal: Deal) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onViewDeal: (deal: any) => void;
 }
 
 export const CRMDealsListView = ({
