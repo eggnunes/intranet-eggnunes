@@ -1699,7 +1699,40 @@ export default function Admin() {
                       )
                     )}
 
-                    {/* Inativar/Reativar */}
+                    {/* Suspender/Reativar Acesso */}
+                    {editingUserData.email !== 'rafael@eggnunes.com.br' && editingUserData.is_active && (
+                      editingUserData.is_suspended ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="default"
+                          onClick={async () => {
+                            await handleUnsuspendUser(editingUserData.id);
+                            setEditingUserData({ ...editingUserData, is_suspended: false });
+                          }}
+                        >
+                          <PlayCircle className="w-4 h-4 mr-1" />
+                          Reativar Acesso
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="text-orange-600 hover:text-orange-600"
+                          onClick={() => {
+                            setSuspendingUserId(editingUserData.id);
+                            setSuspendReason('');
+                            setSuspendDialogOpen(true);
+                          }}
+                        >
+                          <PauseCircle className="w-4 h-4 mr-1" />
+                          Suspender Acesso
+                        </Button>
+                      )
+                    )}
+
+                    {/* Desligar/Reativar Colaborador */}
                     {editingUserData.email !== 'rafael@eggnunes.com.br' && (
                       <Button
                         type="button"
@@ -1709,7 +1742,7 @@ export default function Admin() {
                           const user = approvedUsers.find(u => u.id === editingUserData.id);
                           if (user) {
                             await handleToggleUserActive(user);
-                            setEditingUserData({ ...editingUserData, is_active: !editingUserData.is_active });
+                            setEditingUserData({ ...editingUserData, is_active: !editingUserData.is_active, is_suspended: false });
                           }
                         }}
                         className={editingUserData.is_active ? 'text-destructive hover:text-destructive' : ''}
@@ -1717,12 +1750,12 @@ export default function Admin() {
                         {editingUserData.is_active ? (
                           <>
                             <UserX className="w-4 h-4 mr-1" />
-                            Inativar
+                            Desligar Colaborador
                           </>
                         ) : (
                           <>
                             <UserCheck className="w-4 h-4 mr-1" />
-                            Reativar
+                            Reativar Colaborador
                           </>
                         )}
                       </Button>
