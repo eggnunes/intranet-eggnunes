@@ -982,7 +982,8 @@ export default function Admin() {
                     <SelectContent>
                       <SelectItem value="all">Todos</SelectItem>
                       <SelectItem value="active">Ativos</SelectItem>
-                      <SelectItem value="inactive">Inativos</SelectItem>
+                      <SelectItem value="suspended">Suspensos</SelectItem>
+                      <SelectItem value="inactive">Desligados</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
