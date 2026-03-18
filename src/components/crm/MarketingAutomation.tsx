@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Plus, Zap, ListFilter, History, Play, Pause, Trash2, Eye, Users, Edit } from 'lucide-react';
+import { Loader2, Plus, Zap, ListFilter, History, Play, Pause, Trash2, Eye, Users, Edit, Download, Flame, Thermometer, Snowflake, UserX, Trophy } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
