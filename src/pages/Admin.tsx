@@ -216,7 +216,7 @@ export default function Admin() {
   const fetchApprovedUsers = async () => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, email, full_name, avatar_url, position, join_date, birth_date, oab_number, oab_state, is_active, telefone, cpf, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado')
+      .select('id, email, full_name, avatar_url, position, join_date, birth_date, oab_number, oab_state, is_active, is_suspended, suspended_reason, suspended_at, telefone, cpf, endereco_cep, endereco_logradouro, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado')
       .eq('approval_status', 'approved')
       .order('full_name');
     setApprovedUsers(data || []);
