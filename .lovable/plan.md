@@ -1,67 +1,37 @@
 
 
-# Módulo de Gestão de Tarefas do CRM
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-## Resumo
+### Causa Raiz
 
-Criar componente `CRMTasks.tsx` com lista de tarefas pendentes, calendário mensal, formulário de criação, widget de resumo semanal e notificações automáticas. Utilizar a tabela `crm_activities` já existente, adicionando coluna `priority`.
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-## 1. Migração: adicionar `priority` à tabela `crm_activities`
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-```sql
-ALTER TABLE public.crm_activities ADD COLUMN priority TEXT DEFAULT 'medium';
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 ```
 
-Valores: `low`, `medium`, `high`, `urgent`.
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
 
-## 2. Criar `src/components/crm/CRMTasks.tsx`
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
 
-Componente principal com:
+### Solucao
 
-**Widget "Resumo da Semana"** (topo):
-- 3 cards: Atrasadas (vermelho), Vencendo Hoje (amarelo), Concluídas esta semana (verde)
-- Conta baseada em `due_date` vs hoje e `completed`
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
 
-**Duas visualizações** (toggle Lista / Calendário):
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
 
-**Lista de Tarefas Pendentes**:
-- Tabela com: Título, Tipo (badge com ícone), Prioridade (badge colorido), Vencimento, Contato/Negociação vinculado, Status
-- Filtros: tipo, prioridade, responsável
-- Botões: marcar concluída, editar, excluir
-- Ordenação por vencimento (atrasadas primeiro)
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
 
-**Calendário Mensal**:
-- Grid de dias do mês com tarefas plotadas por `due_date`
-- Navegação mês anterior/próximo
-- Tarefas exibidas como badges coloridos por tipo dentro de cada célula
-- Clicar em tarefa abre detalhes
-
-**Dialog de Criação/Edição**:
-- Campos: Título, Tipo (Ligação/Email/Reunião/Follow-up), Prioridade (Baixa/Média/Alta/Urgente), Data/Hora de vencimento (datetime-local input), Descrição
-- Seletor "Vincular a": com tabs Negociação / Contato / Empresa
-  - Negociação: Select buscando `crm_deals`
-  - Contato: Select buscando `crm_contacts`
-  - Empresa: Select buscando `crm_contacts` agrupado por `company` (distinct)
-- Salva em `crm_activities` com `created_by = user.id`
-
-**Notificações**:
-- Ao criar/concluir tarefa, inserir registro em `user_notifications` para o `owner_id`
-- Na verificação periódica (ao carregar o componente), checar tarefas com `due_date` nas próximas 24h não concluídas e gerar notificação
-
-## 3. Editar `src/components/crm/CRMDashboard.tsx`
-
-- Importar `CRMTasks`
-- Adicionar nova aba "Tarefas" com ícone `CheckSquare` entre "Atividades" e "Análises"
-- `<TabsContent value="tasks"><CRMTasks /></TabsContent>`
-
-## 4. Editar `src/components/crm/index.ts`
-
-- Exportar `CRMTasks`
-
-## Arquivos
-
-1. **Migration SQL** — `ALTER TABLE crm_activities ADD COLUMN priority`
-2. **`src/components/crm/CRMTasks.tsx`** (novo) — componente completo
-3. **`src/components/crm/CRMDashboard.tsx`** — adicionar aba "Tarefas"
-4. **`src/components/crm/index.ts`** — exportar CRMTasks
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
 

@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, Calendar, Settings, LayoutDashboard, BarChart3, Bell, Star, MessageSquare, Clock } from 'lucide-react';
+import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, Calendar, Settings, LayoutDashboard, BarChart3, Bell, Star, MessageSquare, Clock, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CRMContactsList } from './CRMContactsList';
@@ -16,6 +16,7 @@ import { CRMNotifications } from './CRMNotifications';
 import { CRMLeadScoring } from './CRMLeadScoring';
 import { CRMFollowUp } from './CRMFollowUp';
 import { CRMWhatsAppLogs } from './CRMWhatsAppLogs';
+import { CRMTasks } from './CRMTasks';
 import { useUserRole } from '@/hooks/useUserRole';
 
 interface CRMStats {
@@ -290,6 +291,10 @@ export const CRMDashboard = () => {
           <TabsTrigger value="kanban">Pipeline</TabsTrigger>
           <TabsTrigger value="contacts">Contatos</TabsTrigger>
           <TabsTrigger value="activities">Atividades</TabsTrigger>
+          <TabsTrigger value="tasks" className="flex items-center gap-1">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Tarefas
+          </TabsTrigger>
           <TabsTrigger value="analytics" className="flex items-center gap-1">
             <BarChart3 className="h-3.5 w-3.5" />
             Análises
@@ -441,6 +446,10 @@ export const CRMDashboard = () => {
         
         <TabsContent value="activities" className="mt-6">
           <CRMActivities syncEnabled={syncEnabled} />
+        </TabsContent>
+        
+        <TabsContent value="tasks" className="mt-6">
+          <CRMTasks />
         </TabsContent>
         
         <TabsContent value="analytics" className="mt-6">

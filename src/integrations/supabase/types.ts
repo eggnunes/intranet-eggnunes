@@ -1511,6 +1511,7 @@ export type Database = {
           due_date: string | null
           id: string
           owner_id: string | null
+          priority: string | null
           rd_station_id: string | null
           title: string
           type: string
@@ -1527,6 +1528,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           owner_id?: string | null
+          priority?: string | null
           rd_station_id?: string | null
           title: string
           type: string
@@ -1543,6 +1545,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           owner_id?: string | null
+          priority?: string | null
           rd_station_id?: string | null
           title?: string
           type?: string
