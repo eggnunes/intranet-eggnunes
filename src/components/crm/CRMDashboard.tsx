@@ -16,6 +16,7 @@ import { CRMNotifications } from './CRMNotifications';
 import { CRMLeadScoring } from './CRMLeadScoring';
 import { CRMFollowUp } from './CRMFollowUp';
 import { CRMWhatsAppLogs } from './CRMWhatsAppLogs';
+import { CRMTasks } from './CRMTasks';
 import { useUserRole } from '@/hooks/useUserRole';
 
 interface CRMStats {
