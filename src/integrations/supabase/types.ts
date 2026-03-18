@@ -1513,6 +1513,7 @@ export type Database = {
           owner_id: string | null
           priority: string | null
           rd_station_id: string | null
+          status: string | null
           title: string
           type: string
           updated_at: string
@@ -1530,6 +1531,7 @@ export type Database = {
           owner_id?: string | null
           priority?: string | null
           rd_station_id?: string | null
+          status?: string | null
           title: string
           type: string
           updated_at?: string
@@ -1547,6 +1549,7 @@ export type Database = {
           owner_id?: string | null
           priority?: string | null
           rd_station_id?: string | null
+          status?: string | null
           title?: string
           type?: string
           updated_at?: string
