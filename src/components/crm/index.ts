@@ -3,3 +3,4 @@ export { CRMContactsList } from './CRMContactsList';
 export { CRMDealsKanban } from './CRMDealsKanban';
 export { CRMActivities } from './CRMActivities';
 export { CRMSettings } from './CRMSettings';
+export { CRMTasks } from './CRMTasks';

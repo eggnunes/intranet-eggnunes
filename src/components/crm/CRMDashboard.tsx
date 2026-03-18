@@ -448,6 +448,10 @@ export const CRMDashboard = () => {
           <CRMActivities syncEnabled={syncEnabled} />
         </TabsContent>
         
+        <TabsContent value="tasks" className="mt-6">
+          <CRMTasks />
+        </TabsContent>
+        
         <TabsContent value="analytics" className="mt-6">
           <CRMAnalytics />
         </TabsContent>
