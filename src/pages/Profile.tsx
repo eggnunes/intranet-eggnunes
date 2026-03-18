@@ -310,6 +310,9 @@ export default function Profile() {
       fetchContratos();
       fetchPagamentosGrafico();
       fetchPontuacaoAdvbox();
+      fetchVacationRequests();
+      fetchFolgas();
+      fetchHomeOfficeSchedules();
     }
   }, [currentProfile, isViewingOther]);
 
