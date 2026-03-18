@@ -500,6 +500,10 @@ export const CRMDashboard = () => {
           <CRMCampaigns />
         </TabsContent>
 
+        <TabsContent value="ranking" className="mt-6">
+          <CRMRanking />
+        </TabsContent>
+
         <TabsContent value="automation" className="mt-6">
           <MarketingAutomation />
         </TabsContent>
