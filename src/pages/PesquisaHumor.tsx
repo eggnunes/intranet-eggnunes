@@ -59,7 +59,7 @@ const PesquisaHumor = () => {
     queryKey: ['mood-history', user?.id],
     queryFn: async () => {
       const since = subDays(new Date(), 30).toISOString();
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('mood_surveys')
         .select('*')
         .eq('user_id', user!.id)
