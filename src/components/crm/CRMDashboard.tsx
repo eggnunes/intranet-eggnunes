@@ -291,6 +291,10 @@ export const CRMDashboard = () => {
           <TabsTrigger value="kanban">Pipeline</TabsTrigger>
           <TabsTrigger value="contacts">Contatos</TabsTrigger>
           <TabsTrigger value="activities">Atividades</TabsTrigger>
+          <TabsTrigger value="tasks" className="flex items-center gap-1">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Tarefas
+          </TabsTrigger>
           <TabsTrigger value="analytics" className="flex items-center gap-1">
             <BarChart3 className="h-3.5 w-3.5" />
             Análises
