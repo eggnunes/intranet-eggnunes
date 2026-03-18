@@ -1,38 +1,37 @@
 
 
-# Visão de Lista para Negociações do CRM
+## Diagnóstico: Bug no Filtro de Busca por Telefone
 
-## Resumo
+### Causa Raiz
 
-Adicionar um toggle no topo da aba "Pipeline" para alternar entre "Visão de Funil" (Kanban atual) e "Visão de Lista" (tabela). A visão de lista terá: tabela com colunas ordenáveis, checkboxes para ações em lote, e filtros avançados.
+O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
 
-## Arquivos
+Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
 
-### 1. Criar `src/components/crm/CRMDealsListView.tsx` (novo)
+```javascript
+// Linha 358 - contratos
+if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-Componente de tabela com:
-- **Colunas**: Checkbox, Nome da Negociação, Responsável, Qualificação (lead_score do contato), Etapa do Funil, Valor Total, Data de Criação, Status (aberta/ganha/perdida)
-- **Ordenação**: State `sortColumn` + `sortDirection`, clicando no header alterna asc/desc. Ícones ArrowUpDown/SortAsc/SortDesc nos headers
-- **Filtros avançados**: Barra com filtros por período (data de criação de/até), responsável (Select com owners), etapa (Select com stages). Botão "Limpar filtros"
-- **Checkboxes + Ações em lote**: State `selectedDeals: Set<string>`. Header checkbox seleciona/deseleciona todos. Quando há selecionados, exibe barra com "X selecionados" + Select "Mover para etapa" + botão "Aplicar". Reutiliza a lógica `moveDeal` existente no Kanban
-- **Dados**: Recebe `deals`, `stages`, `profiles` como props (mesmos dados já carregados pelo Kanban), evitando queries duplicadas
+// Linha 379 - formulários  
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
 
-### 2. Editar `src/components/crm/CRMDealsKanban.tsx`
+// Linha 323 - local
+if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+```
 
-- Adicionar state `viewMode: 'kanban' | 'list'` (default: `'kanban'`)
-- Acima do Kanban, renderizar toggle group (ToggleGroup do shadcn) com ícones LayoutGrid + List para alternar
-- Quando `viewMode === 'list'`, renderizar `<CRMDealsListView>` passando `deals`, `stages`, `profiles`, `formatCurrency`, e função `handleMoveDeal`
-- Quando `viewMode === 'kanban'`, renderizar o Kanban atual (sem mudanças)
-- Extrair a função `moveDeal` (já existente) para ser reutilizada por ambas as views
+Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
 
-### 3. Editar `src/components/crm/index.ts`
+Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
 
-- Exportar `CRMDealsListView` (opcional, já que será usado internamente pelo Kanban)
+### Solucao
 
-## Detalhes Técnicos
+Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
 
-- Sem mudanças no banco de dados — todos os dados necessários já estão disponíveis
-- A ação em lote de mover etapa chamará a mesma lógica de `moveDeal` em loop para cada deal selecionado, com sync ao RD Station se habilitado
-- Ordenação e filtros serão client-side (dados já carregados em memória)
-- Componentes UI: `Table`, `Checkbox`, `ToggleGroup`, `Select`, `Input`, `Badge`, `Button`
+**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+
+- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
+- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
+
+Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
 

@@ -9,7 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Search, User, DollarSign, Calendar, ChevronDown, Phone, Mail, RefreshCw, GripVertical, Eye, Building, MapPin, Globe, Linkedin, Twitter, Facebook, Tag, FileText, Package, Target, Edit2, Save, X, History, UserCircle, CheckCircle, Circle, Video, MessageSquare, Filter, ArrowUpDown, SortAsc, SortDesc } from 'lucide-react';
+import { Loader2, Search, User, DollarSign, Calendar, ChevronDown, Phone, Mail, RefreshCw, GripVertical, Eye, Building, MapPin, Globe, Linkedin, Twitter, Facebook, Tag, FileText, Package, Target, Edit2, Save, X, History, UserCircle, CheckCircle, Circle, Video, MessageSquare, Filter, ArrowUpDown, SortAsc, SortDesc, LayoutGrid, List } from 'lucide-react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { CRMDealsListView } from './CRMDealsListView';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -357,6 +359,7 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
     utmSource: 'all',
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -830,8 +833,20 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
   return (
     <div className="space-y-4">
       {/* Search and Filters */}
+      {/* View Toggle + Search */}
       <div className="space-y-3">
         <div className="flex items-center gap-4 flex-wrap">
+          <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as 'kanban' | 'list')}>
+            <ToggleGroupItem value="kanban" aria-label="Visão de Funil" className="gap-1.5 px-3">
+              <LayoutGrid className="h-4 w-4" />
+              <span className="hidden sm:inline text-sm">Funil</span>
+            </ToggleGroupItem>
+            <ToggleGroupItem value="list" aria-label="Visão de Lista" className="gap-1.5 px-3">
+              <List className="h-4 w-4" />
+              <span className="hidden sm:inline text-sm">Lista</span>
+            </ToggleGroupItem>
+          </ToggleGroup>
+
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -985,43 +1000,49 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
         )}
       </div>
 
+      {/* List View */}
+      {viewMode === 'list' && (
+        <CRMDealsListView
+          deals={deals.filter(deal => {
+            if (!searchTerm) return true;
+            return deal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              deal.contact?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              deal.product_name?.toLowerCase().includes(searchTerm.toLowerCase());
+          }) as any}
+          stages={stages as any}
+          profiles={profiles}
+          formatCurrency={formatCurrency}
+          onMoveDeal={handleMoveToStage}
+          onViewDeal={handleViewDeal as any}
+        />
+      )}
+
       {/* Kanban Board with DnD */}
+      {viewMode === 'kanban' && (
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        {/* Container do Kanban com scroll horizontal - SOLUÇÃO DEFINITIVA */}
+        {/* Container do Kanban com scroll horizontal */}
         <div 
           id="crm-kanban-scroll"
           className="kanban-scroll-container"
           style={{
             width: 'calc(100% + 2rem)',
             marginLeft: '-1rem',
-            marginRight: '-1rem',
+            overflowX: 'auto',
+            overflowY: 'hidden',
             paddingLeft: '1rem',
             paddingRight: '1rem',
-            overflowX: 'scroll',
-            overflowY: 'visible',
-            WebkitOverflowScrolling: 'touch',
             paddingBottom: '1rem',
           }}
         >
-          <div 
-            style={{
-              display: 'flex',
-              gap: '20px',
-              paddingTop: '8px',
-              paddingBottom: '8px',
-              width: 'fit-content',
-              minWidth: '100%',
-            }}
-          >
+          <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
             {stages.map((stage, index) => {
               const stageDeals = getStageDeals(stage.id);
               const stageValue = getStageValue(stage.id);
-
               return (
                 <DroppableColumn
                   key={stage.id}
@@ -1033,7 +1054,7 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
                   getStageColumnColor={getStageColumnColor}
                   formatCurrency={formatCurrency}
                 >
-                  {stageDeals.map((deal) => (
+                  {stageDeals.map(deal => (
                     <DraggableDealCard
                       key={deal.id}
                       deal={deal}
@@ -1051,47 +1072,25 @@ export const CRMDealsKanban = ({ syncEnabled }: CRMDealsKanbanProps) => {
             })}
           </div>
         </div>
-        
-        {/* CSS para scrollbar sempre visível */}
-        <style>{`
-          .kanban-scroll-container {
-            scrollbar-width: auto !important;
-            scrollbar-color: hsl(var(--primary)) hsl(var(--muted));
-          }
-          .kanban-scroll-container::-webkit-scrollbar {
-            height: 14px !important;
-            display: block !important;
-          }
-          .kanban-scroll-container::-webkit-scrollbar-track {
-            background: hsl(var(--muted));
-            border-radius: 7px;
-          }
-          .kanban-scroll-container::-webkit-scrollbar-thumb {
-            background: hsl(var(--primary));
-            border-radius: 7px;
-            border: 2px solid hsl(var(--muted));
-          }
-          .kanban-scroll-container::-webkit-scrollbar-thumb:hover {
-            background: hsl(var(--primary) / 0.8);
-          }
-        `}</style>
 
         {/* Drag Overlay */}
         <DragOverlay>
           {activeDeal ? (
-            <Card className="w-72 shadow-2xl border-2 border-primary bg-white dark:bg-slate-950 rounded-lg opacity-90">
+            <Card className="w-72 shadow-2xl border-2 border-primary bg-background rounded-lg opacity-90">
               <CardContent className="p-3">
                 <p className="font-semibold text-sm">{activeDeal.name}</p>
+                {activeDeal.contact && (
+                  <p className="text-xs text-muted-foreground mt-1">{activeDeal.contact.name}</p>
+                )}
                 {activeDeal.value > 0 && (
-                  <p className="text-xs text-emerald-600 font-medium mt-1">
-                    {formatCurrency(activeDeal.value)}
-                  </p>
+                  <p className="text-xs font-semibold mt-1">{formatCurrency(activeDeal.value)}</p>
                 )}
               </CardContent>
             </Card>
           ) : null}
         </DragOverlay>
       </DndContext>
+      )}
 
       {/* Deal Detail Modal */}
       <Dialog open={!!selectedDeal} onOpenChange={() => { setSelectedDeal(null); setIsEditing(false); }}>
