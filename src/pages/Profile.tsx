@@ -537,6 +537,7 @@ export default function Profile() {
     if (!error && data) setHomeOfficeSchedules(data as HomeOfficeSchedule[]);
   };
 
+  const fetchUsageHistory = async () => {
     if (!user) return;
     
     const { data, error } = await supabase
