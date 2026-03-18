@@ -1687,6 +1687,56 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_campaigns: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_date: string | null
+          id: string
+          investment: number
+          name: string
+          platform: string
+          start_date: string | null
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          investment?: number
+          name: string
+          platform?: string
+          start_date?: string | null
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          investment?: number
+          name?: string
+          platform?: string
+          start_date?: string | null
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_campaigns_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_contact_tags: {
         Row: {
           contact_id: string | null
