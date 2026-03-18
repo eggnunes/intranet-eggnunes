@@ -19,15 +19,6 @@ interface DealStage {
   pipeline_id: string;
 }
 
-interface Contact {
-  id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  lead_score: number | null;
-  [key: string]: unknown;
-}
-
 interface Deal {
   id: string;
   name: string;
@@ -46,7 +37,11 @@ interface Deal {
   won: boolean | null;
   closed_at: string | null;
   loss_reason: string | null;
-  contact?: Contact;
+  contact?: {
+    name: string;
+    lead_score: number | null;
+    [key: string]: unknown;
+  };
   owner?: { id: string; full_name: string; email: string };
 }
 
