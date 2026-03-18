@@ -17,9 +17,11 @@ export default function RH() {
   const colaboradorTab = searchParams.get('tab') || 'dados';
   const isSocio = profile?.position === 'socio';
   const canAccess = isAdmin || isSocio;
+  const { user } = useAuth();
+  const isSelfProfile = colaboradorId && user && colaboradorId === user.id;
 
-  // Se não tem permissão, redireciona
-  if (!canAccess) {
+  // Se não tem permissão (exceto se for o próprio perfil), redireciona
+  if (!canAccess && !isSelfProfile) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
