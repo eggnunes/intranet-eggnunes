@@ -275,6 +275,7 @@ Deno.serve(async (req) => {
             alreadySentToday,
             errors: [],
             backgroundProcessing: true,
+            forceResend,
           },
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
