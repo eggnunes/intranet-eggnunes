@@ -506,7 +506,37 @@ export default function Profile() {
     }
   };
 
-  const fetchUsageHistory = async () => {
+  const fetchVacationRequests = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('vacation_requests')
+      .select('id, start_date, end_date, business_days, status, created_at')
+      .eq('user_id', user.id)
+      .order('start_date', { ascending: false });
+    if (!error && data) setVacationRequests(data as VacationRequest[]);
+  };
+
+  const fetchFolgas = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('rh_folgas')
+      .select('id, data_folga, motivo, observacoes, created_at')
+      .eq('colaborador_id', user.id)
+      .order('data_folga', { ascending: false });
+    if (!error && data) setFolgas(data as Folga[]);
+  };
+
+  const fetchHomeOfficeSchedules = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('home_office_schedules')
+      .select('id, date, status, created_at')
+      .eq('user_id', user.id)
+      .order('date', { ascending: false })
+      .limit(50);
+    if (!error && data) setHomeOfficeSchedules(data as HomeOfficeSchedule[]);
+  };
+
     if (!user) return;
     
     const { data, error } = await supabase
