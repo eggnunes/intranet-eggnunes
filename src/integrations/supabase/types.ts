@@ -5441,12 +5441,15 @@ export type Database = {
           full_name: string
           id: string
           is_active: boolean
+          is_suspended: boolean
           join_date: string | null
           oab_number: string | null
           oab_state: string | null
           perfil_completo: boolean | null
           position: Database["public"]["Enums"]["position_type"] | null
           salario: number | null
+          suspended_at: string | null
+          suspended_reason: string | null
           telefone: string | null
           updated_at: string
         }
@@ -5471,12 +5474,15 @@ export type Database = {
           full_name: string
           id: string
           is_active?: boolean
+          is_suspended?: boolean
           join_date?: string | null
           oab_number?: string | null
           oab_state?: string | null
           perfil_completo?: boolean | null
           position?: Database["public"]["Enums"]["position_type"] | null
           salario?: number | null
+          suspended_at?: string | null
+          suspended_reason?: string | null
           telefone?: string | null
           updated_at?: string
         }
@@ -5501,12 +5507,15 @@ export type Database = {
           full_name?: string
           id?: string
           is_active?: boolean
+          is_suspended?: boolean
           join_date?: string | null
           oab_number?: string | null
           oab_state?: string | null
           perfil_completo?: boolean | null
           position?: Database["public"]["Enums"]["position_type"] | null
           salario?: number | null
+          suspended_at?: string | null
+          suspended_reason?: string | null
           telefone?: string | null
           updated_at?: string
         }
