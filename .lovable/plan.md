@@ -1,37 +1,29 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+# Dashboard de Viabilidade
 
-### Causa Raiz
+## Resumo
+Criar uma nova página de Viabilidade com dashboard de clientes, incluindo cards de estatísticas, tabela, filtros, busca e modal de criação.
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+## Implementação
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+### 1. Nova tabela `viabilidade_clientes` (migração SQL)
+Campos: `id` (UUID), `nome` (TEXT), `cpf` (TEXT), `status` (TEXT default 'pendente' — valores: pendente, em_analise, revisado), `observacoes` (TEXT), `created_by` (UUID), `created_at`, `updated_at`. RLS para authenticated com `is_approved`.
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+### 2. Nova página `src/pages/Viabilidade.tsx`
+- **4 cards de estatísticas** no topo: Total (azul), Em Análise (âmbar), Revisados (verde), Pendentes (vermelho) — com ícones `Users`, `Clock`, `CheckCircle`, `AlertCircle`
+- **Filtros**: Select por status + Input de busca por nome/CPF
+- **Tabela**: últimos 10 clientes com Nome, CPF (mascarado), Status (Badge colorido com ícone), Data Criação, Ações (editar/excluir)
+- **Botão "Novo Cliente"**: abre Dialog com campos nome, CPF, status, observações
+- Badges de status: `pendente` = vermelho, `em_analise` = âmbar, `revisado` = verde
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+### 3. Rota e sidebar
+- Rota `/viabilidade` em `App.tsx` com `ProtectedRoute`
+- Link no `AppSidebar.tsx` na seção Setor Comercial com ícone `ClipboardCheck`
 
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-```
-
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
-
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
-
-### Solucao
-
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
-
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
-
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+### Arquivos
+1. **Migração SQL** — tabela `viabilidade_clientes` + RLS
+2. **`src/pages/Viabilidade.tsx`** (novo)
+3. **`src/App.tsx`** — rota
+4. **`src/components/AppSidebar.tsx`** — link no menu
 
