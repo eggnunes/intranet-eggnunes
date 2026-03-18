@@ -317,6 +317,10 @@ export const CRMDashboard = () => {
             <MessageSquare className="h-3.5 w-3.5" />
             WhatsApp
           </TabsTrigger>
+          <TabsTrigger value="dailylog" className="flex items-center gap-1">
+            <ClipboardList className="h-3.5 w-3.5" />
+            Diário
+          </TabsTrigger>
           <TabsTrigger value="automation" className="flex items-center gap-1">
             <Zap className="h-3.5 w-3.5" />
             Automação
