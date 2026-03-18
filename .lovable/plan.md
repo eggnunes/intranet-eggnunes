@@ -1,37 +1,34 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+# Adicionar aviso do número de recados e cadastrar automação de boleto
 
-### Causa Raiz
+## Diagnóstico
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+Encontrei as mensagens originais no código. O **footer padrão** já existe em várias Edge Functions:
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+```
+⚠️ *Este número é exclusivo para envio de avisos e informativos do escritório Egg Nunes Advogados Associados.*
+Para entrar em contato conosco, utilize nosso canal oficial:
+📞 WhatsApp Oficial: https://wa.me/553132268742
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
-
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+_Não responda esta mensagem._
 ```
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+**Problemas atuais:**
+1. A automação de **aniversário** está cadastrada na tabela `whatsapp_automation_rules`, mas o template **não inclui o footer** de aviso.
+2. A automação de **cobrança de boleto** **não está cadastrada** na tabela de automações — as mensagens existem apenas hardcoded nas Edge Functions (`send-defaulter-message` e `asaas-boleto-reminders`).
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+## Correção
 
-### Solucao
+### 1. Atualizar template de aniversário (UPDATE na tabela)
+Adicionar o footer de aviso ao final do template existente na automação de aniversário.
 
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+### 2. Inserir automação de boleto (INSERT na tabela)
+Cadastrar a mensagem de cobrança com o footer, usando o texto que já existia em `send-defaulter-message`. A automação ficará com `is_active = false` (cobrança permanece desativada conforme instrução anterior).
 
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
+### 3. Garantir que a Edge Function de aniversário use o template completo
+O código atual de `sendBirthdayViaZapi` já usa o `messageTemplate` da regra sem adicionar footer por fora — então o footer precisa estar no template da tabela (que é o que faremos).
 
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+### Arquivos alterados
+- Nenhum arquivo de código será alterado — apenas dados na tabela `whatsapp_automation_rules` (UPDATE + INSERT).
 
