@@ -2,67 +2,40 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+const GATEWAY_URL = 'https://ai.gateway.lovable.dev/v1/chat/completions';
 
-  try {
-    const { messages, model, attachments, options, stream } = await req.json();
-
-    if (!messages || messages.length === 0) {
-      throw new Error('Mensagens são obrigatórias');
-    }
-
-    // If streaming is requested
-    if (stream) {
-      return await handleStreamingRequest(messages, model, attachments, options);
-    }
-
-    let response;
-
-    // Route to appropriate provider based on model
-    if (model.startsWith('perplexity-')) {
-      response = await handlePerplexity(messages, model, options);
-    } else if (model === 'manus') {
-      response = await handleManus(messages, attachments);
-    } else if (model.startsWith('gpt-') || model.startsWith('openai-')) {
-      response = await handleOpenAI(messages, model, attachments, options);
-    } else {
-      // Default to Lovable AI (Gemini models)
-      response = await handleLovableAI(messages, model, attachments, options);
-    }
-
-    return new Response(JSON.stringify(response), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  } catch (error: unknown) {
-    console.error('AI Assistant error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-    return new Response(JSON.stringify({ 
-      error: errorMessage,
-      content: `Desculpe, ocorreu um erro: ${errorMessage}`
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-});
-
-async function handleStreamingRequest(messages: any[], model: string, attachments: any[], options: any) {
-  let apiUrl: string;
-  let headers: Record<string, string>;
-  let body: any;
-
-  const systemPrompt = `Você é um assistente de IA útil e prestativo. Responda em português brasileiro de forma clara e profissional.
+const SYSTEM_PROMPT = `Você é um assistente de IA útil e prestativo. Responda em português brasileiro de forma clara e profissional.
 Se receber arquivos anexados, analise-os cuidadosamente.
 Seja conciso mas completo em suas respostas.`;
 
-  const formattedMessages = [
-    { role: 'system', content: systemPrompt },
+// All models now route through Lovable Cloud gateway
+const MODEL_MAP: Record<string, string> = {
+  // Gemini models
+  'gemini-flash': 'google/gemini-2.5-flash',
+  'gemini-flash-lite': 'google/gemini-2.5-flash-lite',
+  'gemini-pro': 'google/gemini-2.5-pro',
+  'gemini-3-pro': 'google/gemini-3.1-pro-preview',
+  // OpenAI models (routed through gateway)
+  'gpt-5.2': 'openai/gpt-5.2',
+  'gpt-4o': 'openai/gpt-5',
+  'gpt-4o-mini': 'openai/gpt-5-mini',
+  'openai-o3': 'openai/gpt-5',
+  'openai-o4-mini': 'openai/gpt-5-mini',
+  'lovable-gpt-5': 'openai/gpt-5',
+  'lovable-gpt-5-mini': 'openai/gpt-5-mini',
+  'lovable-gpt-5-nano': 'openai/gpt-5-nano',
+  // Perplexity models (updated names, direct API for web search)
+  'perplexity-small': 'sonar',
+  'perplexity-large': 'sonar-pro',
+  'perplexity-huge': 'sonar-reasoning',
+};
+
+function formatMessages(messages: any[], attachments?: any[]) {
+  return [
+    { role: 'system', content: SYSTEM_PROMPT },
     ...messages.map((m: any, index: number) => {
       if (index === messages.length - 1 && attachments && attachments.length > 0) {
         const attachmentInfo = attachments.map((a: any) => `[Arquivo anexado: ${a.name}]`).join('\n');
@@ -71,143 +44,30 @@ Seja conciso mas completo em suas respostas.`;
       return { role: m.role, content: m.content };
     })
   ];
-
-  // Route based on model
-  if (model.startsWith('perplexity-')) {
-    const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
-    if (!PERPLEXITY_API_KEY) throw new Error('PERPLEXITY_API_KEY não configurada');
-
-    const perplexityModelMap: Record<string, string> = {
-      'perplexity-small': 'llama-3.1-sonar-small-128k-online',
-      'perplexity-large': 'llama-3.1-sonar-large-128k-online',
-      'perplexity-huge': 'llama-3.1-sonar-huge-128k-online',
-    };
-
-    apiUrl = 'https://api.perplexity.ai/chat/completions';
-    headers = {
-      'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
-      'Content-Type': 'application/json',
-    };
-    body = {
-      model: perplexityModelMap[model] || 'llama-3.1-sonar-large-128k-online',
-      messages: formattedMessages,
-      stream: true,
-      temperature: 0.2,
-    };
-  } else if (model.startsWith('gpt-') || model.startsWith('openai-')) {
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY não configurada');
-
-    const openaiModelMap: Record<string, string> = {
-      'gpt-5.2': 'gpt-5.2-2025-12-12',
-      'gpt-4o': 'gpt-5.2-2025-12-12',
-      'gpt-4o-mini': 'gpt-5.2-2025-12-12',
-      'openai-o3': 'o3-2025-04-16',
-      'openai-o4-mini': 'o4-mini-2025-04-16',
-    };
-
-    apiUrl = 'https://api.openai.com/v1/chat/completions';
-    headers = {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    };
-    body = {
-      model: openaiModelMap[model] || 'gpt-5.2-2025-12-12',
-      messages: formattedMessages,
-      stream: true,
-    };
-  } else {
-    // Lovable AI (Gemini models)
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY não configurada');
-
-    const lovableModelMap: Record<string, string> = {
-      'gemini-flash': 'google/gemini-2.5-flash',
-      'gemini-flash-lite': 'google/gemini-2.5-flash-lite',
-      'gemini-pro': 'google/gemini-2.5-pro',
-      'gemini-3-pro': 'google/gemini-3-pro-preview',
-      'lovable-gpt-5': 'openai/gpt-5',
-      'lovable-gpt-5-mini': 'openai/gpt-5-mini',
-      'lovable-gpt-5-nano': 'openai/gpt-5-nano',
-    };
-
-    apiUrl = 'https://ai.gateway.lovable.dev/v1/chat/completions';
-    headers = {
-      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-      'Content-Type': 'application/json',
-    };
-    body = {
-      model: lovableModelMap[model] || 'google/gemini-2.5-flash',
-      messages: formattedMessages,
-      stream: true,
-    };
-  }
-
-  console.log('Streaming request to:', apiUrl, 'with model:', body.model);
-
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    if (response.status === 429) {
-      throw new Error('Limite de requisições excedido. Tente novamente em alguns segundos.');
-    }
-    if (response.status === 402) {
-      throw new Error('Créditos insuficientes. Entre em contato com o administrador.');
-    }
-    const errorText = await response.text();
-    console.error('AI API error:', response.status, errorText);
-    throw new Error('Erro ao comunicar com a IA');
-  }
-
-  // Return the stream directly
-  return new Response(response.body, {
-    headers: { ...corsHeaders, 'Content-Type': 'text/event-stream' },
-  });
 }
 
-async function handleLovableAI(messages: any[], model: string, attachments: any[], options: any) {
+function isPerplexityModel(model: string): boolean {
+  return model.startsWith('perplexity-');
+}
+
+function isManusModel(model: string): boolean {
+  return model === 'manus';
+}
+
+async function callGateway(messages: any[], model: string, stream: boolean = false) {
   const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
   if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY não configurada');
 
-  const modelMap: Record<string, string> = {
-    'gemini-flash': 'google/gemini-2.5-flash',
-    'gemini-flash-lite': 'google/gemini-2.5-flash-lite',
-    'gemini-pro': 'google/gemini-2.5-pro',
-    'gemini-3-pro': 'google/gemini-3-pro-preview',
-    'lovable-gpt-5': 'openai/gpt-5',
-    'lovable-gpt-5-mini': 'openai/gpt-5-mini',
-    'lovable-gpt-5-nano': 'openai/gpt-5-nano',
-  };
+  const resolvedModel = MODEL_MAP[model] || 'google/gemini-2.5-flash';
+  console.log('Gateway request:', { requestedModel: model, resolvedModel, stream });
 
-  const systemPrompt = `Você é um assistente de IA útil e prestativo. Responda em português brasileiro de forma clara e profissional.
-Se receber arquivos anexados, analise-os cuidadosamente.
-Seja conciso mas completo em suas respostas.`;
-
-  const formattedMessages = [
-    { role: 'system', content: systemPrompt },
-    ...messages.map((m: any, index: number) => {
-      if (index === messages.length - 1 && attachments && attachments.length > 0) {
-        const attachmentInfo = attachments.map((a: any) => `[Arquivo anexado: ${a.name}]`).join('\n');
-        return { role: m.role, content: `${m.content}\n\n${attachmentInfo}` };
-      }
-      return { role: m.role, content: m.content };
-    })
-  ];
-
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+  const response = await fetch(GATEWAY_URL, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${LOVABLE_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model: modelMap[model] || 'google/gemini-2.5-flash',
-      messages: formattedMessages,
-    }),
+    body: JSON.stringify({ model: resolvedModel, messages, stream }),
   });
 
   if (!response.ok) {
@@ -218,106 +78,29 @@ Seja conciso mas completo em suas respostas.`;
       throw new Error('Créditos insuficientes. Entre em contato com o administrador.');
     }
     const errorText = await response.text();
-    console.error('Lovable AI error:', response.status, errorText);
+    console.error('Gateway error:', response.status, errorText);
     throw new Error('Erro ao comunicar com a IA');
   }
 
-  const data = await response.json();
-  return {
-    content: data.choices?.[0]?.message?.content || 'Sem resposta',
-  };
+  return response;
 }
 
-async function handleOpenAI(messages: any[], model: string, attachments: any[], options: any) {
-  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-  if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY não configurada');
+async function callPerplexity(messages: any[], model: string, stream: boolean = false) {
+  const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
+  if (!PERPLEXITY_API_KEY) throw new Error('PERPLEXITY_API_KEY não configurada');
 
-  const modelMap: Record<string, string> = {
-    'gpt-5.2': 'gpt-5.2-2025-12-12',
-    'gpt-4o': 'gpt-5.2-2025-12-12',
-    'gpt-4o-mini': 'gpt-5.2-2025-12-12',
-    'openai-o3': 'o3-2025-04-16',
-    'openai-o4-mini': 'o4-mini-2025-04-16',
-  };
+  const resolvedModel = MODEL_MAP[model] || 'sonar-pro';
 
-  const systemPrompt = `Você é um assistente de IA útil e prestativo. Responda em português brasileiro de forma clara e profissional.
-Se receber arquivos anexados, analise-os cuidadosamente.
-Seja conciso mas completo em suas respostas.`;
-
-  // Check if image generation is requested
-  if (options?.enableImageGen && messages[messages.length - 1]?.content?.toLowerCase().includes('image')) {
-    return await generateImage(messages[messages.length - 1].content, OPENAI_API_KEY);
-  }
+  const systemPrompt = `Você é um assistente de pesquisa especializado. Responda em português brasileiro.
+Sempre cite suas fontes quando possível.
+Forneça informações atualizadas e precisas.`;
 
   const formattedMessages = [
     { role: 'system', content: systemPrompt },
     ...messages.map((m: any) => ({ role: m.role, content: m.content }))
   ];
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: modelMap[model] || 'gpt-5.2-2025-12-12',
-      messages: formattedMessages,
-      max_tokens: 4096,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('OpenAI error:', response.status, errorText);
-    throw new Error('Erro ao comunicar com a OpenAI');
-  }
-
-  const data = await response.json();
-  return {
-    content: data.choices?.[0]?.message?.content || 'Sem resposta',
-  };
-}
-
-async function generateImage(prompt: string, apiKey: string) {
-  const response = await fetch('https://api.openai.com/v1/images/generations', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'dall-e-3',
-      prompt: prompt,
-      n: 1,
-      size: '1024x1024',
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error('Erro ao gerar imagem');
-  }
-
-  const data = await response.json();
-  return {
-    content: 'Imagem gerada com sucesso!',
-    images: data.data?.map((img: any) => img.url) || [],
-  };
-}
-
-async function handlePerplexity(messages: any[], model: string, options: any) {
-  const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
-  if (!PERPLEXITY_API_KEY) throw new Error('PERPLEXITY_API_KEY não configurada');
-
-  const modelMap: Record<string, string> = {
-    'perplexity-small': 'llama-3.1-sonar-small-128k-online',
-    'perplexity-large': 'llama-3.1-sonar-large-128k-online',
-    'perplexity-huge': 'llama-3.1-sonar-huge-128k-online',
-  };
-
-  const systemPrompt = `Você é um assistente de pesquisa especializado. Responda em português brasileiro.
-Sempre cite suas fontes quando possível.
-Forneça informações atualizadas e precisas.`;
+  console.log('Perplexity request:', { requestedModel: model, resolvedModel, stream });
 
   const response = await fetch('https://api.perplexity.ai/chat/completions', {
     method: 'POST',
@@ -326,13 +109,10 @@ Forneça informações atualizadas e precisas.`;
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: modelMap[model] || 'llama-3.1-sonar-large-128k-online',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...messages.map((m: any) => ({ role: m.role, content: m.content }))
-      ],
+      model: resolvedModel,
+      messages: formattedMessages,
       temperature: 0.2,
-      max_tokens: 4096,
+      ...(stream ? { stream: true } : { max_tokens: 4096 }),
     }),
   });
 
@@ -342,13 +122,10 @@ Forneça informações atualizadas e precisas.`;
     throw new Error('Erro ao comunicar com Perplexity');
   }
 
-  const data = await response.json();
-  return {
-    content: data.choices?.[0]?.message?.content || 'Sem resposta',
-  };
+  return response;
 }
 
-async function handleManus(messages: any[], attachments: any[]) {
+async function callManus(messages: any[]) {
   const MANUS_API_KEY = Deno.env.get('MANUS_API_KEY');
   if (!MANUS_API_KEY) throw new Error('MANUS_API_KEY não configurada');
 
@@ -376,7 +153,65 @@ async function handleManus(messages: any[], attachments: any[]) {
   }
 
   const data = await response.json();
-  return {
-    content: data.response || data.message || data.content || 'Sem resposta',
-  };
+  return { content: data.response || data.message || data.content || 'Sem resposta' };
 }
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { messages, model, attachments, options, stream } = await req.json();
+
+    if (!messages || messages.length === 0) {
+      throw new Error('Mensagens são obrigatórias');
+    }
+
+    // Streaming request
+    if (stream) {
+      const formattedMessages = formatMessages(messages, attachments);
+
+      let response: Response;
+      if (isPerplexityModel(model)) {
+        response = await callPerplexity(messages, model, true);
+      } else {
+        response = await callGateway(formattedMessages, model, true);
+      }
+
+      return new Response(response.body, {
+        headers: { ...corsHeaders, 'Content-Type': 'text/event-stream' },
+      });
+    }
+
+    // Non-streaming request
+    let result: { content: string; images?: string[] };
+
+    if (isManusModel(model)) {
+      result = await callManus(messages);
+    } else if (isPerplexityModel(model)) {
+      const response = await callPerplexity(messages, model);
+      const data = await response.json();
+      result = { content: data.choices?.[0]?.message?.content || 'Sem resposta' };
+    } else {
+      const formattedMessages = formatMessages(messages, attachments);
+      const response = await callGateway(formattedMessages, model);
+      const data = await response.json();
+      result = { content: data.choices?.[0]?.message?.content || 'Sem resposta' };
+    }
+
+    return new Response(JSON.stringify(result), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  } catch (error: unknown) {
+    console.error('AI Assistant error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    return new Response(JSON.stringify({
+      error: errorMessage,
+      content: `Desculpe, ocorreu um erro: ${errorMessage}`
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+});
