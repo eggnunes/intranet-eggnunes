@@ -130,7 +130,7 @@ serve(async (req) => {
       topReceitas
     };
 
-    // Buscar usuários que devem receber notificação
+    // Buscar usuários que devem receber notificação - APENAS ativos, aprovados e autorizados
     const { data: preferences } = await supabase
       .from('email_notification_preferences')
       .select('user_id')
@@ -144,10 +144,59 @@ serve(async (req) => {
     }
 
     const userIds = preferences.map(p => p.user_id);
+    
+    // Filtrar apenas perfis ativos, aprovados e não suspensos
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, email, full_name')
-      .in('id', userIds);
+      .select('id, email, full_name, position')
+      .in('id', userIds)
+      .eq('approval_status', 'approved')
+      .eq('is_active', true)
+      .eq('is_suspended', false);
+    
+    // Filtrar apenas usuários com permissão financeira (admin ou permissão explícita)
+    const authorizedProfiles = [];
+    for (const p of profiles || []) {
+      if (!p.email) continue;
+      
+      // Sócios têm acesso total
+      if (p.position === 'socio') {
+        authorizedProfiles.push(p);
+        continue;
+      }
+      
+      // Verificar se é admin
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', p.id)
+        .eq('role', 'admin')
+        .maybeSingle();
+      
+      if (roleData) {
+        authorizedProfiles.push(p);
+        continue;
+      }
+      
+      // Verificar permissão financeira explícita
+      const { data: permData } = await supabase
+        .from('admin_permissions')
+        .select('perm_financial')
+        .eq('admin_user_id', p.id)
+        .maybeSingle();
+      
+      if (permData && permData.perm_financial && permData.perm_financial !== 'none') {
+        authorizedProfiles.push(p);
+        continue;
+      }
+      
+      // Usuário sem permissão - pular e limpar preferência financeira
+      console.log(`[send-financial-summary] Usuário ${p.email} sem permissão financeira - pulando e limpando preferência`);
+      await supabase
+        .from('email_notification_preferences')
+        .update({ notify_financial: false })
+        .eq('user_id', p.id);
+    }
 
     const formatCurrency = (value: number) => {
       return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
