@@ -21,9 +21,9 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) {
+      throw new Error("ANTHROPIC_API_KEY is not configured");
     }
 
     const systemPrompt = `Você é um advogado especialista em análise de viabilidade jurídica no Brasil. 
@@ -70,16 +70,18 @@ ${descricao_caso}
 
 Forneça seu parecer de viabilidade jurídica.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 4096,
+        system: systemPrompt,
         messages: [
-          { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
       }),
@@ -92,14 +94,14 @@ Forneça seu parecer de viabilidade jurídica.`;
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
+      if (response.status === 401) {
         return new Response(
-          JSON.stringify({ error: "Créditos insuficientes para análise de IA." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ error: "Erro de autenticação com a API Anthropic." }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+      console.error("Claude API error:", response.status, errorText);
       return new Response(
         JSON.stringify({ error: "Erro ao processar análise de viabilidade." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -107,7 +109,7 @@ Forneça seu parecer de viabilidade jurídica.`;
     }
 
     const data = await response.json();
-    const parecer = data.choices?.[0]?.message?.content || "Não foi possível gerar o parecer.";
+    const parecer = data.content?.[0]?.text || "Não foi possível gerar o parecer.";
 
     // Extract recommendation from parecer
     let recomendacao = "necessita_mais_dados";

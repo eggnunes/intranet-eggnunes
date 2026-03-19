@@ -230,6 +230,25 @@ const AI_MODELS: AIModel[] = [
     icon: '🌐',
     badge: 'API Key'
   },
+  // Claude (Anthropic)
+  {
+    id: 'claude-sonnet',
+    name: 'Claude Sonnet 4',
+    provider: 'Anthropic',
+    description: 'Excelente para análise jurídica e textos complexos',
+    capabilities: ['chat', 'analysis', 'code', 'reasoning'],
+    icon: '🟠',
+    badge: 'API Key'
+  },
+  {
+    id: 'claude-haiku',
+    name: 'Claude Haiku 4',
+    provider: 'Anthropic',
+    description: 'Rápido e eficiente, ótimo custo-benefício',
+    capabilities: ['chat', 'analysis', 'code'],
+    icon: '🟡',
+    badge: 'API Key'
+  },
   // Manus
   {
     id: 'manus',
