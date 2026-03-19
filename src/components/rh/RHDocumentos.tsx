@@ -151,6 +151,13 @@ export function RHDocumentos() {
     }
   };
 
+  const sanitizeFileName = (name: string): string => {
+    let sanitized = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    sanitized = sanitized.replace(/\s+/g, "_").toLowerCase();
+    sanitized = sanitized.replace(/[^a-z0-9_.()-]/g, "");
+    return sanitized;
+  };
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedColaborador) return;
@@ -159,8 +166,8 @@ export function RHDocumentos() {
     try {
       const { data: user } = await supabase.auth.getUser();
       
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${selectedColaborador}/${Date.now()}_${file.name}`;
+      const sanitizedName = sanitizeFileName(file.name);
+      const fileName = `${selectedColaborador}/${Date.now()}_${sanitizedName}`;
 
       // Upload para storage
       const { error: uploadError } = await supabase.storage
