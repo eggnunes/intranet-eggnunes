@@ -32,7 +32,7 @@ function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Respo
 }
 
 // ===== Z-API send function =====
-async function sendBirthdayViaZapi(phone: string, customerName: string, messageTemplate: string): Promise<{ success: boolean }> {
+async function sendBirthdayViaZapi(phone: string, customerName: string, messageTemplate: string): Promise<{ success: boolean; message: string; zaapId: string | null }> {
   const ZAPI_INSTANCE_ID = Deno.env.get('ZAPI_INSTANCE_ID')?.trim();
   const ZAPI_TOKEN = Deno.env.get('ZAPI_TOKEN')?.trim();
   const ZAPI_CLIENT_TOKEN = Deno.env.get('ZAPI_CLIENT_TOKEN')?.trim();
@@ -42,7 +42,7 @@ async function sendBirthdayViaZapi(phone: string, customerName: string, messageT
   const fullPhone = validateBrazilianPhone(phone);
   const firstName = customerName.split(' ')[0];
 
-  let message = messageTemplate
+  const message = messageTemplate
     .split('{nome}').join(customerName)
     .split('{primeiro_nome}').join(firstName);
 
@@ -63,7 +63,76 @@ async function sendBirthdayViaZapi(phone: string, customerName: string, messageT
     throw new Error('Falha ao enviar via Z-API');
   }
 
-  return { success: true };
+  const zaapId = data?.zaapId || data?.messageId || null;
+  return { success: true, message, zaapId };
+}
+
+// ===== Save message to WhatsApp Avisos =====
+async function saveToWhatsAppAvisos(
+  supabase: any,
+  phone: string,
+  messageText: string,
+  zaapId: string | null,
+  userId: string,
+  customerName: string
+) {
+  try {
+    const cleanPhone = validateBrazilianPhone(phone);
+    const preview = messageText.substring(0, 100);
+
+    // Upsert conversation
+    const { data: existingConv } = await supabase
+      .from('whatsapp_conversations')
+      .select('id')
+      .eq('phone', cleanPhone)
+      .maybeSingle();
+
+    let conversationId: string;
+
+    if (existingConv) {
+      conversationId = existingConv.id;
+      await supabase.from('whatsapp_conversations').update({
+        last_message_text: preview,
+        last_message_at: new Date().toISOString(),
+        contact_name: customerName || undefined,
+      }).eq('id', conversationId);
+    } else {
+      const { data: newConv } = await supabase.from('whatsapp_conversations').insert({
+        phone: cleanPhone,
+        contact_name: customerName || null,
+        last_message_text: preview,
+        last_message_at: new Date().toISOString(),
+        unread_count: 0,
+      }).select('id').single();
+      conversationId = newConv?.id;
+    }
+
+    if (!conversationId) {
+      console.error(`[Birthday] No conversation ID for phone ${cleanPhone}`);
+      return;
+    }
+
+    // Insert message
+    const { error: msgError } = await supabase.from('whatsapp_messages').insert({
+      conversation_id: conversationId,
+      phone: cleanPhone,
+      direction: 'outbound',
+      message_type: 'text',
+      content: messageText,
+      zapi_message_id: zaapId,
+      status: 'sent',
+      sent_by: userId,
+      is_from_me: true,
+    });
+
+    if (msgError) {
+      console.error(`[Birthday] Error saving message: ${JSON.stringify(msgError)}`);
+    } else {
+      console.log(`[Birthday] ✓ Message saved to WhatsApp Avisos for ${cleanPhone}`);
+    }
+  } catch (err) {
+    console.error(`[Birthday] saveToWhatsAppAvisos error: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 function getBrazilDate(): { day: number; month: number; todayStart: string } {
@@ -170,12 +239,11 @@ Deno.serve(async (req) => {
     const { data: exclusions } = await supabase.from('customer_birthday_exclusions').select('customer_id');
     const excludedIds = new Set((exclusions || []).map((e: any) => e.customer_id));
 
-    // Idempotency check - only consider Z-API sent messages
+    // Idempotency check
     let alreadySentIds = new Set<string>();
     let alreadySentToday = 0;
 
     if (forceResend) {
-      // Mark previous "sent" entries as "resent" to allow re-processing
       const { data: updateData, error: updateError } = await supabase
         .from('chatguru_birthday_messages_log')
         .update({ status: 'resent', error_message: 'Reenvio forçado pelo administrador' })
@@ -185,7 +253,6 @@ Deno.serve(async (req) => {
       
       const updatedCount = updateData?.length || 0;
       console.log(`Force resend: marked ${updatedCount} previous entries as "resent"${updateError ? `, error: ${updateError.message}` : ''}`);
-      // alreadySentIds stays empty, alreadySentToday stays 0 — no blocking
     } else {
       const { data: alreadySentData } = await supabase
         .from('chatguru_birthday_messages_log')
@@ -206,6 +273,44 @@ Deno.serve(async (req) => {
 
     console.log(`${customersToMessage.length} to send (${totalEligible} eligible, ${alreadySentToday} already sent) via zapi`);
 
+    // Helper to process a single customer send + save
+    async function processCustomerSend(customer: CustomerInput, index: number, total: number) {
+      try {
+        console.log(`[${index + 1}/${total}] Sending to ${customer.name} via Z-API`);
+        const result = await sendBirthdayViaZapi(customer.phone!, customer.name, messageTemplate);
+
+        // Log to birthday messages table
+        await supabase.from('chatguru_birthday_messages_log').insert({
+          customer_id: customer.id,
+          customer_name: customer.name,
+          customer_phone: customer.phone,
+          message_text: `Mensagem de aniversário enviada via Z-API para ${customer.name}`,
+          status: 'sent',
+          send_via: 'zapi',
+        });
+
+        // Save to WhatsApp Avisos so it appears in the chat interface
+        await saveToWhatsAppAvisos(supabase, customer.phone!, result.message, result.zaapId, user.id, customer.name);
+
+        return { success: true };
+      } catch (error: unknown) {
+        const safeError = getSafeErrorMessage(error);
+        console.error(`✗ Failed for ${customer.name}:`, error instanceof Error ? error.message : String(error));
+
+        await supabase.from('chatguru_birthday_messages_log').insert({
+          customer_id: customer.id,
+          customer_name: customer.name,
+          customer_phone: customer.phone!,
+          message_text: `Falha no envio via Z-API para ${customer.name}`,
+          status: 'failed',
+          error_message: safeError,
+          send_via: 'zapi',
+        });
+
+        return { success: false, error: safeError };
+      }
+    }
+
     // For long intervals, use background processing
     if (customersToMessage.length > 0 && intervalMs >= 60000) {
       const bgResults = {
@@ -219,34 +324,12 @@ Deno.serve(async (req) => {
 
       const bgPromise = (async () => {
         for (let i = 0; i < customersToMessage.length; i++) {
-          const customer = customersToMessage[i];
-          try {
-            console.log(`[BG ${i + 1}/${customersToMessage.length}] Sending to ${customer.name} via Z-API`);
-            await sendBirthdayViaZapi(customer.phone!, customer.name, messageTemplate);
-
-            await supabase.from('chatguru_birthday_messages_log').insert({
-              customer_id: customer.id,
-              customer_name: customer.name,
-              customer_phone: customer.phone,
-              message_text: `Mensagem de aniversário enviada via Z-API para ${customer.name}`,
-              status: 'sent',
-              send_via: 'zapi',
-            });
+          const result = await processCustomerSend(customersToMessage[i], i, customersToMessage.length);
+          if (result.success) {
             bgResults.sent++;
-          } catch (error: unknown) {
-            const safeError = getSafeErrorMessage(error);
-            console.error(`✗ Failed for ${customer.name}:`, error instanceof Error ? error.message : String(error));
-
-            await supabase.from('chatguru_birthday_messages_log').insert({
-              customer_id: customer.id,
-              customer_name: customer.name,
-              customer_phone: customer.phone!,
-              message_text: `Falha no envio via Z-API para ${customer.name}`,
-              status: 'failed',
-              error_message: safeError,
-              send_via: 'zapi',
-            });
+          } else {
             bgResults.failed++;
+            bgResults.errors.push({ customer: customersToMessage[i].name, error: result.error! });
           }
 
           if (i < customersToMessage.length - 1) {
@@ -301,37 +384,12 @@ Deno.serve(async (req) => {
         break;
       }
 
-      const customer = customersToMessage[i];
-      try {
-        console.log(`[${i + 1}/${customersToMessage.length}] Sending to ${customer.name} via Z-API`);
-        await sendBirthdayViaZapi(customer.phone!, customer.name, messageTemplate);
-
-        await supabase.from('chatguru_birthday_messages_log').insert({
-          customer_id: customer.id,
-          customer_name: customer.name,
-          customer_phone: customer.phone,
-          message_text: `Mensagem de aniversário enviada via Z-API para ${customer.name}`,
-          status: 'sent',
-          send_via: 'zapi',
-        });
-
+      const result = await processCustomerSend(customersToMessage[i], i, customersToMessage.length);
+      if (result.success) {
         results.sent++;
-      } catch (error: unknown) {
-        const safeError = getSafeErrorMessage(error);
-        console.error(`✗ Failed for ${customer.name}:`, error instanceof Error ? error.message : String(error));
-
-        await supabase.from('chatguru_birthday_messages_log').insert({
-          customer_id: customer.id,
-          customer_name: customer.name,
-          customer_phone: customer.phone!,
-          message_text: `Falha no envio para ${customer.name}`,
-          status: 'failed',
-          error_message: safeError,
-          send_via: 'zapi',
-        });
-
+      } else {
         results.failed++;
-        results.errors.push({ customer: customer.name, error: safeError });
+        results.errors.push({ customer: customersToMessage[i].name, error: result.error! });
       }
 
       if (i < customersToMessage.length - 1 && Date.now() - startTime < MAX_EXECUTION_MS) {
