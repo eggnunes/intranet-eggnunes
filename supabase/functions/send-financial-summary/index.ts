@@ -204,7 +204,7 @@ serve(async (req) => {
 
     // Enviar emails
     let enviados = 0;
-    for (const profile of profiles || []) {
+    for (const profile of authorizedProfiles) {
       if (!profile.email) continue;
 
       const html = `

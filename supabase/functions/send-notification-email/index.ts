@@ -385,8 +385,55 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`[send-notification-email] Sending ${templateType} email to ${to}`);
 
-    // Se temos um userId, verificar preferências
+    // Se temos um userId, verificar se o usuário está ativo e tem preferências
     if (toUserId) {
+      // Verificar se o usuário está ativo, aprovado e não suspenso
+      const { data: userProfile } = await supabaseClient
+        .from("profiles")
+        .select("is_active, is_suspended, approval_status, position")
+        .eq("id", toUserId)
+        .maybeSingle();
+
+      if (userProfile) {
+        if (!userProfile.is_active || userProfile.is_suspended || userProfile.approval_status !== 'approved') {
+          console.log(`[send-notification-email] User ${toUserId} is inactive/suspended/not approved - skipping`);
+          return new Response(
+            JSON.stringify({ skipped: true, reason: "User inactive or not approved" }),
+            { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          );
+        }
+
+        // Para templates financeiros, verificar autorização
+        const financialTemplates = ['financial_due', 'financial_summary'];
+        if (financialTemplates.includes(templateType)) {
+          const isAuthorized = userProfile.position === 'socio';
+          if (!isAuthorized) {
+            const { data: roleData } = await supabaseClient
+              .from("user_roles")
+              .select("role")
+              .eq("user_id", toUserId)
+              .eq("role", "admin")
+              .maybeSingle();
+            
+            if (!roleData) {
+              const { data: permData } = await supabaseClient
+                .from("admin_permissions")
+                .select("perm_financial")
+                .eq("admin_user_id", toUserId)
+                .maybeSingle();
+              
+              if (!permData || !permData.perm_financial || permData.perm_financial === 'none') {
+                console.log(`[send-notification-email] User ${toUserId} not authorized for financial emails - skipping`);
+                return new Response(
+                  JSON.stringify({ skipped: true, reason: "User not authorized for financial notifications" }),
+                  { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+                );
+              }
+            }
+          }
+        }
+      }
+
       const { data: prefs } = await supabaseClient
         .from("email_notification_preferences")
         .select("*")
