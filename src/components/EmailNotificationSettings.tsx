@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 import { toast } from 'sonner';
 import { 
   Mail, 
@@ -19,7 +20,8 @@ import {
   MessageSquare,
   Users,
   Loader2,
-  Save
+  Save,
+  Lock
 } from 'lucide-react';
 
 interface EmailPreferences {
@@ -47,30 +49,56 @@ const defaultPreferences: EmailPreferences = {
 };
 
 const preferenceConfig = [
-  { key: 'notify_tasks', label: 'Tarefas', description: 'Novas tarefas, prazos próximos e atrasos', icon: CheckCircle2, color: 'text-blue-500' },
-  { key: 'notify_approvals', label: 'Aprovações', description: 'Solicitações de aprovação e resultados', icon: Bell, color: 'text-purple-500' },
-  { key: 'notify_financial', label: 'Financeiro', description: 'Vencimentos e alertas financeiros', icon: DollarSign, color: 'text-green-500' },
-  { key: 'notify_announcements', label: 'Comunicados', description: 'Novos avisos e comunicados', icon: Megaphone, color: 'text-orange-500' },
-  { key: 'notify_vacation', label: 'Férias', description: 'Solicitações e aprovações de férias', icon: Calendar, color: 'text-cyan-500' },
-  { key: 'notify_birthdays', label: 'Aniversários', description: 'Lembretes de aniversários', icon: Cake, color: 'text-pink-500' },
-  { key: 'notify_forum', label: 'Fórum', description: 'Respostas em tópicos que você participa', icon: MessageSquare, color: 'text-indigo-500' },
-  { key: 'notify_messages', label: 'Mensagens', description: 'Novas mensagens diretas', icon: Mail, color: 'text-red-500' },
-  { key: 'notify_crm', label: 'CRM', description: 'Atualizações de negócios e follow-ups', icon: Users, color: 'text-amber-500' },
+  { key: 'notify_tasks', label: 'Tarefas', description: 'Novas tarefas, prazos próximos e atrasos', icon: CheckCircle2, color: 'text-blue-500', requiresAdmin: false },
+  { key: 'notify_approvals', label: 'Aprovações', description: 'Solicitações de aprovação e resultados', icon: Bell, color: 'text-purple-500', requiresAdmin: false },
+  { key: 'notify_financial', label: 'Financeiro', description: 'Vencimentos e alertas financeiros', icon: DollarSign, color: 'text-green-500', requiresAdmin: true },
+  { key: 'notify_announcements', label: 'Comunicados', description: 'Novos avisos e comunicados', icon: Megaphone, color: 'text-orange-500', requiresAdmin: false },
+  { key: 'notify_vacation', label: 'Férias', description: 'Solicitações e aprovações de férias', icon: Calendar, color: 'text-cyan-500', requiresAdmin: false },
+  { key: 'notify_birthdays', label: 'Aniversários', description: 'Lembretes de aniversários', icon: Cake, color: 'text-pink-500', requiresAdmin: false },
+  { key: 'notify_forum', label: 'Fórum', description: 'Respostas em tópicos que você participa', icon: MessageSquare, color: 'text-indigo-500', requiresAdmin: false },
+  { key: 'notify_messages', label: 'Mensagens', description: 'Novas mensagens diretas', icon: Mail, color: 'text-red-500', requiresAdmin: false },
+  { key: 'notify_crm', label: 'CRM', description: 'Atualizações de negócios e follow-ups', icon: Users, color: 'text-amber-500', requiresAdmin: true },
 ];
 
 export function EmailNotificationSettings() {
   const { user } = useAuth();
+  const { isAdmin, profile } = useUserRole();
   const [preferences, setPreferences] = useState<EmailPreferences>(defaultPreferences);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [originalPreferences, setOriginalPreferences] = useState<EmailPreferences>(defaultPreferences);
+  const [hasFinancialPermission, setHasFinancialPermission] = useState(false);
+
+  const isSocio = profile?.position === 'socio';
+  const isAuthorized = isSocio || isAdmin;
 
   useEffect(() => {
     if (user) {
       fetchPreferences();
+      checkFinancialPermission();
     }
-  }, [user]);
+  }, [user, isAdmin, isSocio]);
+
+  const checkFinancialPermission = async () => {
+    if (!user) return;
+    
+    if (isSocio || isAdmin) {
+      setHasFinancialPermission(true);
+      return;
+    }
+
+    // Check explicit financial permission
+    const { data: permData } = await supabase
+      .from('admin_permissions')
+      .select('perm_financial')
+      .eq('admin_user_id', user.id)
+      .maybeSingle();
+
+    setHasFinancialPermission(
+      !!(permData && permData.perm_financial && permData.perm_financial !== 'none')
+    );
+  };
 
   const fetchPreferences = async () => {
     if (!user) return;
@@ -119,17 +147,25 @@ export function EmailNotificationSettings() {
 
     setSaving(true);
     try {
+      // Force financial/CRM prefs to false if user doesn't have permission
+      const prefsToSave = { ...preferences };
+      if (!hasFinancialPermission) {
+        prefsToSave.notify_financial = false;
+        prefsToSave.notify_crm = false;
+      }
+
       const { error } = await supabase
         .from('email_notification_preferences')
         .upsert({
           user_id: user.id,
-          ...preferences,
+          ...prefsToSave,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id' });
 
       if (error) throw error;
 
-      setOriginalPreferences(preferences);
+      setPreferences(prefsToSave);
+      setOriginalPreferences(prefsToSave);
       setHasChanges(false);
       toast.success('Preferências de email salvas com sucesso!');
     } catch (error) {
@@ -140,7 +176,12 @@ export function EmailNotificationSettings() {
     }
   };
 
-  const enabledCount = Object.values(preferences).filter(Boolean).length;
+  const visibleConfigs = preferenceConfig.filter(config => {
+    if (config.requiresAdmin && !hasFinancialPermission) return false;
+    return true;
+  });
+
+  const enabledCount = visibleConfigs.filter(c => preferences[c.key as keyof EmailPreferences]).length;
 
   if (loading) {
     return (
@@ -166,13 +207,13 @@ export function EmailNotificationSettings() {
             </div>
           </div>
           <Badge variant="secondary">
-            {enabledCount} de {preferenceConfig.length} ativas
+            {enabledCount} de {visibleConfigs.length} ativas
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4">
-          {preferenceConfig.map((config, index) => {
+          {visibleConfigs.map((config, index) => {
             const Icon = config.icon;
             return (
               <div key={config.key}>
