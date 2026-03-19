@@ -1,40 +1,38 @@
 
 
-# Otimização das integrações de IA: Lovable Cloud para tarefas complexas
+# Integração da API da Anthropic (Claude) na Intranet
 
-## Diagnóstico atual
+## Resumo
+Adicionar os modelos Claude da Anthropic como opção no assistente de IA e usar Claude em edge functions onde ele se destaca: análise jurídica profunda (viabilidade, petições) e correção de textos longos.
 
-Analisei todas as 16 Edge Functions que usam IA no projeto. A maioria já usa o Lovable Cloud (gateway), mas há oportunidades de melhoria em duas áreas:
+## Passo 1: Adicionar o secret da API key
+Solicitar que você forneça a chave `ANTHROPIC_API_KEY` via ferramenta de secrets.
 
-### 1. Assistente de IA chama OpenAI e Perplexity diretamente
-A função `ai-assistant` faz chamadas diretas para `api.openai.com` e `api.perplexity.ai` em vez de passar pelo gateway do Lovable Cloud. Isso significa que os modelos GPT e Perplexity não se beneficiam do gerenciamento automático de tokens e rate limiting do gateway. Além disso, os nomes dos modelos Perplexity estão desatualizados (`llama-3.1-sonar-*` em vez dos atuais `sonar`/`sonar-pro`).
+## Passo 2: Atualizar `supabase/functions/ai-assistant/index.ts`
+- Adicionar modelos Claude ao `MODEL_MAP`: `claude-sonnet` → `claude-sonnet-4-20250514`, `claude-haiku` → `claude-haiku-4-20250414`
+- Criar função `callClaude()` que chama `https://api.anthropic.com/v1/messages` com header `x-api-key` e `anthropic-version: 2023-06-01`
+- Suporte a streaming (SSE) e não-streaming
+- Adicionar `isClaudeModel()` check na lógica principal
 
-### 2. Tarefas jurídicas complexas usam modelos leves
-Duas funções que fazem análise jurídica profunda usam `gemini-2.5-flash` (modelo rápido/leve), quando se beneficiariam de modelos com raciocínio mais forte:
-- **analyze-viability** — parecer de viabilidade jurídica (análise complexa de caso)
-- **suggest-petition** — sugestão de petições com fundamentação legal
+## Passo 3: Atualizar modelos no frontend `src/pages/AssistenteIA.tsx`
+- Adicionar Claude Sonnet 4 e Claude Haiku 4 à lista `AI_MODELS` com badges e descrições
 
-### O que NÃO será alterado (e por quê)
-- **search-jurisprudence** — permanece no Perplexity `sonar-pro` porque precisa de busca web em tempo real para encontrar jurisprudências reais
-- **voice-to-text** — permanece no OpenAI Whisper (é um serviço de transcrição de áudio, sem equivalente no gateway)
-- Funções simples como `suggest-food-category`, `generate-chat-message` — já estão bem dimensionadas com `gemini-2.5-flash`
+## Passo 4: Usar Claude em tarefas jurídicas complexas
+Com base nas forças do Claude (análise textual profunda, instruções complexas, raciocínio jurídico):
 
-## Alterações
+- **`analyze-viability`**: Usar Claude Sonnet como modelo principal (melhor em seguir instruções estruturadas de parecer jurídico)
+- **`suggest-petition`**: Usar Claude Sonnet (excelente em fundamentação legal detalhada)
+- **`check-portuguese`**: Usar Claude Sonnet (superior em análise gramatical e estilística do português)
 
-### Arquivo 1: `supabase/functions/ai-assistant/index.ts`
-- Rotear chamadas OpenAI (GPT-5, o3, o4-mini) pelo gateway Lovable Cloud em vez de chamar `api.openai.com` diretamente
-- Atualizar modelos Perplexity para nomes atuais (`sonar`, `sonar-pro`, `sonar-reasoning`)
-- Rotear Perplexity pelo gateway quando disponível, mantendo fallback direto para busca web
-- Manter Manus como está (API separada)
+Manter o Lovable Gateway (Gemini/GPT) para tarefas rápidas e simples. Manter Perplexity para busca web. Manter OpenAI para transcrição de áudio (Whisper).
 
-### Arquivo 2: `supabase/functions/analyze-viability/index.ts`
-- Trocar modelo de `google/gemini-2.5-flash` para `google/gemini-2.5-pro` (melhor raciocínio jurídico)
+## Passo 5: Usar OpenAI direto via `OPENAI_API_KEY` existente
+Para os modelos OpenAI no assistente que têm badge "API Key" (gpt-4o, o3, o4-mini), usar a chave OpenAI direta em vez do gateway, já que você já forneceu essa chave — garantindo acesso direto sem consumir créditos do Lovable.
 
-### Arquivo 3: `supabase/functions/suggest-petition/index.ts`
-- Trocar modelo de `google/gemini-2.5-flash` para `google/gemini-2.5-pro` (melhor fundamentação legal)
-
-## Resultado esperado
-- Todas as chamadas de IA (exceto Whisper e busca jurisprudencial) passam pelo Lovable Cloud
-- Tarefas jurídicas complexas usam modelos mais potentes para respostas de melhor qualidade
-- Modelos Perplexity atualizados para versões corretas
+## Arquivos alterados
+1. `supabase/functions/ai-assistant/index.ts` — adicionar Claude + OpenAI direto
+2. `src/pages/AssistenteIA.tsx` — adicionar modelos Claude na lista
+3. `supabase/functions/analyze-viability/index.ts` — trocar para Claude Sonnet
+4. `supabase/functions/suggest-petition/index.ts` — trocar para Claude Sonnet
+5. `supabase/functions/check-portuguese/index.ts` — trocar para Claude Sonnet
 
