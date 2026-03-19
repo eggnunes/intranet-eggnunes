@@ -1,37 +1,33 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+# Correção de 2 erros: Upload de documento e Carregamento de transações
 
-### Causa Raiz
+## Problema 1: "Erro ao enviar documento: Invalid key"
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+O nome do arquivo contém caracteres especiais (ç, ã, espaços): `rescisão e comprovante de pagamento rescisão Tatiane.pdf`. O Supabase Storage rejeita chaves com esses caracteres.
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+**Correção**: Sanitizar o nome do arquivo antes do upload no componente `ColaboradorDocumentos.tsx`, removendo acentos e substituindo espaços por underscores, mantendo o nome original visível para o usuário no banco de dados.
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+## Problema 2: "Erro ao carregar transações financeiras"
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+A Letícia tem permissão financeira via a tabela `position_permission_defaults` (cargo "administrativo" tem `perm_financial = edit`). O frontend reconhece isso e permite acesso à página. Porém, a Edge Function `advbox-integration` valida permissão chamando a função SQL `get_admin_permission`, que **não consulta** a tabela `position_permission_defaults` — só consulta `admin_permissions`. Como a Letícia não está na `admin_permissions`, o backend retorna 403.
 
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+**Correção**: Atualizar a função SQL `get_admin_permission` para incluir o fallback para `position_permission_defaults`, alinhando o comportamento do backend com o frontend.
+
+## Arquivos alterados
+
+1. **`src/components/rh/ColaboradorDocumentos.tsx`** — sanitizar nome do arquivo no upload
+2. **`src/components/rh/RHDocumentos.tsx`** — mesma sanitização (componente alternativo de upload)
+3. **Migração SQL** — atualizar função `get_admin_permission` para consultar `position_permission_defaults`
+
+## Detalhe técnico
+
+### Sanitização de arquivo
 ```
+"rescisão e comprovante.pdf" → "rescisao_e_comprovante.pdf"
+```
+O nome original fica salvo na coluna `nome` da tabela `rh_documentos`.
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
-
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
-
-### Solucao
-
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
-
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
-
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+### Função SQL corrigida
+Após verificar `admin_permissions` sem resultado, a função consultará `position_permission_defaults` usando o cargo do usuário antes de retornar 'none'.
 
