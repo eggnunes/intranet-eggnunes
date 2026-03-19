@@ -6,22 +6,61 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+// Check if payload contains actual message content (text, media, etc.)
+function hasMessageContent(payload: any): boolean {
+  return !!(
+    payload.body ||
+    payload.text?.message ||
+    (typeof payload.text === 'string' && payload.text) ||
+    payload.caption ||
+    payload.image ||
+    payload.audio ||
+    payload.video ||
+    payload.document ||
+    payload.sticker ||
+    payload.contact ||
+    payload.location || payload.loc ||
+    payload.listMessage ||
+    payload.buttonsMessage || payload.templateButtons ||
+    payload.productMessage ||
+    payload.orderMessage ||
+    payload.poll ||
+    payload.reactionMessage || payload.reaction ||
+    payload.linkPreview
+  );
+}
+
 function extractEventType(payload: any): string {
-  // Filter out Z-API system callbacks - these are NOT actual messages
-  const systemCallbackTypes = ['ReceivedCallback', 'ConnectedCallback', 'DeliveryCallback', 'DisconnectedCallback', 'BatteryLevelCallback'];
-  if (payload.type && systemCallbackTypes.includes(payload.type)) {
-    if (payload.type === 'ConnectedCallback') return 'connection';
-    if (payload.type === 'DisconnectedCallback') return 'disconnection';
-    if (payload.type === 'BatteryLevelCallback') return 'battery_level';
-    if (payload.type === 'DeliveryCallback') return 'message_status';
-    if (payload.type === 'ReceivedCallback') {
-      // ReceivedCallback with notification field is a system notification, not a message
-      if (payload.notification) return 'system_notification';
-      return 'message_status';
-    }
+  const type = payload.type || '';
+
+  // Pure system callbacks that NEVER carry message content
+  const pureSystemCallbacks = ['ConnectedCallback', 'DisconnectedCallback', 'BatteryLevelCallback', 'PresenceChatCallback'];
+  if (pureSystemCallbacks.includes(type)) {
+    if (type === 'ConnectedCallback') return 'connection';
+    if (type === 'DisconnectedCallback') return 'disconnection';
+    if (type === 'BatteryLevelCallback') return 'battery_level';
+    if (type === 'PresenceChatCallback') return 'chat_presence';
     return 'system_callback';
   }
 
+  // Status-only callbacks
+  if (type === 'DeliveryCallback' || type === 'MessageStatusCallback') {
+    return 'message_status';
+  }
+
+  // ReceivedCallback: this is the main event type for BOTH real messages AND some system notifications
+  if (type === 'ReceivedCallback') {
+    // System notification (no message content)
+    if (payload.notification && !hasMessageContent(payload)) return 'system_notification';
+    // If it has actual message content, it's a real message
+    if (hasMessageContent(payload)) {
+      return payload.fromMe === true ? 'sent_message' : 'received_message';
+    }
+    // No content — treat as status update
+    return 'message_status';
+  }
+
+  // Fallback detection for payloads without a type field
   if (payload.connected !== undefined && payload.smartphoneConnected !== undefined) {
     return payload.connected ? 'connection' : 'disconnection';
   }
@@ -29,10 +68,10 @@ function extractEventType(payload: any): string {
   if (payload.chatPresence || payload.status === 'composing' || payload.status === 'recording' || payload.status === 'available' || payload.status === 'unavailable') {
     return 'chat_presence';
   }
-  if (payload.status && payload.id && !payload.body && !payload.text && !payload.type) {
+  if (payload.status && payload.id && !hasMessageContent(payload)) {
     return 'message_status';
   }
-  if (payload.isStatusReply !== undefined || payload.senderLid || payload.chatLid || payload.body || payload.text || payload.type) {
+  if (hasMessageContent(payload) || payload.isStatusReply !== undefined || payload.senderLid || payload.chatLid) {
     return payload.fromMe === true ? 'sent_message' : 'received_message';
   }
   if (payload.reactionMessage || payload.reaction) return 'reaction';
@@ -40,9 +79,8 @@ function extractEventType(payload: any): string {
 }
 
 function extractMessageType(payload: any): string | null {
-  if (!payload.type && !payload.body && !payload.text) return null;
-  const type = payload.type || '';
-  if (type === 'ReceivedCallback' || type === 'DeliveryCallback') return type;
+  if (!hasMessageContent(payload) && !payload.type) return null;
+  // Never return callback type names as message types — extract actual content type
   if (payload.image) return 'image';
   if (payload.audio) return 'audio';
   if (payload.video) return 'video';
@@ -57,8 +95,11 @@ function extractMessageType(payload: any): string | null {
   if (payload.poll) return 'poll';
   if (payload.reactionMessage || payload.reaction) return 'reaction';
   if (payload.linkPreview || payload.matchedText) return 'link_preview';
-  if (payload.body || payload.text?.message) return 'text';
-  return type || 'unknown';
+  if (payload.body || payload.text?.message || (typeof payload.text === 'string' && payload.text) || payload.caption) return 'text';
+  // Don't return callback names like 'ReceivedCallback' as message type
+  const callbackNames = ['ReceivedCallback', 'DeliveryCallback', 'MessageStatusCallback', 'PresenceChatCallback'];
+  if (payload.type && !callbackNames.includes(payload.type)) return payload.type;
+  return 'unknown';
 }
 
 function extractPhone(payload: any): string | null {
@@ -132,12 +173,14 @@ async function syncToWhatsApp(supabase: any, eventType: string, payload: any) {
   const messageType = extractMessageType(payload) || 'text';
   const isFromMe = payload.fromMe === true;
 
+  const isFromMe = payload.fromMe === true;
+  const direction = isFromMe ? 'outbound' : 'inbound';
+
   // Don't save messages that have no content and no media - these are likely system events
   if (!messageText && !mediaUrl) {
     console.log(`[Z-API Webhook] Skipping ${direction} message for ${phone}: no content or media`);
     return;
   }
-  const direction = isFromMe ? 'outbound' : 'inbound';
   const contactName = payload.senderName || payload.pushName || payload.notifyName || payload.chatName || null;
   const zapiMessageId = payload.messageId || payload.id?._serialized || payload.id?.id || null;
 
