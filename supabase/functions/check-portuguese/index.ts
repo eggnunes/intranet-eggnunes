@@ -17,7 +17,6 @@ async function extractTextFromDocx(base64: string): Promise<string> {
   const docXml = await zip.file("word/document.xml")?.async("string");
   if (!docXml) throw new Error("Arquivo DOCX inválido: word/document.xml não encontrado.");
 
-  // Extract text from <w:t> tags, preserving paragraph breaks
   const paragraphs: string[] = [];
   const paraRegex = /<w:p[\s>][\s\S]*?<\/w:p>/g;
   let paraMatch;
@@ -47,21 +46,20 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
     const ext = file_name.split(".").pop()?.toLowerCase();
     const isDocx = ext === "docx" || ext === "doc";
 
     let extractedText: string;
 
     if (isDocx) {
-      // DOCX: extract text locally (Gemini doesn't support DOCX multimodal)
       console.log("Step 1: Extracting text from DOCX locally...");
       extractedText = await extractTextFromDocx(file_base64);
     } else {
-      // PDF: use Gemini multimodal
+      // PDF: use Gemini multimodal for extraction (Claude doesn't support PDF multimodal inline)
       console.log("Step 1: Extracting text from PDF via Gemini...");
+      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+      if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+
       const mimeType = "application/pdf";
       const extractResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
@@ -110,20 +108,22 @@ serve(async (req) => {
 
     console.log(`Text extracted: ${extractedText.length} chars`);
 
-    // Step 2: Analyze grammar using Gemini Pro with tool calling
-    console.log("Step 2: Analyzing grammar...");
-    const analyzeResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Step 2: Analyze grammar using Claude Sonnet (superior for grammar analysis)
+    console.log("Step 2: Analyzing grammar with Claude Sonnet...");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not configured");
+
+    const analyzeResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
-        messages: [
-          {
-            role: "system",
-            content: `Você é um revisor especialista em língua portuguesa brasileira (norma culta). Sua tarefa é analisar o texto fornecido e identificar TODOS os erros gramaticais, ortográficos e de estilo.
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 8192,
+        system: `Você é um revisor especialista em língua portuguesa brasileira (norma culta). Sua tarefa é analisar o texto fornecido e identificar TODOS os erros gramaticais, ortográficos e de estilo.
 
 Regras:
 - Categorize cada erro em: ortografia, concordancia, regencia, pontuacao, crase, acentuacao, coesao, outro
@@ -132,73 +132,43 @@ Regras:
 - NÃO corrija o texto, apenas liste os erros encontrados
 - Para cada erro, forneça o trecho exato, a descrição do erro, a sugestão de correção e a localização
 - Seja preciso e minucioso, mas não invente erros inexistentes
-- Se não houver erros, retorne uma lista vazia`,
-          },
+- Se não houver erros, retorne uma lista vazia
+
+IMPORTANTE: Responda EXCLUSIVAMENTE com um JSON válido no formato:
+{"erros": [{"trecho": "...", "erro": "...", "tipo": "...", "sugestao": "...", "localizacao": "..."}]}
+
+Tipos válidos: ortografia, concordancia, regencia, pontuacao, crase, acentuacao, coesao, outro`,
+        messages: [
           {
             role: "user",
-            content: `Analise o seguinte texto e identifique todos os erros de português:\n\n${extractedText}`,
+            content: `Analise o seguinte texto e identifique todos os erros de português. Responda apenas com o JSON:\n\n${extractedText}`,
           },
         ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "report_errors",
-              description: "Reporta a lista de erros de português encontrados no texto.",
-              parameters: {
-                type: "object",
-                properties: {
-                  erros: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        trecho: { type: "string", description: "O trecho exato do texto que contém o erro" },
-                        erro: { type: "string", description: "Descrição clara do erro gramatical" },
-                        tipo: {
-                          type: "string",
-                          enum: ["ortografia", "concordancia", "regencia", "pontuacao", "crase", "acentuacao", "coesao", "outro"],
-                          description: "Categoria do erro",
-                        },
-                        sugestao: { type: "string", description: "Como o trecho deveria estar escrito" },
-                        localizacao: { type: "string", description: "Localização aproximada no texto (ex: parágrafo 3)" },
-                      },
-                      required: ["trecho", "erro", "tipo", "sugestao", "localizacao"],
-                      additionalProperties: false,
-                    },
-                  },
-                },
-                required: ["erros"],
-                additionalProperties: false,
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "report_errors" } },
       }),
     });
 
     if (!analyzeResponse.ok) {
       const status = analyzeResponse.status;
       if (status === 429) return new Response(JSON.stringify({ error: "Limite de requisições atingido. Tente novamente em alguns minutos." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      if (status === 402) return new Response(JSON.stringify({ error: "Créditos insuficientes para análise gramatical." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (status === 401) return new Response(JSON.stringify({ error: "Erro de autenticação com a API Anthropic." }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       const errText = await analyzeResponse.text();
       console.error("Analyze error:", status, errText);
       return new Response(JSON.stringify({ error: "Erro ao analisar gramática do texto." }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const analyzeData = await analyzeResponse.json();
+    const responseText = analyzeData.content?.[0]?.text || "{}";
     
-    const toolCall = analyzeData.choices?.[0]?.message?.tool_calls?.[0];
     let erros: any[] = [];
-
-    if (toolCall?.function?.arguments) {
-      try {
-        const parsed = JSON.parse(toolCall.function.arguments);
+    try {
+      // Extract JSON from response (Claude may wrap in markdown code blocks)
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
         erros = parsed.erros || [];
-      } catch (e) {
-        console.error("Failed to parse tool call:", e);
       }
+    } catch (e) {
+      console.error("Failed to parse Claude response:", e);
     }
 
     console.log(`Analysis complete: ${erros.length} errors found`);

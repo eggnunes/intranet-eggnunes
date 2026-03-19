@@ -5,8 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-
 interface PetitionSuggestionRequest {
   processType: string;
   processGroup: string;
@@ -23,8 +21,9 @@ serve(async (req) => {
   try {
     const { processType, processGroup, clientName, processNumber, description } = await req.json() as PetitionSuggestionRequest;
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
+    if (!ANTHROPIC_API_KEY) {
+      throw new Error('ANTHROPIC_API_KEY is not configured');
     }
 
     console.log('Generating petition suggestion for:', { processType, processGroup });
@@ -53,25 +52,26 @@ ${description ? `Descrição adicional: ${description}` : ''}
 
 Por favor, sugira os tipos de petições mais adequados para este caso, considerando diferentes cenários e fases processuais.`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-pro',
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        system: systemPrompt,
         messages: [
-          { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        max_tokens: 2000,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI Gateway error:', response.status, errorText);
+      console.error('Claude API error:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: 'Taxa de requisições excedida. Tente novamente em alguns instantes.' }), {
@@ -79,18 +79,18 @@ Por favor, sugira os tipos de petições mais adequados para este caso, consider
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: 'Créditos de IA esgotados. Entre em contato com o administrador.' }), {
-          status: 402,
+      if (response.status === 401) {
+        return new Response(JSON.stringify({ error: 'Erro de autenticação com a API Anthropic.' }), {
+          status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
       
-      throw new Error(`AI Gateway error: ${response.status}`);
+      throw new Error(`Claude API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const suggestion = data.choices?.[0]?.message?.content;
+    const suggestion = data.content?.[0]?.text;
 
     if (!suggestion) {
       throw new Error('No suggestion generated');
