@@ -1,79 +1,40 @@
 
 
-# Reestruturação Modular do Menu Lateral (Sidebar)
+# Otimização das integrações de IA: Lovable Cloud para tarefas complexas
 
-## Resumo
-Reorganizar o componente `AppSidebar.tsx` para seguir a nova estrutura de 10 grupos departamentais definida no documento, com persistencia de estado via localStorage e auto-abertura do grupo ativo.
+## Diagnóstico atual
 
-## Alteracao unica: `src/components/AppSidebar.tsx`
+Analisei todas as 16 Edge Functions que usam IA no projeto. A maioria já usa o Lovable Cloud (gateway), mas há oportunidades de melhoria em duas áreas:
 
-Nenhuma rota sera alterada. Nenhuma pagina sera removida. Apenas a organizacao visual do menu lateral sera modificada.
+### 1. Assistente de IA chama OpenAI e Perplexity diretamente
+A função `ai-assistant` faz chamadas diretas para `api.openai.com` e `api.perplexity.ai` em vez de passar pelo gateway do Lovable Cloud. Isso significa que os modelos GPT e Perplexity não se beneficiam do gerenciamento automático de tokens e rate limiting do gateway. Além disso, os nomes dos modelos Perplexity estão desatualizados (`llama-3.1-sonar-*` em vez dos atuais `sonar`/`sonar-pro`).
 
-### Nova estrutura dos 10 grupos (ordem exata do documento)
+### 2. Tarefas jurídicas complexas usam modelos leves
+Duas funções que fazem análise jurídica profunda usam `gemini-2.5-flash` (modelo rápido/leve), quando se beneficiariam de modelos com raciocínio mais forte:
+- **analyze-viability** — parecer de viabilidade jurídica (análise complexa de caso)
+- **suggest-petition** — sugestão de petições com fundamentação legal
 
-```text
-1. Dashboard & Visao Geral (2 itens)
-   /dashboard, /historico
+### O que NÃO será alterado (e por quê)
+- **search-jurisprudence** — permanece no Perplexity `sonar-pro` porque precisa de busca web em tempo real para encontrar jurisprudências reais
+- **voice-to-text** — permanece no OpenAI Whisper (é um serviço de transcrição de áudio, sem equivalente no gateway)
+- Funções simples como `suggest-food-category`, `generate-chat-message` — já estão bem dimensionadas com `gemini-2.5-flash`
 
-2. Negocios & CRM (7 itens)
-   /crm, /negocios/tv, /setor-comercial, /lead-tracking,
-   /negocios/marketing, /setor-comercial/dashboard (redirect to /setor-comercial),
-   /setor-comercial/contratos
+## Alterações
 
-3. Producao Juridica (12 itens)
-   /processos, /controle-prazos, /tarefas-advbox, /processos-ativos,
-   /movimentacoes-advbox, /pesquisa-jurisprudencia, /publicacoes-dje,
-   /advbox-analytics (redirect), /portais-tribunais, /decisoes-favoraveis,
-   /publicacoes, /relatorios-produtividade-tarefas (redirect)
+### Arquivo 1: `supabase/functions/ai-assistant/index.ts`
+- Rotear chamadas OpenAI (GPT-5, o3, o4-mini) pelo gateway Lovable Cloud em vez de chamar `api.openai.com` diretamente
+- Atualizar modelos Perplexity para nomes atuais (`sonar`, `sonar-pro`, `sonar-reasoning`)
+- Rotear Perplexity pelo gateway quando disponível, mantendo fallback direto para busca web
+- Manter Manus como está (API separada)
 
-4. Financeiro (5 itens)
-   /financeiro, /asaas, /relatorios-financeiros, /gestao-cobrancas,
-   /financeiro/admin
+### Arquivo 2: `supabase/functions/analyze-viability/index.ts`
+- Trocar modelo de `google/gemini-2.5-flash` para `google/gemini-2.5-pro` (melhor raciocínio jurídico)
 
-5. Recursos Humanos (10 itens)
-   /rh, /equipe, /aniversarios, /pesquisa-humor, /mural-avisos,
-   /ferias, /gestao-folgas, /contratacao, /home-office,
-   /aniversarios-clientes
+### Arquivo 3: `supabase/functions/suggest-petition/index.ts`
+- Trocar modelo de `google/gemini-2.5-flash` para `google/gemini-2.5-pro` (melhor fundamentação legal)
 
-6. Meu Painel (11 itens)
-   /profile, /notificacoes, /documentos-uteis, /forum, /mensagens,
-   /solicitacoes-administrativas, /sugestoes, /dashboard-sugestoes,
-   /caixinha-desabafo, /mensagens-encaminhadas, /sobre-escritorio
-
-7. Viabilidade Juridica (2 itens)
-   /viabilidade, /viabilidade/novo
-
-8. Comunicacao & Avisos (2 itens)
-   /galeria-eventos, /whatsapp-avisos
-
-9. Ferramentas & IA (6 itens)
-   /assistente-ia, /agentes-ia, /tools/rotadoc, /integracoes,
-   /corretor-portugues, /gerador-qrcode
-
-10. Administrativo & Configuracoes (7 itens, admin-only items with badges)
-    /admin, /cadastros-uteis, /codigos-autenticacao, /arquivos-teams,
-    /parceiros, /sala-reuniao, /copa-cozinha
-```
-
-### Comportamento tecnico
-
-1. **Estado persistente via localStorage**: Salvar quais grupos estao expandidos em `localStorage` com chave `sidebar-open-groups`. Restaurar ao montar o componente.
-
-2. **Auto-abertura do grupo ativo**: Ao navegar para uma pagina, o grupo que contem essa rota abre automaticamente (mesmo que o usuario tenha fechado antes).
-
-3. **Icones por grupo**: Cada grupo tera um icone representativo conforme o documento (Home, Briefcase, Scale, DollarSign, Users, User, CheckCircle, MessageSquare, Sparkles, Settings).
-
-4. **Itens condicionais mantidos**: Lead Tracking (socio only), Controle de Prazos (socio/admin), RH (socio/admin), Financeiro Admin (socio/admin), Admin (admin only com badge).
-
-5. **Scroll preservation**: Manter a logica existente de preservacao de scroll.
-
-6. **Responsividade**: A sidebar ja usa o componente `Sidebar` do shadcn com `collapsible="icon"`, que funciona em mobile como drawer. Nenhuma mudanca estrutural necessaria.
-
-### Itens que mudam de posicao vs. menu atual
-- Mural de Avisos sai de "Inicio" e vai para "Recursos Humanos"
-- Onboarding nao aparece no documento (sera incluido em RH como esta hoje)
-- TV Mode adicionado em "Negocios & CRM" (nao existia no menu)
-- Setor Comercial Dashboard adicionado (ja existia na rota, nao no menu)
-- Dashboard Sugestoes move para "Meu Painel" (estava so em Admin)
-- Varios itens do Advbox movem para "Producao Juridica"
+## Resultado esperado
+- Todas as chamadas de IA (exceto Whisper e busca jurisprudencial) passam pelo Lovable Cloud
+- Tarefas jurídicas complexas usam modelos mais potentes para respostas de melhor qualidade
+- Modelos Perplexity atualizados para versões corretas
 
