@@ -1,33 +1,79 @@
 
 
-# Correção de 2 erros: Upload de documento e Carregamento de transações
+# Reestruturação Modular do Menu Lateral (Sidebar)
 
-## Problema 1: "Erro ao enviar documento: Invalid key"
+## Resumo
+Reorganizar o componente `AppSidebar.tsx` para seguir a nova estrutura de 10 grupos departamentais definida no documento, com persistencia de estado via localStorage e auto-abertura do grupo ativo.
 
-O nome do arquivo contém caracteres especiais (ç, ã, espaços): `rescisão e comprovante de pagamento rescisão Tatiane.pdf`. O Supabase Storage rejeita chaves com esses caracteres.
+## Alteracao unica: `src/components/AppSidebar.tsx`
 
-**Correção**: Sanitizar o nome do arquivo antes do upload no componente `ColaboradorDocumentos.tsx`, removendo acentos e substituindo espaços por underscores, mantendo o nome original visível para o usuário no banco de dados.
+Nenhuma rota sera alterada. Nenhuma pagina sera removida. Apenas a organizacao visual do menu lateral sera modificada.
 
-## Problema 2: "Erro ao carregar transações financeiras"
+### Nova estrutura dos 10 grupos (ordem exata do documento)
 
-A Letícia tem permissão financeira via a tabela `position_permission_defaults` (cargo "administrativo" tem `perm_financial = edit`). O frontend reconhece isso e permite acesso à página. Porém, a Edge Function `advbox-integration` valida permissão chamando a função SQL `get_admin_permission`, que **não consulta** a tabela `position_permission_defaults` — só consulta `admin_permissions`. Como a Letícia não está na `admin_permissions`, o backend retorna 403.
+```text
+1. Dashboard & Visao Geral (2 itens)
+   /dashboard, /historico
 
-**Correção**: Atualizar a função SQL `get_admin_permission` para incluir o fallback para `position_permission_defaults`, alinhando o comportamento do backend com o frontend.
+2. Negocios & CRM (7 itens)
+   /crm, /negocios/tv, /setor-comercial, /lead-tracking,
+   /negocios/marketing, /setor-comercial/dashboard (redirect to /setor-comercial),
+   /setor-comercial/contratos
 
-## Arquivos alterados
+3. Producao Juridica (12 itens)
+   /processos, /controle-prazos, /tarefas-advbox, /processos-ativos,
+   /movimentacoes-advbox, /pesquisa-jurisprudencia, /publicacoes-dje,
+   /advbox-analytics (redirect), /portais-tribunais, /decisoes-favoraveis,
+   /publicacoes, /relatorios-produtividade-tarefas (redirect)
 
-1. **`src/components/rh/ColaboradorDocumentos.tsx`** — sanitizar nome do arquivo no upload
-2. **`src/components/rh/RHDocumentos.tsx`** — mesma sanitização (componente alternativo de upload)
-3. **Migração SQL** — atualizar função `get_admin_permission` para consultar `position_permission_defaults`
+4. Financeiro (5 itens)
+   /financeiro, /asaas, /relatorios-financeiros, /gestao-cobrancas,
+   /financeiro/admin
 
-## Detalhe técnico
+5. Recursos Humanos (10 itens)
+   /rh, /equipe, /aniversarios, /pesquisa-humor, /mural-avisos,
+   /ferias, /gestao-folgas, /contratacao, /home-office,
+   /aniversarios-clientes
 
-### Sanitização de arquivo
+6. Meu Painel (11 itens)
+   /profile, /notificacoes, /documentos-uteis, /forum, /mensagens,
+   /solicitacoes-administrativas, /sugestoes, /dashboard-sugestoes,
+   /caixinha-desabafo, /mensagens-encaminhadas, /sobre-escritorio
+
+7. Viabilidade Juridica (2 itens)
+   /viabilidade, /viabilidade/novo
+
+8. Comunicacao & Avisos (2 itens)
+   /galeria-eventos, /whatsapp-avisos
+
+9. Ferramentas & IA (6 itens)
+   /assistente-ia, /agentes-ia, /tools/rotadoc, /integracoes,
+   /corretor-portugues, /gerador-qrcode
+
+10. Administrativo & Configuracoes (7 itens, admin-only items with badges)
+    /admin, /cadastros-uteis, /codigos-autenticacao, /arquivos-teams,
+    /parceiros, /sala-reuniao, /copa-cozinha
 ```
-"rescisão e comprovante.pdf" → "rescisao_e_comprovante.pdf"
-```
-O nome original fica salvo na coluna `nome` da tabela `rh_documentos`.
 
-### Função SQL corrigida
-Após verificar `admin_permissions` sem resultado, a função consultará `position_permission_defaults` usando o cargo do usuário antes de retornar 'none'.
+### Comportamento tecnico
+
+1. **Estado persistente via localStorage**: Salvar quais grupos estao expandidos em `localStorage` com chave `sidebar-open-groups`. Restaurar ao montar o componente.
+
+2. **Auto-abertura do grupo ativo**: Ao navegar para uma pagina, o grupo que contem essa rota abre automaticamente (mesmo que o usuario tenha fechado antes).
+
+3. **Icones por grupo**: Cada grupo tera um icone representativo conforme o documento (Home, Briefcase, Scale, DollarSign, Users, User, CheckCircle, MessageSquare, Sparkles, Settings).
+
+4. **Itens condicionais mantidos**: Lead Tracking (socio only), Controle de Prazos (socio/admin), RH (socio/admin), Financeiro Admin (socio/admin), Admin (admin only com badge).
+
+5. **Scroll preservation**: Manter a logica existente de preservacao de scroll.
+
+6. **Responsividade**: A sidebar ja usa o componente `Sidebar` do shadcn com `collapsible="icon"`, que funciona em mobile como drawer. Nenhuma mudanca estrutural necessaria.
+
+### Itens que mudam de posicao vs. menu atual
+- Mural de Avisos sai de "Inicio" e vai para "Recursos Humanos"
+- Onboarding nao aparece no documento (sera incluido em RH como esta hoje)
+- TV Mode adicionado em "Negocios & CRM" (nao existia no menu)
+- Setor Comercial Dashboard adicionado (ja existia na rota, nao no menu)
+- Dashboard Sugestoes move para "Meu Painel" (estava so em Admin)
+- Varios itens do Advbox movem para "Producao Juridica"
 
