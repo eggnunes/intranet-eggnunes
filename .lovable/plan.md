@@ -1,37 +1,34 @@
 
 
-## Diagnóstico: Bug no Filtro de Busca por Telefone
+# Correção: Mensagens do WhatsApp não aparecem na Intranet
 
-### Causa Raiz
+## Diagnóstico
 
-O problema é um bug de JavaScript nas linhas de filtro por telefone. Quando o usuario digita "ederson" (texto sem digitos), a variavel `searchDigits` fica como string vazia `""`. Em JavaScript, `"qualquer string".includes("")` retorna **sempre `true`**.
+Investiguei os dados do webhook e encontrei o problema raiz:
 
-Nas linhas 358, 379 e 323, o filtro por telefone NAO tem a guarda `searchDigits &&`:
+A função `extractEventType` no webhook está classificando os eventos incorretamente:
 
-```javascript
-// Linha 358 - contratos
-if (c.client_phone && c.client_phone.replace(/\D/g, '').includes(searchDigits)) return true;
+- **Mensagens reais** chegam da Z-API com `type: "ReceivedCallback"`, mas o código trata TODOS os `ReceivedCallback` como eventos de sistema (linha 17-21), descartando as mensagens antes de salvá-las
+- **Callbacks de status** (`MessageStatusCallback`, `PresenceChatCallback`) não estão na lista de filtro, então passam como "mensagens recebidas", mas como não têm texto nem mídia, são descartadas depois — gerando ruído nos logs
 
-// Linha 379 - formulários  
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
+Resultado: de 2.316 eventos recebidos pelo webhook, apenas 3 mensagens foram salvas (todas enviadas manualmente pela interface). Nenhuma mensagem real (enviada ou recebida pelo celular) foi persistida.
 
-// Linha 323 - local
-if (c.telefone && c.telefone.replace(/\D/g, '').includes(searchDigits)) return true;
-```
+## Solução
 
-Quando `searchDigits = ""`, essas linhas fazem `"31987983081".includes("")` que retorna `true`. Resultado: **TODOS os clientes com telefone preenchido passam no filtro**, independente do nome digitado. Por isso aparecem Fabio, Monclar, Ruan (que tem telefone) em vez de filtrar por "ederson".
+### 1. Corrigir `extractEventType` na Edge Function `zapi-webhook`
+- Adicionar `MessageStatusCallback` e `PresenceChatCallback` à lista de callbacks de sistema
+- Mudar a lógica do `ReceivedCallback`: quando o payload contiver conteúdo real (`body`, `text.message`, `image`, `audio`, etc.), classificar como mensagem e não como evento de sistema
+- Só tratar `ReceivedCallback` como `message_status` quando NÃO houver conteúdo de mensagem
 
-Compare com a linha 356 (CPF) que tem a guarda correta: `if (searchDigits && c.client_cpf?.replace(...)...)`.
+### 2. Corrigir detecção de mensagens enviadas
+- Mensagens enviadas via Z-API também chegam como `ReceivedCallback` com `fromMe: true` — garantir que sejam classificadas como `sent_message`
 
-### Solucao
+### 3. Ajustar `extractMessageType`
+- Quando `type` é `ReceivedCallback` ou `MessageStatusCallback`, não retornar esse valor como tipo de mensagem — extrair o tipo real do conteúdo (text, image, audio, etc.)
 
-Adicionar a guarda `searchDigits &&` antes das verificacoes de telefone em 3 linhas:
+## Arquivos
+- `supabase/functions/zapi-webhook/index.ts` — correção da classificação de eventos
 
-**Arquivo: `src/components/financeiro/asaas/AsaasNovaCobranca.tsx`**
-
-- **Linha 323**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-- **Linha 358**: `if (c.client_phone && ...)` → `if (searchDigits && c.client_phone && ...)`
-- **Linha 379**: `if (c.telefone && ...)` → `if (searchDigits && c.telefone && ...)`
-
-Isso garante que a busca por telefone so e executada quando o usuario digita numeros, e a busca por nome/email funciona corretamente.
+## Resultado esperado
+Após a correção, todas as mensagens enviadas e recebidas pelo WhatsApp de Avisos serão salvas automaticamente e aparecerão na interface da intranet.
 
