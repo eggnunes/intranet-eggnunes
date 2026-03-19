@@ -137,13 +137,21 @@ export function ColaboradorDocumentos({
     }
   };
 
+  const sanitizeFileName = (name: string): string => {
+    let sanitized = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    sanitized = sanitized.replace(/\s+/g, "_").toLowerCase();
+    sanitized = sanitized.replace(/[^a-z0-9_.()-]/g, "");
+    return sanitized;
+  };
+
   const handleUploadDocumento = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploading(true);
     try {
-      const fileName = `${colaboradorId}/${Date.now()}_${file.name}`;
+      const sanitizedName = sanitizeFileName(file.name);
+      const fileName = `${colaboradorId}/${Date.now()}_${sanitizedName}`;
       
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('rh-documentos')
