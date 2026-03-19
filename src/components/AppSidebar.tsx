@@ -202,6 +202,7 @@ export function AppSidebar() {
         { icon: Briefcase, path: '/processos', label: 'Processos Dashboard' },
         { icon: ClipboardList, path: '/controle-prazos', label: 'Controle de Prazos', condition: isSocio || isAdmin },
         { icon: CheckSquare, path: '/tarefas-advbox', label: 'Tarefas Advbox', badgeCount: criticalTasksCount },
+        { icon: Users, path: '/distribuicao-tarefas', label: 'Distribuição de Tarefas', condition: isSocio || isAdmin },
         { icon: Briefcase, path: '/processos-ativos', label: 'Processos Ativos' },
         { icon: AlertCircle, path: '/movimentacoes-advbox', label: 'Movimentações Advbox' },
         { icon: SearchIcon, path: '/pesquisa-jurisprudencia', label: 'Pesquisa Jurisprudência' },
