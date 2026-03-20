@@ -1,36 +1,44 @@
 
 
-# Correção: Mensagens de Aniversário não aparecem no WhatsApp Avisos
+# Renomeação: ChatGuru → Birthday Messages (Z-API)
 
-## Problema Identificado
+## Escopo
 
-A função `chatguru-birthday-messages` envia mensagens de aniversário diretamente pela Z-API, mas **não registra essas mensagens** nas tabelas `whatsapp_conversations` e `whatsapp_messages`. Por isso, as mensagens são enviadas com sucesso pelo WhatsApp, mas não aparecem na interface do "WhatsApp Avisos" da intranet.
+Remover todas as referências ao "ChatGuru" na funcionalidade de mensagens de aniversário, já que agora usa exclusivamente a Z-API.
 
-A função `zapi-send-message` (usada pelo chat manual) tem a lógica `saveMessageAndUpdateConversation` que faz esse registro. A função de aniversários não usa essa lógica.
+**Nota:** A função `send-document-request` ainda usa a API do ChatGuru de fato (templates WABA), então essa não será alterada neste momento.
 
-## Correção
+## Alterações
 
-### Arquivo: `supabase/functions/chatguru-birthday-messages/index.ts`
+### 1. Renomear a tabela no banco de dados
+- Migration: `ALTER TABLE chatguru_birthday_messages_log RENAME TO birthday_messages_log`
+- Renomear coluna: `chatguru_message_id` → `zapi_message_id`
 
-Após cada envio bem-sucedido via `sendBirthdayViaZapi`, adicionar lógica para:
+### 2. Criar nova Edge Function `birthday-messages`
+- Copiar conteúdo de `chatguru-birthday-messages/index.ts` para `birthday-messages/index.ts`
+- Atualizar todas as referências de `chatguru_birthday_messages_log` → `birthday_messages_log`
+- Registrar em `config.toml`
 
-1. **Buscar ou criar a conversa** na tabela `whatsapp_conversations` usando o telefone do cliente
-2. **Inserir a mensagem** na tabela `whatsapp_messages` com:
-   - `direction: 'outbound'`
-   - `message_type: 'text'`
-   - `content`: o texto real da mensagem (com template preenchido)
-   - `is_from_me: true`
-   - `status: 'sent'`
-   - `sent_by`: o ID do usuário que disparou
-3. **Atualizar `last_message_text` e `last_message_at`** na conversa
+### 3. Remover Edge Function antiga
+- Deletar `supabase/functions/chatguru-birthday-messages/index.ts`
+- Remover entrada do `config.toml`
 
-A função `sendBirthdayViaZapi` será ajustada para retornar o texto final da mensagem e o resultado da Z-API (com `zaapId`), permitindo salvar o conteúdo exato e o ID da mensagem.
+### 4. Atualizar frontend (3 arquivos)
+- **`src/pages/AniversariosClientes.tsx`**: `invoke('birthday-messages')`
+- **`src/pages/HistoricoMensagensAniversario.tsx`**: `.from('birthday_messages_log')`, campo `zapi_message_id`
+- **`src/components/BirthdayMessageFailuresAlert.tsx`**: `.from('birthday_messages_log')`
+- **`src/components/CollectionMessagesHistory.tsx`**: `.from('birthday_messages_log')`
 
-Isso replica a mesma lógica de `saveMessageAndUpdateConversation` já usada no `zapi-send-message`, garantindo que todas as mensagens enviadas (manuais ou automáticas) apareçam no histórico do WhatsApp Avisos.
+### 5. Referências visuais ao ChatGuru
+- **`src/components/crm/CRMWhatsAppLogs.tsx`**: Trocar texto "ChatGuru" por "WhatsApp"
 
-### Resultado
-- Mensagens de aniversário passarão a aparecer nas conversas do WhatsApp Avisos
-- Se o cliente já tiver uma conversa, a mensagem aparece nela
-- Se não tiver, uma nova conversa é criada automaticamente
-- O histórico fica completo e auditável
+## Arquivos alterados
+1. Migration SQL (renomear tabela + coluna)
+2. `supabase/functions/birthday-messages/index.ts` (novo)
+3. `supabase/functions/chatguru-birthday-messages/` (deletar)
+4. `src/pages/AniversariosClientes.tsx`
+5. `src/pages/HistoricoMensagensAniversario.tsx`
+6. `src/components/BirthdayMessageFailuresAlert.tsx`
+7. `src/components/CollectionMessagesHistory.tsx`
+8. `src/components/crm/CRMWhatsAppLogs.tsx`
 
