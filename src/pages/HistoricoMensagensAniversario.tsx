@@ -107,7 +107,7 @@ export default function HistoricoMensagensAniversario({ embedded = false, defaul
         status: msg.status,
         sent_at: msg.sent_at,
         error_message: msg.error_message,
-        chatguru_message_id: msg.chatguru_message_id,
+        zapi_message_id: msg.chatguru_message_id,
         created_at: msg.created_at,
         type: msg.message_template === 'cobrancadocumentosparaacao' ? 'documents' as const : 'collection' as const,
         days_overdue: msg.days_overdue,
