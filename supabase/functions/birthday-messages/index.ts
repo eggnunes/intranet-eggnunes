@@ -245,7 +245,7 @@ Deno.serve(async (req) => {
 
     if (forceResend) {
       const { data: updateData, error: updateError } = await supabase
-        .from('chatguru_birthday_messages_log')
+        .from('birthday_messages_log')
         .update({ status: 'resent', error_message: 'Reenvio forçado pelo administrador' })
         .eq('status', 'sent')
         .gte('created_at', todayStart)
@@ -255,7 +255,7 @@ Deno.serve(async (req) => {
       console.log(`Force resend: marked ${updatedCount} previous entries as "resent"${updateError ? `, error: ${updateError.message}` : ''}`);
     } else {
       const { data: alreadySentData } = await supabase
-        .from('chatguru_birthday_messages_log')
+        .from('birthday_messages_log')
         .select('customer_id')
         .eq('status', 'sent')
         .eq('send_via', 'zapi')
@@ -280,7 +280,7 @@ Deno.serve(async (req) => {
         const result = await sendBirthdayViaZapi(customer.phone!, customer.name, messageTemplate);
 
         // Log to birthday messages table
-        await supabase.from('chatguru_birthday_messages_log').insert({
+        await supabase.from('birthday_messages_log').insert({
           customer_id: customer.id,
           customer_name: customer.name,
           customer_phone: customer.phone,
@@ -297,7 +297,7 @@ Deno.serve(async (req) => {
         const safeError = getSafeErrorMessage(error);
         console.error(`✗ Failed for ${customer.name}:`, error instanceof Error ? error.message : String(error));
 
-        await supabase.from('chatguru_birthday_messages_log').insert({
+        await supabase.from('birthday_messages_log').insert({
           customer_id: customer.id,
           customer_name: customer.name,
           customer_phone: customer.phone!,
