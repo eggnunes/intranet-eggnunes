@@ -1141,6 +1141,48 @@ export type Database = {
         }
         Relationships: []
       }
+      birthday_messages_log: {
+        Row: {
+          created_at: string | null
+          customer_id: string
+          customer_name: string
+          customer_phone: string
+          error_message: string | null
+          id: string
+          message_text: string
+          send_via: string | null
+          sent_at: string | null
+          status: string
+          zapi_message_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          customer_id: string
+          customer_name: string
+          customer_phone: string
+          error_message?: string | null
+          id?: string
+          message_text: string
+          send_via?: string | null
+          sent_at?: string | null
+          status?: string
+          zapi_message_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          customer_id?: string
+          customer_name?: string
+          customer_phone?: string
+          error_message?: string | null
+          id?: string
+          message_text?: string
+          send_via?: string | null
+          sent_at?: string | null
+          status?: string
+          zapi_message_id?: string | null
+        }
+        Relationships: []
+      }
       boleto_reminder_log: {
         Row: {
           asaas_payment_id: string
@@ -1259,48 +1301,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      chatguru_birthday_messages_log: {
-        Row: {
-          chatguru_message_id: string | null
-          created_at: string | null
-          customer_id: string
-          customer_name: string
-          customer_phone: string
-          error_message: string | null
-          id: string
-          message_text: string
-          send_via: string | null
-          sent_at: string | null
-          status: string
-        }
-        Insert: {
-          chatguru_message_id?: string | null
-          created_at?: string | null
-          customer_id: string
-          customer_name: string
-          customer_phone: string
-          error_message?: string | null
-          id?: string
-          message_text: string
-          send_via?: string | null
-          sent_at?: string | null
-          status?: string
-        }
-        Update: {
-          chatguru_message_id?: string | null
-          created_at?: string | null
-          customer_id?: string
-          customer_name?: string
-          customer_phone?: string
-          error_message?: string | null
-          id?: string
-          message_text?: string
-          send_via?: string | null
-          sent_at?: string | null
-          status?: string
-        }
-        Relationships: []
       }
       collection_rules: {
         Row: {

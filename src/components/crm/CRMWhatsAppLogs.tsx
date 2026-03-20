@@ -102,7 +102,7 @@ export const CRMWhatsAppLogs = () => {
             <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>Nenhuma conversa registrada</p>
             <p className="text-sm mt-2">
-              As conversas do WhatsApp aparecerão aqui quando sincronizadas com o ChatGuru.
+              As conversas do WhatsApp aparecerão aqui quando sincronizadas.
             </p>
           </CardContent>
         </Card>

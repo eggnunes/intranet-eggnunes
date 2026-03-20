@@ -61,7 +61,7 @@ export function CollectionMessagesHistory() {
 
       // Buscar mensagens de aniversário
       const { data: birthdayData, error: birthdayError } = await supabase
-        .from('chatguru_birthday_messages_log')
+        .from('birthday_messages_log')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(200);

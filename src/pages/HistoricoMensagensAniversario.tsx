@@ -27,7 +27,7 @@ interface Message {
   status: string;
   sent_at: string | null;
   error_message: string | null;
-  chatguru_message_id: string | null;
+  zapi_message_id: string | null;
   created_at: string;
   type: 'birthday' | 'collection' | 'documents';
   days_overdue?: number;
@@ -69,7 +69,7 @@ export default function HistoricoMensagensAniversario({ embedded = false, defaul
       
       // Buscar mensagens de aniversário
       const { data: birthdayData, error: birthdayError } = await supabase
-        .from('chatguru_birthday_messages_log')
+        .from('birthday_messages_log')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -93,7 +93,7 @@ export default function HistoricoMensagensAniversario({ embedded = false, defaul
         status: msg.status,
         sent_at: msg.sent_at,
         error_message: msg.error_message,
-        chatguru_message_id: msg.chatguru_message_id,
+        zapi_message_id: msg.zapi_message_id,
         created_at: msg.created_at,
         type: 'birthday' as const,
       }));
@@ -107,7 +107,7 @@ export default function HistoricoMensagensAniversario({ embedded = false, defaul
         status: msg.status,
         sent_at: msg.sent_at,
         error_message: msg.error_message,
-        chatguru_message_id: msg.chatguru_message_id,
+        zapi_message_id: msg.chatguru_message_id,
         created_at: msg.created_at,
         type: msg.message_template === 'cobrancadocumentosparaacao' ? 'documents' as const : 'collection' as const,
         days_overdue: msg.days_overdue,
