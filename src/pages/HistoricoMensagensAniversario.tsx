@@ -27,7 +27,7 @@ interface Message {
   status: string;
   sent_at: string | null;
   error_message: string | null;
-  chatguru_message_id: string | null;
+  zapi_message_id: string | null;
   created_at: string;
   type: 'birthday' | 'collection' | 'documents';
   days_overdue?: number;
