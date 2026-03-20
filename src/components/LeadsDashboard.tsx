@@ -203,7 +203,7 @@ export function LeadsDashboard() {
   const uniqueAds = [...new Set(leads.map((l) => l.utm_term).filter(Boolean))];
 
   const exportToCSV = () => {
-    const headers = ['Nome', 'Email', 'Telefone', 'Origem', 'Mídia', 'Campanha', 'Conteúdo', 'Termo', 'Landing Page', 'RD Station', 'Data'];
+    const headers = ['Nome', 'Email', 'Telefone', 'Origem', 'Mídia', 'Campanha', 'Conteúdo', 'Termo', 'Posicionamento', 'Dispositivo', 'Plataforma', 'Landing Page', 'RD Station', 'Data'];
     const rows = filteredLeads.map((lead) => [
       lead.name,
       lead.email || '',
@@ -213,6 +213,9 @@ export function LeadsDashboard() {
       lead.utm_campaign || '',
       lead.utm_content || '',
       lead.utm_term || '',
+      lead.utm_placement || '',
+      lead.utm_device || '',
+      lead.utm_publisher || '',
       lead.landing_page || '',
       lead.rd_station_synced ? 'Sim' : 'Não',
       format(new Date(lead.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR }),
