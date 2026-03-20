@@ -59,6 +59,13 @@ function normalizeUtmSource(source: string | null | undefined): string | null {
   return map[source.toLowerCase()] || source;
 }
 
+// Limpar valores que o Meta não substituiu (chegam como "{{campaign.name}}" etc.)
+function cleanUnresolvedPlaceholder(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (value.includes('{{') && value.includes('}}')) return null;
+  return value;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -184,11 +191,11 @@ serve(async (req) => {
         name,
         email: email || null,
         phone,
-        utm_source: normalizeUtmSource(utm_source),
-        utm_medium: utm_medium || null,
-        utm_campaign: utm_campaign || null,
-        utm_content: utm_content || null,
-        utm_term: utm_term || null,
+        utm_source: cleanUnresolvedPlaceholder(normalizeUtmSource(utm_source)),
+        utm_medium: cleanUnresolvedPlaceholder(utm_medium),
+        utm_campaign: cleanUnresolvedPlaceholder(utm_campaign),
+        utm_content: cleanUnresolvedPlaceholder(utm_content),
+        utm_term: cleanUnresolvedPlaceholder(utm_term),
         landing_page: landing_page || null,
         referrer: referrer || null,
         user_agent: user_agent || null,
