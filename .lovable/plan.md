@@ -1,44 +1,19 @@
 
 
-# Renomeação: ChatGuru → Birthday Messages (Z-API)
+## Problem
 
-## Escopo
+The storage bucket `rh-documentos` has RLS policies that check `admin_permissions` table instead of `user_roles`. Letícia has `admin` role in `user_roles` but has no entry in `admin_permissions`, so the storage upload is blocked by RLS.
 
-Remover todas as referências ao "ChatGuru" na funcionalidade de mensagens de aniversário, já que agora usa exclusivamente a Z-API.
+The table-level policies (`rh_documentos`, `rh_pastas_documentos`) correctly use `has_role()` which checks `user_roles` — those work fine. But the storage upload fails before the table insert even happens.
 
-**Nota:** A função `send-document-request` ainda usa a API do ChatGuru de fato (templates WABA), então essa não será alterada neste momento.
+## Fix
 
-## Alterações
+Run a migration to drop and recreate the 3 storage policies for `rh-documentos` bucket, replacing the `admin_permissions` check with `has_role(auth.uid(), 'admin')` to be consistent with the table-level policies:
 
-### 1. Renomear a tabela no banco de dados
-- Migration: `ALTER TABLE chatguru_birthday_messages_log RENAME TO birthday_messages_log`
-- Renomear coluna: `chatguru_message_id` → `zapi_message_id`
+**Migration SQL:**
+- DROP the 3 existing policies: SELECT, INSERT, DELETE for `rh-documentos`
+- Recreate them using `has_role(auth.uid(), 'admin') OR is_socio_or_rafael(auth.uid())` instead of the `admin_permissions` subquery
+- Keep the user self-access SELECT policy unchanged
 
-### 2. Criar nova Edge Function `birthday-messages`
-- Copiar conteúdo de `chatguru-birthday-messages/index.ts` para `birthday-messages/index.ts`
-- Atualizar todas as referências de `chatguru_birthday_messages_log` → `birthday_messages_log`
-- Registrar em `config.toml`
-
-### 3. Remover Edge Function antiga
-- Deletar `supabase/functions/chatguru-birthday-messages/index.ts`
-- Remover entrada do `config.toml`
-
-### 4. Atualizar frontend (3 arquivos)
-- **`src/pages/AniversariosClientes.tsx`**: `invoke('birthday-messages')`
-- **`src/pages/HistoricoMensagensAniversario.tsx`**: `.from('birthday_messages_log')`, campo `zapi_message_id`
-- **`src/components/BirthdayMessageFailuresAlert.tsx`**: `.from('birthday_messages_log')`
-- **`src/components/CollectionMessagesHistory.tsx`**: `.from('birthday_messages_log')`
-
-### 5. Referências visuais ao ChatGuru
-- **`src/components/crm/CRMWhatsAppLogs.tsx`**: Trocar texto "ChatGuru" por "WhatsApp"
-
-## Arquivos alterados
-1. Migration SQL (renomear tabela + coluna)
-2. `supabase/functions/birthday-messages/index.ts` (novo)
-3. `supabase/functions/chatguru-birthday-messages/` (deletar)
-4. `src/pages/AniversariosClientes.tsx`
-5. `src/pages/HistoricoMensagensAniversario.tsx`
-6. `src/components/BirthdayMessageFailuresAlert.tsx`
-7. `src/components/CollectionMessagesHistory.tsx`
-8. `src/components/crm/CRMWhatsAppLogs.tsx`
+No frontend code changes needed.
 
