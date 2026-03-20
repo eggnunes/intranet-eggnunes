@@ -79,6 +79,9 @@ interface Lead {
   utm_campaign: string | null;
   utm_content: string | null;
   utm_term: string | null;
+  utm_placement: string | null;
+  utm_device: string | null;
+  utm_publisher: string | null;
   landing_page: string | null;
   rd_station_synced: boolean;
   created_at: string;
