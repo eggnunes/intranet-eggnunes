@@ -93,7 +93,7 @@ export default function HistoricoMensagensAniversario({ embedded = false, defaul
         status: msg.status,
         sent_at: msg.sent_at,
         error_message: msg.error_message,
-        chatguru_message_id: msg.chatguru_message_id,
+        zapi_message_id: msg.zapi_message_id,
         created_at: msg.created_at,
         type: 'birthday' as const,
       }));

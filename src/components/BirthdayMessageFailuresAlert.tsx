@@ -40,7 +40,7 @@ export function BirthdayMessageFailuresAlert() {
       yesterday.setDate(yesterday.getDate() - 1);
 
       const { data, error } = await supabase
-        .from('chatguru_birthday_messages_log')
+        .from('birthday_messages_log')
         .select('*')
         .eq('status', 'failed')
         .gte('created_at', yesterday.toISOString())

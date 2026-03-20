@@ -441,7 +441,7 @@ export default function AniversariosClientes() {
     try {
       const todayCustomers = getTodayCustomers();
 
-      const { data, error } = await supabase.functions.invoke('chatguru-birthday-messages', {
+      const { data, error } = await supabase.functions.invoke('birthday-messages', {
         body: { customers: todayCustomers, forceResend },
       });
 
