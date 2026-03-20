@@ -54,7 +54,7 @@ const DYNAMIC_TEMPLATES = {
   meta: {
     name: 'Meta Ads (Facebook/Instagram)',
     description: 'Template com placeholders dinâmicos do Meta Ads. O Meta substitui automaticamente pelos valores reais quando o usuário clica no anúncio.',
-    template: 'utm_source={{site_source_name}}&utm_medium=cpc&utm_campaign={{campaign.name}}&utm_content={{adset.name}}&utm_term={{ad.name}}',
+    template: 'utm_source={{site_source_name}}&utm_medium=cpc&utm_campaign={{campaign.name}}&utm_content={{adset.name}}&utm_term={{ad.name}}&utm_placement={{placement}}&utm_device={{device_platform}}&utm_publisher={{publisher_platform}}',
     placeholders: [
       { placeholder: '{{campaign.name}}', description: 'Nome da campanha' },
       { placeholder: '{{campaign.id}}', description: 'ID da campanha' },
