@@ -79,6 +79,9 @@ interface Lead {
   utm_campaign: string | null;
   utm_content: string | null;
   utm_term: string | null;
+  utm_placement: string | null;
+  utm_device: string | null;
+  utm_publisher: string | null;
   landing_page: string | null;
   rd_station_synced: boolean;
   created_at: string;
@@ -200,7 +203,7 @@ export function LeadsDashboard() {
   const uniqueAds = [...new Set(leads.map((l) => l.utm_term).filter(Boolean))];
 
   const exportToCSV = () => {
-    const headers = ['Nome', 'Email', 'Telefone', 'Origem', 'Mídia', 'Campanha', 'Conteúdo', 'Termo', 'Landing Page', 'RD Station', 'Data'];
+    const headers = ['Nome', 'Email', 'Telefone', 'Origem', 'Mídia', 'Campanha', 'Conteúdo', 'Termo', 'Posicionamento', 'Dispositivo', 'Plataforma', 'Landing Page', 'RD Station', 'Data'];
     const rows = filteredLeads.map((lead) => [
       lead.name,
       lead.email || '',
@@ -210,6 +213,9 @@ export function LeadsDashboard() {
       lead.utm_campaign || '',
       lead.utm_content || '',
       lead.utm_term || '',
+      lead.utm_placement || '',
+      lead.utm_device || '',
+      lead.utm_publisher || '',
       lead.landing_page || '',
       lead.rd_station_synced ? 'Sim' : 'Não',
       format(new Date(lead.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR }),
@@ -561,6 +567,21 @@ export function LeadsDashboard() {
                           {lead.utm_medium && (
                             <Badge variant="outline" className="text-xs">
                               {lead.utm_medium}
+                            </Badge>
+                          )}
+                          {lead.utm_placement && (
+                            <Badge variant="outline" className="text-xs">
+                              📍 {lead.utm_placement}
+                            </Badge>
+                          )}
+                          {lead.utm_device && (
+                            <Badge variant="outline" className="text-xs">
+                              {lead.utm_device === 'mobile' ? '📱' : '💻'} {lead.utm_device}
+                            </Badge>
+                          )}
+                          {lead.utm_publisher && (
+                            <Badge variant="outline" className="text-xs">
+                              {lead.utm_publisher}
                             </Badge>
                           )}
                         </div>
