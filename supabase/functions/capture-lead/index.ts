@@ -47,6 +47,16 @@ function isValidName(name: string): boolean {
   return trimmed.length >= 2 && trimmed.length <= 200;
 }
 
+// Normalizar utm_source (Meta Ads envia "fb" e "ig" via {{site_source_name}})
+function normalizeUtmSource(source: string | null | undefined): string | null {
+  if (!source) return null;
+  const map: Record<string, string> = {
+    'fb': 'facebook',
+    'ig': 'instagram',
+  };
+  return map[source.toLowerCase()] || source;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -172,7 +182,7 @@ serve(async (req) => {
         name,
         email: email || null,
         phone,
-        utm_source: utm_source || null,
+        utm_source: normalizeUtmSource(utm_source),
         utm_medium: utm_medium || null,
         utm_campaign: utm_campaign || null,
         utm_content: utm_content || null,

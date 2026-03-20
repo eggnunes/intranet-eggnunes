@@ -126,9 +126,11 @@ serve(async (req) => {
       if (contact.city) score += 3;
       if (contact.notes) score += 5;
 
-      // Pontuação por fonte de tráfego
-      if (contact.utm_source === 'google') score += 10;
-      if (contact.utm_source === 'facebook') score += 8;
+      // Pontuação por fonte de tráfego (já normalizado na captura)
+      const src = (contact.utm_source || '').toLowerCase();
+      if (src === 'google') score += 10;
+      if (src === 'facebook' || src === 'fb') score += 8;
+      if (src === 'instagram' || src === 'ig') score += 8;
       if (contact.utm_medium === 'cpc') score += 15;
 
       // Atualizar score se mudou
