@@ -63,7 +63,9 @@ const DYNAMIC_TEMPLATES = {
       { placeholder: '{{ad.name}}', description: 'Nome do anúncio' },
       { placeholder: '{{ad.id}}', description: 'ID do anúncio' },
       { placeholder: '{{placement}}', description: 'Posicionamento (feed, stories, etc.)' },
-      { placeholder: '{{site_source_name}}', description: 'Facebook ou Instagram' },
+      { placeholder: '{{site_source_name}}', description: 'fb (Facebook) ou ig (Instagram)' },
+      { placeholder: '{{device_platform}}', description: 'Dispositivo (mobile, desktop)' },
+      { placeholder: '{{publisher_platform}}', description: 'Plataforma (facebook, instagram, audience_network)' },
     ],
     howToUse: [
       'Acesse o Gerenciador de Anúncios do Meta',
