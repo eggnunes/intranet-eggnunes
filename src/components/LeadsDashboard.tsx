@@ -566,6 +566,21 @@ export function LeadsDashboard() {
                               {lead.utm_medium}
                             </Badge>
                           )}
+                          {lead.utm_placement && (
+                            <Badge variant="outline" className="text-xs">
+                              📍 {lead.utm_placement}
+                            </Badge>
+                          )}
+                          {lead.utm_device && (
+                            <Badge variant="outline" className="text-xs">
+                              {lead.utm_device === 'mobile' ? '📱' : '💻'} {lead.utm_device}
+                            </Badge>
+                          )}
+                          {lead.utm_publisher && (
+                            <Badge variant="outline" className="text-xs">
+                              {lead.utm_publisher}
+                            </Badge>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
