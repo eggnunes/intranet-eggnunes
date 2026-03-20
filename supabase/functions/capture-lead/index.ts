@@ -59,6 +59,13 @@ function normalizeUtmSource(source: string | null | undefined): string | null {
   return map[source.toLowerCase()] || source;
 }
 
+// Limpar valores que o Meta não substituiu (chegam como "{{campaign.name}}" etc.)
+function cleanUnresolvedPlaceholder(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (value.includes('{{') && value.includes('}}')) return null;
+  return value;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
