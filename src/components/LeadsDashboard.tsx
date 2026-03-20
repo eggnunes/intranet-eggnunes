@@ -297,7 +297,7 @@ export function LeadsDashboard() {
                   .sort((a, b) => b[1] - a[1])
                   .map(([source, count]) => (
                     <div key={source} className="flex items-center justify-between">
-                      <span className="text-sm">{source}</span>
+                      <SourceBadge source={source} />
                       <div className="flex items-center gap-2">
                         <div className="w-24 bg-muted rounded-full h-2">
                           <div 
