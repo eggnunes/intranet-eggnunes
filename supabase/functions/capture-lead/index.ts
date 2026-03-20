@@ -54,6 +54,7 @@ function normalizeUtmSource(source: string | null | undefined): string | null {
     'fb': 'facebook',
     'ig': 'instagram',
     'an': 'audience_network',
+    'msg': 'messenger',
   };
   return map[source.toLowerCase()] || source;
 }
