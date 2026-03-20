@@ -53,6 +53,7 @@ function normalizeUtmSource(source: string | null | undefined): string | null {
   const map: Record<string, string> = {
     'fb': 'facebook',
     'ig': 'instagram',
+    'an': 'audience_network',
   };
   return map[source.toLowerCase()] || source;
 }
