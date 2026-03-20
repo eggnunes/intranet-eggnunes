@@ -556,9 +556,7 @@ export function LeadsDashboard() {
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {lead.utm_source && (
-                            <Badge variant="secondary" className="text-xs">
-                              {lead.utm_source}
-                            </Badge>
+                            <SourceBadge source={lead.utm_source} />
                           )}
                           {lead.utm_medium && (
                             <Badge variant="outline" className="text-xs">
