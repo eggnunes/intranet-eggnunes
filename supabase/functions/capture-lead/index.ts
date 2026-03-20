@@ -182,7 +182,7 @@ serve(async (req) => {
         name,
         email: email || null,
         phone,
-        utm_source: utm_source || null,
+        utm_source: normalizeUtmSource(utm_source),
         utm_medium: utm_medium || null,
         utm_campaign: utm_campaign || null,
         utm_content: utm_content || null,
