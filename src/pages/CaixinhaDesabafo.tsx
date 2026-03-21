@@ -603,24 +603,40 @@ const CaixinhaDesabafo = () => {
       <div className="p-4 rounded-lg bg-muted/50 border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div
-              className="h-10 w-10 rounded-full bg-muted flex items-center justify-center cursor-default select-none"
-              onClick={handleSecretReveal}
-            >
-              <UserX className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <div>
-              {showSender ? (
-                <>
-                  <p className="font-medium">{msg.sender?.full_name}</p>
+            {msg.is_anonymous ? (
+              <>
+                <div
+                  className="h-10 w-10 rounded-full bg-muted flex items-center justify-center cursor-default select-none"
+                  onClick={handleSecretReveal}
+                >
+                  <UserX className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div>
+                  {showSender ? (
+                    <>
+                      <p className="font-medium">{msg.sender?.full_name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {msg.sender?.position} • {msg.sender?.email}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="font-medium text-muted-foreground">Remetente Anônimo</p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                  <User className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-medium">{msg.sender?.full_name || 'Remetente'}</p>
                   <p className="text-sm text-muted-foreground">
                     {msg.sender?.position} • {msg.sender?.email}
                   </p>
-                </>
-              ) : (
-                <p className="font-medium text-muted-foreground">Remetente Anônimo</p>
-              )}
-            </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
