@@ -619,6 +619,7 @@ export default function TarefasAdvbox() {
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <CheckSquare className="h-8 w-8 text-primary" />
               Gestão de Tarefas
+              <TutorialOverlay pageKey="tarefas" pageName={tutorialsByPage.tarefas.pageName} steps={tutorialsByPage.tarefas.steps} />
             </h1>
             <p className="text-muted-foreground mt-2">
               Gerencie suas tarefas do Advbox

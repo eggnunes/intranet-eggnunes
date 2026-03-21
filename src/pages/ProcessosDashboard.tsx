@@ -1214,6 +1214,7 @@ export default function ProcessosDashboard() {
               <h1 className="text-3xl font-bold flex items-center gap-3">
                 <Briefcase className="h-8 w-8 text-primary" />
                 Dashboard de Processos
+                <TutorialOverlay pageKey="processos" pageName={tutorialsByPage.processos.pageName} steps={tutorialsByPage.processos.steps} />
               </h1>
               <p className="text-muted-foreground mt-2">
                 Acompanhe seus processos e movimentações em tempo real
