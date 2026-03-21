@@ -4841,7 +4841,15 @@ export type Database = {
           response?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "jurisprudence_searches_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       landing_page_product_mappings: {
         Row: {
@@ -7127,6 +7135,13 @@ export type Database = {
             columns: ["search_id"]
             isOneToOne: false
             referencedRelation: "jurisprudence_searches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_jurisprudence_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
