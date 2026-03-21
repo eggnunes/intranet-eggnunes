@@ -2055,6 +2055,7 @@ export type Database = {
           pipeline_id: string | null
           product_name: string | null
           rd_station_id: string | null
+          stage_changed_at: string | null
           stage_id: string | null
           updated_at: string
           value: number | null
@@ -2075,6 +2076,7 @@ export type Database = {
           pipeline_id?: string | null
           product_name?: string | null
           rd_station_id?: string | null
+          stage_changed_at?: string | null
           stage_id?: string | null
           updated_at?: string
           value?: number | null
@@ -2095,6 +2097,7 @@ export type Database = {
           pipeline_id?: string | null
           product_name?: string | null
           rd_station_id?: string | null
+          stage_changed_at?: string | null
           stage_id?: string | null
           updated_at?: string
           value?: number | null
