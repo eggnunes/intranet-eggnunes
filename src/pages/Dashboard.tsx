@@ -15,6 +15,8 @@ import { ptBR } from 'date-fns/locale';
 import { TaskNotifications } from '@/components/TaskNotifications';
 import { BirthdayMessageFailuresAlert } from '@/components/BirthdayMessageFailuresAlert';
 import { getTopAccessedPages } from '@/hooks/useAccessTracking';
+import { TutorialOverlay } from '@/components/TutorialOverlay';
+import { tutorialsByPage } from '@/components/tutorialData';
 
 interface BirthdayProfile {
   id: string;
