@@ -53,6 +53,9 @@ export default function TarefasAdvbox() {
   const initialTab = searchParams.get('tab') === 'produtividade' ? 'produtividade' : 'list';
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDeletionAlerts, setShowDeletionAlerts] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
@@ -114,6 +117,14 @@ export default function TarefasAdvbox() {
   // Filtrar e ordenar tarefas
   const filteredTasks = useMemo(() => {
     let filtered = visibleTasks.filter((task) => {
+      // Hide deletion alerts by default
+      if (!showDeletionAlerts) {
+        const titleLower = (task.title || '').toLowerCase();
+        if (titleLower.includes('alerta') && (titleLower.includes('exclu') || titleLower.includes('delet'))) return false;
+        if (titleLower.includes('tarefa excluída') || titleLower.includes('tarefa excluida')) return false;
+        if (titleLower.includes('deleted') || titleLower.includes('exclusão') || titleLower.includes('exclusao')) return false;
+      }
+
       if (statusFilter !== 'all' && task.status !== statusFilter) return false;
       if (assignedFilter !== 'all' && task.assigned_to !== assignedFilter) return false;
       if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false;
@@ -151,7 +162,19 @@ export default function TarefasAdvbox() {
     });
 
     return filtered;
-  }, [visibleTasks, statusFilter, assignedFilter, priorityFilter, dueDateFilter]);
+  }, [visibleTasks, statusFilter, assignedFilter, priorityFilter, dueDateFilter, showDeletionAlerts]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredTasks.length / ITEMS_PER_PAGE);
+  const paginatedTasks = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredTasks.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredTasks, currentPage]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, assignedFilter, priorityFilter, dueDateFilter, showDeletionAlerts]);
 
   // TODAS AS FUNÇÕES DEVEM SER DEFINIDAS ANTES DOS RETURNS CONDICIONAIS
   const fetchUsers = async () => {
@@ -841,7 +864,22 @@ export default function TarefasAdvbox() {
                     </div>
                   )}
                 </div>
-              </CardContent>
+
+                <div className="flex items-center gap-3 mt-4 pt-4 border-t">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="show-deletion-alerts"
+                      checked={showDeletionAlerts}
+                      onChange={(e) => setShowDeletionAlerts(e.target.checked)}
+                      className="rounded border-input h-4 w-4"
+                    />
+                    <label htmlFor="show-deletion-alerts" className="text-sm text-muted-foreground cursor-pointer">
+                      Mostrar alertas de exclusão
+                    </label>
+                  </div>
+                </div>
+            </CardContent>
             </Card>
 
             {/* Lista de Tarefas */}
@@ -849,8 +887,9 @@ export default function TarefasAdvbox() {
           <CardHeader>
             <CardTitle>{isAdmin ? 'Todas as Tarefas' : 'Suas Tarefas'}</CardTitle>
             <CardDescription>
-              {filteredTasks.length} de {visibleTasks.length}{' '}
-              {filteredTasks.length === 1 ? 'tarefa' : 'tarefas'}
+              Mostrando {paginatedTasks.length} de {filteredTasks.length} tarefas
+              {filteredTasks.length !== visibleTasks.length && ` (${visibleTasks.length} total)`}
+              {totalPages > 1 && ` — Página ${currentPage} de ${totalPages}`}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -862,7 +901,7 @@ export default function TarefasAdvbox() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {filteredTasks.map((task) => (
+                  {paginatedTasks.map((task) => (
                     <Card key={task.id} className="hover:shadow-md transition-shadow">
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between gap-4 mb-3">
@@ -929,6 +968,56 @@ export default function TarefasAdvbox() {
                 </div>
               )}
             </ScrollArea>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-4 border-t mt-4">
+                <div className="text-sm text-muted-foreground">
+                  Página {currentPage} de {totalPages}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  >
+                    Anterior
+                  </Button>
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let page: number;
+                    if (totalPages <= 5) {
+                      page = i + 1;
+                    } else if (currentPage <= 3) {
+                      page = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      page = totalPages - 4 + i;
+                    } else {
+                      page = currentPage - 2 + i;
+                    }
+                    return (
+                      <Button
+                        key={page}
+                        variant={currentPage === page ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setCurrentPage(page)}
+                        className="min-w-[36px]"
+                      >
+                        {page}
+                      </Button>
+                    );
+                  })}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  >
+                    Próxima
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
           </TabsContent>

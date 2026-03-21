@@ -168,7 +168,7 @@ export default function MovimentacoesAdvbox() {
 
   // Timeline chart data - always uses ALL movements (not filtered by period)
   const getTimelineData = () => {
-    const dateCounts: Record<string, number> = {};
+    const dateCounts: Record<string, { date: Date; count: number }> = {};
     // Use all movements for the chart, only apply non-period filters
     const chartMovements = movements.filter(movement => {
       const customerName = getCustomerName(movement.customers);
@@ -192,12 +192,26 @@ export default function MovimentacoesAdvbox() {
       return matchesSearch && matchesResponsible && matchesStatus && matchesActionType && matchesArea;
     });
     chartMovements.forEach(m => {
-      const dateKey = format(new Date(m.date), 'dd/MM', { locale: ptBR });
-      dateCounts[dateKey] = (dateCounts[dateKey] || 0) + 1;
+      try {
+        const dateStr = m.date?.replace(' ', 'T');
+        const parsed = new Date(dateStr);
+        if (isNaN(parsed.getTime())) return;
+        const dateKey = format(parsed, 'yyyy-MM-dd');
+        if (!dateCounts[dateKey]) {
+          dateCounts[dateKey] = { date: parsed, count: 0 };
+        }
+        dateCounts[dateKey].count++;
+      } catch {
+        // Skip invalid dates
+      }
     });
     return Object.entries(dateCounts)
-      .map(([date, count]) => ({ date, movimentações: count }))
-      .slice(-30);
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-30)
+      .map(([, { date, count }]) => ({
+        date: format(date, 'dd/MM', { locale: ptBR }),
+        movimentações: count,
+      }));
   };
 
   const fetchData = async (forceRefresh = false) => {
