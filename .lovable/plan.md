@@ -1,32 +1,35 @@
 
 
-## Fix: Tempo Médio por Etapa mostrando 26 dias para todas as etapas
+## Melhorar qualidade da sugestão de tarefas por IA
+
+### Problema
+
+A IA está sugerindo tarefas genéricas ("conferir publicações") em vez de analisar a movimentação específica. Exemplo: movimentação "DESIGNADO PARA JULGAMENTO VIRTUAL" deveria sugerir "Preparar sustentação oral" ou "Avaliar oposição ao julgamento virtual", mas sugere apenas conferência de publicações.
 
 ### Causa raiz
 
-Dois problemas combinados:
-
-1. **`crm_deal_history` está vazia** — a sincronização com RD Station nunca registra transições de estágio, então não há histórico de movimentação
-2. **`updated_at` é sobrescrito pela sync** — toda vez que o cron roda, TODOS os deals recebem o mesmo `updated_at` (o timestamp da sync). O código usa `updated_at` para calcular tempo no estágio, resultando em ~26 dias para todos
+1. **Modelo fraco para raciocínio jurídico**: Usa `google/gemini-2.5-flash` — modelo rápido mas superficial para análise jurídica complexa
+2. **Dados insuficientes enviados**: O frontend envia apenas `description || title` como `publicationContent`, mas não inclui o título da movimentação separadamente — a IA recebe dados incompletos
+3. **Prompt genérico**: O prompt tem poucos exemplos de movimentações processuais brasileiras e não cobre cenários como julgamento virtual, decisão monocrática, etc.
 
 ### Solução
 
-**1. Registrar transições de estágio na sync** (`supabase/functions/crm-sync/index.ts`)
-- Na função `syncDeals`, ao fazer upsert de um deal, comparar o `stage_id` atual (do banco) com o novo (do RD Station)
-- Se mudou, inserir registro em `crm_deal_history` com `from_stage_id`, `to_stage_id` e timestamp
-- Para deals novos (INSERT), registrar entrada no primeiro estágio
+**1. Trocar modelo para Anthropic Claude Sonnet 4** (`supabase/functions/suggest-task/index.ts`)
+- Claude é significativamente melhor em raciocínio jurídico e cumprimento de instruções complexas
+- A chave `ANTHROPIC_API_KEY` já está configurada
+- Trocar de Lovable Gateway para API direta da Anthropic (mesmo padrão usado em `suggest-petition`)
 
-**2. Adicionar coluna `stage_changed_at` à tabela `crm_deals`** (migration)
-- Novo campo que só é atualizado quando o estágio realmente muda (não pela sync periódica)
-- A sync atualiza esse campo apenas quando detecta mudança de estágio
+**2. Enviar título + descrição separados no body** (`src/components/TaskCreationForm.tsx`)
+- Adicionar campo `movementTitle` ao payload (envia `initialData.title`)
+- Garantir que `publicationContent` envie `description` E `title` concatenados quando description estiver vazia
 
-**3. Corrigir cálculo no `CRMAnalytics.tsx`**
-- Usar `crm_deal_history` como fonte primária (transições registradas)
-- Para deals sem histórico, usar `stage_changed_at` (se existir) ou `created_at` como fallback em vez de `updated_at`
-- Isso elimina a distorção causada pela sync
+**3. Expandir prompt com exemplos específicos** (`supabase/functions/suggest-task/index.ts`)
+- Adicionar ~15 exemplos de movimentações reais e as tarefas corretas correspondentes
+- Incluir categorias: julgamento virtual, decisão monocrática, despacho, intimação, citação, sentença, recurso, audiência, perícia, cumprimento de sentença, etc.
+- Instruir explicitamente: "NUNCA sugira 'conferir publicações' como tarefa principal"
+- Adicionar regra: "Se a movimentação indica uma ação futura (julgamento, audiência), sugira PREPARAÇÃO para essa ação"
 
 ### Arquivos alterados
-- `supabase/functions/crm-sync/index.ts` — detectar mudanças de estágio e registrar em `crm_deal_history`
-- `src/components/crm/CRMAnalytics.tsx` — usar `stage_changed_at` / `created_at` como fallback
-- Nova migration — adicionar coluna `stage_changed_at` em `crm_deals`
+- `supabase/functions/suggest-task/index.ts` — trocar modelo + expandir prompt
+- `src/components/TaskCreationForm.tsx` — enviar dados mais completos
 
