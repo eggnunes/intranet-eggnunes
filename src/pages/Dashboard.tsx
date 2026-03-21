@@ -319,6 +319,7 @@ export default function Dashboard() {
                   pageName={tutorialsByPage.dashboard.pageName}
                   steps={tutorialsByPage.dashboard.steps}
                 />
+              </div>
               <div className="flex items-center gap-2">
                 <Badge className="bg-primary/10 text-primary border-primary/20 text-sm">
                   {profile?.position === 'socio' && 'Sócio'}
