@@ -567,7 +567,7 @@ const CaixinhaDesabafo = () => {
   );
 
   // Render message detail for sócios (with management)
-  const MessageDetailSocio = ({ msg }: { msg: FeedbackMessage }) => (
+  const renderMessageDetailSocio = (msg: FeedbackMessage) => (
     <div className="space-y-6">
       {/* Sender Info - Hidden by default */}
       <div className="p-4 rounded-lg bg-muted/50 border">
