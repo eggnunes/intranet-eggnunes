@@ -3,6 +3,8 @@ import { Layout } from '@/components/Layout';
 import { TOTPCodeDisplay } from '@/components/TOTPCodeDisplay';
 import { TOTPAccountForm } from '@/components/TOTPAccountForm';
 import { QRCodeImporter } from '@/components/QRCodeImporter';
+import { JusbrasilCodeFetcher } from '@/components/JusbrasilCodeFetcher';
+import { TutorialOverlay } from '@/components/TutorialOverlay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Shield, RefreshCw } from 'lucide-react';
