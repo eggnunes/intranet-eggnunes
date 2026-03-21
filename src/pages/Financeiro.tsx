@@ -100,7 +100,10 @@ export default function Financeiro() {
                 <ArrowLeft className="h-5 w-5" />
               </Button>
               <div>
-                <h1 className="text-2xl font-bold">Sistema Financeiro</h1>
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                  Sistema Financeiro
+                  <TutorialOverlay pageKey="financeiro" pageName={tutorialsByPage.financeiro.pageName} steps={tutorialsByPage.financeiro.steps} />
+                </h1>
                 <p className="text-sm text-muted-foreground">
                   Gestão financeira completa do escritório
                 </p>
