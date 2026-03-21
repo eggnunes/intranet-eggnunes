@@ -1,19 +1,28 @@
 
 
-## Renomear "Decisões Favoráveis" → "Jurisprudência Interna" + Verificar Ordenação
+## Renomear "Publicações Feed" → "Publicações ADVBox" e reordenar Produção Jurídica
 
-### Análise
+### Alterações em `src/components/AppSidebar.tsx` (linhas 201-213)
 
-1. **Nome no sidebar**: O único lugar que ainda mostra "Decisões Favoráveis" é o menu lateral em `AppSidebar.tsx` (linha 211). A página em si já tem o título "Jurisprudência Interna".
+**1. Renomear**: Trocar label `'Publicações Feed'` para `'Publicações ADVBox'`
 
-2. **Ordenação**: A query já faz `.order('created_at', { ascending: false })` — ou seja, as últimas cadastradas aparecem primeiro. O `filteredDecisions` aplica apenas `.filter()` sem `.sort()`, então a ordem é preservada. **Porém**, a tabela exibe a coluna `decision_date` (data da decisão), não `created_at` (data do cadastro). Isso pode causar a impressão de desordem — uma decisão de 2023 cadastrada ontem aparece no topo mas com data antiga.
+**2. Reordenar** os itens do grupo "Produção Jurídica" — primeiro itens ADVBox, depois os demais:
 
-### Alterações
+**Bloco ADVBox:**
+1. Processos Dashboard
+2. Tarefas Advbox
+3. Distribuição de Tarefas
+4. Controle de Prazos
+5. Processos Ativos
+6. Movimentações Advbox
+7. Publicações ADVBox
 
-**1. `src/components/AppSidebar.tsx`** (linha 211)
-- Trocar label de `'Decisões Favoráveis'` para `'Jurisprudência Interna'`
+**Bloco não-ADVBox:**
+8. Pesquisa Jurisprudência
+9. Publicações DJE
+10. Portais de Tribunais
+11. Jurisprudência Interna
 
-**2. `src/pages/DecisoesFavoraveis.tsx`**
-- Adicionar coluna "Cadastro" na tabela mostrando `created_at` formatado, para o usuário visualizar claramente a ordem cronológica de cadastramento
-- Manter a ordenação existente por `created_at desc` (já está correta)
+### Arquivo alterado
+- `src/components/AppSidebar.tsx`
 
