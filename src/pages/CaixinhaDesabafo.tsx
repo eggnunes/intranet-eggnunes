@@ -447,9 +447,9 @@ const CaixinhaDesabafo = () => {
 
   const unreadCount = messages.filter(m => !m.is_read).length;
 
-  // Render message card component
-  const MessageCard = ({ msg, isOwn = false }: { msg: FeedbackMessage; isOwn?: boolean }) => (
+  const renderMessageCard = (msg: FeedbackMessage, isOwn = false) => (
     <button
+      key={msg.id}
       onClick={() => {
         setSelectedMessage(msg);
         if (!msg.is_read && isSocio) handleMarkAsRead(msg.id);
@@ -507,7 +507,7 @@ const CaixinhaDesabafo = () => {
   );
 
   // Render message detail for user's own messages (view only)
-  const MessageDetailOwn = ({ msg }: { msg: FeedbackMessage }) => (
+  const renderMessageDetailOwn = (msg: FeedbackMessage) => (
     <div className="space-y-6">
       <div>
         <label className="text-sm font-medium text-muted-foreground">Assunto</label>
@@ -567,7 +567,7 @@ const CaixinhaDesabafo = () => {
   );
 
   // Render message detail for sócios (with management)
-  const MessageDetailSocio = ({ msg }: { msg: FeedbackMessage }) => (
+  const renderMessageDetailSocio = (msg: FeedbackMessage) => (
     <div className="space-y-6">
       {/* Sender Info - Hidden by default */}
       <div className="p-4 rounded-lg bg-muted/50 border">
@@ -876,7 +876,7 @@ const CaixinhaDesabafo = () => {
                     ) : (
                       <div className="space-y-3">
                         {myMessages.map(msg => (
-                          <MessageCard key={msg.id} msg={msg} isOwn />
+                          renderMessageCard(msg, true)
                         ))}
                       </div>
                     )}
@@ -890,7 +890,7 @@ const CaixinhaDesabafo = () => {
                 </CardHeader>
                 <CardContent>
                   {selectedMessage && myMessages.some(m => m.id === selectedMessage.id) ? (
-                    <MessageDetailOwn msg={selectedMessage} />
+                    renderMessageDetailOwn(selectedMessage)
                   ) : (
                     <div className="text-center py-12 text-muted-foreground">
                       <Eye className="h-12 w-12 mx-auto mb-3 opacity-50" />
@@ -929,7 +929,7 @@ const CaixinhaDesabafo = () => {
                       ) : (
                         <div className="space-y-3">
                           {messages.map(msg => (
-                            <MessageCard key={msg.id} msg={msg} />
+                            renderMessageCard(msg)
                           ))}
                         </div>
                       )}
@@ -943,7 +943,7 @@ const CaixinhaDesabafo = () => {
                   </CardHeader>
                   <CardContent>
                     {selectedMessage && messages.some(m => m.id === selectedMessage.id) ? (
-                      <MessageDetailSocio msg={selectedMessage} />
+                      renderMessageDetailSocio(selectedMessage)
                     ) : (
                       <div className="text-center py-12 text-muted-foreground">
                         <Eye className="h-12 w-12 mx-auto mb-3 opacity-50" />
