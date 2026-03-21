@@ -447,9 +447,9 @@ const CaixinhaDesabafo = () => {
 
   const unreadCount = messages.filter(m => !m.is_read).length;
 
-  // Render message card component
-  const MessageCard = ({ msg, isOwn = false }: { msg: FeedbackMessage; isOwn?: boolean }) => (
+  const renderMessageCard = (msg: FeedbackMessage, isOwn = false) => (
     <button
+      key={msg.id}
       onClick={() => {
         setSelectedMessage(msg);
         if (!msg.is_read && isSocio) handleMarkAsRead(msg.id);
