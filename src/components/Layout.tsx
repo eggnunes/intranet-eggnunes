@@ -337,6 +337,7 @@ export const Layout = ({ children }: LayoutProps) => {
               </Button>
             )}
             {children}
+            <NotificationToast />
           </main>
         </SidebarInset>
       </div>
