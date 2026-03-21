@@ -207,6 +207,7 @@ export function AppSidebar() {
         { icon: Briefcase, path: '/processos-ativos', label: 'Processos Ativos' },
         { icon: AlertCircle, path: '/movimentacoes-advbox', label: 'Movimentações Advbox' },
         { icon: Bell, path: '/publicacoes', label: 'Publicações ADVBox' },
+        { icon: Cake, path: '/aniversarios-clientes', label: 'Aniversários Clientes' },
         // Bloco não-ADVBox
         { icon: SearchIcon, path: '/pesquisa-jurisprudencia', label: 'Pesquisa Jurisprudência' },
         { icon: FileText, path: '/publicacoes-dje', label: 'Publicações DJE' },
