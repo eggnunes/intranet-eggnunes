@@ -346,7 +346,7 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
                     <p className="text-2xl font-bold text-foreground">{metaLeads.length}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">CPL via UTM</p>
+                    <p className="text-sm text-muted-foreground"><AcronymTip acronym="CPL">CPL</AcronymTip> via UTM</p>
                     <p className="text-2xl font-bold text-foreground">
                       {metaLeads.length > 0 ? formatBRL(metaTotals.spend / metaLeads.length) : '—'}
                     </p>
