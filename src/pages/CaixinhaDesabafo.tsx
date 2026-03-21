@@ -929,7 +929,7 @@ const CaixinhaDesabafo = () => {
                       ) : (
                         <div className="space-y-3">
                           {messages.map(msg => (
-                            <MessageCard key={msg.id} msg={msg} />
+                            {renderMessageCard(msg)}
                           ))}
                         </div>
                       )}
