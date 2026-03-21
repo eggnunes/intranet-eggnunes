@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -17,7 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import { format, subDays, startOfDay, endOfDay, isSameDay, addDays, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import {
@@ -26,8 +26,9 @@ import {
 } from 'recharts';
 import {
   CalendarIcon, TrendingUp, DollarSign, Users, MousePointerClick, Eye, Target,
-  Plus, Pencil, Trash2, AlertTriangle, Megaphone, BarChart3, Filter, Instagram, Facebook
+  Plus, Pencil, Trash2, Megaphone, BarChart3, Filter, Facebook
 } from 'lucide-react';
+import MetaAdsTab from '@/components/marketing/MetaAdsTab';
 
 const PLATFORMS = [
   { value: 'facebook', label: 'Facebook', color: 'hsl(var(--primary))' },
@@ -49,7 +50,6 @@ function getGreeting(): string {
 export default function MarketingHub() {
   const { profile } = useUserRole();
   const queryClient = useQueryClient();
-  const [metaAccount, setMetaAccount] = useState('all');
   const [periodDays, setPeriodDays] = useState('30');
   const [customRange, setCustomRange] = useState<{ from?: Date; to?: Date }>({});
   const [pubDialogOpen, setPubDialogOpen] = useState(false);
@@ -176,7 +176,7 @@ export default function MarketingHub() {
   const totalRevenue = campaigns.reduce((s: number, c: any) => s + (c.revenue || 0), 0);
   const overallROI = totalInvestment > 0 ? ((totalRevenue - totalInvestment) / totalInvestment * 100).toFixed(1) : '0';
 
-  // Meta Ads config & data
+  // Meta Ads config
   const [metaConfigOpen, setMetaConfigOpen] = useState(false);
   const [metaToken, setMetaToken] = useState('');
   const [metaAccountId, setMetaAccountId] = useState('');
@@ -215,69 +215,10 @@ export default function MarketingHub() {
       refetchMetaConfig();
       queryClient.invalidateQueries({ queryKey: ['meta-ads-campaigns'] });
       queryClient.invalidateQueries({ queryKey: ['meta-ads-insights'] });
+      queryClient.invalidateQueries({ queryKey: ['meta-ads-daily'] });
     },
     onError: (e: any) => toast.error(e.message || 'Erro ao salvar'),
   });
-
-  const fromDateStr = dateRange.from.toISOString().split('T')[0];
-  const toDateStr = dateRange.to.toISOString().split('T')[0];
-
-  const { data: metaCampaigns = [], isLoading: loadingCampaigns } = useQuery({
-    queryKey: ['meta-ads-campaigns', metaConfig?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('meta-ads', {
-        body: { action: 'campaigns' },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data?.campaigns || [];
-    },
-    enabled: !!metaConfig,
-  });
-
-  const { data: metaInsights = [], isLoading: loadingInsights } = useQuery({
-    queryKey: ['meta-ads-insights', metaConfig?.id, fromDateStr, toDateStr],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('meta-ads', {
-        body: { action: 'insights', date_from: fromDateStr, date_to: toDateStr },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data?.insights || [];
-    },
-    enabled: !!metaConfig,
-  });
-
-  // Aggregate insights
-  const metaTotals = useMemo(() => {
-    let impressions = 0, clicks = 0, spend = 0;
-    metaInsights.forEach((i: any) => {
-      impressions += parseInt(i.impressions || '0');
-      clicks += parseInt(i.clicks || '0');
-      spend += parseFloat(i.spend || '0');
-    });
-    const ctr = impressions > 0 ? ((clicks / impressions) * 100).toFixed(2) : '0.00';
-    const cpc = clicks > 0 ? (spend / clicks).toFixed(2) : '0.00';
-    return { impressions, clicks, spend, ctr, cpc };
-  }, [metaInsights]);
-
-  // Build table rows from insights merged with campaigns
-  const metaAdsRows = useMemo(() => {
-    return metaInsights.map((insight: any) => {
-      const campaign = metaCampaigns.find((c: any) => c.id === insight.campaign_id);
-      const statusMap: Record<string, string> = { ACTIVE: 'Ativa', PAUSED: 'Pausada', DELETED: 'Removida', ARCHIVED: 'Arquivada' };
-      return {
-        id: insight.campaign_id,
-        name: insight.campaign_name || campaign?.name || 'Sem nome',
-        status: statusMap[campaign?.status] || campaign?.status || '—',
-        impressions: parseInt(insight.impressions || '0'),
-        clicks: parseInt(insight.clicks || '0'),
-        ctr: parseFloat(insight.ctr || '0').toFixed(2) + '%',
-        cpc: 'R$ ' + parseFloat(insight.cpc || '0').toFixed(2).replace('.', ','),
-        spend: 'R$ ' + parseFloat(insight.spend || '0').toFixed(2).replace('.', ','),
-      };
-    });
-  }, [metaInsights, metaCampaigns]);
 
   // Calendar helpers
   const monthStart = startOfMonth(calendarMonth);
@@ -319,16 +260,6 @@ export default function MarketingHub() {
             <p className="text-muted-foreground text-sm">Marketing Hub — Gerencie campanhas, anúncios e conteúdo</p>
           </div>
           <div className="flex flex-wrap gap-3 items-center">
-            <Select value={metaAccount} onValueChange={setMetaAccount}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Conta Meta" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as contas</SelectItem>
-                <SelectItem value="eggnunes-main">EggNunes Principal</SelectItem>
-                <SelectItem value="eggnunes-brand">EggNunes Brand</SelectItem>
-              </SelectContent>
-            </Select>
             <Select value={periodDays} onValueChange={setPeriodDays}>
               <SelectTrigger className="w-[160px]">
                 <SelectValue />
@@ -371,132 +302,14 @@ export default function MarketingHub() {
             <TabsTrigger value="funil" className="flex-1 min-w-[120px]"><Filter className="h-4 w-4 mr-1" />Funil</TabsTrigger>
           </TabsList>
 
-          {/* Tab 1: Campanhas */}
+          {/* Tab 1: Campanhas - uses Meta Ads data */}
           <TabsContent value="campanhas">
-            <div className="grid gap-4 md:grid-cols-4 mb-6">
-              <Card><CardContent className="pt-6 text-center"><p className="text-sm text-muted-foreground">Campanhas Ativas</p><p className="text-3xl font-bold text-foreground">{campaigns.filter((c: any) => c.status === 'active').length}</p></CardContent></Card>
-              <Card><CardContent className="pt-6 text-center"><p className="text-sm text-muted-foreground">Investimento Total</p><p className="text-3xl font-bold text-foreground">R$ {totalInvestment.toLocaleString('pt-BR')}</p></CardContent></Card>
-              <Card><CardContent className="pt-6 text-center"><p className="text-sm text-muted-foreground">Receita Total</p><p className="text-3xl font-bold text-green-500">R$ {totalRevenue.toLocaleString('pt-BR')}</p></CardContent></Card>
-              <Card><CardContent className="pt-6 text-center"><p className="text-sm text-muted-foreground">ROI Geral</p><p className={cn("text-3xl font-bold", Number(overallROI) >= 0 ? 'text-green-500' : 'text-destructive')}>{overallROI}%</p></CardContent></Card>
-            </div>
-            <Card>
-              <CardHeader><CardTitle>Campanhas</CardTitle></CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Plataforma</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Investimento</TableHead>
-                      <TableHead className="text-right">Receita</TableHead>
-                      <TableHead className="text-right">ROI</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {campaigns.length === 0 && (
-                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhuma campanha encontrada no período</TableCell></TableRow>
-                    )}
-                    {campaigns.map((c: any) => {
-                      const roi = c.investment > 0 ? (((c.revenue || 0) - c.investment) / c.investment * 100) : 0;
-                      return (
-                        <TableRow key={c.id}>
-                          <TableCell className="font-medium">{c.name}</TableCell>
-                          <TableCell><Badge className={platformBadgeColor(c.platform)}>{c.platform}</Badge></TableCell>
-                          <TableCell><Badge variant={c.status === 'active' ? 'default' : 'secondary'}>{c.status === 'active' ? 'Ativa' : c.status === 'paused' ? 'Pausada' : 'Finalizada'}</Badge></TableCell>
-                          <TableCell className="text-right">R$ {(c.investment || 0).toLocaleString('pt-BR')}</TableCell>
-                          <TableCell className="text-right">R$ {(c.revenue || 0).toLocaleString('pt-BR')}</TableCell>
-                          <TableCell className={cn("text-right font-semibold", roi >= 0 ? 'text-green-500' : 'text-destructive')}>{roi.toFixed(1)}%</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+            <MetaAdsTab metaConfig={metaConfig} dateRange={dateRange} onOpenConfig={() => setMetaConfigOpen(true)} />
           </TabsContent>
 
-          {/* Tab 2: Meta Ads */}
+          {/* Tab 2: Meta Ads - full manager */}
           <TabsContent value="meta-ads">
-            {!metaConfig ? (
-              <Card>
-                <CardContent className="py-12 text-center space-y-4">
-                  <Facebook className="h-12 w-12 mx-auto text-muted-foreground" />
-                  <h3 className="text-lg font-semibold">Conecte sua conta Meta Ads</h3>
-                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                    Para visualizar métricas reais de campanhas, configure seu Access Token e ID da conta de anúncios do Meta Business.
-                  </p>
-                  <Button onClick={() => setMetaConfigOpen(true)}>
-                    <Plus className="h-4 w-4 mr-1" /> Configurar Meta Ads
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <>
-                <div className="mb-4 flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">
-                    Conta: <span className="font-medium text-foreground">{metaConfig.account_name || metaConfig.ad_account_id}</span>
-                  </p>
-                  <Button variant="outline" size="sm" onClick={() => { setMetaToken(''); setMetaAccountId(''); setMetaAccountName(metaConfig.account_name || ''); setMetaConfigOpen(true); }}>
-                    <Pencil className="h-3 w-3 mr-1" /> Editar credenciais
-                  </Button>
-                </div>
-                <div className="grid gap-4 md:grid-cols-5 mb-6">
-                  {[
-                    { label: 'Impressões', value: metaTotals.impressions.toLocaleString('pt-BR'), icon: Eye },
-                    { label: 'Cliques', value: metaTotals.clicks.toLocaleString('pt-BR'), icon: MousePointerClick },
-                    { label: 'CTR', value: metaTotals.ctr + '%', icon: TrendingUp },
-                    { label: 'CPC Médio', value: 'R$ ' + metaTotals.cpc.replace('.', ','), icon: DollarSign },
-                    { label: 'Gasto Total', value: 'R$ ' + metaTotals.spend.toFixed(2).replace('.', ','), icon: DollarSign },
-                  ].map((m) => (
-                    <Card key={m.label}>
-                      <CardContent className="pt-6 text-center">
-                        <m.icon className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
-                        <p className="text-xs text-muted-foreground">{m.label}</p>
-                        <p className="text-xl font-bold text-foreground">{(loadingInsights) ? '...' : m.value}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-                <Card>
-                  <CardHeader><CardTitle>Campanhas</CardTitle></CardHeader>
-                  <CardContent>
-                    {(loadingCampaigns || loadingInsights) ? (
-                      <p className="text-center text-muted-foreground py-8">Carregando dados do Meta Ads...</p>
-                    ) : metaAdsRows.length === 0 ? (
-                      <p className="text-center text-muted-foreground py-8">Nenhuma campanha encontrada no período selecionado</p>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Campanha</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Impressões</TableHead>
-                            <TableHead className="text-right">Cliques</TableHead>
-                            <TableHead className="text-right">CTR</TableHead>
-                            <TableHead className="text-right">CPC</TableHead>
-                            <TableHead className="text-right">Gasto</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {metaAdsRows.map((ad: any) => (
-                            <TableRow key={ad.id}>
-                              <TableCell className="font-medium">{ad.name}</TableCell>
-                              <TableCell><Badge variant={ad.status === 'Ativa' ? 'default' : 'secondary'}>{ad.status}</Badge></TableCell>
-                              <TableCell className="text-right">{ad.impressions.toLocaleString('pt-BR')}</TableCell>
-                              <TableCell className="text-right">{ad.clicks.toLocaleString('pt-BR')}</TableCell>
-                              <TableCell className="text-right">{ad.ctr}</TableCell>
-                              <TableCell className="text-right">{ad.cpc}</TableCell>
-                              <TableCell className="text-right">{ad.spend}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                </Card>
-              </>
-            )}
+            <MetaAdsTab metaConfig={metaConfig} dateRange={dateRange} onOpenConfig={() => setMetaConfigOpen(true)} />
           </TabsContent>
 
           {/* Tab 3: Calendário */}
