@@ -421,21 +421,44 @@ export default function MarketingHub() {
 
           {/* Tab 4: Relatórios ROI */}
           <TabsContent value="roi">
+            {/* Summary cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground">Gasto Total</div>
+                  <div className="text-2xl font-bold text-foreground">R$ {totalInvestment.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground">Conversões Totais</div>
+                  <div className="text-2xl font-bold text-foreground">{totalConversions}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground">CPL Médio</div>
+                  <div className="text-2xl font-bold text-foreground">R$ {parseFloat(overallCPL).toFixed(2).replace('.', ',')}</div>
+                </CardContent>
+              </Card>
+            </div>
             <div className="grid gap-6 lg:grid-cols-2">
               <Card>
-                <CardHeader><CardTitle className="text-base">ROI por Campanha</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-base">Gasto vs Conversões por Campanha</CardTitle></CardHeader>
                 <CardContent>
                   {roiData.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">Sem dados de campanhas</p>
+                    <p className="text-center text-muted-foreground py-8">Sem dados de campanhas no período. Verifique se o Meta Ads está configurado.</p>
                   ) : (
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={roiData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                        <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                        <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
-                        <Bar dataKey="investimento" name="Investimento" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="receita" name="Receita" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} angle={-20} textAnchor="end" height={60} />
+                        <YAxis yAxisId="left" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                        <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(value: any, name: string) => [name === 'Gasto' ? `R$ ${parseFloat(value).toFixed(2)}` : value, name]} />
+                        <Legend />
+                        <Bar yAxisId="left" dataKey="gasto" name="Gasto" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
+                        <Bar yAxisId="right" dataKey="conversoes" name="Conversões" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   )}
@@ -444,35 +467,37 @@ export default function MarketingHub() {
               <Card>
                 <CardHeader><CardTitle className="text-base">Evolução Temporal</CardTitle></CardHeader>
                 <CardContent>
-                  {roiData.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">Sem dados</p>
+                  {dailyChartData.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">Sem dados diários no período</p>
                   ) : (
                     <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={roiData}>
+                      <LineChart data={dailyChartData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                        <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                        <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
-                        <Line type="monotone" dataKey="investimento" name="Investimento" stroke="hsl(var(--muted-foreground))" strokeWidth={2} />
-                        <Line type="monotone" dataKey="receita" name="Receita" stroke="hsl(var(--primary))" strokeWidth={2} />
+                        <XAxis dataKey="data" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                        <YAxis yAxisId="left" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                        <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(value: any, name: string) => [name === 'Gasto (R$)' ? `R$ ${parseFloat(value).toFixed(2)}` : value, name]} />
+                        <Legend />
+                        <Line yAxisId="left" type="monotone" dataKey="gasto" name="Gasto (R$)" stroke="hsl(var(--muted-foreground))" strokeWidth={2} />
+                        <Line yAxisId="right" type="monotone" dataKey="conversoes" name="Conversões" stroke="hsl(var(--primary))" strokeWidth={2} />
                       </LineChart>
                     </ResponsiveContainer>
                   )}
                 </CardContent>
               </Card>
               <Card className="lg:col-span-2">
-                <CardHeader><CardTitle className="text-base">Distribuição por Plataforma</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-base">Distribuição de Gasto por Campanha</CardTitle></CardHeader>
                 <CardContent className="flex justify-center">
-                  {platformDistribution.length === 0 ? (
+                  {roiData.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">Sem dados</p>
                   ) : (
                     <ResponsiveContainer width="100%" height={300}>
                       <PieChart>
-                        <Pie data={platformDistribution} cx="50%" cy="50%" outerRadius={100} dataKey="value" nameKey="name" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                          {platformDistribution.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                        <Pie data={roiData} cx="50%" cy="50%" outerRadius={100} dataKey="gasto" nameKey="name" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                          {roiData.map((_: any, i: number) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                         </Pie>
                         <Legend />
-                        <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
+                        <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(value: any) => [`R$ ${parseFloat(value).toFixed(2)}`, 'Gasto']} />
                       </PieChart>
                     </ResponsiveContainer>
                   )}
@@ -486,26 +511,54 @@ export default function MarketingHub() {
             <Card>
               <CardHeader>
                 <CardTitle>Funil de Vendas</CardTitle>
-                <CardDescription>Visualização do funil baseada nos estágios do CRM</CardDescription>
+                <CardDescription>Visualização do funil baseada nos estágios reais do CRM ({deals.length} negociações)</CardDescription>
               </CardHeader>
               <CardContent>
                 {funnelData.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-12">Configure os estágios no CRM para visualizar o funil</p>
+                  <p className="text-center text-muted-foreground py-12">Nenhum estágio encontrado no CRM</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={400}>
-                    <BarChart data={funnelData} layout="vertical" margin={{ left: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis type="number" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-                      <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-                      <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
-                      <Bar dataKey="count" name="Deals" fill="hsl(var(--primary))" radius={[0, 6, 6, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <div className="space-y-6">
+                    {/* Visual funnel */}
+                    <div className="space-y-2 max-w-2xl mx-auto">
+                      {funnelData.map((stage: any, idx: number) => {
+                        const maxCount = Math.max(...funnelData.map((s: any) => s.count), 1);
+                        const widthPct = Math.max(20, (stage.count / maxCount) * 100);
+                        const prevCount = idx > 0 ? funnelData[idx - 1].count : null;
+                        const conversionRate = prevCount && prevCount > 0 ? ((stage.count / prevCount) * 100).toFixed(1) : null;
+                        return (
+                          <div key={stage.name} className="flex flex-col items-center gap-1">
+                            {idx > 0 && conversionRate && (
+                              <span className="text-xs text-muted-foreground">↓ {conversionRate}%</span>
+                            )}
+                            <div
+                              className={cn(
+                                "rounded-md py-3 px-4 text-center transition-all text-sm font-medium",
+                                stage.is_lost ? "bg-destructive/15 text-destructive" : stage.is_won ? "bg-green-500/15 text-green-700 dark:text-green-400" : "bg-primary/15 text-primary"
+                              )}
+                              style={{ width: `${widthPct}%` }}
+                            >
+                              <div className="font-semibold">{stage.name}</div>
+                              <div className="text-xs opacity-80">{stage.count} negociações{stage.value > 0 ? ` · R$ ${stage.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* Bar chart */}
+                    <ResponsiveContainer width="100%" height={350}>
+                      <BarChart data={funnelData} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis type="number" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+                        <YAxis dataKey="name" type="category" width={180} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                        <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(value: any, name: string) => [value, name === 'count' ? 'Negociações' : name]} />
+                        <Bar dataKey="count" name="Negociações" fill="hsl(var(--primary))" radius={[0, 6, 6, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
-        </Tabs>
 
         {/* Publication Dialog */}
         <Dialog open={pubDialogOpen} onOpenChange={(o) => { if (!o) { setEditingPub(null); } setPubDialogOpen(o); }}>
