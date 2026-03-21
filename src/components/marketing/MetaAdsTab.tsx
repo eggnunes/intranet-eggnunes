@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
@@ -23,6 +24,31 @@ import {
   Plus, Pencil, Trash2, Copy, Play, Pause, Facebook, ArrowUpDown,
   Brain, Users, ChevronDown, ChevronUp, Loader2
 } from 'lucide-react';
+
+const ACRONYM_TOOLTIPS: Record<string, string> = {
+  'CTR': 'Taxa de Cliques (Click-Through Rate)',
+  'CPC': 'Custo por Clique (Cost Per Click)',
+  'CPL': 'Custo por Lead (Cost Per Lead)',
+  'CPM': 'Custo por Mil Impressões (Cost Per Mille)',
+  'ROAS': 'Retorno sobre Investimento em Ads (Return On Ad Spend)',
+  'CPA': 'Custo por Aquisição (Cost Per Acquisition)',
+  'ROI': 'Retorno sobre Investimento (Return On Investment)',
+};
+
+function AcronymTip({ acronym, children }: { acronym: string; children?: React.ReactNode }) {
+  const tip = ACRONYM_TOOLTIPS[acronym];
+  if (!tip) return <>{children || acronym}</>;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="underline decoration-dotted decoration-muted-foreground/50 cursor-help">
+          {children || acronym}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent><p>{tip}</p></TooltipContent>
+    </Tooltip>
+  );
+}
 
 interface MetaAdsTabProps {
   metaConfig: any;
@@ -262,6 +288,7 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
   }
 
   return (
+    <TooltipProvider>
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -289,15 +316,15 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
         <TabsContent value="overview">
           <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-7 mb-4">
             {[
-              { label: 'Impressões', value: formatNum(metaTotals.impressions), icon: Eye, color: 'text-blue-500' },
-              { label: 'Alcance', value: formatNum(metaTotals.reach), icon: Users, color: 'text-violet-500' },
-              { label: 'Cliques', value: formatNum(metaTotals.clicks), icon: MousePointerClick, color: 'text-amber-500' },
-              { label: 'CTR', value: metaTotals.ctr.toFixed(2) + '%', icon: TrendingUp, color: 'text-green-500' },
-              { label: 'CPC Médio', value: formatBRL(metaTotals.cpc), icon: DollarSign, color: 'text-orange-500' },
-              { label: 'Conversões', value: formatNum(metaTotals.conversions), icon: Target, color: 'text-emerald-500' },
-              { label: 'Gasto Total', value: formatBRL(metaTotals.spend), icon: DollarSign, color: 'text-destructive' },
+              { label: 'Impressões', value: formatNum(metaTotals.impressions), icon: Eye, color: 'text-blue-500', key: 'Imp' },
+              { label: 'Alcance', value: formatNum(metaTotals.reach), icon: Users, color: 'text-violet-500', key: 'Alc' },
+              { label: 'Cliques', value: formatNum(metaTotals.clicks), icon: MousePointerClick, color: 'text-amber-500', key: 'Cli' },
+              { label: <AcronymTip acronym="CTR">CTR</AcronymTip>, value: metaTotals.ctr.toFixed(2) + '%', icon: TrendingUp, color: 'text-green-500', key: 'CTR' },
+              { label: <AcronymTip acronym="CPC">CPC Médio</AcronymTip>, value: formatBRL(metaTotals.cpc), icon: DollarSign, color: 'text-orange-500', key: 'CPC' },
+              { label: 'Conversões', value: formatNum(metaTotals.conversions), icon: Target, color: 'text-emerald-500', key: 'Conv' },
+              { label: 'Gasto Total', value: formatBRL(metaTotals.spend), icon: DollarSign, color: 'text-destructive', key: 'Gasto' },
             ].map((m) => (
-              <Card key={m.label}>
+              <Card key={m.key}>
                 <CardContent className="pt-4 pb-3 text-center">
                   <m.icon className={cn("h-4 w-4 mx-auto mb-1", m.color)} />
                   <p className="text-[10px] text-muted-foreground">{m.label}</p>
@@ -311,15 +338,15 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
               <CardContent className="pt-4 pb-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Custo por Lead (Meta)</p>
-                    <p className="text-2xl font-bold text-foreground">{formatBRL(metaTotals.cpl)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Leads capturados (UTM)</p>
+                    <p className="text-sm text-muted-foreground">Custo por Lead (Meta) — <AcronymTip acronym="CPL">CPL</AcronymTip></p>
+                     <p className="text-2xl font-bold text-foreground">{formatBRL(metaTotals.cpl)}</p>
+                   </div>
+                   <div>
+                     <p className="text-sm text-muted-foreground">Leads capturados (UTM)</p>
                     <p className="text-2xl font-bold text-foreground">{metaLeads.length}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">CPL via UTM</p>
+                    <p className="text-sm text-muted-foreground"><AcronymTip acronym="CPL">CPL</AcronymTip> via UTM</p>
                     <p className="text-2xl font-bold text-foreground">
                       {metaLeads.length > 0 ? formatBRL(metaTotals.spend / metaLeads.length) : '—'}
                     </p>
@@ -347,9 +374,9 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('impressions')}>Impressões<SortIcon field="impressions" /></TableHead>
                       <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('clicks')}>Cliques<SortIcon field="clicks" /></TableHead>
-                      <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('ctr')}>CTR<SortIcon field="ctr" /></TableHead>
-                      <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('cpc')}>CPC<SortIcon field="cpc" /></TableHead>
-                      <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('conversions')}>Conv.<SortIcon field="conversions" /></TableHead>
+                      <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('ctr')}><AcronymTip acronym="CTR">CTR</AcronymTip><SortIcon field="ctr" /></TableHead>
+                       <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('cpc')}><AcronymTip acronym="CPC">CPC</AcronymTip><SortIcon field="cpc" /></TableHead>
+                       <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('conversions')}>Conv.<SortIcon field="conversions" /></TableHead>
                       <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('spend')}>Gasto<SortIcon field="spend" /></TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -401,7 +428,7 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
                                 <div><span className="text-muted-foreground">Orçamento diário:</span> <span className="font-medium">{row.daily_budget ? formatBRL(row.daily_budget) : '—'}</span></div>
                                 <div><span className="text-muted-foreground">Orçamento total:</span> <span className="font-medium">{row.lifetime_budget ? formatBRL(row.lifetime_budget) : '—'}</span></div>
                                 <div><span className="text-muted-foreground">Alcance:</span> <span className="font-medium">{formatNum(row.reach)}</span></div>
-                                <div><span className="text-muted-foreground">CPL:</span> <span className="font-medium">{row.cpl > 0 ? formatBRL(row.cpl) : '—'}</span></div>
+                                <div><span className="text-muted-foreground"><AcronymTip acronym="CPL">CPL</AcronymTip>:</span> <span className="font-medium">{row.cpl > 0 ? formatBRL(row.cpl) : '—'}</span></div>
                                 <div><span className="text-muted-foreground">Estratégia de lance:</span> <span className="font-medium">{row.bid_strategy || '—'}</span></div>
                                 <div><span className="text-muted-foreground">Criada em:</span> <span className="font-medium">{row.created_time ? new Date(row.created_time).toLocaleDateString('pt-BR') : '—'}</span></div>
                                 {row.actions.length > 0 && (
@@ -509,7 +536,7 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4 text-green-500" /> Melhor CTR</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4 text-green-500" /> Melhor <AcronymTip acronym="CTR">CTR</AcronymTip></CardTitle></CardHeader>
               <CardContent className="space-y-2">
                 {bestCTR.map((c, i) => (
                   <div key={c.id} className="flex items-center justify-between text-sm">
@@ -523,7 +550,7 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><TrendingDown className="h-4 w-4 text-amber-500" /> Maior CPC</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base flex items-center gap-2"><TrendingDown className="h-4 w-4 text-amber-500" /> Maior <AcronymTip acronym="CPC">CPC</AcronymTip></CardTitle></CardHeader>
               <CardContent className="space-y-2">
                 {worstCPC.map((c, i) => (
                   <div key={c.id} className="flex items-center justify-between text-sm">
@@ -708,5 +735,6 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   );
 }
