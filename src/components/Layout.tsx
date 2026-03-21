@@ -284,6 +284,7 @@ export const Layout = ({ children }: LayoutProps) => {
 
                 <NotificationsPanel />
                 <UpdatesNotification />
+                <SystemUpdatesNotification />
                 <ThemeToggle />
                 
                 {/* User Menu */}
