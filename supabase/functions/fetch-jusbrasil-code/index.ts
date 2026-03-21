@@ -44,7 +44,6 @@ serve(async (req) => {
   }
 
   try {
-    // Verify user is authenticated
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders });
@@ -62,43 +61,12 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders });
     }
 
-    // Get Microsoft Graph access token
     const accessToken = await getAccessToken();
-    console.log('Access token obtained successfully');
 
     const userEmail = 'rafael@eggnunes.com.br';
-
-    // DIAGNOSTIC: Fetch last 3 emails (any email) without $search
-    let diagnosticData: any = null;
-    let diagnosticErrorText: string | null = null;
-    try {
-      const diagUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userEmail)}/messages?$top=3&$select=subject,from,receivedDateTime`;
-      console.log('Diagnostic URL:', diagUrl);
-      const diagResponse = await fetch(diagUrl, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      if (!diagResponse.ok) {
-        diagnosticErrorText = await diagResponse.text();
-        console.log('Diagnostic error:', diagnosticErrorText);
-      } else {
-        diagnosticData = await diagResponse.json();
-        console.log('Diagnostic - total messages in mailbox:', diagnosticData.value?.length, 'subjects:', diagnosticData.value?.map((e: any) => e.subject));
-      }
-    } catch (diagErr: any) {
-      diagnosticErrorText = diagErr.message;
-      console.log('Diagnostic exception:', diagnosticErrorText);
-    }
-
-    // Search for JusBrasil verification emails using $search
     const graphUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userEmail)}/messages?$search="jusbrasil"&$top=10&$select=subject,body,receivedDateTime,from`;
-    console.log('Graph URL:', graphUrl);
 
-    let graphApiError: string | null = null;
     let emails: any[] = [];
-    let rawEmailCount = 0;
 
     const graphResponse = await fetch(graphUrl, {
       headers: {
@@ -111,33 +79,17 @@ serve(async (req) => {
     if (!graphResponse.ok) {
       const errorText = await graphResponse.text();
       console.error('Graph API error:', errorText);
-      graphApiError = `${graphResponse.status} - ${errorText}`;
-    } else {
-      const data = await graphResponse.json();
-      rawEmailCount = data.value?.length || 0;
-      console.log('Graph API response - emails found:', rawEmailCount);
-
-      emails = (data.value || []).sort((a: any, b: any) => 
-        new Date(b.receivedDateTime).getTime() - new Date(a.receivedDateTime).getTime()
-      );
+      throw new Error(`Graph API error: ${graphResponse.status}`);
     }
 
-    const codes = extractCodes(emails);
-    console.log('Codes extracted:', codes.length, codes);
+    const data = await graphResponse.json();
+    emails = (data.value || []).sort((a: any, b: any) =>
+      new Date(b.receivedDateTime).getTime() - new Date(a.receivedDateTime).getTime()
+    );
 
-    return new Response(JSON.stringify({ 
-      codes, 
-      emails: rawEmailCount,
-      debug: {
-        graphUrl,
-        graphApiError,
-        emailSubjects: emails.map((e: any) => e.subject),
-        rawEmailCount,
-        diagnosticEmails: diagnosticData?.value?.length || 0,
-        diagnosticSubjects: diagnosticData?.value?.map((e: any) => e.subject) || [],
-        diagnosticError: diagnosticErrorText || null
-      }
-    }), {
+    const codes = extractCodes(emails);
+
+    return new Response(JSON.stringify({ codes }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
@@ -153,28 +105,32 @@ function extractCodes(emails: any[]): Array<{ code: string; subject: string; rec
   const results: Array<{ code: string; subject: string; receivedAt: string; from: string }> = [];
 
   for (const email of emails) {
-    const bodyContent = email.body?.content || '';
-    const subject = email.subject || '';
-    const fullText = subject + ' ' + bodyContent;
+    const fromAddress = (email.from?.emailAddress?.address || '').toLowerCase();
+    const subject = (email.subject || '').toLowerCase();
 
-    // Extract numeric codes (4-8 digits)
+    // Only process emails from JusBrasil or with "jusbrasil" in the subject
+    if (!fromAddress.includes('jusbrasil') && !subject.includes('jusbrasil')) {
+      continue;
+    }
+
+    const bodyContent = email.body?.content || '';
+    const fullText = email.subject + ' ' + bodyContent;
+
     const codeMatches = fullText.match(/\b(\d{4,8})\b/g);
-    
+
     if (codeMatches) {
-      // Filter out years and common numbers, prefer 6-digit codes
       const validCodes = codeMatches.filter((c: string) => {
         const num = parseInt(c);
         return c.length >= 4 && c.length <= 8 && num > 999 && !(num >= 1900 && num <= 2100);
       });
 
       if (validCodes.length > 0) {
-        // Prefer 6-digit codes (most common for verification)
         const bestCode = validCodes.find((c: string) => c.length === 6) || validCodes[0];
         results.push({
           code: bestCode,
           subject: email.subject,
           receivedAt: email.receivedDateTime,
-          from: email.from?.emailAddress?.address || 'unknown',
+          from: fromAddress,
         });
       }
     }
