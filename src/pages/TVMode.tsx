@@ -1,50 +1,103 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Tooltip } from 'recharts';
-import { Users, CalendarCheck, Trophy, RefreshCw } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Tooltip, LabelList } from 'recharts';
+import { Users, Trophy, DollarSign, TrendingUp, RefreshCw } from 'lucide-react';
 
-const STAGE_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#22c55e'];
+const FUNNEL_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e'];
+
+const VENDEDOR_COLORS: Record<string, string> = {
+  'Daniel Martins Silva': '#3b82f6',
+  'Lucas Mendes de Paula': '#8b5cf6',
+  'Jhonny Silva Souza': '#f59e0b',
+  'Marcos Luiz Egg Nunes': '#22c55e',
+};
+
+function getCommercialPeriod(now: Date) {
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-indexed
+  const day = now.getDate();
+
+  let startDate: Date;
+  let endDate: Date;
+
+  if (day >= 25) {
+    startDate = new Date(year, month, 25);
+    endDate = new Date(year, month + 1, 24, 23, 59, 59);
+  } else {
+    startDate = new Date(year, month - 1, 25);
+    endDate = new Date(year, month, 24, 23, 59, 59);
+  }
+
+  return {
+    start: startDate.toISOString(),
+    end: endDate.toISOString(),
+    label: `${format(startDate, 'dd/MM', { locale: ptBR })} a ${format(endDate, 'dd/MM/yyyy', { locale: ptBR })}`,
+  };
+}
 
 const TVMode = () => {
   const [now, setNow] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
+
+  const period = useMemo(() => getCommercialPeriod(now), [now.getDate(), now.getMonth(), now.getFullYear()]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  const { data: leadsCount = 0, refetch: refetchLeads } = useQuery({
-    queryKey: ['tv-leads'],
+  // Leads no período
+  const { data: leadsCount = 0, refetch: r1 } = useQuery({
+    queryKey: ['tv-leads', period.start],
     queryFn: async () => {
-      const { count } = await supabase.from('crm_contacts').select('*', { count: 'exact', head: true });
+      const { count } = await supabase
+        .from('crm_contacts')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', period.start)
+        .lte('created_at', period.end);
       return count ?? 0;
     },
   });
 
-  const { data: meetingsCount = 0, refetch: refetchMeetings } = useQuery({
-    queryKey: ['tv-meetings'],
+  // Deals won no período
+  const { data: wonDeals = [], refetch: r2 } = useQuery({
+    queryKey: ['tv-won-deals', period.start],
     queryFn: async () => {
-      const { count } = await supabase.from('crm_activities').select('*', { count: 'exact', head: true }).eq('type', 'meeting');
+      const { data } = await supabase
+        .from('crm_deals')
+        .select('id, value, owner_id')
+        .eq('won', true)
+        .gte('closed_at', period.start)
+        .lte('closed_at', period.end);
+      return data ?? [];
+    },
+  });
+
+  // Total deals criados no período (para taxa de conversão)
+  const { data: totalDeals = 0, refetch: r3 } = useQuery({
+    queryKey: ['tv-total-deals', period.start],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from('crm_deals')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', period.start)
+        .lte('created_at', period.end);
       return count ?? 0;
     },
   });
 
-  const { data: wonCount = 0, refetch: refetchWon } = useQuery({
-    queryKey: ['tv-won'],
-    queryFn: async () => {
-      const { count } = await supabase.from('crm_deals').select('*', { count: 'exact', head: true }).eq('won', true);
-      return count ?? 0;
-    },
-  });
-
-  const { data: funnelData = [], refetch: refetchFunnel } = useQuery({
+  // Funil — apenas estágios ativos (order_index 1–7)
+  const { data: funnelData = [], refetch: r4 } = useQuery({
     queryKey: ['tv-funnel'],
     queryFn: async () => {
-      const { data: stages } = await supabase.from('crm_deal_stages').select('id, name, order_index').order('order_index');
+      const { data: stages } = await supabase
+        .from('crm_deal_stages')
+        .select('id, name, order_index')
+        .lte('order_index', 7)
+        .order('order_index');
       if (!stages?.length) return [];
       const { data: deals } = await supabase.from('crm_deals').select('stage_id');
       const countMap: Record<string, number> = {};
@@ -53,165 +106,192 @@ const TVMode = () => {
     },
   });
 
-  const { data: movements = [], refetch: refetchMovements } = useQuery({
-    queryKey: ['tv-movements'],
+  // Profiles dos vendedores
+  const { data: vendedorProfiles = [], refetch: r5 } = useQuery({
+    queryKey: ['tv-vendedor-profiles'],
     queryFn: async () => {
       const { data } = await supabase
-        .from('crm_deal_history')
-        .select('id, notes, created_at, deal_id, changed_by, from_stage_id, to_stage_id')
-        .order('created_at', { ascending: false })
-        .limit(30);
-      if (!data?.length) return [];
-
-      const userIds = [...new Set(data.map(m => m.changed_by).filter(Boolean))] as string[];
-      const dealIds = [...new Set(data.map(m => m.deal_id).filter(Boolean))] as string[];
-      const stageIds = [...new Set(data.flatMap(m => [m.from_stage_id, m.to_stage_id]).filter(Boolean))] as string[];
-
-      const [{ data: profiles }, { data: deals }, { data: stages }] = await Promise.all([
-        userIds.length ? supabase.from('profiles').select('id, full_name').in('id', userIds) : { data: [] as { id: string; full_name: string }[] },
-        dealIds.length ? supabase.from('crm_deals').select('id, name, value').in('id', dealIds) : { data: [] as { id: string; name: string; value: number | null }[] },
-        stageIds.length ? supabase.from('crm_deal_stages').select('id, name').in('id', stageIds) : { data: [] as { id: string; name: string }[] },
-      ]);
-
-      const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p.full_name]));
-      const dealMap = Object.fromEntries((deals || []).map(d => [d.id, d]));
-      const stageMap = Object.fromEntries((stages || []).map(s => [s.id, s.name]));
-
-      return data.map(m => {
-        const userName = m.changed_by ? (profileMap[m.changed_by] || 'Alguém') : 'Sistema';
-        const deal = m.deal_id ? dealMap[m.deal_id] : null;
-        const dealName = deal?.name || 'negócio';
-        const value = deal?.value ? ` de R$ ${Number(deal.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '';
-        
-        let text: string;
-        if (m.from_stage_id && m.to_stage_id) {
-          const from = stageMap[m.from_stage_id] || '?';
-          const to = stageMap[m.to_stage_id] || '?';
-          text = `${userName} moveu ${dealName}: ${from} → ${to}`;
-        } else if (m.to_stage_id && !m.from_stage_id) {
-          text = `${userName} criou ${dealName}${value}`;
-        } else {
-          text = `${userName} atualizou ${dealName}`;
-        }
-        if (m.notes) text += ` — ${m.notes}`;
-        return { id: m.id, text, time: m.created_at };
-      });
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', [
+          '1eebbf27-a9f8-4877-a10d-aec9279e1fea', // Daniel
+          'f83cbef4-8ff7-4168-8e28-6a15f0d2c1f9', // Lucas
+          '1703d91d-4781-4285-ad5c-ad71b108f1d0', // Jhonny
+          'a1412f06-36db-45a6-81d5-d8f292860bfe', // Marcos
+        ]);
+      return data ?? [];
     },
   });
 
+  // KPIs derivados
+  const wonCount = wonDeals.length;
+  const totalValue = wonDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
+  const conversionRate = totalDeals > 0 ? ((wonCount / totalDeals) * 100) : 0;
+
+  // Fechamentos por vendedor
+  const salesByRep = useMemo(() => {
+    const countMap: Record<string, number> = {};
+    wonDeals.forEach(d => {
+      if (d.owner_id) countMap[d.owner_id] = (countMap[d.owner_id] || 0) + 1;
+    });
+    return vendedorProfiles
+      .map(p => ({
+        name: p.full_name?.split(' ').slice(0, 1).join(' ') || '?',
+        fullName: p.full_name || '?',
+        count: countMap[p.id] || 0,
+        color: VENDEDOR_COLORS[p.full_name || ''] || '#94a3b8',
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [wonDeals, vendedorProfiles]);
+
+  // Auto-refresh
   useEffect(() => {
     const t = setInterval(async () => {
       setRefreshing(true);
-      await Promise.all([refetchLeads(), refetchMeetings(), refetchWon(), refetchFunnel(), refetchMovements()]);
+      await Promise.all([r1(), r2(), r3(), r4(), r5()]);
       setTimeout(() => setRefreshing(false), 800);
     }, 30000);
     return () => clearInterval(t);
-  }, [refetchLeads, refetchMeetings, refetchWon, refetchFunnel, refetchMovements]);
+  }, [r1, r2, r3, r4, r5]);
 
   const kpis = [
-    { label: 'Leads', value: leadsCount, icon: Users, color: 'text-blue-400' },
-    { label: 'Agendamentos', value: meetingsCount, icon: CalendarCheck, color: 'text-violet-400' },
-    { label: 'Contratos Fechados', value: wonCount, icon: Trophy, color: 'text-emerald-400' },
+    {
+      label: 'Leads no Período',
+      value: leadsCount.toLocaleString('pt-BR'),
+      icon: Users,
+      color: 'text-blue-400',
+      bg: 'bg-blue-500/10',
+    },
+    {
+      label: 'Contratos Fechados',
+      value: wonCount.toLocaleString('pt-BR'),
+      icon: Trophy,
+      color: 'text-emerald-400',
+      bg: 'bg-emerald-500/10',
+    },
+    {
+      label: 'Valor Fechado',
+      value: `R$ ${totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
+      icon: DollarSign,
+      color: 'text-amber-400',
+      bg: 'bg-amber-500/10',
+    },
+    {
+      label: 'Taxa de Conversão',
+      value: `${conversionRate.toFixed(1)}%`,
+      icon: TrendingUp,
+      color: 'text-violet-400',
+      bg: 'bg-violet-500/10',
+    },
   ];
 
   return (
     <div className="fixed inset-0 bg-gray-950 text-gray-100 flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="flex items-center justify-between px-8 py-4 border-b border-gray-800">
+      <header className="flex items-center justify-between px-8 py-3 border-b border-gray-800">
         <img src="/logo-eggnunes.png" alt="Logo" className="h-10 object-contain" />
         <div className="text-center">
           <div className="text-5xl font-mono font-bold tracking-widest tabular-nums">
             {format(now, 'HH:mm:ss')}
           </div>
-          <div className="text-sm text-gray-400 capitalize mt-1">
+          <div className="text-sm text-gray-400 capitalize mt-0.5">
             {format(now, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
           </div>
         </div>
-        <div className="flex items-center gap-2 text-gray-500 text-xs">
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-blue-400' : ''}`} />
-          {refreshing ? 'Atualizando...' : 'Auto-refresh 30s'}
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-2 text-gray-500 text-xs">
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-blue-400' : ''}`} />
+            {refreshing ? 'Atualizando...' : 'Auto-refresh 30s'}
+          </div>
+          <div className="text-xs text-gray-500">
+            Período: {period.label}
+          </div>
         </div>
       </header>
 
       {/* Body */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Main content */}
-        <div className="flex-1 flex flex-col gap-6 p-8 overflow-hidden">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-3 gap-6">
-            {kpis.map(kpi => (
-              <div key={kpi.label} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 flex items-center gap-5">
-                <div className={`p-4 rounded-xl bg-gray-800 ${kpi.color}`}>
-                  <kpi.icon className="w-8 h-8" />
-                </div>
-                <div>
-                  <div className="text-4xl font-bold tabular-nums">{kpi.value.toLocaleString('pt-BR')}</div>
-                  <div className="text-sm text-gray-400 mt-1">{kpi.label}</div>
-                </div>
+      <div className="flex-1 flex flex-col gap-5 p-6 overflow-hidden">
+        {/* KPI Cards */}
+        <div className="grid grid-cols-4 gap-5">
+          {kpis.map(kpi => (
+            <div key={kpi.label} className="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex items-center gap-4">
+              <div className={`p-3.5 rounded-xl ${kpi.bg}`}>
+                <kpi.icon className={`w-7 h-7 ${kpi.color}`} />
               </div>
-            ))}
-          </div>
+              <div>
+                <div className="text-3xl font-bold tabular-nums">{kpi.value}</div>
+                <div className="text-xs text-gray-400 mt-0.5">{kpi.label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
 
-          {/* Funnel Chart */}
-          <div className="flex-1 bg-gray-900 border border-gray-800 rounded-2xl p-6 flex flex-col min-h-0">
-            <h2 className="text-lg font-semibold text-gray-300 mb-4">Funil de Vendas</h2>
+        {/* Charts side by side */}
+        <div className="flex-1 grid grid-cols-2 gap-5 min-h-0">
+          {/* Funil de Vendas */}
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex flex-col min-h-0">
+            <h2 className="text-base font-semibold text-gray-300 mb-3">Funil de Vendas</h2>
             <div className="flex-1 min-h-0">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={funnelData} layout="vertical" margin={{ left: 20, right: 30, top: 5, bottom: 5 }}>
+                <BarChart data={funnelData} layout="vertical" margin={{ left: 10, right: 40, top: 5, bottom: 5 }}>
                   <XAxis type="number" stroke="#6b7280" fontSize={12} />
-                  <YAxis type="category" dataKey="name" width={140} stroke="#9ca3af" fontSize={13} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={180}
+                    stroke="#9ca3af"
+                    fontSize={12}
+                    tickFormatter={(v: string) => v.length > 22 ? v.slice(0, 22) + '…' : v}
+                  />
                   <Tooltip
                     contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: 8, color: '#f3f4f6' }}
                     formatter={(v: number) => [`${v} negócios`, 'Quantidade']}
                   />
-                  <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={28}>
+                  <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={32}>
                     {funnelData.map((_, i) => (
-                      <Cell key={i} fill={STAGE_COLORS[i % STAGE_COLORS.length]} />
+                      <Cell key={i} fill={FUNNEL_COLORS[i % FUNNEL_COLORS.length]} />
                     ))}
+                    <LabelList dataKey="count" position="right" fill="#d1d5db" fontSize={13} fontWeight={600} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
-        </div>
 
-        {/* Sidebar: Latest movements */}
-        <aside className="w-[340px] border-l border-gray-800 flex flex-col bg-gray-900/50">
-          <h3 className="px-6 py-4 text-sm font-semibold text-gray-400 border-b border-gray-800 uppercase tracking-wider">
-            Últimas Movimentações
-          </h3>
-          <div className="flex-1 overflow-hidden relative">
-            <div className="tv-autoscroll absolute inset-0">
-              <div className="flex flex-col gap-1 px-4 py-2">
-                {movements.map(m => (
-                  <div key={m.id} className="py-3 px-3 rounded-lg hover:bg-gray-800/50 transition-colors">
-                    <p className="text-sm leading-relaxed">{m.text}</p>
-                    <span className="text-xs text-gray-500 mt-1 block">
-                      {format(new Date(m.time), "dd/MM HH:mm")}
-                    </span>
-                  </div>
-                ))}
-                {movements.length === 0 && (
-                  <p className="text-gray-500 text-sm text-center py-8">Nenhuma movimentação recente</p>
-                )}
-              </div>
+          {/* Fechamentos por Vendedor */}
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex flex-col min-h-0">
+            <h2 className="text-base font-semibold text-gray-300 mb-3">Fechamentos por Vendedor</h2>
+            <div className="flex-1 min-h-0">
+              {salesByRep.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={salesByRep} margin={{ left: 10, right: 10, top: 20, bottom: 5 }}>
+                    <XAxis dataKey="name" stroke="#9ca3af" fontSize={13} />
+                    <YAxis stroke="#6b7280" fontSize={12} allowDecimals={false} />
+                    <Tooltip
+                      contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: 8, color: '#f3f4f6' }}
+                      formatter={(v: number) => [`${v} contratos`, 'Fechamentos']}
+                      labelFormatter={(label: string) => {
+                        const rep = salesByRep.find(r => r.name === label);
+                        return rep?.fullName || label;
+                      }}
+                    />
+                    <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={60}>
+                      {salesByRep.map((entry, i) => (
+                        <Cell key={i} fill={entry.color} />
+                      ))}
+                      <LabelList dataKey="count" position="top" fill="#d1d5db" fontSize={16} fontWeight={700} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+                  Nenhum fechamento no período
+                </div>
+              )}
             </div>
           </div>
-        </aside>
+        </div>
       </div>
-
-      <style>{`
-        @keyframes tv-scroll {
-          0% { transform: translateY(0); }
-          100% { transform: translateY(-50%); }
-        }
-        .tv-autoscroll > div {
-          animation: tv-scroll 40s linear infinite;
-        }
-        .tv-autoscroll:hover > div {
-          animation-play-state: paused;
-        }
-      `}</style>
     </div>
   );
 };
