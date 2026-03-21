@@ -536,7 +536,7 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4 text-green-500" /> Melhor CTR</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4 text-green-500" /> Melhor <AcronymTip acronym="CTR">CTR</AcronymTip></CardTitle></CardHeader>
               <CardContent className="space-y-2">
                 {bestCTR.map((c, i) => (
                   <div key={c.id} className="flex items-center justify-between text-sm">
