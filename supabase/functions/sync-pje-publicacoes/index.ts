@@ -205,6 +205,38 @@ Deno.serve(async (req) => {
     console.log(`Processos encontrados no DataJud: ${processosConsultados}`)
     console.log(`Movimentações relevantes (7d): ${toInsert.length}`)
 
+    // === Enriquecer DataJud com nomes de clientes do AdvBox ANTES de inserir ===
+    if (toInsert.length > 0) {
+      const processNumbersDataJud = [...new Set(toInsert.map((r: any) => r.numero_processo))]
+      const clienteMapDJ = new Map<string, string>()
+
+      for (let i = 0; i < processNumbersDataJud.length; i += 100) {
+        const batch = processNumbersDataJud.slice(i, i + 100)
+        const { data: advboxData } = await supabase
+          .from('advbox_tasks')
+          .select('process_number, raw_data')
+          .in('process_number', batch)
+
+        for (const item of (advboxData || [])) {
+          if (item.raw_data?.lawsuit?.customers) {
+            const customers = item.raw_data.lawsuit.customers as any[]
+            const nomes = customers.map((c: any) => c.name).filter(Boolean).join(', ')
+            if (nomes) clienteMapDJ.set(item.process_number, nomes)
+          }
+        }
+      }
+
+      console.log(`Mapa de clientes AdvBox para DataJud: ${clienteMapDJ.size} processos com nome`)
+
+      // Preencher destinatario nos registros antes do upsert
+      for (const record of toInsert) {
+        const cliente = clienteMapDJ.get(record.numero_processo)
+        if (cliente) {
+          record.destinatario = cliente
+        }
+      }
+    }
+
     let novasPublicacoes = 0
 
     if (toInsert.length > 0) {
@@ -224,6 +256,48 @@ Deno.serve(async (req) => {
           .from('publicacoes_dje')
           .upsert(batch, { onConflict: 'hash', ignoreDuplicates: true })
         if (upsertError) console.error('Erro upsert:', upsertError.message)
+      }
+
+      // === Corrigir registros DataJud existentes sem nome de cliente ===
+      try {
+        const { data: pubsSemCliente } = await supabase
+          .from('publicacoes_dje')
+          .select('id, numero_processo')
+          .eq('meio', 'DataJud')
+          .or('destinatario.is.null,destinatario.eq.')
+
+        if (pubsSemCliente && pubsSemCliente.length > 0) {
+          const processosParaEnriquecer = [...new Set(pubsSemCliente.map((p: any) => p.numero_processo))]
+          const clienteMapRetro = new Map<string, string>()
+
+          for (let i = 0; i < processosParaEnriquecer.length; i += 100) {
+            const batch = processosParaEnriquecer.slice(i, i + 100)
+            const { data: advboxData } = await supabase
+              .from('advbox_tasks')
+              .select('process_number, raw_data')
+              .in('process_number', batch)
+
+            for (const item of (advboxData || [])) {
+              if (item.raw_data?.lawsuit?.customers) {
+                const customers = item.raw_data.lawsuit.customers as any[]
+                const nomes = customers.map((c: any) => c.name).filter(Boolean).join(', ')
+                if (nomes) clienteMapRetro.set(item.process_number, nomes)
+              }
+            }
+          }
+
+          let retroFixed = 0
+          for (const pub of pubsSemCliente) {
+            const cliente = clienteMapRetro.get(pub.numero_processo)
+            if (cliente) {
+              await supabase.from('publicacoes_dje').update({ destinatario: cliente }).eq('id', pub.id)
+              retroFixed++
+            }
+          }
+          console.log(`Enriquecimento retroativo DataJud: ${retroFixed} registros corrigidos`)
+        }
+      } catch (retroErr: any) {
+        console.error('Erro no enriquecimento retroativo DataJud:', retroErr.message)
       }
     }
 
