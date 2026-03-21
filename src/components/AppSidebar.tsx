@@ -269,12 +269,20 @@ export function AppSidebar() {
     },
     {
       id: 'comunicacao',
-      label: 'Comunicação & Avisos',
+      label: 'Comunicações',
       emoji: '📢',
       icon: MessageSquare,
       items: [
-        { icon: Camera, path: '/galeria-eventos', label: 'Galeria de Eventos' },
+        { icon: FolderOpen, path: '/documentos-uteis', label: 'Documentos Úteis' },
+        { icon: Bell, path: '/notificacoes', label: 'Notificações' },
+        { icon: MessageSquare, path: '/forum', label: 'Fórum' },
+        { icon: MessageCircle, path: '/mensagens', label: 'Mensagens' },
+        { icon: Lightbulb, path: '/sugestoes', label: 'Sugestões' },
+        { icon: BarChart3, path: '/dashboard-sugestoes', label: 'Dashboard Sugestões' },
+        { icon: HeartHandshake, path: '/caixinha-desabafo', label: 'Caixinha de Desabafo' },
+        { icon: MessageCircle, path: '/mensagens-encaminhadas', label: 'Mensagens Encaminhadas' },
         { icon: Phone, path: '/whatsapp-avisos', label: 'WhatsApp Avisos' },
+        { icon: Camera, path: '/galeria-eventos', label: 'Galeria de Eventos' },
       ],
     },
     {
