@@ -1,0 +1,375 @@
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Layout } from '@/components/Layout';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Card } from '@/components/ui/card';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
+import { ArrowLeft, Send, Loader2, Bot, User, Plus, Trash2, History } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+interface Conversation {
+  id: string;
+  title: string;
+  created_at: string;
+}
+
+interface Agent {
+  id: string;
+  name: string;
+  objective: string;
+  instructions: string;
+  model: string;
+  icon_emoji: string;
+}
+
+export default function AgenteChatPage() {
+  const { agentId } = useParams<{ agentId: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const [agent, setAgent] = useState<Agent | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [loadingAgent, setLoadingAgent] = useState(true);
+
+  useEffect(() => {
+    if (agentId) loadAgent();
+  }, [agentId]);
+
+  useEffect(() => {
+    if (agent && user) loadConversations();
+  }, [agent, user]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  };
+
+  const loadAgent = async () => {
+    setLoadingAgent(true);
+    const { data, error } = await supabase
+      .from('intranet_agents')
+      .select('*')
+      .eq('id', agentId!)
+      .single();
+
+    if (error || !data) {
+      toast.error('Agente não encontrado');
+      navigate('/agentes-ia');
+      return;
+    }
+    setAgent(data);
+    setLoadingAgent(false);
+  };
+
+  const loadConversations = async () => {
+    if (!user || !agentId) return;
+    const { data } = await supabase
+      .from('intranet_agent_conversations')
+      .select('*')
+      .eq('agent_id', agentId)
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false });
+    setConversations(data || []);
+  };
+
+  const loadConversation = async (conversationId: string) => {
+    const { data } = await supabase
+      .from('intranet_agent_messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true });
+
+    if (data) {
+      setMessages(data.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })));
+      setCurrentConversationId(conversationId);
+      setShowHistory(false);
+    }
+  };
+
+  const startNewConversation = () => {
+    setMessages([]);
+    setCurrentConversationId(null);
+    setShowHistory(false);
+  };
+
+  const deleteConversation = async (conversationId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const { error } = await supabase
+      .from('intranet_agent_conversations')
+      .delete()
+      .eq('id', conversationId);
+    if (!error) {
+      if (currentConversationId === conversationId) startNewConversation();
+      loadConversations();
+    }
+  };
+
+  const sendMessage = useCallback(async () => {
+    if (!input.trim() || isStreaming || !agent || !user) return;
+
+    const userMessage: Message = { role: 'user', content: input.trim() };
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
+    setInput('');
+    setIsStreaming(true);
+
+    try {
+      // Create or use conversation
+      let convId = currentConversationId;
+      if (!convId) {
+        const { data: conv, error } = await supabase
+          .from('intranet_agent_conversations')
+          .insert({ agent_id: agent.id, user_id: user.id, title: userMessage.content.slice(0, 100) })
+          .select()
+          .single();
+        if (error) throw error;
+        convId = conv.id;
+        setCurrentConversationId(convId);
+      }
+
+      // Save user message
+      await supabase.from('intranet_agent_messages').insert({
+        conversation_id: convId,
+        role: 'user',
+        content: userMessage.content,
+      });
+
+      // Stream response
+      const chatUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-with-agent`;
+      const resp = await fetch(chatUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          agentId: agent.id,
+          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+        }),
+      });
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error(errData.error || `Error: ${resp.status}`);
+      }
+
+      if (!resp.body) throw new Error('No stream');
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let assistantContent = '';
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex: number;
+        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+          let line = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+          if (line.endsWith('\r')) line = line.slice(0, -1);
+          if (line.startsWith(':') || line.trim() === '') continue;
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === '[DONE]') break;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              assistantContent += content;
+              setMessages(prev => {
+                const last = prev[prev.length - 1];
+                if (last?.role === 'assistant') {
+                  return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantContent } : m);
+                }
+                return [...prev, { role: 'assistant', content: assistantContent }];
+              });
+            }
+          } catch {
+            buffer = line + '\n' + buffer;
+            break;
+          }
+        }
+      }
+
+      // Save assistant message
+      if (assistantContent) {
+        await supabase.from('intranet_agent_messages').insert({
+          conversation_id: convId,
+          role: 'assistant',
+          content: assistantContent,
+        });
+      }
+
+      loadConversations();
+    } catch (e) {
+      console.error('Stream error:', e);
+      toast.error(e instanceof Error ? e.message : 'Erro ao enviar mensagem');
+    }
+
+    setIsStreaming(false);
+  }, [input, isStreaming, agent, user, messages, currentConversationId]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  if (loadingAgent) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!agent) return null;
+
+  return (
+    <Layout>
+      <div className="flex flex-col h-[calc(100vh-8rem)]">
+        {/* Header */}
+        <div className="flex items-center gap-3 pb-4 border-b">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/agentes-ia')}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <span className="text-2xl">{agent.icon_emoji}</span>
+          <div className="flex-1">
+            <h1 className="text-lg font-semibold">{agent.name}</h1>
+            <p className="text-sm text-muted-foreground">{agent.objective}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowHistory(!showHistory)}>
+              <History className="h-4 w-4" />
+              Histórico
+            </Button>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={startNewConversation}>
+              <Plus className="h-4 w-4" />
+              Nova Conversa
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex flex-1 overflow-hidden mt-4 gap-4">
+          {/* History sidebar */}
+          {showHistory && (
+            <div className="w-72 border rounded-lg p-3 overflow-y-auto flex-shrink-0">
+              <h3 className="font-semibold text-sm mb-3">Conversas Anteriores</h3>
+              {conversations.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma conversa ainda.</p>
+              ) : (
+                <div className="space-y-1">
+                  {conversations.map(conv => (
+                    <div key={conv.id} onClick={() => loadConversation(conv.id)} className={`flex items-center justify-between p-2 rounded-lg cursor-pointer text-sm hover:bg-muted ${currentConversationId === conv.id ? 'bg-muted' : ''}`}>
+                      <span className="truncate flex-1">{conv.title}</span>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 flex-shrink-0" onClick={(e) => deleteConversation(conv.id, e)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Chat area */}
+          <div className="flex-1 flex flex-col min-w-0">
+            <ScrollArea ref={scrollRef} className="flex-1 pr-4">
+              {messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center py-20">
+                  <span className="text-5xl mb-4">{agent.icon_emoji}</span>
+                  <h2 className="text-xl font-semibold mb-2">Olá! Eu sou {agent.name}</h2>
+                  <p className="text-muted-foreground max-w-md">{agent.objective}</p>
+                  <p className="text-sm text-muted-foreground mt-4">Envie uma mensagem para começar.</p>
+                </div>
+              ) : (
+                <div className="space-y-4 pb-4">
+                  {messages.map((msg, i) => (
+                    <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      {msg.role === 'assistant' && (
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-lg">
+                          {agent.icon_emoji}
+                        </div>
+                      )}
+                      <Card className={`max-w-[80%] p-3 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                        {msg.role === 'assistant' ? (
+                          <div className="prose prose-sm dark:prose-invert max-w-none">
+                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          </div>
+                        ) : (
+                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                        )}
+                      </Card>
+                      {msg.role === 'user' && (
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+                          <User className="h-4 w-4 text-primary-foreground" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {isStreaming && messages[messages.length - 1]?.role !== 'assistant' && (
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-lg">
+                        {agent.icon_emoji}
+                      </div>
+                      <Card className="p-3 bg-muted">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      </Card>
+                    </div>
+                  )}
+                </div>
+              )}
+            </ScrollArea>
+
+            {/* Input */}
+            <div className="border-t pt-4 mt-2">
+              <div className="flex gap-2">
+                <Textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={`Envie uma mensagem para ${agent.name}...`}
+                  rows={2}
+                  className="resize-none"
+                  disabled={isStreaming}
+                />
+                <Button onClick={sendMessage} disabled={!input.trim() || isStreaming} className="self-end">
+                  {isStreaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+}

@@ -161,3 +161,12 @@ verify_jwt = true
 
 [functions.crm-auto-sync]
 verify_jwt = false
+
+[functions.suggest-agent-instructions]
+verify_jwt = true
+
+[functions.select-agent-model]
+verify_jwt = true
+
+[functions.chat-with-agent]
+verify_jwt = false
