@@ -83,7 +83,7 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
       if (data?.error) throw new Error(data.error);
       return data?.insights || [];
     },
-    enabled: !!metaConfig,
+    enabled: hasConfig,
   });
 
   const { data: dailyInsights = [], isLoading: loadingDaily } = useQuery({
