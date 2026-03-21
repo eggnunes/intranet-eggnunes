@@ -512,10 +512,15 @@ const CaixinhaDesabafo = () => {
               <User className="h-3 w-3" />
               <span>Enviada por você</span>
             </>
-          ) : (
+          ) : msg.is_anonymous ? (
             <>
               <UserX className="h-3 w-3" />
               <span>Remetente Anônimo</span>
+            </>
+          ) : (
+            <>
+              <User className="h-3 w-3" />
+              <span>{msg.sender?.full_name || 'Remetente'}</span>
             </>
           )}
         </div>
