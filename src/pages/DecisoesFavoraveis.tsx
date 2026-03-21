@@ -1053,6 +1053,9 @@ export default function DecisoesFavoraveis() {
                             <TableCell className="text-sm py-2">
                               {format(new Date(decision.decision_date), 'dd/MM/yyyy', { locale: ptBR })}
                             </TableCell>
+                            <TableCell className="text-xs text-muted-foreground py-2">
+                              {format(new Date(decision.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                            </TableCell>
                             <TableCell className="py-2">
                               <div className="flex justify-center gap-1">
                                 <Tooltip>
