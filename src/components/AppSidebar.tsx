@@ -180,6 +180,20 @@ export function AppSidebar() {
       ],
     },
     {
+      id: 'ferramentas',
+      label: 'Ferramentas & IA',
+      emoji: '🤖',
+      icon: Sparkles,
+      items: [
+        { icon: Bot, path: '/assistente-ia', label: 'Assistente de IA' },
+        { icon: Sparkles, path: '/agentes-ia', label: 'Agentes de IA' },
+        { icon: FileText, path: '/tools/rotadoc', label: 'RotaDoc' },
+        { icon: LinkIcon, path: '/integracoes', label: 'Integrações' },
+        { icon: SpellCheck, path: '/corretor-portugues', label: 'Corretor de Português' },
+        { icon: Link2, path: '/gerador-qrcode', label: 'Gerador de QR Code' },
+      ],
+    },
+    {
       id: 'negocios',
       label: 'Negócios & CRM',
       emoji: '💼',
@@ -199,7 +213,6 @@ export function AppSidebar() {
       emoji: '⚖️',
       icon: Scale,
       items: [
-        // Bloco ADVBox
         { icon: Briefcase, path: '/processos', label: 'Processos Dashboard' },
         { icon: CheckSquare, path: '/tarefas-advbox', label: 'Tarefas Advbox', badgeCount: criticalTasksCount },
         { icon: Users, path: '/distribuicao-tarefas', label: 'Distribuição de Tarefas', condition: isSocio || isAdmin },
@@ -208,7 +221,6 @@ export function AppSidebar() {
         { icon: AlertCircle, path: '/movimentacoes-advbox', label: 'Movimentações Advbox' },
         { icon: Bell, path: '/publicacoes', label: 'Publicações ADVBox' },
         { icon: Cake, path: '/aniversarios-clientes', label: 'Aniversários Clientes' },
-        // Bloco não-ADVBox
         { icon: SearchIcon, path: '/pesquisa-jurisprudencia', label: 'Pesquisa Jurisprudência' },
         { icon: FileText, path: '/publicacoes-dje', label: 'Publicações DJE' },
         { icon: Gavel, path: '/portais-tribunais', label: 'Portais de Tribunais' },
@@ -244,6 +256,7 @@ export function AppSidebar() {
         { icon: UserPlus, path: '/contratacao', label: 'Contratação' },
         { icon: Home, path: '/home-office', label: 'Home Office' },
         { icon: BookOpen, path: '/onboarding', label: 'Onboarding' },
+        { icon: Camera, path: '/galeria-eventos', label: 'Galeria de Eventos' },
       ],
     },
     {
@@ -269,7 +282,7 @@ export function AppSidebar() {
     },
     {
       id: 'comunicacao',
-      label: 'Comunicações',
+      label: 'Comunicação e Avisos',
       emoji: '📢',
       icon: MessageSquare,
       items: [
@@ -282,21 +295,6 @@ export function AppSidebar() {
         { icon: HeartHandshake, path: '/caixinha-desabafo', label: 'Caixinha de Desabafo' },
         { icon: MessageCircle, path: '/mensagens-encaminhadas', label: 'Mensagens Encaminhadas' },
         { icon: Phone, path: '/whatsapp-avisos', label: 'WhatsApp Avisos' },
-        { icon: Camera, path: '/galeria-eventos', label: 'Galeria de Eventos' },
-      ],
-    },
-    {
-      id: 'ferramentas',
-      label: 'Ferramentas & IA',
-      emoji: '🤖',
-      icon: Sparkles,
-      items: [
-        { icon: Bot, path: '/assistente-ia', label: 'Assistente de IA' },
-        { icon: Sparkles, path: '/agentes-ia', label: 'Agentes de IA' },
-        { icon: FileText, path: '/tools/rotadoc', label: 'RotaDoc' },
-        { icon: LinkIcon, path: '/integracoes', label: 'Integrações' },
-        { icon: SpellCheck, path: '/corretor-portugues', label: 'Corretor de Português' },
-        { icon: Link2, path: '/gerador-qrcode', label: 'Gerador de QR Code' },
       ],
     },
     {
