@@ -177,7 +177,7 @@ export default function MarketingHub() {
   const totalRevenue = campaigns.reduce((s: number, c: any) => s + (c.revenue || 0), 0);
   const overallROI = totalInvestment > 0 ? ((totalRevenue - totalInvestment) / totalInvestment * 100).toFixed(1) : '0';
 
-  // Meta Ads config & data
+  // Meta Ads config
   const [metaConfigOpen, setMetaConfigOpen] = useState(false);
   const [metaToken, setMetaToken] = useState('');
   const [metaAccountId, setMetaAccountId] = useState('');
@@ -216,69 +216,10 @@ export default function MarketingHub() {
       refetchMetaConfig();
       queryClient.invalidateQueries({ queryKey: ['meta-ads-campaigns'] });
       queryClient.invalidateQueries({ queryKey: ['meta-ads-insights'] });
+      queryClient.invalidateQueries({ queryKey: ['meta-ads-daily'] });
     },
     onError: (e: any) => toast.error(e.message || 'Erro ao salvar'),
   });
-
-  const fromDateStr = dateRange.from.toISOString().split('T')[0];
-  const toDateStr = dateRange.to.toISOString().split('T')[0];
-
-  const { data: metaCampaigns = [], isLoading: loadingCampaigns } = useQuery({
-    queryKey: ['meta-ads-campaigns', metaConfig?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('meta-ads', {
-        body: { action: 'campaigns' },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data?.campaigns || [];
-    },
-    enabled: !!metaConfig,
-  });
-
-  const { data: metaInsights = [], isLoading: loadingInsights } = useQuery({
-    queryKey: ['meta-ads-insights', metaConfig?.id, fromDateStr, toDateStr],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('meta-ads', {
-        body: { action: 'insights', date_from: fromDateStr, date_to: toDateStr },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data?.insights || [];
-    },
-    enabled: !!metaConfig,
-  });
-
-  // Aggregate insights
-  const metaTotals = useMemo(() => {
-    let impressions = 0, clicks = 0, spend = 0;
-    metaInsights.forEach((i: any) => {
-      impressions += parseInt(i.impressions || '0');
-      clicks += parseInt(i.clicks || '0');
-      spend += parseFloat(i.spend || '0');
-    });
-    const ctr = impressions > 0 ? ((clicks / impressions) * 100).toFixed(2) : '0.00';
-    const cpc = clicks > 0 ? (spend / clicks).toFixed(2) : '0.00';
-    return { impressions, clicks, spend, ctr, cpc };
-  }, [metaInsights]);
-
-  // Build table rows from insights merged with campaigns
-  const metaAdsRows = useMemo(() => {
-    return metaInsights.map((insight: any) => {
-      const campaign = metaCampaigns.find((c: any) => c.id === insight.campaign_id);
-      const statusMap: Record<string, string> = { ACTIVE: 'Ativa', PAUSED: 'Pausada', DELETED: 'Removida', ARCHIVED: 'Arquivada' };
-      return {
-        id: insight.campaign_id,
-        name: insight.campaign_name || campaign?.name || 'Sem nome',
-        status: statusMap[campaign?.status] || campaign?.status || '—',
-        impressions: parseInt(insight.impressions || '0'),
-        clicks: parseInt(insight.clicks || '0'),
-        ctr: parseFloat(insight.ctr || '0').toFixed(2) + '%',
-        cpc: 'R$ ' + parseFloat(insight.cpc || '0').toFixed(2).replace('.', ','),
-        spend: 'R$ ' + parseFloat(insight.spend || '0').toFixed(2).replace('.', ','),
-      };
-    });
-  }, [metaInsights, metaCampaigns]);
 
   // Calendar helpers
   const monthStart = startOfMonth(calendarMonth);
