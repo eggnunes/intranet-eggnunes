@@ -1,12 +1,13 @@
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Link2, BarChart3, FileText, Target, ShieldAlert, Package, GitCompare } from 'lucide-react';
+import { Link2, BarChart3, FileText, Target, ShieldAlert, Package, GitCompare, MessageSquare } from 'lucide-react';
 import { UTMGenerator } from '@/components/UTMGenerator';
 import { LeadFormsManager } from '@/components/LeadFormsManager';
 import { LeadsDashboard } from '@/components/LeadsDashboard';
 import { LandingPageProductMappings } from '@/components/LandingPageProductMappings';
 import { LeadCampaignComparison } from '@/components/LeadCampaignComparison';
+import { WhatsAppWebhookInfo } from '@/components/WhatsAppWebhookInfo';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 
 export default function LeadTracking() {
