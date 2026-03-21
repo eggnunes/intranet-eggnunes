@@ -176,3 +176,6 @@ verify_jwt = false
 
 [functions.meta-ads]
 verify_jwt = false
+
+[functions.meta-ads-ai-analysis]
+verify_jwt = false
