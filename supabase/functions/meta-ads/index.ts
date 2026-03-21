@@ -14,7 +14,6 @@ serve(async (req) => {
   }
 
   try {
-    // Auth check
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders });
@@ -34,85 +33,72 @@ serve(async (req) => {
     const userId = claimsData.claims.sub;
 
     const body = await req.json();
-    const { action, access_token, ad_account_id, date_from, date_to } = body;
+    const { action, date_from, date_to } = body;
 
-    // If tokens provided in body use them directly; otherwise fetch from DB
-    let finalToken = access_token;
-    let finalAccountId = ad_account_id;
+    // Fetch credentials from meta_ads_config
+    const serviceClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+    const { data: config } = await serviceClient
+      .from('meta_ads_config')
+      .select('access_token, ad_account_id')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .limit(1)
+      .single();
 
-    if (!finalToken || !finalAccountId) {
-      const serviceClient = createClient(
-        Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-      );
-      const { data: config } = await serviceClient
-        .from('meta_ads_config')
-        .select('access_token, ad_account_id')
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .limit(1)
-        .single();
-
-      if (!config) {
-        return new Response(JSON.stringify({ error: 'Meta Ads não configurado. Salve suas credenciais primeiro.' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      finalToken = config.access_token;
-      finalAccountId = config.ad_account_id;
+    if (!config) {
+      return new Response(JSON.stringify({ error: 'Meta Ads não configurado. Salve suas credenciais primeiro.' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Ensure account id starts with "act_"
-    const actId = finalAccountId.startsWith('act_') ? finalAccountId : `act_${finalAccountId}`;
+    const finalToken = config.access_token;
+    const actId = config.ad_account_id.startsWith('act_') ? config.ad_account_id : `act_${config.ad_account_id}`;
 
     const fromDate = date_from || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
     const toDate = date_to || new Date().toISOString().split('T')[0];
 
     if (action === 'campaigns') {
-      const url = `${META_API}/${actId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time&limit=50&access_token=${finalToken}`;
+      const url = `${META_API}/${actId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget&limit=50&access_token=${finalToken}`;
       const resp = await fetch(url);
       const data = await resp.json();
-
       if (data.error) {
         console.error('Meta API error (campaigns):', data.error);
         return new Response(JSON.stringify({ error: data.error.message }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-
       return new Response(JSON.stringify({ campaigns: data.data || [] }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     if (action === 'insights') {
-      const url = `${META_API}/${actId}/insights?fields=campaign_name,campaign_id,impressions,clicks,ctr,cpc,spend,reach,actions&time_range={"since":"${fromDate}","until":"${toDate}"}&level=campaign&limit=50&access_token=${finalToken}`;
+      const url = `${META_API}/${actId}/insights?fields=campaign_name,campaign_id,impressions,clicks,spend,actions,cpc,cpm,ctr,reach&time_range={"since":"${fromDate}","until":"${toDate}"}&level=campaign&limit=50&access_token=${finalToken}`;
       const resp = await fetch(url);
       const data = await resp.json();
-
       if (data.error) {
         console.error('Meta API error (insights):', data.error);
         return new Response(JSON.stringify({ error: data.error.message }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-
       return new Response(JSON.stringify({ insights: data.data || [] }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     if (action === 'account_info') {
-      const url = `${META_API}/${actId}?fields=name,account_status,currency,timezone_name,amount_spent&access_token=${finalToken}`;
+      const url = `${META_API}/${actId}?fields=name,account_status,currency,balance&access_token=${finalToken}`;
       const resp = await fetch(url);
       const data = await resp.json();
-
       if (data.error) {
         return new Response(JSON.stringify({ error: data.error.message }), {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-
       return new Response(JSON.stringify({ account: data }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
