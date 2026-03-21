@@ -1003,6 +1003,7 @@ export default function DecisoesFavoraveis() {
                           <TableHead className="w-[80px]">Resultado</TableHead>
                           <TableHead className="w-[100px]">Tribunal</TableHead>
                           <TableHead className="w-[80px]">Decisão</TableHead>
+                          <TableHead className="w-[80px]">Cadastro</TableHead>
                           <TableHead className="w-[90px] text-center">Status</TableHead>
                           <TableHead className="w-[90px] text-right">Ações</TableHead>
                         </TableRow>
