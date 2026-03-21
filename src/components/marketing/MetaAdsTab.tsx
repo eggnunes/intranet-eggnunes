@@ -316,9 +316,9 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
         <TabsContent value="overview">
           <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-7 mb-4">
             {[
-              { label: 'Impressões', value: formatNum(metaTotals.impressions), icon: Eye, color: 'text-blue-500' },
-              { label: 'Alcance', value: formatNum(metaTotals.reach), icon: Users, color: 'text-violet-500' },
-              { label: 'Cliques', value: formatNum(metaTotals.clicks), icon: MousePointerClick, color: 'text-amber-500' },
+              { label: 'Impressões', value: formatNum(metaTotals.impressions), icon: Eye, color: 'text-blue-500', key: 'Imp' },
+              { label: 'Alcance', value: formatNum(metaTotals.reach), icon: Users, color: 'text-violet-500', key: 'Alc' },
+              { label: 'Cliques', value: formatNum(metaTotals.clicks), icon: MousePointerClick, color: 'text-amber-500', key: 'Cli' },
               { label: <AcronymTip acronym="CTR">CTR</AcronymTip>, value: metaTotals.ctr.toFixed(2) + '%', icon: TrendingUp, color: 'text-green-500', key: 'CTR' },
               { label: <AcronymTip acronym="CPC">CPC Médio</AcronymTip>, value: formatBRL(metaTotals.cpc), icon: DollarSign, color: 'text-orange-500', key: 'CPC' },
               { label: 'Conversões', value: formatNum(metaTotals.conversions), icon: Target, color: 'text-emerald-500', key: 'Conv' },
