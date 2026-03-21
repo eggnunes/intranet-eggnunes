@@ -29,6 +29,7 @@ export const JusbrasilCodeFetcher = () => {
       if (error) throw error;
 
       setCodes(data.codes || []);
+      setDebugData(data.debug || null);
       setLastFetch(new Date());
 
       if (data.codes?.length > 0) {
