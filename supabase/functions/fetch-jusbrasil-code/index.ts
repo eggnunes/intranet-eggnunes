@@ -68,7 +68,7 @@ serve(async (req) => {
     // Search for JusBrasil verification emails using $search only
     const userEmail = 'rafael@eggnunes.com.br';
     
-    const graphUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userEmail)}/messages?$search="from:noreply@jusbrasil.com.br"&$orderby=receivedDateTime desc&$top=5&$select=subject,body,receivedDateTime,from`;
+    const graphUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userEmail)}/messages?$search="from:noreply@jusbrasil.com.br"&$top=5&$select=subject,body,receivedDateTime,from`;
 
     const graphResponse = await fetch(graphUrl, {
       headers: {
@@ -85,7 +85,10 @@ serve(async (req) => {
     }
 
     const data = await graphResponse.json();
-    const codes = extractCodes(data.value || []);
+    const emails = (data.value || []).sort((a: any, b: any) => 
+      new Date(b.receivedDateTime).getTime() - new Date(a.receivedDateTime).getTime()
+    );
+    const codes = extractCodes(emails);
 
     return new Response(JSON.stringify({ codes, emails: data.value?.length || 0 }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
