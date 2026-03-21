@@ -374,9 +374,9 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('impressions')}>Impressões<SortIcon field="impressions" /></TableHead>
                       <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('clicks')}>Cliques<SortIcon field="clicks" /></TableHead>
-                      <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('ctr')}>CTR<SortIcon field="ctr" /></TableHead>
-                      <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('cpc')}>CPC<SortIcon field="cpc" /></TableHead>
-                      <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('conversions')}>Conv.<SortIcon field="conversions" /></TableHead>
+                      <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('ctr')}><AcronymTip acronym="CTR">CTR</AcronymTip><SortIcon field="ctr" /></TableHead>
+                       <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('cpc')}><AcronymTip acronym="CPC">CPC</AcronymTip><SortIcon field="cpc" /></TableHead>
+                       <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('conversions')}>Conv.<SortIcon field="conversions" /></TableHead>
                       <TableHead className="text-right cursor-pointer" onClick={() => toggleSort('spend')}>Gasto<SortIcon field="spend" /></TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
