@@ -8,7 +8,7 @@ const corsHeaders = {
 
 // Map of WhatsApp Business phone numbers → product names (fallback if DB lookup fails)
 const PHONE_PRODUCT_MAP: Record<string, string> = {
-  '553184344364': 'Férias Prêmio',
+  '5531993438742': 'Férias Prêmio',
   '553132268742': 'Imposto de Renda',
   '5511998802573': 'Imobiliário',
 };
