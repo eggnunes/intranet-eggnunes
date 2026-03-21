@@ -29,6 +29,8 @@ import {
   Plus, Pencil, Trash2, Megaphone, BarChart3, Filter, Facebook
 } from 'lucide-react';
 import MetaAdsTab from '@/components/marketing/MetaAdsTab';
+import { TutorialOverlay } from '@/components/TutorialOverlay';
+import { tutorialsByPage } from '@/components/tutorialData';
 
 const PLATFORMS = [
   { value: 'facebook', label: 'Facebook', color: 'hsl(var(--primary))' },
