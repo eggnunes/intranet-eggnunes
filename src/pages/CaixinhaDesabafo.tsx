@@ -876,7 +876,7 @@ const CaixinhaDesabafo = () => {
                     ) : (
                       <div className="space-y-3">
                         {myMessages.map(msg => (
-                          <MessageCard key={msg.id} msg={msg} isOwn />
+                          {renderMessageCard(msg, true)}
                         ))}
                       </div>
                     )}
