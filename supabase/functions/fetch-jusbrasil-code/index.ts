@@ -92,39 +92,47 @@ serve(async (req) => {
       console.log('Diagnostic exception:', diagnosticErrorText);
     }
 
-    // Search for JusBrasil verification emails using $filter
-    const graphUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userEmail)}/messages?$filter=from/emailAddress/address eq 'noreply@jusbrasil.com.br'&$orderby=receivedDateTime desc&$top=5&$select=subject,body,receivedDateTime,from`;
+    // Search for JusBrasil verification emails using $search
+    const graphUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userEmail)}/messages?$search="jusbrasil"&$top=10&$select=subject,body,receivedDateTime,from`;
     console.log('Graph URL:', graphUrl);
+
+    let graphApiError: string | null = null;
+    let emails: any[] = [];
+    let rawEmailCount = 0;
 
     const graphResponse = await fetch(graphUrl, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
+        'ConsistencyLevel': 'eventual',
       },
     });
 
     if (!graphResponse.ok) {
       const errorText = await graphResponse.text();
       console.error('Graph API error:', errorText);
-      throw new Error(`Graph API failed: ${graphResponse.status} - ${errorText}`);
+      graphApiError = `${graphResponse.status} - ${errorText}`;
+    } else {
+      const data = await graphResponse.json();
+      rawEmailCount = data.value?.length || 0;
+      console.log('Graph API response - emails found:', rawEmailCount);
+
+      emails = (data.value || []).sort((a: any, b: any) => 
+        new Date(b.receivedDateTime).getTime() - new Date(a.receivedDateTime).getTime()
+      );
     }
 
-    const data = await graphResponse.json();
-    console.log('Graph API response - emails found:', data.value?.length || 0);
-
-    const emails = (data.value || []).sort((a: any, b: any) => 
-      new Date(b.receivedDateTime).getTime() - new Date(a.receivedDateTime).getTime()
-    );
     const codes = extractCodes(emails);
     console.log('Codes extracted:', codes.length, codes);
 
     return new Response(JSON.stringify({ 
       codes, 
-      emails: data.value?.length || 0,
+      emails: rawEmailCount,
       debug: {
         graphUrl,
+        graphApiError,
         emailSubjects: emails.map((e: any) => e.subject),
-        rawEmailCount: data.value?.length || 0,
+        rawEmailCount,
         diagnosticEmails: diagnosticData?.value?.length || 0,
         diagnosticSubjects: diagnosticData?.value?.map((e: any) => e.subject) || [],
         diagnosticError: diagnosticErrorText || null
