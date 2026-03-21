@@ -78,6 +78,7 @@ import MarketingHub from "./pages/MarketingHub";
 import Viabilidade from "./pages/Viabilidade";
 import ViabilidadeNovo from "./pages/ViabilidadeNovo";
 import PesquisaHumor from "./pages/PesquisaHumor";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import DistribuicaoTarefas from "./pages/DistribuicaoTarefas";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
@@ -106,6 +107,7 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route
               path="/"
               element={
