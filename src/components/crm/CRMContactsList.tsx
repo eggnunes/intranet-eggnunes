@@ -82,7 +82,7 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [profissaoFilter, setProfissaoFilter] = useState<string>('');
+  const [profissaoFilter, setProfissaoFilter] = useState<string>('all');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Contact>>({});
@@ -356,7 +356,7 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
       contact.job_title?.toLowerCase().includes(search)
     );
     
-    const matchesProfissao = !profissaoFilter || contact.job_title === profissaoFilter;
+    const matchesProfissao = profissaoFilter === 'all' || contact.job_title === profissaoFilter;
     
     return matchesSearch && matchesProfissao;
   });
@@ -486,14 +486,14 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
               <SelectValue placeholder="Todas profissões" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todas profissões</SelectItem>
+              <SelectItem value="all">Todas profissões</SelectItem>
               {profissoesDisponiveis.map(prof => (
                 <SelectItem key={prof} value={prof}>{prof}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          {profissaoFilter && (
-            <Button variant="ghost" size="sm" onClick={() => setProfissaoFilter('')}>
+          {profissaoFilter !== 'all' && (
+            <Button variant="ghost" size="sm" onClick={() => setProfissaoFilter('all')}>
               <X className="h-4 w-4" />
             </Button>
           )}
