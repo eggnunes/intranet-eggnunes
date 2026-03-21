@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -17,7 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import { format, subDays, startOfDay, endOfDay, isSameDay, addDays, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import {
@@ -26,8 +26,9 @@ import {
 } from 'recharts';
 import {
   CalendarIcon, TrendingUp, DollarSign, Users, MousePointerClick, Eye, Target,
-  Plus, Pencil, Trash2, AlertTriangle, Megaphone, BarChart3, Filter, Instagram, Facebook
+  Plus, Pencil, Trash2, Megaphone, BarChart3, Filter, Facebook
 } from 'lucide-react';
+import MetaAdsTab from '@/components/marketing/MetaAdsTab';
 
 const PLATFORMS = [
   { value: 'facebook', label: 'Facebook', color: 'hsl(var(--primary))' },
