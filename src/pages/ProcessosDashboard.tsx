@@ -1299,7 +1299,7 @@ export default function ProcessosDashboard() {
                   <div className="text-3xl font-bold text-primary">
                     {searchTerm || !showAllResponsibles 
                       ? filteredLawsuits.length 
-                      : (totalLawsuits ?? lawsuits.length)}
+                      : (totalLawsuits || lawsuits.length || 0)}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
                     {searchTerm || !showAllResponsibles ? 'Processos Filtrados' : 'Total de Processos'}
