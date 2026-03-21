@@ -1,32 +1,28 @@
 
 
-## Viabilidade Jurídica — Escolha de IA e Análise Profunda
+## Reorganizar Menu Lateral
 
-### Situação atual
-- A edge function `analyze-viability` usa **Claude Sonnet 4** via API direta da Anthropic
-- Não há opção de escolha de modelo pelo usuário
-- O prompt é razoável mas pode ser mais profundo
+### Alterações em `src/components/AppSidebar.tsx`
 
-### O que será feito
+**1. Mover "Galeria de Eventos" de Comunicações para RH**
+- Remover `{ icon: Camera, path: '/galeria-eventos', label: 'Galeria de Eventos' }` do grupo `comunicacao`
+- Adicionar ao grupo `rh`
 
-**1. Frontend (`src/pages/ViabilidadeNovo.tsx`)**
-- Adicionar um seletor de IA antes do botão "Analisar Viabilidade" com duas opções:
-  - **Claude (Análise Profunda)** — usa Claude Sonnet 4 via Anthropic API
-  - **ChatGPT (Pesquisa Investigativa)** — usa OpenAI o3 via API direta (modelo de raciocínio avançado, equivalente à "pesquisa profunda")
-- Enviar o campo `modelo` no body da requisição
+**2. Renomear grupo "Comunicações" para "Comunicação e Avisos"**
+- Alterar `label: 'Comunicações'` para `label: 'Comunicação e Avisos'`
 
-**2. Edge Function (`supabase/functions/analyze-viability/index.ts`)**
-- Receber o campo `modelo` (`claude` ou `chatgpt`)
-- Manter a rota Claude existente (Anthropic API direta com `claude-sonnet-4-20250514`)
-- Adicionar rota OpenAI usando `OPENAI_API_KEY` com modelo `o3` e reasoning effort `high` para análise profunda
-- Expandir o system prompt para exigir análise mais detalhada: jurisprudência relevante, riscos processuais, estimativa de prazo e probabilidade de êxito
-- Retornar também qual modelo foi usado na resposta
+**3. Mover "Ferramentas & IA" para o início do menu**
+- Reordenar o array `menuGroups` para que o grupo `ferramentas` fique logo após "Dashboard & Visão Geral" (posição 2)
 
-**3. Secrets necessários**
-- `ANTHROPIC_API_KEY` — já configurado
-- `OPENAI_API_KEY` — já configurado
-
-### Arquivos alterados
-- `src/pages/ViabilidadeNovo.tsx` — seletor de modelo + envio do campo
-- `supabase/functions/analyze-viability/index.ts` — suporte a dois provedores + prompt aprimorado
+**Nova ordem dos grupos:**
+1. Dashboard & Visão Geral
+2. **Ferramentas & IA** (movido para cá)
+3. Negócios & CRM
+4. Produção Jurídica
+5. Financeiro
+6. Recursos Humanos (agora com Galeria de Eventos)
+7. Meu Painel
+8. Viabilidade Jurídica
+9. Comunicação e Avisos (renomeado, sem Galeria de Eventos)
+10. Administrativo & Config.
 
