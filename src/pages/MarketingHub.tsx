@@ -178,31 +178,55 @@ export default function MarketingHub() {
     onSuccess: () => { toast.success('Publicação removida'); refetchPubs(); },
   });
 
-  // ROI data
-  const roiData = useMemo(() => campaigns.map((c: any) => ({
-    name: c.name?.substring(0, 20) || 'Sem nome',
-    investimento: c.investment || 0,
-    receita: c.revenue || 0,
-    roi: c.investment > 0 ? (((c.revenue || 0) - c.investment) / c.investment * 100).toFixed(1) : 0,
-  })), [campaigns]);
+  // ROI data from Meta Ads insights
+  const roiData = useMemo(() => metaInsights.map((i: any) => {
+    const spend = parseFloat(i.spend || '0');
+    const conversions = (i.actions || []).reduce((sum: number, a: any) => {
+      if (['offsite_conversion', 'lead', 'onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.lead_grouped'].includes(a.action_type)) {
+        return sum + parseInt(a.value || '0');
+      }
+      return sum;
+    }, 0);
+    return {
+      name: (i.campaign_name || 'Sem nome').substring(0, 25),
+      gasto: spend,
+      conversoes: conversions,
+      cpl: conversions > 0 ? spend / conversions : 0,
+    };
+  }).filter((d: any) => d.gasto > 0), [metaInsights]);
 
-  const platformDistribution = useMemo(() => {
-    const map: Record<string, number> = {};
-    campaigns.forEach((c: any) => { map[c.platform || 'outros'] = (map[c.platform || 'outros'] || 0) + (c.investment || 0); });
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [campaigns]);
+  const dailyChartData = useMemo(() => metaDailyInsights.map((d: any) => {
+    const conversions = (d.actions || []).reduce((sum: number, a: any) => {
+      if (['offsite_conversion', 'lead', 'onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.lead_grouped'].includes(a.action_type)) {
+        return sum + parseInt(a.value || '0');
+      }
+      return sum;
+    }, 0);
+    return {
+      data: format(new Date(d.date_start), 'dd/MM'),
+      gasto: parseFloat(d.spend || '0'),
+      conversoes: conversions,
+    };
+  }), [metaDailyInsights]);
 
-  // Funnel data
+  // Funnel data - ALL deals, not filtered by date
   const funnelData = useMemo(() => {
-    return dealStages.map((stage: any) => ({
-      name: stage.name,
-      count: deals.filter((d: any) => d.stage_id === stage.id).length,
-    }));
+    const stages = dealStages.map((stage: any) => {
+      const stageDeals = deals.filter((d: any) => d.stage_id === stage.id);
+      return {
+        name: stage.name,
+        count: stageDeals.length,
+        value: stageDeals.reduce((s: number, d: any) => s + (d.value || 0), 0),
+        is_won: stage.is_won,
+        is_lost: stage.is_lost,
+      };
+    });
+    return stages;
   }, [dealStages, deals]);
 
-  const totalInvestment = campaigns.reduce((s: number, c: any) => s + (c.investment || 0), 0);
-  const totalRevenue = campaigns.reduce((s: number, c: any) => s + (c.revenue || 0), 0);
-  const overallROI = totalInvestment > 0 ? ((totalRevenue - totalInvestment) / totalInvestment * 100).toFixed(1) : '0';
+  const totalInvestment = roiData.reduce((s: number, c: any) => s + c.gasto, 0);
+  const totalConversions = roiData.reduce((s: number, c: any) => s + c.conversoes, 0);
+  const overallCPL = totalConversions > 0 ? (totalInvestment / totalConversions).toFixed(2) : '0';
 
   // Meta Ads config
   const [metaConfigOpen, setMetaConfigOpen] = useState(false);
