@@ -338,11 +338,11 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
               <CardContent className="pt-4 pb-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Custo por Lead (Meta)</p>
-                    <p className="text-2xl font-bold text-foreground">{formatBRL(metaTotals.cpl)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Leads capturados (UTM)</p>
+                    <p className="text-sm text-muted-foreground">Custo por Lead (Meta) — <AcronymTip acronym="CPL">CPL</AcronymTip></p>
+                     <p className="text-2xl font-bold text-foreground">{formatBRL(metaTotals.cpl)}</p>
+                   </div>
+                   <div>
+                     <p className="text-sm text-muted-foreground">Leads capturados (UTM)</p>
                     <p className="text-2xl font-bold text-foreground">{metaLeads.length}</p>
                   </div>
                   <div>
