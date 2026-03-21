@@ -64,11 +64,13 @@ serve(async (req) => {
 
     // Get Microsoft Graph access token
     const accessToken = await getAccessToken();
+    console.log('Access token obtained successfully');
 
     // Search for JusBrasil verification emails using $search only
     const userEmail = 'rafael@eggnunes.com.br';
     
     const graphUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userEmail)}/messages?$search="from:noreply@jusbrasil.com.br"&$top=5&$select=subject,body,receivedDateTime,from`;
+    console.log('Graph URL:', graphUrl);
 
     const graphResponse = await fetch(graphUrl, {
       headers: {
@@ -85,12 +87,23 @@ serve(async (req) => {
     }
 
     const data = await graphResponse.json();
+    console.log('Graph API response - emails found:', data.value?.length || 0);
+
     const emails = (data.value || []).sort((a: any, b: any) => 
       new Date(b.receivedDateTime).getTime() - new Date(a.receivedDateTime).getTime()
     );
     const codes = extractCodes(emails);
+    console.log('Codes extracted:', codes.length, codes);
 
-    return new Response(JSON.stringify({ codes, emails: data.value?.length || 0 }), {
+    return new Response(JSON.stringify({ 
+      codes, 
+      emails: data.value?.length || 0,
+      debug: {
+        graphUrl,
+        emailSubjects: emails.map((e: any) => e.subject),
+        rawEmailCount: data.value?.length || 0
+      }
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
