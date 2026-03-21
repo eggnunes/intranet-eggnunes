@@ -559,6 +559,7 @@ export default function MarketingHub() {
               </CardContent>
             </Card>
           </TabsContent>
+        </Tabs>
 
         {/* Publication Dialog */}
         <Dialog open={pubDialogOpen} onOpenChange={(o) => { if (!o) { setEditingPub(null); } setPubDialogOpen(o); }}>
