@@ -1,58 +1,28 @@
 
-## Reorganização do Menu Lateral + Criador de Pasta de Cliente no Teams
 
-### Mudanças no menu (`src/components/AppSidebar.tsx`)
+## Fix: Cursor Losing Focus in Caixinha de Desabafo Reply
 
-**1. Códigos TOTP → Produção Jurídica**
-- Mover `{ icon: KeyRound, path: '/codigos-autenticacao', label: 'Códigos TOTP' }` para o grupo `producao-juridica`
+### Root Cause
 
-**2. Arquivos Teams → Novo grupo próprio**
-- Criar grupo **"Arquivos do Escritório"** (emoji 📁, id `arquivos`) com:
-  - Arquivos Teams (`/arquivos-teams`)
-  - Criar Pasta de Cliente (nova rota `/criar-pasta-cliente`)
-- Posicionar após "Meu Painel" e antes de "Viabilidade Jurídica" — acesso geral para todos
+`MessageCard`, `MessageDetailOwn`, and `MessageDetailSocio` are defined as **inline component functions** inside the parent `CaixinhaDesabafo` component (lines 451, 510, 570). When `replyText` state changes on every keystroke, the parent re-renders and recreates these function references. React sees a "new" component type each render, so it **unmounts and remounts** the detail panel — destroying the textarea and its focus.
 
-**3. Parceiros → dentro de Negócios & CRM**
-- Mover `{ icon: Handshake, path: '/parceiros', label: 'Parceiros' }` para o grupo `negocios`
+### Fix
 
-**4. Sala de Reunião → dentro de Meu Painel**
-- Faz mais sentido como recurso pessoal/agendamento — mover para `meu-painel`
+Convert `MessageDetailSocio` from an inline component to **direct JSX** at the usage site (line 946), so React sees the same element tree on each render and preserves focus. Same treatment for `MessageDetailOwn` and `MessageCard` for consistency, though the critical fix is `MessageDetailSocio` since that's where the reply textarea lives.
 
-**5. Copa/Cozinha → dentro de RH (renomeado)**
-- Renomear grupo RH para **"RH & Administrativo"**
-- Mover `Copa/Cozinha` para este grupo
+Alternatively (simpler approach): keep the inline components but **move `replyText` state into a separate child component** so changing it doesn't re-render the parent. However, the cleanest fix is to inline the JSX directly where it's used.
 
-**6. Grupo Administrativo simplificado**
-- Fica apenas com: Admin, Cadastros Úteis (itens de configuração real)
+### Implementation
 
-### Nova funcionalidade: Criar Pasta de Cliente no Teams
+**File: `src/pages/CaixinhaDesabafo.tsx`**
 
-**Nova página `src/pages/CriarPastaCliente.tsx`:**
-- Campo de nome do cliente
-- Seletor de site Teams (Jurídico, Comercial, etc.) — padrão: Jurídico
-- Caminho padrão: `Operacional - Clientes/{nome do cliente}`
-- Antes de criar, verifica se já existe pasta com mesmo nome via `findFolderByPath`
-- Se existir, mostra alerta "Já existe pasta para este cliente" com link para abrir
-- Se não existir, cria via `createFolderByPath`
-- Usa o hook `useTeamsUpload` já existente (que já tem `findFolderByPath`, `createFolderByPath`, `findOrCreateClientFolder`)
+1. Remove the `MessageDetailSocio` inline component definition (lines 570-720)
+2. Replace `<MessageDetailSocio msg={selectedMessage} />` at line 946 with the JSX directly
+3. Do the same for `MessageDetailOwn` (lines 510-567) → inline at line 893
+4. Do the same for `MessageCard` (lines 451-507) → inline at lines 879 and 932
 
-**Rota em `src/App.tsx`:**
-- Adicionar `/criar-pasta-cliente` → `CriarPastaCliente`
+This ensures that when `replyText` changes, React updates the textarea value in-place instead of remounting the entire subtree.
 
-### Arquivos a editar/criar
-- `src/components/AppSidebar.tsx` — reorganizar itens entre grupos
-- `src/pages/CriarPastaCliente.tsx` — nova página
-- `src/App.tsx` — nova rota
+### Files to edit
+- `src/pages/CaixinhaDesabafo.tsx` — inline the 3 sub-components
 
-### Nova ordem dos grupos
-1. Dashboard & Visão Geral
-2. Ferramentas & IA
-3. Negócios & CRM (+ Parceiros)
-4. Produção Jurídica (+ Códigos TOTP)
-5. Financeiro
-6. RH & Administrativo (+ Copa/Cozinha)
-7. Meu Painel (+ Sala de Reunião)
-8. 📁 Arquivos do Escritório (novo — Teams + Criar Pasta)
-9. Viabilidade Jurídica
-10. Comunicação e Avisos
-11. Administrativo & Config. (apenas Admin + Cadastros Úteis)
