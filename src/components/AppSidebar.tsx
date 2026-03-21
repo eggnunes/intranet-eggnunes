@@ -243,7 +243,6 @@ export function AppSidebar() {
         { icon: CalendarDays, path: '/gestao-folgas', label: 'Gestão de Folgas' },
         { icon: UserPlus, path: '/contratacao', label: 'Contratação' },
         { icon: Home, path: '/home-office', label: 'Home Office' },
-        { icon: Cake, path: '/aniversarios-clientes', label: 'Aniversários Clientes' },
         { icon: BookOpen, path: '/onboarding', label: 'Onboarding' },
       ],
     },
