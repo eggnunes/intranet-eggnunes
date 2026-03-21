@@ -1254,6 +1254,9 @@ export type Database = {
           utm_publisher: string | null
           utm_source: string | null
           utm_term: string | null
+          whatsapp_message: string | null
+          whatsapp_phone: string | null
+          whatsapp_referral: Json | null
         }
         Insert: {
           created_at?: string
@@ -1277,6 +1280,9 @@ export type Database = {
           utm_publisher?: string | null
           utm_source?: string | null
           utm_term?: string | null
+          whatsapp_message?: string | null
+          whatsapp_phone?: string | null
+          whatsapp_referral?: Json | null
         }
         Update: {
           created_at?: string
@@ -1300,6 +1306,9 @@ export type Database = {
           utm_publisher?: string | null
           utm_source?: string | null
           utm_term?: string | null
+          whatsapp_message?: string | null
+          whatsapp_phone?: string | null
+          whatsapp_referral?: Json | null
         }
         Relationships: [
           {
