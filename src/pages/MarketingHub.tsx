@@ -260,16 +260,6 @@ export default function MarketingHub() {
             <p className="text-muted-foreground text-sm">Marketing Hub — Gerencie campanhas, anúncios e conteúdo</p>
           </div>
           <div className="flex flex-wrap gap-3 items-center">
-            <Select value={metaAccount} onValueChange={setMetaAccount}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Conta Meta" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as contas</SelectItem>
-                <SelectItem value="eggnunes-main">EggNunes Principal</SelectItem>
-                <SelectItem value="eggnunes-brand">EggNunes Brand</SelectItem>
-              </SelectContent>
-            </Select>
             <Select value={periodDays} onValueChange={setPeriodDays}>
               <SelectTrigger className="w-[160px]">
                 <SelectValue />
