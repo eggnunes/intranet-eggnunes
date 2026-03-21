@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -58,6 +58,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface FeedbackMessage {
   id: string;
@@ -103,6 +104,21 @@ const CaixinhaDesabafo = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isSocio, setIsSocio] = useState(false);
   const [showSender, setShowSender] = useState(false);
+  const secretClickCountRef = useRef(0);
+  const secretClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSecretReveal = useCallback(() => {
+    secretClickCountRef.current += 1;
+    if (secretClickTimerRef.current) clearTimeout(secretClickTimerRef.current);
+    if (secretClickCountRef.current >= 3) {
+      secretClickCountRef.current = 0;
+      setShowSender(prev => !prev);
+    } else {
+      secretClickTimerRef.current = setTimeout(() => {
+        secretClickCountRef.current = 0;
+      }, 800);
+    }
+  }, []);
   const [activeTab, setActiveTab] = useState<string>('enviar');
   
   // Form state
@@ -470,11 +486,20 @@ const CaixinhaDesabafo = () => {
           <span className="font-medium truncate">{msg.subject}</span>
         </div>
         <div className="flex items-center gap-1">
-          {msg.is_anonymous ? (
-            <EyeOff className="h-4 w-4 text-orange-500" />
-          ) : (
-            <Eye className="h-4 w-4 text-green-500" />
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                {msg.is_anonymous ? (
+                  <EyeOff className="h-4 w-4 text-orange-500" />
+                ) : (
+                  <Eye className="h-4 w-4 text-green-500" />
+                )}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {msg.is_anonymous ? 'Mensagem anônima' : 'Remetente identificado'}
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
       <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
@@ -573,7 +598,10 @@ const CaixinhaDesabafo = () => {
       <div className="p-4 rounded-lg bg-muted/50 border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+            <div
+              className="h-10 w-10 rounded-full bg-muted flex items-center justify-center cursor-default select-none"
+              onClick={handleSecretReveal}
+            >
               <UserX className="h-5 w-5 text-muted-foreground" />
             </div>
             <div>
@@ -589,24 +617,6 @@ const CaixinhaDesabafo = () => {
               )}
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowSender(!showSender)}
-            className="text-xs h-7 px-2"
-          >
-            {showSender ? (
-              <>
-                <EyeOff className="h-3 w-3 mr-1" />
-                Ocultar
-              </>
-            ) : (
-              <>
-                <Eye className="h-3 w-3 mr-1" />
-                Ver
-              </>
-            )}
-          </Button>
         </div>
       </div>
 
