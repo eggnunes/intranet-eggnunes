@@ -158,3 +158,6 @@ verify_jwt = true
 
 [functions.generate-automation-message]
 verify_jwt = true
+
+[functions.crm-auto-sync]
+verify_jwt = false
