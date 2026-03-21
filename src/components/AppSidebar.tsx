@@ -167,7 +167,7 @@ export function AppSidebar() {
 
   const isSocio = profile?.position === 'socio';
 
-  // ─── 10 Menu Groups ───────────────────────────────────────
+  // ─── 11 Menu Groups ───────────────────────────────────────
   const menuGroups: MenuGroupDef[] = useMemo(() => [
     {
       id: 'dashboard',
@@ -205,6 +205,7 @@ export function AppSidebar() {
         { icon: Target, path: '/lead-tracking', label: 'Lead Tracking', condition: isSocio || isAdmin },
         { icon: TrendingUp, path: '/negocios/marketing', label: 'Marketing Hub' },
         { icon: FileSignature, path: '/setor-comercial/contratos', label: 'Contratos' },
+        { icon: Handshake, path: '/parceiros', label: 'Parceiros' },
       ],
     },
     {
@@ -225,6 +226,7 @@ export function AppSidebar() {
         { icon: FileText, path: '/publicacoes-dje', label: 'Publicações DJE' },
         { icon: Gavel, path: '/portais-tribunais', label: 'Portais de Tribunais' },
         { icon: Award, path: '/decisoes-favoraveis', label: 'Jurisprudência Interna' },
+        { icon: KeyRound, path: '/codigos-autenticacao', label: 'Códigos TOTP' },
       ],
     },
     {
@@ -242,7 +244,7 @@ export function AppSidebar() {
     },
     {
       id: 'rh',
-      label: 'Recursos Humanos',
+      label: 'RH & Administrativo',
       emoji: '👥',
       icon: Users,
       items: [
@@ -257,6 +259,7 @@ export function AppSidebar() {
         { icon: Home, path: '/home-office', label: 'Home Office' },
         { icon: BookOpen, path: '/onboarding', label: 'Onboarding' },
         { icon: Camera, path: '/galeria-eventos', label: 'Galeria de Eventos' },
+        { icon: Coffee, path: '/copa-cozinha', label: 'Copa/Cozinha' },
       ],
     },
     {
@@ -268,6 +271,17 @@ export function AppSidebar() {
         { icon: UserCircle, path: '/profile', label: 'Meu Perfil' },
         { icon: ClipboardList, path: '/solicitacoes-administrativas', label: 'Solicitações' },
         { icon: Building2, path: '/sobre-escritorio', label: 'Sobre o Escritório' },
+        { icon: DoorOpen, path: '/sala-reuniao', label: 'Sala de Reunião' },
+      ],
+    },
+    {
+      id: 'arquivos',
+      label: 'Arquivos do Escritório',
+      emoji: '📁',
+      icon: FolderOpen,
+      items: [
+        { icon: HardDrive, path: '/arquivos-teams', label: 'Arquivos Teams' },
+        { icon: UserPlus, path: '/criar-pasta-cliente', label: 'Criar Pasta de Cliente' },
       ],
     },
     {
@@ -305,11 +319,6 @@ export function AppSidebar() {
       items: [
         { icon: Shield, path: '/admin', label: 'Admin', badgeCount: pendingUsersCount, condition: isAdmin },
         { icon: Phone, path: '/cadastros-uteis', label: 'Cadastros Úteis' },
-        { icon: KeyRound, path: '/codigos-autenticacao', label: 'Códigos TOTP' },
-        { icon: HardDrive, path: '/arquivos-teams', label: 'Arquivos Teams' },
-        { icon: Handshake, path: '/parceiros', label: 'Parceiros' },
-        { icon: DoorOpen, path: '/sala-reuniao', label: 'Sala de Reunião' },
-        { icon: Coffee, path: '/copa-cozinha', label: 'Copa/Cozinha' },
       ],
     },
   ], [isAdmin, isSocio, criticalTasksCount, pendingUsersCount]);
