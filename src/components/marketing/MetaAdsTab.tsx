@@ -246,6 +246,21 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
 
   const isLoading = loadingCampaigns || loadingInsights;
 
+  if (!hasConfig) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center space-y-4">
+          <Facebook className="h-12 w-12 mx-auto text-muted-foreground" />
+          <h3 className="text-lg font-semibold">Conecte sua conta Meta Ads</h3>
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">
+            Configure seu Access Token e ID da conta de anúncios para visualizar métricas reais.
+          </p>
+          <Button onClick={onOpenConfig}><Plus className="h-4 w-4 mr-1" /> Configurar Meta Ads</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
