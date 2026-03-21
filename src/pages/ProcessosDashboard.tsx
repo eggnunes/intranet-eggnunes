@@ -1299,7 +1299,7 @@ export default function ProcessosDashboard() {
                   <div className="text-3xl font-bold text-primary">
                     {searchTerm || !showAllResponsibles 
                       ? filteredLawsuits.length 
-                      : (totalLawsuits || lawsuits.length || 0)}
+                      : (totalLawsuits != null && totalLawsuits > 0 ? totalLawsuits : lawsuits.length)}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
                     {searchTerm || !showAllResponsibles ? 'Processos Filtrados' : 'Total de Processos'}
@@ -1312,7 +1312,10 @@ export default function ProcessosDashboard() {
                 {/* PROCESSOS ATIVOS */}
                 <div className="text-center p-4 bg-primary/5 rounded-lg">
                   <div className="text-3xl font-bold text-primary">
-                    {evolutionMetrics.activeProcesses || lawsuits.filter(l => !l.status_closure && !l.exit_production && !l.exit_execution).length}
+                    {(() => {
+                      const activeCount = lawsuits.filter(l => !l.status_closure && !l.exit_production && !l.exit_execution).length;
+                      return activeCount > 0 ? activeCount : evolutionMetrics.activeProcesses;
+                    })()}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
                     Processos Ativos
