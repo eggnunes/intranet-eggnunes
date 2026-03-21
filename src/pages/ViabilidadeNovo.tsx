@@ -91,6 +91,7 @@ export default function ViabilidadeNovo() {
           telefone,
           email,
           endereco,
+          modelo: modeloIA,
         },
       });
 
