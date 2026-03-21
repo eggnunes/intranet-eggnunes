@@ -18,6 +18,8 @@ import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip
 import { format, subDays, subMonths, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AlertCircle, Search, Filter, Calendar, ListTodo, RefreshCw, BarChart } from 'lucide-react';
+import { TutorialOverlay } from '@/components/TutorialOverlay';
+import { tutorialsByPage } from '@/components/tutorialData';
 
 interface Lawsuit {
   id: number;
