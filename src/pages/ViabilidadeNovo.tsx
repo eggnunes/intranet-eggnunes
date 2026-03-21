@@ -291,13 +291,48 @@ export default function ViabilidadeNovo() {
           </CardContent>
         </Card>
 
-        {/* Analyze Button */}
-        <div className="flex justify-center">
-          <Button size="lg" onClick={handleAnalyze} disabled={analyzing} className="gap-2">
-            <Brain className="h-5 w-5" />
-            {analyzing ? 'Analisando...' : 'Analisar Viabilidade'}
-          </Button>
-        </div>
+        {/* AI Model Selector + Analyze Button */}
+        <Card>
+          <CardContent className="py-4 space-y-4">
+            <div>
+              <Label className="text-sm font-medium">Escolha o modelo de IA para análise</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setModeloIA('claude')}
+                  className={cn(
+                    "flex flex-col items-start gap-1 rounded-lg border-2 p-4 text-left transition-all",
+                    modeloIA === 'claude'
+                      ? "border-primary bg-primary/5"
+                      : "border-input hover:border-muted-foreground/50"
+                  )}
+                >
+                  <span className="font-semibold text-sm text-foreground">Claude — Análise Profunda</span>
+                  <span className="text-xs text-muted-foreground">Anthropic Claude Sonnet 4. Excelente em raciocínio jurídico estruturado e fundamentação legal detalhada.</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModeloIA('chatgpt')}
+                  className={cn(
+                    "flex flex-col items-start gap-1 rounded-lg border-2 p-4 text-left transition-all",
+                    modeloIA === 'chatgpt'
+                      ? "border-primary bg-primary/5"
+                      : "border-input hover:border-muted-foreground/50"
+                  )}
+                >
+                  <span className="font-semibold text-sm text-foreground">ChatGPT — Pesquisa Investigativa</span>
+                  <span className="text-xs text-muted-foreground">OpenAI o3 com raciocínio avançado. Ideal para investigação aprofundada e análise de cenários complexos.</span>
+                </button>
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <Button size="lg" onClick={handleAnalyze} disabled={analyzing} className="gap-2">
+                <Brain className="h-5 w-5" />
+                {analyzing ? 'Analisando...' : 'Analisar Viabilidade'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Progress */}
         {analyzing && (

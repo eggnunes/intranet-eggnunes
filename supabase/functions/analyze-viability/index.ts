@@ -6,13 +6,160 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const systemPrompt = `Você é um advogado sênior especialista em análise de viabilidade jurídica no Brasil, com vasta experiência em contencioso e consultivo.
+
+Analise PROFUNDAMENTE os dados do cliente e do caso apresentado. Sua análise deve ser DETALHADA, FUNDAMENTADA e de altíssima qualidade técnica.
+
+Seu parecer DEVE seguir exatamente este formato:
+
+**RECOMENDAÇÃO:** [VIÁVEL | INVIÁVEL | NECESSITA MAIS DADOS]
+
+**RESUMO EXECUTIVO:**
+[Resumo objetivo em 3-5 frases sobre a viabilidade do caso, incluindo probabilidade estimada de êxito]
+
+**ANÁLISE JURÍDICA DETALHADA:**
+[Análise aprofundada do mérito do caso, incluindo enquadramento legal, elementos constitutivos, pressupostos processuais e condições da ação]
+
+**FUNDAMENTAÇÃO LEGAL:**
+- [Cite artigos de lei, códigos, súmulas, orientações jurisprudenciais e teses fixadas em repetitivos/repercussão geral que se aplicam]
+- [Fundamente cada ponto relevante com a norma aplicável]
+
+**JURISPRUDÊNCIA RELEVANTE:**
+- [Cite decisões recentes de tribunais superiores (STF, STJ, TST) e tribunais estaduais/regionais que corroboram ou contrariam a tese]
+- [Indique se há jurisprudência consolidada ou divergência entre tribunais]
+
+**PONTOS FAVORÁVEIS:**
+- [Liste cada ponto que fortalece a pretensão, com fundamentação]
+
+**PONTOS DE ATENÇÃO E RISCOS:**
+- [Liste riscos processuais, matérias de defesa provável, prescrição, decadência, questões probatórias]
+- [Indique a probabilidade de cada risco se materializar]
+
+**ESTIMATIVA DE PRAZO E CUSTOS:**
+- Tempo estimado até sentença de 1ª instância
+- Possibilidade de recursos e tempo adicional
+- Custas processuais estimadas
+- Honorários advocatícios de sucumbência (risco)
+
+**ESTRATÉGIA PROCESSUAL SUGERIDA:**
+- [Sugira o rito processual mais adequado]
+- [Indique se cabe tutela de urgência]
+- [Sugira provas a serem produzidas]
+
+**PRÓXIMOS PASSOS RECOMENDADOS:**
+1. [Passo concreto e acionável]
+2. [Passo concreto e acionável]
+3. [Passo concreto e acionável]
+
+Seja extremamente técnico, preciso e profissional. Considere a legislação brasileira vigente, incluindo alterações recentes.`;
+
+function buildUserPrompt(data: any): string {
+  return `Analise a viabilidade jurídica do seguinte caso com MÁXIMA PROFUNDIDADE:
+
+**DADOS DO CLIENTE:**
+- Nome: ${data.nome}
+- CPF: ${data.cpf || "Não informado"}
+- Data de Nascimento: ${data.data_nascimento || "Não informada"}
+- Telefone: ${data.telefone || "Não informado"}
+- Email: ${data.email || "Não informado"}
+- Endereço: ${data.endereco || "Não informado"}
+
+**TIPO DE AÇÃO:** ${data.tipo_acao}
+
+**DESCRIÇÃO DO CASO:**
+${data.descricao_caso}
+
+Forneça seu parecer completo de viabilidade jurídica, com fundamentação legal, jurisprudência e análise de riscos.`;
+}
+
+async function callClaude(userPrompt: string): Promise<string> {
+  const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY não configurada");
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 8192,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Claude API error:", response.status, errorText);
+    if (response.status === 429) throw new Error("RATE_LIMIT");
+    if (response.status === 401) throw new Error("AUTH_ERROR");
+    throw new Error("Erro na API Claude");
+  }
+
+  const data = await response.json();
+  return data.content?.[0]?.text || "Não foi possível gerar o parecer.";
+}
+
+async function callOpenAI(userPrompt: string): Promise<string> {
+  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY não configurada");
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "o3",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      reasoning_effort: "high",
+      max_completion_tokens: 16000,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("OpenAI API error:", response.status, errorText);
+    if (response.status === 429) throw new Error("RATE_LIMIT");
+    if (response.status === 401) throw new Error("AUTH_ERROR");
+    throw new Error("Erro na API OpenAI");
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || "Não foi possível gerar o parecer.";
+}
+
+function extractRecomendacao(parecer: string): string {
+  const upper = parecer.toUpperCase();
+  if (upper.includes("**RECOMENDAÇÃO:** VIÁVEL") || upper.includes("RECOMENDAÇÃO:** VIÁVEL")) {
+    // Make sure it's not "INVIÁVEL"
+    const idx = upper.indexOf("RECOMENDAÇÃO:**");
+    if (idx !== -1) {
+      const after = upper.substring(idx, idx + 40);
+      if (after.includes("INVIÁVEL")) return "inviavel";
+    }
+    return "viavel";
+  }
+  if (upper.includes("INVIÁVEL")) return "inviavel";
+  if (upper.includes("NECESSITA MAIS DADOS")) return "necessita_mais_dados";
+  return "necessita_mais_dados";
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { nome, cpf, tipo_acao, descricao_caso, data_nascimento, telefone, email, endereco } = await req.json();
+    const body = await req.json();
+    const { nome, tipo_acao, descricao_caso, modelo } = body;
 
     if (!nome || !tipo_acao || !descricao_caso) {
       return new Response(
@@ -21,107 +168,36 @@ serve(async (req) => {
       );
     }
 
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
-      throw new Error("ANTHROPIC_API_KEY is not configured");
-    }
+    const userPrompt = buildUserPrompt(body);
+    const selectedModel = modelo === "chatgpt" ? "chatgpt" : "claude";
 
-    const systemPrompt = `Você é um advogado especialista em análise de viabilidade jurídica no Brasil. 
-Analise os dados do cliente e do caso apresentado e forneça um parecer estruturado.
+    console.log(`Analyzing viability with model: ${selectedModel}`);
 
-Seu parecer DEVE seguir exatamente este formato:
-
-**RECOMENDAÇÃO:** [VIÁVEL | INVIÁVEL | NECESSITA MAIS DADOS]
-
-**RESUMO:**
-[Resumo em 2-3 frases sobre a viabilidade do caso]
-
-**PONTOS FAVORÁVEIS:**
-- [Ponto 1]
-- [Ponto 2]
-
-**PONTOS DE ATENÇÃO:**
-- [Ponto 1]
-- [Ponto 2]
-
-**FUNDAMENTAÇÃO LEGAL:**
-[Breve fundamentação com base legal aplicável]
-
-**PRÓXIMOS PASSOS RECOMENDADOS:**
-- [Passo 1]
-- [Passo 2]
-
-Seja objetivo, técnico e profissional. Considere a legislação brasileira vigente.`;
-
-    const userPrompt = `Analise a viabilidade do seguinte caso:
-
-**DADOS DO CLIENTE:**
-- Nome: ${nome}
-- CPF: ${cpf || "Não informado"}
-- Data de Nascimento: ${data_nascimento || "Não informada"}
-- Telefone: ${telefone || "Não informado"}
-- Email: ${email || "Não informado"}
-- Endereço: ${endereco || "Não informado"}
-
-**TIPO DE AÇÃO:** ${tipo_acao}
-
-**DESCRIÇÃO DO CASO:**
-${descricao_caso}
-
-Forneça seu parecer de viabilidade jurídica.`;
-
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: [
-          { role: "user", content: userPrompt },
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      if (response.status === 429) {
+    let parecer: string;
+    try {
+      parecer = selectedModel === "chatgpt"
+        ? await callOpenAI(userPrompt)
+        : await callClaude(userPrompt);
+    } catch (err: any) {
+      if (err.message === "RATE_LIMIT") {
         return new Response(
           JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns instantes." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 401) {
+      if (err.message === "AUTH_ERROR") {
         return new Response(
-          JSON.stringify({ error: "Erro de autenticação com a API Anthropic." }),
+          JSON.stringify({ error: "Erro de autenticação com a API de IA." }),
           { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const errorText = await response.text();
-      console.error("Claude API error:", response.status, errorText);
-      return new Response(
-        JSON.stringify({ error: "Erro ao processar análise de viabilidade." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      throw err;
     }
 
-    const data = await response.json();
-    const parecer = data.content?.[0]?.text || "Não foi possível gerar o parecer.";
-
-    // Extract recommendation from parecer
-    let recomendacao = "necessita_mais_dados";
-    const upperParecer = parecer.toUpperCase();
-    if (upperParecer.includes("**RECOMENDAÇÃO:** VIÁVEL") || upperParecer.includes("RECOMENDAÇÃO:** VIÁVEL")) {
-      recomendacao = "viavel";
-    } else if (upperParecer.includes("**RECOMENDAÇÃO:** INVIÁVEL") || upperParecer.includes("RECOMENDAÇÃO:** INVIÁVEL")) {
-      recomendacao = "inviavel";
-    }
+    const recomendacao = extractRecomendacao(parecer);
 
     return new Response(
-      JSON.stringify({ parecer, recomendacao }),
+      JSON.stringify({ parecer, recomendacao, modelo_usado: selectedModel }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
