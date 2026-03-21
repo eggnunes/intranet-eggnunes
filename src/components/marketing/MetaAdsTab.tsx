@@ -550,7 +550,7 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><TrendingDown className="h-4 w-4 text-amber-500" /> Maior CPC</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base flex items-center gap-2"><TrendingDown className="h-4 w-4 text-amber-500" /> Maior <AcronymTip acronym="CPC">CPC</AcronymTip></CardTitle></CardHeader>
               <CardContent className="space-y-2">
                 {worstCPC.map((c, i) => (
                   <div key={c.id} className="flex items-center justify-between text-sm">
