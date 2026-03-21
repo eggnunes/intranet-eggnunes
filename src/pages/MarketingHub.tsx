@@ -418,58 +418,85 @@ export default function MarketingHub() {
 
           {/* Tab 2: Meta Ads */}
           <TabsContent value="meta-ads">
-            <div className="mb-4 flex items-center gap-2 text-sm text-amber-500">
-              <AlertTriangle className="h-4 w-4" />
-              <span>Dados simulados — Conecte sua conta Meta Ads para dados reais</span>
-            </div>
-            <div className="grid gap-4 md:grid-cols-5 mb-6">
-              {[
-                { label: 'Impressões', value: '89.030', icon: Eye },
-                { label: 'Cliques', value: '2.435', icon: MousePointerClick },
-                { label: 'CTR', value: '2.73%', icon: TrendingUp },
-                { label: 'CPC Médio', value: 'R$ 1,89', icon: DollarSign },
-                { label: 'Gasto Total', value: 'R$ 4.608,75', icon: DollarSign },
-              ].map((m) => (
-                <Card key={m.label}>
-                  <CardContent className="pt-6 text-center">
-                    <m.icon className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-xs text-muted-foreground">{m.label}</p>
-                    <p className="text-xl font-bold text-foreground">{m.value}</p>
+            {!metaConfig ? (
+              <Card>
+                <CardContent className="py-12 text-center space-y-4">
+                  <Facebook className="h-12 w-12 mx-auto text-muted-foreground" />
+                  <h3 className="text-lg font-semibold">Conecte sua conta Meta Ads</h3>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                    Para visualizar métricas reais de campanhas, configure seu Access Token e ID da conta de anúncios do Meta Business.
+                  </p>
+                  <Button onClick={() => setMetaConfigOpen(true)}>
+                    <Plus className="h-4 w-4 mr-1" /> Configurar Meta Ads
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <div className="mb-4 flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Conta: <span className="font-medium text-foreground">{metaConfig.account_name || metaConfig.ad_account_id}</span>
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => { setMetaToken(''); setMetaAccountId(''); setMetaAccountName(metaConfig.account_name || ''); setMetaConfigOpen(true); }}>
+                    <Pencil className="h-3 w-3 mr-1" /> Editar credenciais
+                  </Button>
+                </div>
+                <div className="grid gap-4 md:grid-cols-5 mb-6">
+                  {[
+                    { label: 'Impressões', value: metaTotals.impressions.toLocaleString('pt-BR'), icon: Eye },
+                    { label: 'Cliques', value: metaTotals.clicks.toLocaleString('pt-BR'), icon: MousePointerClick },
+                    { label: 'CTR', value: metaTotals.ctr + '%', icon: TrendingUp },
+                    { label: 'CPC Médio', value: 'R$ ' + metaTotals.cpc.replace('.', ','), icon: DollarSign },
+                    { label: 'Gasto Total', value: 'R$ ' + metaTotals.spend.toFixed(2).replace('.', ','), icon: DollarSign },
+                  ].map((m) => (
+                    <Card key={m.label}>
+                      <CardContent className="pt-6 text-center">
+                        <m.icon className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground">{m.label}</p>
+                        <p className="text-xl font-bold text-foreground">{(loadingInsights) ? '...' : m.value}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+                <Card>
+                  <CardHeader><CardTitle>Campanhas</CardTitle></CardHeader>
+                  <CardContent>
+                    {(loadingCampaigns || loadingInsights) ? (
+                      <p className="text-center text-muted-foreground py-8">Carregando dados do Meta Ads...</p>
+                    ) : metaAdsRows.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">Nenhuma campanha encontrada no período selecionado</p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Campanha</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Impressões</TableHead>
+                            <TableHead className="text-right">Cliques</TableHead>
+                            <TableHead className="text-right">CTR</TableHead>
+                            <TableHead className="text-right">CPC</TableHead>
+                            <TableHead className="text-right">Gasto</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {metaAdsRows.map((ad: any) => (
+                            <TableRow key={ad.id}>
+                              <TableCell className="font-medium">{ad.name}</TableCell>
+                              <TableCell><Badge variant={ad.status === 'Ativa' ? 'default' : 'secondary'}>{ad.status}</Badge></TableCell>
+                              <TableCell className="text-right">{ad.impressions.toLocaleString('pt-BR')}</TableCell>
+                              <TableCell className="text-right">{ad.clicks.toLocaleString('pt-BR')}</TableCell>
+                              <TableCell className="text-right">{ad.ctr}</TableCell>
+                              <TableCell className="text-right">{ad.cpc}</TableCell>
+                              <TableCell className="text-right">{ad.spend}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-            <Card>
-              <CardHeader><CardTitle>Anúncios</CardTitle></CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Anúncio</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Impressões</TableHead>
-                      <TableHead className="text-right">Cliques</TableHead>
-                      <TableHead className="text-right">CTR</TableHead>
-                      <TableHead className="text-right">CPC</TableHead>
-                      <TableHead className="text-right">Gasto</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {metaAds.map((ad) => (
-                      <TableRow key={ad.id}>
-                        <TableCell className="font-medium">{ad.name}</TableCell>
-                        <TableCell><Badge variant={ad.status === 'Ativa' ? 'default' : 'secondary'}>{ad.status}</Badge></TableCell>
-                        <TableCell className="text-right">{ad.impressions.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">{ad.clicks.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">{ad.ctr}</TableCell>
-                        <TableCell className="text-right">{ad.cpc}</TableCell>
-                        <TableCell className="text-right">{ad.spend}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+              </>
+            )}
           </TabsContent>
 
           {/* Tab 3: Calendário */}
