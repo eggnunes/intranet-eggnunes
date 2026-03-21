@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Bell, Search, Filter, FileDown, FileText, ListTodo, Eye, EyeOff, RefreshCw, CheckCircle2, Calendar as CalendarIcon } from 'lucide-react';
+import { TutorialOverlay } from '@/components/TutorialOverlay';
+import { tutorialsByPage } from '@/components/tutorialData';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, subDays, startOfDay, startOfMonth, isAfter, parseISO } from 'date-fns';
