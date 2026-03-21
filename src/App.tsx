@@ -483,6 +483,14 @@ const App = () => (
               }
             />
             <Route
+              path="/criar-pasta-cliente"
+              element={
+                <ProtectedRoute>
+                  <CriarPastaCliente />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/mensagens"
               element={
                 <ProtectedRoute>
