@@ -313,13 +313,15 @@ export default function MarketingHub() {
             <TabsTrigger value="funil" className="flex-1 min-w-[120px]"><Filter className="h-4 w-4 mr-1" />Funil</TabsTrigger>
           </TabsList>
 
-          {/* Tab 1: Campanhas */}
+          {/* Tab 1: Campanhas - uses Meta Ads data */}
           <TabsContent value="campanhas">
-            <div className="grid gap-4 md:grid-cols-4 mb-6">
-              <Card><CardContent className="pt-6 text-center"><p className="text-sm text-muted-foreground">Campanhas Ativas</p><p className="text-3xl font-bold text-foreground">{campaigns.filter((c: any) => c.status === 'active').length}</p></CardContent></Card>
-              <Card><CardContent className="pt-6 text-center"><p className="text-sm text-muted-foreground">Investimento Total</p><p className="text-3xl font-bold text-foreground">R$ {totalInvestment.toLocaleString('pt-BR')}</p></CardContent></Card>
-              <Card><CardContent className="pt-6 text-center"><p className="text-sm text-muted-foreground">Receita Total</p><p className="text-3xl font-bold text-green-500">R$ {totalRevenue.toLocaleString('pt-BR')}</p></CardContent></Card>
-              <Card><CardContent className="pt-6 text-center"><p className="text-sm text-muted-foreground">ROI Geral</p><p className={cn("text-3xl font-bold", Number(overallROI) >= 0 ? 'text-green-500' : 'text-destructive')}>{overallROI}%</p></CardContent></Card>
+            <MetaAdsTab metaConfig={metaConfig} dateRange={dateRange} onOpenConfig={() => setMetaConfigOpen(true)} />
+          </TabsContent>
+
+          {/* Tab 2: Meta Ads - full manager */}
+          <TabsContent value="meta-ads">
+            <MetaAdsTab metaConfig={metaConfig} dateRange={dateRange} onOpenConfig={() => setMetaConfigOpen(true)} />
+          </TabsContent>
             </div>
             <Card>
               <CardHeader><CardTitle>Campanhas</CardTitle></CardHeader>
