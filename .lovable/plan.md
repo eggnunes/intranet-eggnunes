@@ -1,29 +1,32 @@
 
 
-## Criar grupo "Comunicações" e mover itens
+## Viabilidade Jurídica — Escolha de IA e Análise Profunda
 
-### O que muda
+### Situação atual
+- A edge function `analyze-viability` usa **Claude Sonnet 4** via API direta da Anthropic
+- Não há opção de escolha de modelo pelo usuário
+- O prompt é razoável mas pode ser mais profundo
 
-**Arquivo: `src/components/AppSidebar.tsx`**
+### O que será feito
 
-**1. Expandir o grupo existente "Comunicação & Avisos"** (id: `comunicacao`) — renomear para **"Comunicações"** e adicionar os itens que hoje estão em "Meu Painel":
+**1. Frontend (`src/pages/ViabilidadeNovo.tsx`)**
+- Adicionar um seletor de IA antes do botão "Analisar Viabilidade" com duas opções:
+  - **Claude (Análise Profunda)** — usa Claude Sonnet 4 via Anthropic API
+  - **ChatGPT (Pesquisa Investigativa)** — usa OpenAI o3 via API direta (modelo de raciocínio avançado, equivalente à "pesquisa profunda")
+- Enviar o campo `modelo` no body da requisição
 
-Itens do novo grupo **Comunicações** (📢):
-1. Documentos Úteis (`/documentos-uteis`)
-2. Notificações (`/notificacoes`)
-3. Fórum (`/forum`)
-4. Mensagens (`/mensagens`)
-5. Sugestões (`/sugestoes`)
-6. Dashboard Sugestões (`/dashboard-sugestoes`)
-7. Caixinha de Desabafo (`/caixinha-desabafo`)
-8. Mensagens Encaminhadas (`/mensagens-encaminhadas`)
-9. WhatsApp Avisos (`/whatsapp-avisos`)
-10. Galeria de Eventos (`/galeria-eventos`)
+**2. Edge Function (`supabase/functions/analyze-viability/index.ts`)**
+- Receber o campo `modelo` (`claude` ou `chatgpt`)
+- Manter a rota Claude existente (Anthropic API direta com `claude-sonnet-4-20250514`)
+- Adicionar rota OpenAI usando `OPENAI_API_KEY` com modelo `o3` e reasoning effort `high` para análise profunda
+- Expandir o system prompt para exigir análise mais detalhada: jurisprudência relevante, riscos processuais, estimativa de prazo e probabilidade de êxito
+- Retornar também qual modelo foi usado na resposta
 
-**2. Remover esses itens de "Meu Painel"** — ficam apenas:
-- Meu Perfil
-- Solicitações
-- Sobre o Escritório
+**3. Secrets necessários**
+- `ANTHROPIC_API_KEY` — já configurado
+- `OPENAI_API_KEY` — já configurado
 
-**3. Manter todas as condições de acesso existentes** (nenhum desses itens tem `condition`, então ficam acessíveis a todos como já estavam).
+### Arquivos alterados
+- `src/pages/ViabilidadeNovo.tsx` — seletor de modelo + envio do campo
+- `supabase/functions/analyze-viability/index.ts` — suporte a dois provedores + prompt aprimorado
 
