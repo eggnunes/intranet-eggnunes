@@ -19,7 +19,6 @@ export const JusbrasilCodeFetcher = () => {
   const [codes, setCodes] = useState<JusbrasilCode[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
-  const [debugData, setDebugData] = useState<any>(null);
 
   const fetchCode = async () => {
     setIsLoading(true);
@@ -29,7 +28,6 @@ export const JusbrasilCodeFetcher = () => {
       if (error) throw error;
 
       setCodes(data.codes || []);
-      setDebugData(data.debug || null);
       setLastFetch(new Date());
 
       if (data.codes?.length > 0) {
@@ -113,14 +111,6 @@ export const JusbrasilCodeFetcher = () => {
           ))}
         </div>
 
-        {debugData && (
-          <div className="mt-4 p-3 rounded-lg border bg-muted/50">
-            <p className="text-xs font-semibold text-muted-foreground mb-2">🔍 Debug Info:</p>
-            <pre className="text-xs overflow-auto max-h-64 whitespace-pre-wrap text-foreground">
-              {JSON.stringify(debugData, null, 2)}
-            </pre>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
