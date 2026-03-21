@@ -259,7 +259,10 @@ export default function MarketingHub() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">{getGreeting()}, {firstName} 👋</h1>
-            <p className="text-muted-foreground text-sm">Marketing Hub — Gerencie campanhas, anúncios e conteúdo</p>
+            <p className="text-muted-foreground text-sm flex items-center gap-2">
+              Marketing Hub — Gerencie campanhas, anúncios e conteúdo
+              <TutorialOverlay pageKey="marketing" pageName={tutorialsByPage.marketing.pageName} steps={tutorialsByPage.marketing.steps} />
+            </p>
           </div>
           <div className="flex flex-wrap gap-3 items-center">
             <Select value={periodDays} onValueChange={setPeriodDays}>

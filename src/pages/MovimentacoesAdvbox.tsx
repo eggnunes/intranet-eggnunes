@@ -302,6 +302,7 @@ export default function MovimentacoesAdvbox() {
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <AlertCircle className="h-8 w-8 text-primary" />
               Movimentações
+              <TutorialOverlay pageKey="movimentacoes" pageName={tutorialsByPage.movimentacoes.pageName} steps={tutorialsByPage.movimentacoes.steps} />
             </h1>
             <p className="text-muted-foreground mt-2">
               Acompanhe todas as movimentações dos processos
