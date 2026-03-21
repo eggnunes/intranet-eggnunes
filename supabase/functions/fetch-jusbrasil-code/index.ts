@@ -85,7 +85,10 @@ serve(async (req) => {
     }
 
     const data = await graphResponse.json();
-    const codes = extractCodes(data.value || []);
+    const emails = (data.value || []).sort((a: any, b: any) => 
+      new Date(b.receivedDateTime).getTime() - new Date(a.receivedDateTime).getTime()
+    );
+    const codes = extractCodes(emails);
 
     return new Response(JSON.stringify({ codes, emails: data.value?.length || 0 }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
