@@ -22,6 +22,8 @@ import { NovoLancamentoDialog } from '@/components/financeiro/NovoLancamentoDial
 import { useFinanceiroKeyboardShortcuts, KeyboardShortcutsLegend } from '@/components/financeiro/FinanceiroKeyboardShortcuts';
 import { AdvboxFinancialSync } from '@/components/financeiro/AdvboxFinancialSync';
 import { useUserRole } from '@/hooks/useUserRole';
+import { TutorialOverlay } from '@/components/TutorialOverlay';
+import { tutorialsByPage } from '@/components/tutorialData';
 
 export default function Financeiro() {
   const navigate = useNavigate();
