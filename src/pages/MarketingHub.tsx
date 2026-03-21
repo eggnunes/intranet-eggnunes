@@ -50,7 +50,6 @@ function getGreeting(): string {
 export default function MarketingHub() {
   const { profile } = useUserRole();
   const queryClient = useQueryClient();
-  const [metaAccount, setMetaAccount] = useState('all');
   const [periodDays, setPeriodDays] = useState('30');
   const [customRange, setCustomRange] = useState<{ from?: Date; to?: Date }>({});
   const [pubDialogOpen, setPubDialogOpen] = useState(false);
