@@ -66,9 +66,33 @@ serve(async (req) => {
     const accessToken = await getAccessToken();
     console.log('Access token obtained successfully');
 
-    // Search for JusBrasil verification emails using $search only
     const userEmail = 'rafael@eggnunes.com.br';
-    
+
+    // DIAGNOSTIC: Fetch last 3 emails (any email) without $search
+    let diagnosticData: any = null;
+    let diagnosticErrorText: string | null = null;
+    try {
+      const diagUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userEmail)}/messages?$top=3&$select=subject,from,receivedDateTime`;
+      console.log('Diagnostic URL:', diagUrl);
+      const diagResponse = await fetch(diagUrl, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!diagResponse.ok) {
+        diagnosticErrorText = await diagResponse.text();
+        console.log('Diagnostic error:', diagnosticErrorText);
+      } else {
+        diagnosticData = await diagResponse.json();
+        console.log('Diagnostic - total messages in mailbox:', diagnosticData.value?.length, 'subjects:', diagnosticData.value?.map((e: any) => e.subject));
+      }
+    } catch (diagErr: any) {
+      diagnosticErrorText = diagErr.message;
+      console.log('Diagnostic exception:', diagnosticErrorText);
+    }
+
+    // Search for JusBrasil verification emails using $search only
     const graphUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userEmail)}/messages?$search="from:noreply@jusbrasil.com.br"&$top=5&$select=subject,body,receivedDateTime,from`;
     console.log('Graph URL:', graphUrl);
 
