@@ -155,6 +155,29 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
     enabled: hasConfig,
   });
 
+  // Phone→Product mapping for display
+  const { data: phoneProductMap = [] } = useQuery({
+    queryKey: ['whatsapp-product-numbers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('whatsapp_product_numbers')
+        .select('phone_number, product_name')
+        .eq('is_active', true);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const getProductFromPhone = (lead: any): string | null => {
+    if (lead.product_name) return lead.product_name;
+    const bizPhone = lead.whatsapp_business_phone;
+    if (bizPhone) {
+      const match = phoneProductMap.find((m: any) => m.phone_number === bizPhone);
+      if (match) return match.product_name;
+    }
+    return null;
+  };
+
   // All leads combined for the Leads tab
   const allLeads = useMemo(() => {
     const combined = [
