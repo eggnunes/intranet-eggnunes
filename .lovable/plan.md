@@ -1,25 +1,16 @@
 
 
-## Correções na Caixinha de Desabafo
+## Fix: Mostrar nome do remetente quando mensagem NÃO é anônima
 
-### 1. Ícone do olho — adicionar tooltip
+### Problema
 
-Os ícones `Eye` (verde) e `EyeOff` (vermelho/laranja) nas linhas 473-477 indicam se a mensagem foi enviada **identificada** ou **anônima**. Falta um tooltip para explicar isso.
+Tanto no card da lista (linhas 515-519) quanto no detalhe da mensagem (linhas 598-621), o código **sempre** mostra "Remetente Anônimo" para mensagens recebidas — ignorando o campo `is_anonymous`. Mensagens identificadas (olho verde) deveriam exibir o nome do remetente.
 
-**Correção:** Envolver cada ícone com `<Tooltip>` do shadcn:
-- `EyeOff` (laranja) → tooltip: "Mensagem anônima"
-- `Eye` (verde) → tooltip: "Remetente identificado"
+### Correções em `src/pages/CaixinhaDesabafo.tsx`
 
-### 2. Botão "Ver" remetente — esconder com gesto secreto
+**1. Card da lista (linhas 510-519):** Quando `!msg.is_anonymous`, mostrar `msg.sender?.full_name` com ícone `User` em vez de `UserX` + "Remetente Anônimo".
 
-O botão `Ver` nas linhas 592-609 é visível demais. Substituir por um **gesto secreto**: clicar 3 vezes rapidamente no ícone do `UserX` (avatar anônimo) revela o remetente. Sem nenhum botão, texto ou indicação visual de que isso é possível.
-
-**Implementação:**
-- Remover o `<Button>` "Ver"/"Ocultar" completamente
-- Adicionar um contador de cliques rápidos no ícone do avatar (triple-click em < 1 segundo)
-- Ao completar o triple-click, faz toggle do `showSender`
-- Nenhuma pista visual — apenas quem sabe do gesto consegue revelar
-
-### Arquivo a editar
-- `src/pages/CaixinhaDesabafo.tsx`
+**2. Detalhe da mensagem — view do sócio (linhas 598-621):**
+- Se `!msg.is_anonymous`: mostrar nome, cargo e email diretamente, com ícone `User` no avatar. Sem gesto secreto.
+- Se `msg.is_anonymous`: manter comportamento atual (avatar `UserX` com triple-click secreto para revelar).
 
