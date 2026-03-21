@@ -208,7 +208,7 @@ export function AppSidebar() {
         { icon: SearchIcon, path: '/pesquisa-jurisprudencia', label: 'Pesquisa Jurisprudência' },
         { icon: FileText, path: '/publicacoes-dje', label: 'Publicações DJE' },
         { icon: Gavel, path: '/portais-tribunais', label: 'Portais de Tribunais' },
-        { icon: Award, path: '/decisoes-favoraveis', label: 'Decisões Favoráveis' },
+        { icon: Award, path: '/decisoes-favoraveis', label: 'Jurisprudência Interna' },
         { icon: Bell, path: '/publicacoes', label: 'Publicações Feed' },
       ],
     },

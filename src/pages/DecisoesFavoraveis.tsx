@@ -1003,6 +1003,7 @@ export default function DecisoesFavoraveis() {
                           <TableHead className="w-[80px]">Resultado</TableHead>
                           <TableHead className="w-[100px]">Tribunal</TableHead>
                           <TableHead className="w-[80px]">Decisão</TableHead>
+                          <TableHead className="w-[80px]">Cadastro</TableHead>
                           <TableHead className="w-[90px] text-center">Status</TableHead>
                           <TableHead className="w-[90px] text-right">Ações</TableHead>
                         </TableRow>
@@ -1051,6 +1052,9 @@ export default function DecisoesFavoraveis() {
                             </TableCell>
                             <TableCell className="text-sm py-2">
                               {format(new Date(decision.decision_date), 'dd/MM/yyyy', { locale: ptBR })}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground py-2">
+                              {format(new Date(decision.created_at), 'dd/MM/yyyy', { locale: ptBR })}
                             </TableCell>
                             <TableCell className="py-2">
                               <div className="flex justify-center gap-1">
