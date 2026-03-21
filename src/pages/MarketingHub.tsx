@@ -101,20 +101,46 @@ export default function MarketingHub() {
       const { data } = await supabase
         .from('crm_deal_stages')
         .select('*')
-        .order('position');
+        .order('order_index');
       return data || [];
     },
   });
 
   const { data: deals = [] } = useQuery({
-    queryKey: ['marketing-funnel-deals', dateRange],
+    queryKey: ['marketing-funnel-deals'],
     queryFn: async () => {
       const { data } = await supabase
         .from('crm_deals')
-        .select('*')
-        .gte('created_at', dateRange.from.toISOString())
-        .lte('created_at', dateRange.to.toISOString());
+        .select('id, stage_id, value, won');
       return data || [];
+    },
+  });
+
+  // Meta Ads insights for ROI tab
+  const metaDateFrom = format(dateRange.from, 'yyyy-MM-dd');
+  const metaDateTo = format(dateRange.to, 'yyyy-MM-dd');
+
+  const { data: metaInsights = [] } = useQuery({
+    queryKey: ['marketing-roi-insights', metaDateFrom, metaDateTo],
+    queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) return [];
+      const resp = await supabase.functions.invoke('meta-ads', {
+        body: { action: 'insights', date_from: metaDateFrom, date_to: metaDateTo },
+      });
+      return resp.data?.insights || [];
+    },
+  });
+
+  const { data: metaDailyInsights = [] } = useQuery({
+    queryKey: ['marketing-roi-daily', metaDateFrom, metaDateTo],
+    queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) return [];
+      const resp = await supabase.functions.invoke('meta-ads', {
+        body: { action: 'daily_insights', date_from: metaDateFrom, date_to: metaDateTo },
+      });
+      return resp.data?.daily || [];
     },
   });
 
