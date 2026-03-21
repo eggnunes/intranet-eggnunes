@@ -155,6 +155,29 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
     enabled: hasConfig,
   });
 
+  // Phone→Product mapping for display
+  const { data: phoneProductMap = [] } = useQuery({
+    queryKey: ['whatsapp-product-numbers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('whatsapp_product_numbers')
+        .select('phone_number, product_name')
+        .eq('is_active', true);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const getProductFromPhone = (lead: any): string | null => {
+    if (lead.product_name) return lead.product_name;
+    const bizPhone = lead.whatsapp_business_phone;
+    if (bizPhone) {
+      const match = phoneProductMap.find((m: any) => m.phone_number === bizPhone);
+      if (match) return match.product_name;
+    }
+    return null;
+  };
+
   // All leads combined for the Leads tab
   const allLeads = useMemo(() => {
     const combined = [
@@ -642,16 +665,29 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Leads Consolidados ({allLeads.length})</CardTitle>
-              <CardDescription>Leads capturados via Meta Ads (UTM) e WhatsApp Business</CardDescription>
+              <CardDescription>Leads capturados via Meta Ads (UTM) e WhatsApp Business — com produto identificado</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-3 mb-4">
+              <div className="flex flex-wrap gap-3 mb-4">
                 <Badge variant="default" className="text-xs">
                   <Facebook className="h-3 w-3 mr-1" /> Meta Ads: {metaLeads.length}
                 </Badge>
                 <Badge variant="secondary" className="text-xs">
                   📱 WhatsApp: {whatsappLeads.length}
                 </Badge>
+                {/* Per-product WhatsApp counts */}
+                {phoneProductMap.length > 0 && (() => {
+                  const productCounts: Record<string, number> = {};
+                  whatsappLeads.forEach((l: any) => {
+                    const prod = getProductFromPhone(l) || 'Não identificado';
+                    productCounts[prod] = (productCounts[prod] || 0) + 1;
+                  });
+                  return Object.entries(productCounts).map(([prod, count]) => (
+                    <Badge key={prod} variant="outline" className="text-xs">
+                      {prod}: {count}
+                    </Badge>
+                  ));
+                })()}
               </div>
               {(loadingLeads || loadingWhatsapp) ? <Skeleton className="h-[200px] w-full" /> : allLeads.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">Nenhum lead no período</p>
@@ -661,31 +697,44 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
                     <TableRow>
                       <TableHead>Nome</TableHead>
                       <TableHead>Telefone</TableHead>
+                      <TableHead>Produto</TableHead>
                       <TableHead>Campanha (UTM)</TableHead>
                       <TableHead>Origem</TableHead>
                       <TableHead>Data</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {allLeads.slice(0, 100).map((lead: any) => (
-                      <TableRow key={lead.id}>
-                        <TableCell className="font-medium">{lead.name}</TableCell>
-                        <TableCell>{lead.phone}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{lead.utm_campaign || '—'}</TableCell>
-                        <TableCell>
-                          {lead._origin === 'whatsapp' ? (
-                            <Badge variant="secondary" className="text-xs">📱 WhatsApp</Badge>
-                          ) : lead.utm_source === 'facebook' ? (
-                            <Badge className="text-xs bg-[#1877F2] hover:bg-[#1877F2]/90">Facebook</Badge>
-                          ) : lead.utm_source === 'instagram' ? (
-                            <Badge className="text-xs bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F77737] hover:opacity-90">Instagram</Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-xs">{lead.utm_source || 'Meta'}</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>{new Date(lead.created_at).toLocaleDateString('pt-BR')}</TableCell>
-                      </TableRow>
-                    ))}
+                    {allLeads.slice(0, 100).map((lead: any) => {
+                      const productFromPhone = getProductFromPhone(lead);
+                      return (
+                        <TableRow key={lead.id}>
+                          <TableCell className="font-medium">{lead.name}</TableCell>
+                          <TableCell>{lead.phone}</TableCell>
+                          <TableCell>
+                            {productFromPhone ? (
+                              <Badge variant="outline" className="text-xs font-medium">
+                                {productFromPhone}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="max-w-[200px] truncate">{lead.utm_campaign || '—'}</TableCell>
+                          <TableCell>
+                            {lead._origin === 'whatsapp' ? (
+                              <Badge variant="secondary" className="text-xs">📱 WhatsApp</Badge>
+                            ) : lead.utm_source === 'facebook' ? (
+                              <Badge className="text-xs bg-[#1877F2] hover:bg-[#1877F2]/90">Facebook</Badge>
+                            ) : lead.utm_source === 'instagram' ? (
+                              <Badge className="text-xs bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F77737] hover:opacity-90">Instagram</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs">{lead.utm_source || 'Meta'}</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>{new Date(lead.created_at).toLocaleDateString('pt-BR')}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}

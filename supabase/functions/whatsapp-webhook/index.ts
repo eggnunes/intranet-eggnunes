@@ -6,8 +6,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Map of WhatsApp Business phone numbers → product names (fallback if DB lookup fails)
+const PHONE_PRODUCT_MAP: Record<string, string> = {
+  '553184344364': 'Férias Prêmio',
+  '553132268742': 'Imposto de Renda',
+  '5511998802573': 'Imobiliário',
+};
+
 serve(async (req) => {
-  // Always return 200 for OPTIONS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -40,6 +46,22 @@ serve(async (req) => {
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseKey);
 
+      // Load phone→product mappings from DB
+      let phoneProductMap = { ...PHONE_PRODUCT_MAP };
+      try {
+        const { data: mappings } = await supabase
+          .from('whatsapp_product_numbers')
+          .select('phone_number, product_name')
+          .eq('is_active', true);
+        if (mappings) {
+          for (const m of mappings) {
+            phoneProductMap[m.phone_number] = m.product_name;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load phone mappings from DB, using fallback:', e);
+      }
+
       // Process each entry (WhatsApp Cloud API structure)
       const entries = body.entry || [];
       for (const entry of entries) {
@@ -52,6 +74,17 @@ serve(async (req) => {
           const contacts = value.contacts || [];
           const metadata = value.metadata || {};
 
+          // The business phone number that RECEIVED the message
+          const businessPhone = metadata.display_phone_number
+            ? metadata.display_phone_number.replace(/\D/g, '')
+            : null;
+
+          console.log('Business phone (display_phone_number):', businessPhone);
+
+          // Determine product from the business phone number
+          const detectedProduct = businessPhone ? (phoneProductMap[businessPhone] || null) : null;
+          console.log('Detected product from phone:', detectedProduct);
+
           // Extract referral from the first message if present (click-to-whatsapp ads)
           const referral = messages[0]?.referral || null;
 
@@ -59,8 +92,8 @@ serve(async (req) => {
             const msg = messages[i];
             const contact = contacts[i] || contacts[0];
 
-            // Only process inbound text/interactive messages
-            if (msg.type !== 'text' && msg.type !== 'interactive' && msg.type !== 'button') {
+            // Process all inbound message types (not just text)
+            if (msg.type !== 'text' && msg.type !== 'interactive' && msg.type !== 'button' && msg.type !== 'image' && msg.type !== 'audio' && msg.type !== 'video' && msg.type !== 'document') {
               continue;
             }
 
@@ -68,7 +101,7 @@ serve(async (req) => {
             const name = contact?.profile?.name || 'WhatsApp Lead';
             const text = msg.text?.body || msg.interactive?.body?.text || msg.button?.text || '';
 
-            console.log(`Processing message from ${phone} (${name}): ${text.slice(0, 80)}`);
+            console.log(`Processing message from ${phone} (${name}) to business ${businessPhone}: ${text.slice(0, 80)}`);
 
             // Dedup: check if lead from this phone exists in last 7 days
             const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -100,15 +133,16 @@ serve(async (req) => {
               landing_page = referral.source_url || null;
             }
 
-            // Find matching product from landing page
-            let product_name: string | null = null;
-            if (landing_page) {
-              const { data: mappings } = await supabase
+            // Product: prioritize referral-based detection, then phone-based detection, then URL mapping
+            let product_name = detectedProduct;
+
+            if (!product_name && landing_page) {
+              const { data: urlMappings } = await supabase
                 .from('landing_page_product_mappings')
                 .select('url_pattern, product_name');
 
-              if (mappings) {
-                const match = mappings.find((m: any) => {
+              if (urlMappings) {
+                const match = urlMappings.find((m: any) => {
                   const pattern = m.url_pattern.toLowerCase();
                   const url = landing_page!.toLowerCase();
                   return url.includes(pattern);
@@ -131,12 +165,13 @@ serve(async (req) => {
                 whatsapp_phone: phone,
                 whatsapp_message: text.slice(0, 1000),
                 whatsapp_referral: referral,
+                whatsapp_business_phone: businessPhone,
               });
 
             if (insertError) {
               console.error('Error inserting WhatsApp lead:', insertError);
             } else {
-              console.log(`WhatsApp lead saved for ${phone}`);
+              console.log(`WhatsApp lead saved for ${phone} → product: ${product_name || 'unknown'}, business: ${businessPhone}`);
             }
           }
         }

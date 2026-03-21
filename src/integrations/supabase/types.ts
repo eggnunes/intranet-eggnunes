@@ -1254,6 +1254,7 @@ export type Database = {
           utm_publisher: string | null
           utm_source: string | null
           utm_term: string | null
+          whatsapp_business_phone: string | null
           whatsapp_message: string | null
           whatsapp_phone: string | null
           whatsapp_referral: Json | null
@@ -1280,6 +1281,7 @@ export type Database = {
           utm_publisher?: string | null
           utm_source?: string | null
           utm_term?: string | null
+          whatsapp_business_phone?: string | null
           whatsapp_message?: string | null
           whatsapp_phone?: string | null
           whatsapp_referral?: Json | null
@@ -1306,6 +1308,7 @@ export type Database = {
           utm_publisher?: string | null
           utm_source?: string | null
           utm_term?: string | null
+          whatsapp_business_phone?: string | null
           whatsapp_message?: string | null
           whatsapp_phone?: string | null
           whatsapp_referral?: Json | null
@@ -8624,6 +8627,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_product_numbers: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          phone_number: string
+          product_name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          phone_number: string
+          product_name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          phone_number?: string
+          product_name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       whatsapp_scheduled_messages: {
         Row: {
