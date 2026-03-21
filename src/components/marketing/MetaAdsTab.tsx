@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
@@ -23,6 +24,31 @@ import {
   Plus, Pencil, Trash2, Copy, Play, Pause, Facebook, ArrowUpDown,
   Brain, Users, ChevronDown, ChevronUp, Loader2
 } from 'lucide-react';
+
+const ACRONYM_TOOLTIPS: Record<string, string> = {
+  'CTR': 'Taxa de Cliques (Click-Through Rate)',
+  'CPC': 'Custo por Clique (Cost Per Click)',
+  'CPL': 'Custo por Lead (Cost Per Lead)',
+  'CPM': 'Custo por Mil Impressões (Cost Per Mille)',
+  'ROAS': 'Retorno sobre Investimento em Ads (Return On Ad Spend)',
+  'CPA': 'Custo por Aquisição (Cost Per Acquisition)',
+  'ROI': 'Retorno sobre Investimento (Return On Investment)',
+};
+
+function AcronymTip({ acronym, children }: { acronym: string; children?: React.ReactNode }) {
+  const tip = ACRONYM_TOOLTIPS[acronym];
+  if (!tip) return <>{children || acronym}</>;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="underline decoration-dotted decoration-muted-foreground/50 cursor-help">
+          {children || acronym}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent><p>{tip}</p></TooltipContent>
+    </Tooltip>
+  );
+}
 
 interface MetaAdsTabProps {
   metaConfig: any;
