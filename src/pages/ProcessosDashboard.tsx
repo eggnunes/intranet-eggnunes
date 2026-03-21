@@ -1312,7 +1312,7 @@ export default function ProcessosDashboard() {
                 {/* PROCESSOS ATIVOS */}
                 <div className="text-center p-4 bg-primary/5 rounded-lg">
                   <div className="text-3xl font-bold text-primary">
-                    {evolutionMetrics.activeProcesses}
+                    {evolutionMetrics.activeProcesses || lawsuits.filter(l => !l.status_closure && !l.exit_production && !l.exit_execution).length}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
                     Processos Ativos

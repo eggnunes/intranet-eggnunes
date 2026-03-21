@@ -901,7 +901,7 @@ export default function TarefasAdvbox() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {filteredTasks.map((task) => (
+                  {paginatedTasks.map((task) => (
                     <Card key={task.id} className="hover:shadow-md transition-shadow">
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between gap-4 mb-3">
