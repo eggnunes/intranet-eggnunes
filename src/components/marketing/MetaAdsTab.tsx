@@ -108,7 +108,7 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
       if (error) throw error;
       return data?.leads || [];
     },
-    enabled: !!metaConfig,
+    enabled: hasConfig,
   });
 
   const { data: aiAnalysis, isLoading: loadingAI, refetch: runAI } = useQuery({
