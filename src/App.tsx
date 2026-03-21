@@ -154,6 +154,14 @@ const App = () => (
               }
             />
             <Route
+              path="/agentes-ia/:agentId"
+              element={
+                <ProtectedRoute>
+                  <AgenteChatPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/sugestoes"
               element={
                 <ProtectedRoute>
