@@ -5,10 +5,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-
 interface SuggestTaskRequest {
   publicationContent: string;
+  movementTitle?: string;
   processNumber?: string;
   customerName?: string;
   court?: string;
@@ -21,21 +20,25 @@ Deno.serve(async (req) => {
   }
 
   try {
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY não está configurada');
+    const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
+    if (!ANTHROPIC_API_KEY) {
+      throw new Error('ANTHROPIC_API_KEY não está configurada');
     }
 
     const body: SuggestTaskRequest = await req.json();
-    const { publicationContent, processNumber, customerName, court, taskTypes } = body;
+    const { publicationContent, movementTitle, processNumber, customerName, court, taskTypes } = body;
 
-    if (!publicationContent) {
-      return new Response(JSON.stringify({ error: 'publicationContent é obrigatório' }), {
+    if (!publicationContent && !movementTitle) {
+      return new Response(JSON.stringify({ error: 'publicationContent ou movementTitle é obrigatório' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('Analyzing publication for task suggestion:', publicationContent.substring(0, 200));
+    console.log('Analyzing publication for task suggestion:', {
+      movementTitle: movementTitle?.substring(0, 100),
+      content: publicationContent?.substring(0, 200),
+    });
 
     // Construir lista de tipos de tarefa disponíveis
     const taskTypesList = taskTypes?.length 
@@ -51,70 +54,120 @@ Deno.serve(async (req) => {
 - perícia
 - outro`;
 
-    const systemPrompt = `Você é um assistente jurídico especializado em análise de publicações e andamentos processuais brasileiros. Sua tarefa é analisar o conteúdo ESPECÍFICO de uma publicação/movimentação processual e sugerir uma tarefa DIRETAMENTE RELACIONADA ao que está descrito.
+    const systemPrompt = `Você é um advogado processualista brasileiro sênior com 20 anos de experiência. Sua tarefa é analisar movimentações processuais e sugerir a PRÓXIMA AÇÃO CONCRETA que o advogado deve tomar.
 
-REGRAS CRÍTICAS:
-1. A tarefa sugerida DEVE ser uma ação DIRETA em resposta ao conteúdo da publicação/movimentação
-2. NÃO sugira tarefas genéricas - seja ESPECÍFICO para o caso
-3. Identifique o tipo de movimentação (intimação, sentença, despacho, audiência, recurso, citação, etc.)
-4. Sugira a PRÓXIMA AÇÃO PROCESSUAL que o advogado deve tomar
+REGRAS ABSOLUTAS:
+1. A tarefa DEVE ser uma ação DIRETA e ESPECÍFICA em resposta ao conteúdo da movimentação
+2. NUNCA sugira tarefas genéricas como "conferir publicações", "verificar andamento", "acompanhar processo" ou "monitorar publicações"
+3. Se a movimentação indica uma AÇÃO FUTURA (julgamento, audiência, perícia), sugira PREPARAÇÃO para essa ação
+4. Se a movimentação indica uma DECISÃO ou DESPACHO, sugira a resposta processual adequada
+5. Seja ESPECÍFICO — mencione o tipo de peça, o prazo, a providência exata
 
-EXEMPLOS DE SUGESTÕES CORRETAS:
-- Movimentação: "Designada audiência de instrução para 15/02/2024" → Tarefa: "Preparar documentos e testemunhas para audiência de instrução"
-- Movimentação: "Proferida sentença procedente" → Tarefa: "Analisar sentença e comunicar cliente sobre resultado favorável" ou "Verificar prazo para recurso"
-- Movimentação: "Intimação para manifestação sobre laudo pericial" → Tarefa: "Analisar laudo pericial e elaborar manifestação"
-- Movimentação: "Designado julgamento pelo colegiado" → Tarefa: "Preparar sustentação oral" ou "Verificar pauta de julgamento"
-- Movimentação: "Citação para contestar" → Tarefa: "Elaborar contestação"
-- Movimentação: "Sentença improcedente" → Tarefa: "Analisar cabimento de recurso de apelação"
-- Movimentação: "Despacho: Diga a parte autora" → Tarefa: "Elaborar petição de manifestação"
-- Movimentação: "Juntada de AR positivo" → Tarefa: "Verificar início do prazo processual"
+EXEMPLOS DE MOVIMENTAÇÕES E TAREFAS CORRETAS:
+
+JULGAMENTO:
+- "Designado para julgamento virtual" → "Avaliar necessidade de oposição ao julgamento virtual e preparar sustentação oral"
+- "Designado julgamento pelo colegiado" → "Preparar sustentação oral e verificar pauta de julgamento"
+- "Incluído em pauta de julgamento" → "Preparar memoriais e sustentação oral para julgamento"
+- "Julgamento convertido em diligência" → "Verificar diligência determinada e cumprir exigência"
+
+SENTENÇA E DECISÕES:
+- "Proferida sentença procedente" → "Analisar dispositivo da sentença e comunicar cliente sobre resultado favorável"
+- "Proferida sentença improcedente" → "Analisar sentença para interposição de recurso de apelação"
+- "Sentença parcialmente procedente" → "Analisar pontos deferidos/indeferidos e avaliar recurso parcial"
+- "Decisão monocrática — negado seguimento" → "Analisar cabimento de agravo interno contra decisão monocrática"
+- "Decisão monocrática — dado provimento" → "Comunicar cliente e verificar trânsito em julgado"
+- "Decisão interlocutória — indeferido pedido de tutela" → "Avaliar interposição de agravo de instrumento"
+
+INTIMAÇÕES:
+- "Intimação para manifestação sobre laudo pericial" → "Analisar laudo pericial e elaborar manifestação técnica"
+- "Intimação para contrarrazões de recurso" → "Elaborar contrarrazões ao recurso interposto"
+- "Intimação para especificar provas" → "Elaborar petição de especificação de provas"
+- "Intimação para pagamento (art. 523 CPC)" → "Orientar cliente sobre pagamento voluntário ou elaborar impugnação"
+
+CITAÇÃO:
+- "Citação para contestar" → "Elaborar contestação no prazo legal"
+- "Citação para audiência de conciliação" → "Preparar proposta de acordo e orientar cliente para audiência"
+
+DESPACHOS:
+- "Despacho: Diga a parte autora" → "Elaborar petição de manifestação conforme determinado"
+- "Despacho: Emenda à inicial" → "Emendar petição inicial conforme determinação judicial"
+- "Despacho: Junte procuração" → "Juntar procuração atualizada aos autos"
+- "Despacho: Manifestem-se sobre os documentos" → "Analisar documentos juntados e elaborar manifestação"
+
+AUDIÊNCIAS:
+- "Designada audiência de instrução" → "Preparar rol de testemunhas, documentos e quesitos para audiência"
+- "Designada audiência de conciliação" → "Preparar proposta de acordo e orientar cliente"
+- "Audiência redesignada" → "Atualizar agenda e comunicar cliente sobre nova data"
+
+RECURSOS:
+- "Juntada de AR positivo" → "Verificar início do prazo processual e calcular término"
+- "Certidão de publicação" → "Calcular prazo recursal e providenciar peça processual"
+- "Recurso de apelação interposto pela parte contrária" → "Elaborar contrarrazões de apelação"
+- "Recurso especial admitido" → "Preparar contrarrazões ao recurso especial"
+
+PERÍCIA:
+- "Nomeado perito judicial" → "Indicar assistente técnico e elaborar quesitos"
+- "Laudo pericial juntado" → "Analisar laudo pericial e elaborar parecer técnico divergente se necessário"
+
+CUMPRIMENTO DE SENTENÇA:
+- "Trânsito em julgado" → "Iniciar cumprimento de sentença ou verificar obrigação a cumprir"
+- "Expedido mandado de penhora" → "Acompanhar cumprimento do mandado e indicar bens se necessário"
+- "Bloqueio de valores via SISBAJUD" → "Verificar valores bloqueados e avaliar necessidade de desbloqueio"
 
 TIPOS DE TAREFA DISPONÍVEIS:
 ${taskTypesList}
 
-Responda SEMPRE no formato JSON com a seguinte estrutura:
+Responda SEMPRE em formato JSON com esta estrutura EXATA:
 {
-  "suggestedTaskType": "nome do tipo de tarefa mais adequado",
+  "suggestedTaskType": "nome do tipo de tarefa mais adequado da lista acima",
   "suggestedTaskTypeId": "id do tipo se disponível, ou null",
-  "taskTitle": "título curto e descritivo ESPECÍFICO para esta movimentação",
-  "taskDescription": "descrição detalhada do que precisa ser feito EM RESPOSTA a esta publicação específica",
+  "taskTitle": "título curto e descritivo ESPECÍFICO para esta movimentação (máx 80 caracteres)",
+  "taskDescription": "descrição detalhada do que precisa ser feito, mencionando peças processuais, prazos e providências concretas",
   "suggestedDeadline": "data do prazo se identificada no texto (formato YYYY-MM-DD) ou null",
-  "isUrgent": true/false,
-  "isImportant": true/false,
-  "reasoning": "explicação de POR QUE esta tarefa é necessária em resposta a esta movimentação"
+  "isUrgent": true ou false,
+  "isImportant": true ou false,
+  "reasoning": "explicação de POR QUE esta tarefa específica é necessária em resposta a esta movimentação"
 }`;
 
-    const userPrompt = `Analise esta publicação/movimentação processual e sugira uma tarefa:
+    const contentParts = [];
+    if (movementTitle) contentParts.push(`TÍTULO DA MOVIMENTAÇÃO: ${movementTitle}`);
+    if (publicationContent && publicationContent !== movementTitle) {
+      contentParts.push(`DESCRIÇÃO/CONTEÚDO COMPLETO:\n${publicationContent}`);
+    }
+
+    const userPrompt = `Analise esta movimentação processual e sugira a tarefa ESPECÍFICA que o advogado deve executar:
 
 PROCESSO: ${processNumber || 'Não informado'}
-CLIENTE: ${customerName || 'Não informado'}  
+CLIENTE: ${customerName || 'Não informado'}
 TRIBUNAL: ${court || 'Não informado'}
 
-CONTEÚDO DA PUBLICAÇÃO:
-${publicationContent}
+${contentParts.join('\n\n')}
 
+LEMBRE-SE: Não sugira "conferir publicações" ou qualquer tarefa genérica. Sugira a AÇÃO PROCESSUAL CONCRETA.
 Responda APENAS com o JSON, sem texto adicional.`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: systemPrompt,
         messages: [
-          { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.3,
-        max_tokens: 1000,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI Gateway error:', response.status, errorText);
+      console.error('Anthropic API error:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ 
@@ -125,20 +178,20 @@ Responda APENAS com o JSON, sem texto adicional.`;
         });
       }
       
-      if (response.status === 402) {
+      if (response.status === 401) {
         return new Response(JSON.stringify({ 
-          error: 'Créditos insuficientes. Por favor, adicione créditos à sua conta.' 
+          error: 'Erro de autenticação com a API.' 
         }), {
-          status: 402,
+          status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
       
-      throw new Error(`AI Gateway error: ${response.status}`);
+      throw new Error(`Anthropic API error: ${response.status}`);
     }
 
     const aiResponse = await response.json();
-    const content = aiResponse.choices?.[0]?.message?.content;
+    const content = aiResponse.content?.[0]?.text;
 
     if (!content) {
       throw new Error('Resposta vazia da IA');
@@ -149,17 +202,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
     // Tentar extrair JSON da resposta
     let suggestion;
     try {
-      // Remover possíveis marcadores de código
       const jsonStr = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       suggestion = JSON.parse(jsonStr);
     } catch (parseError) {
       console.error('Failed to parse AI response as JSON:', parseError);
-      // Retornar sugestão padrão
       suggestion = {
-        suggestedTaskType: 'Análise de publicação',
+        suggestedTaskType: 'Análise de movimentação',
         suggestedTaskTypeId: null,
-        taskTitle: `Analisar publicação - ${processNumber || 'Processo'}`,
-        taskDescription: `Verificar e tomar providências sobre a publicação recente do processo.`,
+        taskTitle: `Analisar movimentação - ${processNumber || 'Processo'}`,
+        taskDescription: `Verificar e tomar providências sobre a movimentação recente do processo.`,
         suggestedDeadline: null,
         isUrgent: false,
         isImportant: true,

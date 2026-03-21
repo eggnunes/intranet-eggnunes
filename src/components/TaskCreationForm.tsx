@@ -111,7 +111,10 @@ export function TaskCreationForm({
     try {
       const { data, error } = await supabase.functions.invoke('suggest-task', {
         body: {
-          publicationContent: initialData.description || initialData.title || '',
+          movementTitle: initialData.title || '',
+          publicationContent: initialData.description 
+            ? `${initialData.title || ''}\n\n${initialData.description}` 
+            : initialData.title || '',
           processNumber: initialData.processNumber,
           customerName: initialData.customerName,
           taskTypes: taskTypes.map(t => ({ id: t.id, name: t.name })),
