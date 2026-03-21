@@ -147,6 +147,16 @@ export default function DistribuicaoTarefas() {
     });
   }, [tasks, timeFilter]);
 
+  // Colaboradores que não fazem parte do operacional e devem ser excluídos do ranking
+  const excludedCollaborators = useMemo(() => [
+    'RAFAEL EGG NUNES',
+    'JHONNY SILVA SOUZA',
+    'MARCOS LUIZ EGG NUNES',
+    'LUCAS MENDES DE PAULA',
+    'DANIEL MARTINS SILVA',
+    'LETÍCIA CAROLINA PESSOA',
+  ].map(n => n.toLowerCase()), []);
+
   // Group by collaborator
   const collaboratorStats = useMemo((): CollaboratorStats[] => {
     const map = new Map<string, { pending: number; inProgress: number }>();
@@ -159,6 +169,9 @@ export default function DistribuicaoTarefas() {
       const isInProgress = ['in_progress', 'em andamento'].includes(task.status?.toLowerCase());
 
       names.forEach((name: string) => {
+        // Excluir colaboradores não-operacionais
+        if (excludedCollaborators.includes(name.toLowerCase())) return;
+
         const current = map.get(name) || { pending: 0, inProgress: 0 };
         if (isPending) current.pending++;
         if (isInProgress) current.inProgress++;
@@ -176,7 +189,7 @@ export default function DistribuicaoTarefas() {
         total: stats.pending + stats.inProgress,
       }))
       .sort((a, b) => a.total - b.total);
-  }, [filteredTasks]);
+  }, [filteredTasks, excludedCollaborators]);
 
   const totalTasks = collaboratorStats.reduce((sum, c) => sum + c.total, 0);
   const avgTasks = collaboratorStats.length > 0 ? Math.round(totalTasks / collaboratorStats.length) : 0;
