@@ -125,7 +125,10 @@ serve(async (req) => {
       debug: {
         graphUrl,
         emailSubjects: emails.map((e: any) => e.subject),
-        rawEmailCount: data.value?.length || 0
+        rawEmailCount: data.value?.length || 0,
+        diagnosticEmails: diagnosticData?.value?.length || 0,
+        diagnosticSubjects: diagnosticData?.value?.map((e: any) => e.subject) || [],
+        diagnosticError: diagnosticErrorText || null
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
