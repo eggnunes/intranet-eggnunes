@@ -65,45 +65,23 @@ serve(async (req) => {
     // Get Microsoft Graph access token
     const accessToken = await getAccessToken();
 
-    // Search for JusBrasil verification emails
+    // Search for JusBrasil verification emails using $search only
     const userEmail = 'rafael@eggnunes.com.br';
-    const searchQuery = `(subject:JusBrasil OR subject:'codigo de verificacao' OR subject:'verification code' OR subject:'código de verificação')`;
     
-    const graphUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userEmail)}/messages?$filter=contains(subject,'JusBrasil') or contains(subject,'verificação') or contains(subject,'verification') or contains(subject,'código')&$orderby=receivedDateTime desc&$top=5&$select=subject,body,receivedDateTime,from`;
+    const graphUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userEmail)}/messages?$search="from:noreply@jusbrasil.com.br"&$orderby=receivedDateTime desc&$top=5&$select=subject,body,receivedDateTime,from`;
 
     const graphResponse = await fetch(graphUrl, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
+        'ConsistencyLevel': 'eventual',
       },
     });
 
     if (!graphResponse.ok) {
       const errorText = await graphResponse.text();
       console.error('Graph API error:', errorText);
-      
-      // Try alternative search using $search
-      const altUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userEmail)}/messages?$search="subject:JusBrasil OR subject:verificação OR subject:verification"&$orderby=receivedDateTime desc&$top=5&$select=subject,body,receivedDateTime,from`;
-      
-      const altResponse = await fetch(altUrl, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'ConsistencyLevel': 'eventual',
-        },
-      });
-
-      if (!altResponse.ok) {
-        const altError = await altResponse.text();
-        throw new Error(`Graph API failed: ${graphResponse.status} - ${errorText}. Alt: ${altResponse.status} - ${altError}`);
-      }
-
-      const altData = await altResponse.json();
-      const codes = extractCodes(altData.value || []);
-      
-      return new Response(JSON.stringify({ codes, emails: altData.value?.length || 0 }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      throw new Error(`Graph API failed: ${graphResponse.status} - ${errorText}`);
     }
 
     const data = await graphResponse.json();
