@@ -735,5 +735,6 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   );
 }
