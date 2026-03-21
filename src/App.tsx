@@ -54,6 +54,7 @@ import LeadTracking from "./pages/LeadTracking";
 import CRM from "./pages/CRM";
 import CodigosAutenticacao from "./pages/CodigosAutenticacao";
 import ArquivosTeams from "./pages/ArquivosTeams";
+import CriarPastaCliente from "./pages/CriarPastaCliente";
 import Mensagens from "./pages/Mensagens";
 import CaixinhaDesabafo from "./pages/CaixinhaDesabafo";
 import MensagensEncaminhadas from "./pages/MensagensEncaminhadas";
@@ -478,6 +479,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <ArquivosTeams />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/criar-pasta-cliente"
+              element={
+                <ProtectedRoute>
+                  <CriarPastaCliente />
                 </ProtectedRoute>
               }
             />
