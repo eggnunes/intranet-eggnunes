@@ -507,7 +507,7 @@ const CaixinhaDesabafo = () => {
   );
 
   // Render message detail for user's own messages (view only)
-  const MessageDetailOwn = ({ msg }: { msg: FeedbackMessage }) => (
+  const renderMessageDetailOwn = (msg: FeedbackMessage) => (
     <div className="space-y-6">
       <div>
         <label className="text-sm font-medium text-muted-foreground">Assunto</label>
