@@ -428,7 +428,7 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
                                 <div><span className="text-muted-foreground">Orçamento diário:</span> <span className="font-medium">{row.daily_budget ? formatBRL(row.daily_budget) : '—'}</span></div>
                                 <div><span className="text-muted-foreground">Orçamento total:</span> <span className="font-medium">{row.lifetime_budget ? formatBRL(row.lifetime_budget) : '—'}</span></div>
                                 <div><span className="text-muted-foreground">Alcance:</span> <span className="font-medium">{formatNum(row.reach)}</span></div>
-                                <div><span className="text-muted-foreground">CPL:</span> <span className="font-medium">{row.cpl > 0 ? formatBRL(row.cpl) : '—'}</span></div>
+                                <div><span className="text-muted-foreground"><AcronymTip acronym="CPL">CPL</AcronymTip>:</span> <span className="font-medium">{row.cpl > 0 ? formatBRL(row.cpl) : '—'}</span></div>
                                 <div><span className="text-muted-foreground">Estratégia de lance:</span> <span className="font-medium">{row.bid_strategy || '—'}</span></div>
                                 <div><span className="text-muted-foreground">Criada em:</span> <span className="font-medium">{row.created_time ? new Date(row.created_time).toLocaleDateString('pt-BR') : '—'}</span></div>
                                 {row.actions.length > 0 && (
