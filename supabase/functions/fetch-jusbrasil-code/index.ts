@@ -92,15 +92,14 @@ serve(async (req) => {
       console.log('Diagnostic exception:', diagnosticErrorText);
     }
 
-    // Search for JusBrasil verification emails using $search only
-    const graphUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userEmail)}/messages?$search="from:noreply@jusbrasil.com.br"&$top=5&$select=subject,body,receivedDateTime,from`;
+    // Search for JusBrasil verification emails using $filter
+    const graphUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userEmail)}/messages?$filter=from/emailAddress/address eq 'noreply@jusbrasil.com.br'&$orderby=receivedDateTime desc&$top=5&$select=subject,body,receivedDateTime,from`;
     console.log('Graph URL:', graphUrl);
 
     const graphResponse = await fetch(graphUrl, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
-        'ConsistencyLevel': 'eventual',
       },
     });
 
