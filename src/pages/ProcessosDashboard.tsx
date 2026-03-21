@@ -18,6 +18,8 @@ import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip
 import { format, subDays, subMonths, isAfter, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Briefcase, TrendingUp, BarChart, Search, Filter, Calendar, ListTodo, RefreshCw, MessageSquare, Send, X, Sparkles, Download } from 'lucide-react';
+import { TutorialOverlay } from '@/components/TutorialOverlay';
+import { tutorialsByPage } from '@/components/tutorialData';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
