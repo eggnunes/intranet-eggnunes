@@ -112,6 +112,15 @@ export const JusbrasilCodeFetcher = () => {
             </div>
           ))}
         </div>
+
+        {debugData && (
+          <div className="mt-4 p-3 rounded-lg border bg-muted/50">
+            <p className="text-xs font-semibold text-muted-foreground mb-2">🔍 Debug Info:</p>
+            <pre className="text-xs overflow-auto max-h-64 whitespace-pre-wrap text-foreground">
+              {JSON.stringify(debugData, null, 2)}
+            </pre>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
