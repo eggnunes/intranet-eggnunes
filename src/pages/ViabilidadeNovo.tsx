@@ -45,6 +45,7 @@ export default function ViabilidadeNovo() {
   const [endereco, setEndereco] = useState('');
   const [tipoAcao, setTipoAcao] = useState('');
   const [descricaoCaso, setDescricaoCaso] = useState('');
+  const [modeloIA, setModeloIA] = useState<'claude' | 'chatgpt'>('claude');
   const [arquivos, setArquivos] = useState<File[]>([]);
 
   // Analysis
