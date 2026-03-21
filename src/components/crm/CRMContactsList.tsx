@@ -492,8 +492,8 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
               ))}
             </SelectContent>
           </Select>
-          {profissaoFilter && (
-            <Button variant="ghost" size="sm" onClick={() => setProfissaoFilter('')}>
+          {profissaoFilter !== 'all' && (
+            <Button variant="ghost" size="sm" onClick={() => setProfissaoFilter('all')}>
               <X className="h-4 w-4" />
             </Button>
           )}
