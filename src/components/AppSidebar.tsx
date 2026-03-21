@@ -199,17 +199,19 @@ export function AppSidebar() {
       emoji: '⚖️',
       icon: Scale,
       items: [
+        // Bloco ADVBox
         { icon: Briefcase, path: '/processos', label: 'Processos Dashboard' },
-        { icon: ClipboardList, path: '/controle-prazos', label: 'Controle de Prazos', condition: isSocio || isAdmin },
         { icon: CheckSquare, path: '/tarefas-advbox', label: 'Tarefas Advbox', badgeCount: criticalTasksCount },
         { icon: Users, path: '/distribuicao-tarefas', label: 'Distribuição de Tarefas', condition: isSocio || isAdmin },
+        { icon: ClipboardList, path: '/controle-prazos', label: 'Controle de Prazos', condition: isSocio || isAdmin },
         { icon: Briefcase, path: '/processos-ativos', label: 'Processos Ativos' },
         { icon: AlertCircle, path: '/movimentacoes-advbox', label: 'Movimentações Advbox' },
+        { icon: Bell, path: '/publicacoes', label: 'Publicações ADVBox' },
+        // Bloco não-ADVBox
         { icon: SearchIcon, path: '/pesquisa-jurisprudencia', label: 'Pesquisa Jurisprudência' },
         { icon: FileText, path: '/publicacoes-dje', label: 'Publicações DJE' },
         { icon: Gavel, path: '/portais-tribunais', label: 'Portais de Tribunais' },
         { icon: Award, path: '/decisoes-favoraveis', label: 'Jurisprudência Interna' },
-        { icon: Bell, path: '/publicacoes', label: 'Publicações Feed' },
       ],
     },
     {
