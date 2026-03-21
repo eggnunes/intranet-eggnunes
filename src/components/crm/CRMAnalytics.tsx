@@ -43,7 +43,7 @@ export const CRMAnalytics = () => {
         .select('*')
         .order('created_at');
 
-      // Fetch deals for lost reasons
+      // Fetch deals for lost reasons (including stage_changed_at)
       const { data: deals } = await supabase
         .from('crm_deals')
         .select('*');
