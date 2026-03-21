@@ -60,7 +60,7 @@ export default function LeadTracking() {
         </div>
 
         <Tabs defaultValue="utm" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
             <TabsTrigger value="utm" className="flex items-center gap-2">
               <Link2 className="h-4 w-4" />
               <span className="hidden sm:inline">Gerador UTM</span>
@@ -85,6 +85,11 @@ export default function LeadTracking() {
               <GitCompare className="h-4 w-4" />
               <span className="hidden sm:inline">Comparar</span>
               <span className="sm:hidden">Comp</span>
+            </TabsTrigger>
+            <TabsTrigger value="whatsapp" className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              <span className="hidden sm:inline">WhatsApp</span>
+              <span className="sm:hidden">WA</span>
             </TabsTrigger>
           </TabsList>
 
