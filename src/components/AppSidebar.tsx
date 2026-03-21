@@ -207,6 +207,7 @@ export function AppSidebar() {
         { icon: Briefcase, path: '/processos-ativos', label: 'Processos Ativos' },
         { icon: AlertCircle, path: '/movimentacoes-advbox', label: 'Movimentações Advbox' },
         { icon: Bell, path: '/publicacoes', label: 'Publicações ADVBox' },
+        { icon: Cake, path: '/aniversarios-clientes', label: 'Aniversários Clientes' },
         // Bloco não-ADVBox
         { icon: SearchIcon, path: '/pesquisa-jurisprudencia', label: 'Pesquisa Jurisprudência' },
         { icon: FileText, path: '/publicacoes-dje', label: 'Publicações DJE' },
@@ -242,7 +243,6 @@ export function AppSidebar() {
         { icon: CalendarDays, path: '/gestao-folgas', label: 'Gestão de Folgas' },
         { icon: UserPlus, path: '/contratacao', label: 'Contratação' },
         { icon: Home, path: '/home-office', label: 'Home Office' },
-        { icon: Cake, path: '/aniversarios-clientes', label: 'Aniversários Clientes' },
         { icon: BookOpen, path: '/onboarding', label: 'Onboarding' },
       ],
     },
