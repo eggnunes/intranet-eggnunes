@@ -112,6 +112,10 @@ export default function LeadTracking() {
           <TabsContent value="compare">
             <LeadCampaignComparison />
           </TabsContent>
+
+          <TabsContent value="whatsapp">
+            <WhatsAppWebhookInfo />
+          </TabsContent>
         </Tabs>
       </div>
     </Layout>
