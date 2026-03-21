@@ -876,7 +876,7 @@ const CaixinhaDesabafo = () => {
                     ) : (
                       <div className="space-y-3">
                         {myMessages.map(msg => (
-                          {renderMessageCard(msg, true)}
+                          renderMessageCard(msg, true)
                         ))}
                       </div>
                     )}
