@@ -1,107 +1,58 @@
 
+## Reorganização do Menu Lateral + Criador de Pasta de Cliente no Teams
 
-## Agentes de IA — Abas ChatGPT + Agentes da Intranet
+### Mudanças no menu (`src/components/AppSidebar.tsx`)
 
-### Visão Geral
+**1. Códigos TOTP → Produção Jurídica**
+- Mover `{ icon: KeyRound, path: '/codigos-autenticacao', label: 'Códigos TOTP' }` para o grupo `producao-juridica`
 
-Transformar a página `/agentes-ia` em interface com duas abas:
-1. **Agentes do ChatGPT** — conteúdo atual (links externos)
-2. **Agentes da Intranet** — sistema completo de criação e uso de agentes customizados
+**2. Arquivos Teams → Novo grupo próprio**
+- Criar grupo **"Arquivos do Escritório"** (emoji 📁, id `arquivos`) com:
+  - Arquivos Teams (`/arquivos-teams`)
+  - Criar Pasta de Cliente (nova rota `/criar-pasta-cliente`)
+- Posicionar após "Meu Painel" e antes de "Viabilidade Jurídica" — acesso geral para todos
 
-### Banco de Dados (Migração)
+**3. Parceiros → dentro de Negócios & CRM**
+- Mover `{ icon: Handshake, path: '/parceiros', label: 'Parceiros' }` para o grupo `negocios`
 
-**Tabela `intranet_agents`:**
-- `id` (uuid PK)
-- `name` (text) — nome do agente
-- `objective` (text) — objetivo
-- `instructions` (text) — instruções detalhadas
-- `model` (text) — modelo de IA selecionado automaticamente
-- `icon_emoji` (text, default '🤖')
-- `created_by` (uuid → auth.users)
-- `is_active` (boolean, default true)
-- `created_at`, `updated_at`
+**4. Sala de Reunião → dentro de Meu Painel**
+- Faz mais sentido como recurso pessoal/agendamento — mover para `meu-painel`
 
-**Tabela `intranet_agent_files`:**
-- `id` (uuid PK)
-- `agent_id` (uuid → intranet_agents)
-- `file_name` (text)
-- `file_type` (text) — pdf, image, link, etc.
-- `file_url` (text) — URL do storage ou link externo
-- `file_size` (bigint, nullable)
-- `created_at`
+**5. Copa/Cozinha → dentro de RH (renomeado)**
+- Renomear grupo RH para **"RH & Administrativo"**
+- Mover `Copa/Cozinha` para este grupo
 
-**Tabela `intranet_agent_conversations`:**
-- `id` (uuid PK)
-- `agent_id` (uuid → intranet_agents)
-- `user_id` (uuid → auth.users)
-- `title` (text)
-- `created_at`, `updated_at`
+**6. Grupo Administrativo simplificado**
+- Fica apenas com: Admin, Cadastros Úteis (itens de configuração real)
 
-**Tabela `intranet_agent_messages`:**
-- `id` (uuid PK)
-- `conversation_id` (uuid → intranet_agent_conversations)
-- `role` (text) — user/assistant
-- `content` (text)
-- `created_at`
+### Nova funcionalidade: Criar Pasta de Cliente no Teams
 
-**Storage bucket:** `agent-files` (privado)
+**Nova página `src/pages/CriarPastaCliente.tsx`:**
+- Campo de nome do cliente
+- Seletor de site Teams (Jurídico, Comercial, etc.) — padrão: Jurídico
+- Caminho padrão: `Operacional - Clientes/{nome do cliente}`
+- Antes de criar, verifica se já existe pasta com mesmo nome via `findFolderByPath`
+- Se existir, mostra alerta "Já existe pasta para este cliente" com link para abrir
+- Se não existir, cria via `createFolderByPath`
+- Usa o hook `useTeamsUpload` já existente (que já tem `findFolderByPath`, `createFolderByPath`, `findOrCreateClientFolder`)
 
-**RLS:** Todos os usuários aprovados podem ver agentes ativos. Apenas o criador ou admin pode editar/deletar agentes. Mensagens acessíveis apenas pelo próprio usuário.
+**Rota em `src/App.tsx`:**
+- Adicionar `/criar-pasta-cliente` → `CriarPastaCliente`
 
-### Edge Functions
+### Arquivos a editar/criar
+- `src/components/AppSidebar.tsx` — reorganizar itens entre grupos
+- `src/pages/CriarPastaCliente.tsx` — nova página
+- `src/App.tsx` — nova rota
 
-**1. `suggest-agent-instructions`** (nova)
-- Recebe: nome do agente, objetivo, texto livre do usuário
-- Usa Claude Sonnet 4 (ANTHROPIC_API_KEY) para gerar instruções detalhadas e estruturadas
-- Retorna instruções sugeridas
-
-**2. `select-agent-model`** (nova)
-- Recebe: instruções do agente
-- Usa IA para analisar instruções e escolher modelo ideal:
-  - Análise jurídica/petições complexas → `claude-sonnet-4-20250514` (Anthropic)
-  - Cálculos/raciocínio lógico → `openai/gpt-5` (Lovable Gateway)
-  - Pesquisa/busca web → `sonar-pro` (Perplexity)
-  - Conteúdo/redação geral → `google/gemini-2.5-flash` (Lovable Gateway)
-- Retorna modelo recomendado + justificativa
-
-**3. `chat-with-agent`** (nova)
-- Recebe: agent_id, messages[], attachments context
-- Carrega instruções do agente + arquivos da base de conhecimento
-- Roteia para o modelo correto (Anthropic, OpenAI, Lovable Gateway ou Perplexity)
-- Suporta streaming SSE
-- Envia system prompt com instruções + conteúdo dos documentos anexados
-
-### Frontend
-
-**1. Página `AgentesIA.tsx` — Reestruturar com Tabs:**
-- Tab "Agentes do ChatGPT" → conteúdo atual (cards com links)
-- Tab "Agentes da Intranet" → lista de agentes criados + botão "Criar Novo Agente"
-
-**2. Componente `CreateAgentDialog.tsx`:**
-- Campos: Nome, Objetivo, Instruções (textarea grande)
-- Botão "Sugerir Instruções com IA" (texto ou voz via Whisper)
-- Upload de arquivos (PDF, imagens, links) como base de conhecimento
-- Modelo IA selecionado automaticamente ao salvar (com indicação visual)
-- Preview do agente antes de salvar
-
-**3. Componente `AgentChat.tsx`:**
-- Abre como página/aba separada (`/agentes-ia/:agentId`)
-- Interface de chat com streaming (similar ao AssistenteIA existente)
-- Mostra nome/objetivo do agente no header
-- Histórico de conversas
-- Input de texto + voz
-
-**4. Rota nova em `App.tsx`:**
-- `/agentes-ia/:agentId` → página de chat com o agente
-
-### Arquivos a criar/editar
-- `src/pages/AgentesIA.tsx` — reestruturar com tabs
-- `src/components/agents/CreateAgentDialog.tsx` — formulário de criação
-- `src/components/agents/AgentChat.tsx` — interface de chat
-- `src/pages/AgenteChatPage.tsx` — página wrapper para chat
-- `src/App.tsx` — adicionar rota
-- `supabase/functions/suggest-agent-instructions/index.ts`
-- `supabase/functions/select-agent-model/index.ts`
-- `supabase/functions/chat-with-agent/index.ts`
-- Migração SQL para tabelas + RLS + bucket
-
+### Nova ordem dos grupos
+1. Dashboard & Visão Geral
+2. Ferramentas & IA
+3. Negócios & CRM (+ Parceiros)
+4. Produção Jurídica (+ Códigos TOTP)
+5. Financeiro
+6. RH & Administrativo (+ Copa/Cozinha)
+7. Meu Painel (+ Sala de Reunião)
+8. 📁 Arquivos do Escritório (novo — Teams + Criar Pasta)
+9. Viabilidade Jurídica
+10. Comunicação e Avisos
+11. Administrativo & Config. (apenas Admin + Cadastros Úteis)
