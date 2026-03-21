@@ -103,6 +103,21 @@ const CaixinhaDesabafo = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isSocio, setIsSocio] = useState(false);
   const [showSender, setShowSender] = useState(false);
+  const secretClickCountRef = useRef(0);
+  const secretClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSecretReveal = useCallback(() => {
+    secretClickCountRef.current += 1;
+    if (secretClickTimerRef.current) clearTimeout(secretClickTimerRef.current);
+    if (secretClickCountRef.current >= 3) {
+      secretClickCountRef.current = 0;
+      setShowSender(prev => !prev);
+    } else {
+      secretClickTimerRef.current = setTimeout(() => {
+        secretClickCountRef.current = 0;
+      }, 800);
+    }
+  }, []);
   const [activeTab, setActiveTab] = useState<string>('enviar');
   
   // Form state
