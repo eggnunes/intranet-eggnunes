@@ -15,6 +15,8 @@ import { ptBR } from 'date-fns/locale';
 import { TaskNotifications } from '@/components/TaskNotifications';
 import { BirthdayMessageFailuresAlert } from '@/components/BirthdayMessageFailuresAlert';
 import { getTopAccessedPages } from '@/hooks/useAccessTracking';
+import { TutorialOverlay } from '@/components/TutorialOverlay';
+import { tutorialsByPage } from '@/components/tutorialData';
 
 interface BirthdayProfile {
   id: string;
@@ -311,6 +313,13 @@ export default function Dashboard() {
               <p className="text-foreground/80 text-lg mb-3">
                 Seja bem-vindo à Intranet Egg Nunes! Acesse suas ferramentas e recursos.
               </p>
+              <div className="flex items-center gap-2 mb-1">
+                <TutorialOverlay
+                  pageKey="dashboard"
+                  pageName={tutorialsByPage.dashboard.pageName}
+                  steps={tutorialsByPage.dashboard.steps}
+                />
+              </div>
               <div className="flex items-center gap-2">
                 <Badge className="bg-primary/10 text-primary border-primary/20 text-sm">
                   {profile?.position === 'socio' && 'Sócio'}

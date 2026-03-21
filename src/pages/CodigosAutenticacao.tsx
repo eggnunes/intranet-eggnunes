@@ -3,6 +3,8 @@ import { Layout } from '@/components/Layout';
 import { TOTPCodeDisplay } from '@/components/TOTPCodeDisplay';
 import { TOTPAccountForm } from '@/components/TOTPAccountForm';
 import { QRCodeImporter } from '@/components/QRCodeImporter';
+import { JusbrasilCodeFetcher } from '@/components/JusbrasilCodeFetcher';
+import { TutorialOverlay } from '@/components/TutorialOverlay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Shield, RefreshCw } from 'lucide-react';
@@ -163,6 +165,15 @@ export default function CodigosAutenticacao() {
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <Shield className="h-8 w-8 text-primary" />
               Códigos de Autenticação
+              <TutorialOverlay
+                pageKey="codigos-autenticacao"
+                pageName="Códigos de Autenticação"
+                steps={[
+                  { title: 'Códigos TOTP', description: 'Aqui você encontra os códigos de autenticação para acessar tribunais e outros sistemas externos. Os códigos são gerados automaticamente a cada 30 segundos.' },
+                  { title: 'Código JusBrasil', description: 'Na seção JusBrasil, clique em "Buscar Código" para obter o último código de verificação enviado por email. O código é extraído automaticamente.' },
+                  { title: 'Copiar e Usar', description: 'Clique no botão "Copiar" ao lado de qualquer código para copiá-lo. Em seguida, cole no campo de autenticação do sistema que deseja acessar.' },
+                ]}
+              />
             </h1>
             <p className="text-muted-foreground mt-2">
               Códigos TOTP para acesso a sistemas externos (tribunais, etc.)
@@ -188,6 +199,8 @@ export default function CodigosAutenticacao() {
             existingSecrets={accounts.map(a => a.secret_key)}
           />
         )}
+
+        <JusbrasilCodeFetcher />
 
         <Card>
           <CardHeader>

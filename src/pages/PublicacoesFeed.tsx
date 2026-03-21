@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Bell, Search, Filter, FileDown, FileText, ListTodo, Eye, EyeOff, RefreshCw, CheckCircle2, Calendar as CalendarIcon } from 'lucide-react';
+import { TutorialOverlay } from '@/components/TutorialOverlay';
+import { tutorialsByPage } from '@/components/tutorialData';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, subDays, startOfDay, startOfMonth, isAfter, parseISO } from 'date-fns';
@@ -657,6 +659,7 @@ export default function PublicacoesFeed() {
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <Bell className="h-8 w-8 text-primary" />
               Feed de Publicações
+              <TutorialOverlay pageKey="publicacoes" pageName={tutorialsByPage.publicacoes.pageName} steps={tutorialsByPage.publicacoes.steps} />
             </h1>
             <p className="text-muted-foreground mt-2">
               Movimentações recentes do Advbox

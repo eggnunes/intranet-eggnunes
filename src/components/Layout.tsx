@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { LogOut, Search as SearchIcon, ArrowLeft, Menu, MessageCircle, Bell } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { UpdatesNotification } from '@/components/UpdatesNotification';
+import { SystemUpdatesNotification } from '@/components/SystemUpdatesNotification';
+import { NotificationToast } from '@/components/NotificationToast';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar';
@@ -282,6 +284,7 @@ export const Layout = ({ children }: LayoutProps) => {
 
                 <NotificationsPanel />
                 <UpdatesNotification />
+                <SystemUpdatesNotification />
                 <ThemeToggle />
                 
                 {/* User Menu */}
@@ -334,6 +337,7 @@ export const Layout = ({ children }: LayoutProps) => {
               </Button>
             )}
             {children}
+            <NotificationToast />
           </main>
         </SidebarInset>
       </div>

@@ -18,6 +18,8 @@ import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip
 import { format, subDays, subMonths, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AlertCircle, Search, Filter, Calendar, ListTodo, RefreshCw, BarChart } from 'lucide-react';
+import { TutorialOverlay } from '@/components/TutorialOverlay';
+import { tutorialsByPage } from '@/components/tutorialData';
 
 interface Lawsuit {
   id: number;
@@ -300,6 +302,7 @@ export default function MovimentacoesAdvbox() {
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <AlertCircle className="h-8 w-8 text-primary" />
               Movimentações
+              <TutorialOverlay pageKey="movimentacoes" pageName={tutorialsByPage.movimentacoes.pageName} steps={tutorialsByPage.movimentacoes.steps} />
             </h1>
             <p className="text-muted-foreground mt-2">
               Acompanhe todas as movimentações dos processos

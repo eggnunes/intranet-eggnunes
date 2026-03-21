@@ -6230,6 +6230,36 @@ export type Database = {
         }
         Relationships: []
       }
+      realtime_notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          link: string | null
+          message: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          link?: string | null
+          message: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          link?: string | null
+          message?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       recruitment_candidate_documents: {
         Row: {
           candidate_id: string
@@ -7690,6 +7720,33 @@ export type Database = {
         }
         Relationships: []
       }
+      system_updates: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          title: string
+          version: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          title: string
+          version?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          title?: string
+          version?: string | null
+        }
+        Relationships: []
+      }
       task_attachments: {
         Row: {
           created_at: string
@@ -8094,6 +8151,35 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_read_updates: {
+        Row: {
+          id: string
+          read_at: string | null
+          update_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          read_at?: string | null
+          update_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          read_at?: string | null
+          update_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_read_updates_update_id_fkey"
+            columns: ["update_id"]
+            isOneToOne: false
+            referencedRelation: "system_updates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

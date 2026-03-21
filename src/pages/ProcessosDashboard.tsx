@@ -18,6 +18,8 @@ import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip
 import { format, subDays, subMonths, isAfter, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Briefcase, TrendingUp, BarChart, Search, Filter, Calendar, ListTodo, RefreshCw, MessageSquare, Send, X, Sparkles, Download } from 'lucide-react';
+import { TutorialOverlay } from '@/components/TutorialOverlay';
+import { tutorialsByPage } from '@/components/tutorialData';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -1212,6 +1214,7 @@ export default function ProcessosDashboard() {
               <h1 className="text-3xl font-bold flex items-center gap-3">
                 <Briefcase className="h-8 w-8 text-primary" />
                 Dashboard de Processos
+                <TutorialOverlay pageKey="processos" pageName={tutorialsByPage.processos.pageName} steps={tutorialsByPage.processos.steps} />
               </h1>
               <p className="text-muted-foreground mt-2">
                 Acompanhe seus processos e movimentações em tempo real

@@ -13,6 +13,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X, Edit, History, Calendar, List, Settings, BarChart3, Lightbulb, Lock, TrendingUp } from 'lucide-react';
+import { TutorialOverlay } from '@/components/TutorialOverlay';
+import { tutorialsByPage } from '@/components/tutorialData';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { TaskCalendarView } from '@/components/TaskCalendarView';
 import { TaskNotificationSettings } from '@/components/TaskNotificationSettings';
@@ -617,6 +619,7 @@ export default function TarefasAdvbox() {
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <CheckSquare className="h-8 w-8 text-primary" />
               Gestão de Tarefas
+              <TutorialOverlay pageKey="tarefas" pageName={tutorialsByPage.tarefas.pageName} steps={tutorialsByPage.tarefas.steps} />
             </h1>
             <p className="text-muted-foreground mt-2">
               Gerencie suas tarefas do Advbox
