@@ -356,7 +356,7 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
       contact.job_title?.toLowerCase().includes(search)
     );
     
-    const matchesProfissao = !profissaoFilter || contact.job_title === profissaoFilter;
+    const matchesProfissao = profissaoFilter === 'all' || contact.job_title === profissaoFilter;
     
     return matchesSearch && matchesProfissao;
   });
