@@ -5233,6 +5233,39 @@ export type Database = {
           },
         ]
       }
+      meta_ads_config: {
+        Row: {
+          access_token: string
+          account_name: string | null
+          ad_account_id: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          account_name?: string | null
+          ad_account_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          account_name?: string | null
+          ad_account_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       mood_surveys: {
         Row: {
           created_at: string

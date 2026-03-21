@@ -176,12 +176,108 @@ export default function MarketingHub() {
   const totalRevenue = campaigns.reduce((s: number, c: any) => s + (c.revenue || 0), 0);
   const overallROI = totalInvestment > 0 ? ((totalRevenue - totalInvestment) / totalInvestment * 100).toFixed(1) : '0';
 
-  // Meta Ads mock data
-  const metaAds = [
-    { id: 1, name: 'Campanha Leads - Trabalhista', status: 'Ativa', impressions: 45230, clicks: 1203, ctr: '2.66%', cpc: 'R$ 1,85', spend: 'R$ 2.225,55' },
-    { id: 2, name: 'Retargeting - Previdenciário', status: 'Ativa', impressions: 28100, clicks: 892, ctr: '3.17%', cpc: 'R$ 2,10', spend: 'R$ 1.873,20' },
-    { id: 3, name: 'Brand Awareness', status: 'Pausada', impressions: 15700, clicks: 340, ctr: '2.17%', cpc: 'R$ 1,50', spend: 'R$ 510,00' },
-  ];
+  // Meta Ads config & data
+  const [metaConfigOpen, setMetaConfigOpen] = useState(false);
+  const [metaToken, setMetaToken] = useState('');
+  const [metaAccountId, setMetaAccountId] = useState('');
+  const [metaAccountName, setMetaAccountName] = useState('');
+
+  const { data: metaConfig, refetch: refetchMetaConfig } = useQuery({
+    queryKey: ['meta-ads-config'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('meta_ads_config' as any)
+        .select('*')
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+      return data as any;
+    },
+  });
+
+  const saveMetaConfig = useMutation({
+    mutationFn: async () => {
+      if (!metaToken || !metaAccountId) throw new Error('Preencha todos os campos');
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (!userId) throw new Error('Usuário não autenticado');
+      const { error } = await supabase.from('meta_ads_config' as any).upsert({
+        user_id: userId,
+        access_token: metaToken,
+        ad_account_id: metaAccountId,
+        account_name: metaAccountName || 'Conta Meta',
+        is_active: true,
+      }, { onConflict: 'user_id,ad_account_id' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Credenciais Meta Ads salvas!');
+      setMetaConfigOpen(false);
+      refetchMetaConfig();
+      queryClient.invalidateQueries({ queryKey: ['meta-ads-campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['meta-ads-insights'] });
+    },
+    onError: (e: any) => toast.error(e.message || 'Erro ao salvar'),
+  });
+
+  const fromDateStr = dateRange.from.toISOString().split('T')[0];
+  const toDateStr = dateRange.to.toISOString().split('T')[0];
+
+  const { data: metaCampaigns = [], isLoading: loadingCampaigns } = useQuery({
+    queryKey: ['meta-ads-campaigns', metaConfig?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('meta-ads', {
+        body: { action: 'campaigns' },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data?.campaigns || [];
+    },
+    enabled: !!metaConfig,
+  });
+
+  const { data: metaInsights = [], isLoading: loadingInsights } = useQuery({
+    queryKey: ['meta-ads-insights', metaConfig?.id, fromDateStr, toDateStr],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('meta-ads', {
+        body: { action: 'insights', date_from: fromDateStr, date_to: toDateStr },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data?.insights || [];
+    },
+    enabled: !!metaConfig,
+  });
+
+  // Aggregate insights
+  const metaTotals = useMemo(() => {
+    let impressions = 0, clicks = 0, spend = 0;
+    metaInsights.forEach((i: any) => {
+      impressions += parseInt(i.impressions || '0');
+      clicks += parseInt(i.clicks || '0');
+      spend += parseFloat(i.spend || '0');
+    });
+    const ctr = impressions > 0 ? ((clicks / impressions) * 100).toFixed(2) : '0.00';
+    const cpc = clicks > 0 ? (spend / clicks).toFixed(2) : '0.00';
+    return { impressions, clicks, spend, ctr, cpc };
+  }, [metaInsights]);
+
+  // Build table rows from insights merged with campaigns
+  const metaAdsRows = useMemo(() => {
+    return metaInsights.map((insight: any) => {
+      const campaign = metaCampaigns.find((c: any) => c.id === insight.campaign_id);
+      const statusMap: Record<string, string> = { ACTIVE: 'Ativa', PAUSED: 'Pausada', DELETED: 'Removida', ARCHIVED: 'Arquivada' };
+      return {
+        id: insight.campaign_id,
+        name: insight.campaign_name || campaign?.name || 'Sem nome',
+        status: statusMap[campaign?.status] || campaign?.status || '—',
+        impressions: parseInt(insight.impressions || '0'),
+        clicks: parseInt(insight.clicks || '0'),
+        ctr: parseFloat(insight.ctr || '0').toFixed(2) + '%',
+        cpc: 'R$ ' + parseFloat(insight.cpc || '0').toFixed(2).replace('.', ','),
+        spend: 'R$ ' + parseFloat(insight.spend || '0').toFixed(2).replace('.', ','),
+      };
+    });
+  }, [metaInsights, metaCampaigns]);
 
   // Calendar helpers
   const monthStart = startOfMonth(calendarMonth);
@@ -322,58 +418,85 @@ export default function MarketingHub() {
 
           {/* Tab 2: Meta Ads */}
           <TabsContent value="meta-ads">
-            <div className="mb-4 flex items-center gap-2 text-sm text-amber-500">
-              <AlertTriangle className="h-4 w-4" />
-              <span>Dados simulados — Conecte sua conta Meta Ads para dados reais</span>
-            </div>
-            <div className="grid gap-4 md:grid-cols-5 mb-6">
-              {[
-                { label: 'Impressões', value: '89.030', icon: Eye },
-                { label: 'Cliques', value: '2.435', icon: MousePointerClick },
-                { label: 'CTR', value: '2.73%', icon: TrendingUp },
-                { label: 'CPC Médio', value: 'R$ 1,89', icon: DollarSign },
-                { label: 'Gasto Total', value: 'R$ 4.608,75', icon: DollarSign },
-              ].map((m) => (
-                <Card key={m.label}>
-                  <CardContent className="pt-6 text-center">
-                    <m.icon className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-xs text-muted-foreground">{m.label}</p>
-                    <p className="text-xl font-bold text-foreground">{m.value}</p>
+            {!metaConfig ? (
+              <Card>
+                <CardContent className="py-12 text-center space-y-4">
+                  <Facebook className="h-12 w-12 mx-auto text-muted-foreground" />
+                  <h3 className="text-lg font-semibold">Conecte sua conta Meta Ads</h3>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                    Para visualizar métricas reais de campanhas, configure seu Access Token e ID da conta de anúncios do Meta Business.
+                  </p>
+                  <Button onClick={() => setMetaConfigOpen(true)}>
+                    <Plus className="h-4 w-4 mr-1" /> Configurar Meta Ads
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <div className="mb-4 flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Conta: <span className="font-medium text-foreground">{metaConfig.account_name || metaConfig.ad_account_id}</span>
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => { setMetaToken(''); setMetaAccountId(''); setMetaAccountName(metaConfig.account_name || ''); setMetaConfigOpen(true); }}>
+                    <Pencil className="h-3 w-3 mr-1" /> Editar credenciais
+                  </Button>
+                </div>
+                <div className="grid gap-4 md:grid-cols-5 mb-6">
+                  {[
+                    { label: 'Impressões', value: metaTotals.impressions.toLocaleString('pt-BR'), icon: Eye },
+                    { label: 'Cliques', value: metaTotals.clicks.toLocaleString('pt-BR'), icon: MousePointerClick },
+                    { label: 'CTR', value: metaTotals.ctr + '%', icon: TrendingUp },
+                    { label: 'CPC Médio', value: 'R$ ' + metaTotals.cpc.replace('.', ','), icon: DollarSign },
+                    { label: 'Gasto Total', value: 'R$ ' + metaTotals.spend.toFixed(2).replace('.', ','), icon: DollarSign },
+                  ].map((m) => (
+                    <Card key={m.label}>
+                      <CardContent className="pt-6 text-center">
+                        <m.icon className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground">{m.label}</p>
+                        <p className="text-xl font-bold text-foreground">{(loadingInsights) ? '...' : m.value}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+                <Card>
+                  <CardHeader><CardTitle>Campanhas</CardTitle></CardHeader>
+                  <CardContent>
+                    {(loadingCampaigns || loadingInsights) ? (
+                      <p className="text-center text-muted-foreground py-8">Carregando dados do Meta Ads...</p>
+                    ) : metaAdsRows.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">Nenhuma campanha encontrada no período selecionado</p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Campanha</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Impressões</TableHead>
+                            <TableHead className="text-right">Cliques</TableHead>
+                            <TableHead className="text-right">CTR</TableHead>
+                            <TableHead className="text-right">CPC</TableHead>
+                            <TableHead className="text-right">Gasto</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {metaAdsRows.map((ad: any) => (
+                            <TableRow key={ad.id}>
+                              <TableCell className="font-medium">{ad.name}</TableCell>
+                              <TableCell><Badge variant={ad.status === 'Ativa' ? 'default' : 'secondary'}>{ad.status}</Badge></TableCell>
+                              <TableCell className="text-right">{ad.impressions.toLocaleString('pt-BR')}</TableCell>
+                              <TableCell className="text-right">{ad.clicks.toLocaleString('pt-BR')}</TableCell>
+                              <TableCell className="text-right">{ad.ctr}</TableCell>
+                              <TableCell className="text-right">{ad.cpc}</TableCell>
+                              <TableCell className="text-right">{ad.spend}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-            <Card>
-              <CardHeader><CardTitle>Anúncios</CardTitle></CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Anúncio</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Impressões</TableHead>
-                      <TableHead className="text-right">Cliques</TableHead>
-                      <TableHead className="text-right">CTR</TableHead>
-                      <TableHead className="text-right">CPC</TableHead>
-                      <TableHead className="text-right">Gasto</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {metaAds.map((ad) => (
-                      <TableRow key={ad.id}>
-                        <TableCell className="font-medium">{ad.name}</TableCell>
-                        <TableCell><Badge variant={ad.status === 'Ativa' ? 'default' : 'secondary'}>{ad.status}</Badge></TableCell>
-                        <TableCell className="text-right">{ad.impressions.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">{ad.clicks.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">{ad.ctr}</TableCell>
-                        <TableCell className="text-right">{ad.cpc}</TableCell>
-                        <TableCell className="text-right">{ad.spend}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+              </>
+            )}
           </TabsContent>
 
           {/* Tab 3: Calendário */}
@@ -563,6 +686,34 @@ export default function MarketingHub() {
                 <Button type="submit" disabled={savePub.isPending}>{savePub.isPending ? 'Salvando...' : 'Salvar'}</Button>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Meta Ads Config Dialog */}
+        <Dialog open={metaConfigOpen} onOpenChange={setMetaConfigOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Configurar Meta Ads</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Nome da conta (opcional)</Label>
+                <Input value={metaAccountName} onChange={e => setMetaAccountName(e.target.value)} placeholder="Ex: EggNunes Principal" />
+              </div>
+              <div>
+                <Label>Access Token</Label>
+                <Input type="password" value={metaToken} onChange={e => setMetaToken(e.target.value)} placeholder="Cole seu token aqui" required />
+                <p className="text-xs text-muted-foreground mt-1">Gere em developers.facebook.com → Tools → Graph API Explorer</p>
+              </div>
+              <div>
+                <Label>Ad Account ID</Label>
+                <Input value={metaAccountId} onChange={e => setMetaAccountId(e.target.value)} placeholder="Ex: act_123456789 ou 123456789" required />
+                <p className="text-xs text-muted-foreground mt-1">Encontre em Business Settings → Ad Accounts</p>
+              </div>
+              <DialogFooter>
+                <Button onClick={() => saveMetaConfig.mutate()} disabled={saveMetaConfig.isPending}>
+                  {saveMetaConfig.isPending ? 'Salvando...' : 'Salvar'}
+                </Button>
+              </DialogFooter>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
