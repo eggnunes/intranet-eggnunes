@@ -117,6 +117,14 @@ export default function TarefasAdvbox() {
   // Filtrar e ordenar tarefas
   const filteredTasks = useMemo(() => {
     let filtered = visibleTasks.filter((task) => {
+      // Hide deletion alerts by default
+      if (!showDeletionAlerts) {
+        const titleLower = (task.title || '').toLowerCase();
+        if (titleLower.includes('alerta') && (titleLower.includes('exclu') || titleLower.includes('delet'))) return false;
+        if (titleLower.includes('tarefa excluída') || titleLower.includes('tarefa excluida')) return false;
+        if (titleLower.includes('deleted') || titleLower.includes('exclusão') || titleLower.includes('exclusao')) return false;
+      }
+
       if (statusFilter !== 'all' && task.status !== statusFilter) return false;
       if (assignedFilter !== 'all' && task.assigned_to !== assignedFilter) return false;
       if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false;
@@ -154,7 +162,19 @@ export default function TarefasAdvbox() {
     });
 
     return filtered;
-  }, [visibleTasks, statusFilter, assignedFilter, priorityFilter, dueDateFilter]);
+  }, [visibleTasks, statusFilter, assignedFilter, priorityFilter, dueDateFilter, showDeletionAlerts]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredTasks.length / ITEMS_PER_PAGE);
+  const paginatedTasks = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredTasks.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredTasks, currentPage]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, assignedFilter, priorityFilter, dueDateFilter, showDeletionAlerts]);
 
   // TODAS AS FUNÇÕES DEVEM SER DEFINIDAS ANTES DOS RETURNS CONDICIONAIS
   const fetchUsers = async () => {
