@@ -170,3 +170,6 @@ verify_jwt = true
 
 [functions.chat-with-agent]
 verify_jwt = false
+
+[functions.whatsapp-webhook]
+verify_jwt = false
