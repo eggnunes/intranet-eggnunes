@@ -200,6 +200,8 @@ export default function CodigosAutenticacao() {
           />
         )}
 
+        <JusbrasilCodeFetcher />
+
         <Card>
           <CardHeader>
             <CardTitle>Como usar</CardTitle>
