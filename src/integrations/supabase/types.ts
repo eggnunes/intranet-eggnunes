@@ -4763,6 +4763,150 @@ export type Database = {
         }
         Relationships: []
       }
+      intranet_agent_conversations: {
+        Row: {
+          agent_id: string
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intranet_agent_conversations_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "intranet_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intranet_agent_files: {
+        Row: {
+          agent_id: string
+          created_at: string
+          file_name: string
+          file_size: number | null
+          file_type: string
+          file_url: string
+          id: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          file_name: string
+          file_size?: number | null
+          file_type: string
+          file_url: string
+          id?: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          file_name?: string
+          file_size?: number | null
+          file_type?: string
+          file_url?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intranet_agent_files_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "intranet_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intranet_agent_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intranet_agent_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "intranet_agent_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intranet_agents: {
+        Row: {
+          created_at: string
+          created_by: string
+          icon_emoji: string
+          id: string
+          instructions: string
+          is_active: boolean
+          model: string
+          name: string
+          objective: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          icon_emoji?: string
+          id?: string
+          instructions: string
+          is_active?: boolean
+          model?: string
+          name: string
+          objective: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          icon_emoji?: string
+          id?: string
+          instructions?: string
+          is_active?: boolean
+          model?: string
+          name?: string
+          objective?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       intranet_update_reads: {
         Row: {
           id: string
