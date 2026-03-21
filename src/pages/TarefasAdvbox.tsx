@@ -53,6 +53,9 @@ export default function TarefasAdvbox() {
   const initialTab = searchParams.get('tab') === 'produtividade' ? 'produtividade' : 'list';
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDeletionAlerts, setShowDeletionAlerts] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
