@@ -470,11 +470,20 @@ const CaixinhaDesabafo = () => {
           <span className="font-medium truncate">{msg.subject}</span>
         </div>
         <div className="flex items-center gap-1">
-          {msg.is_anonymous ? (
-            <EyeOff className="h-4 w-4 text-orange-500" />
-          ) : (
-            <Eye className="h-4 w-4 text-green-500" />
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                {msg.is_anonymous ? (
+                  <EyeOff className="h-4 w-4 text-orange-500" />
+                ) : (
+                  <Eye className="h-4 w-4 text-green-500" />
+                )}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {msg.is_anonymous ? 'Mensagem anônima' : 'Remetente identificado'}
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
       <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
