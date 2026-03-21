@@ -1,28 +1,13 @@
 
 
-## Renomear "Publicações Feed" → "Publicações ADVBox" e reordenar Produção Jurídica
+## Mover "Aniversários Clientes" de RH para Produção Jurídica
 
-### Alterações em `src/components/AppSidebar.tsx` (linhas 201-213)
+### Problema
+O item "Aniversários Clientes" está no grupo "Recursos Humanos" do sidebar, mas deveria estar em "Produção Jurídica" pois os dados vêm do ADVBox.
 
-**1. Renomear**: Trocar label `'Publicações Feed'` para `'Publicações ADVBox'`
+### Alteração
 
-**2. Reordenar** os itens do grupo "Produção Jurídica" — primeiro itens ADVBox, depois os demais:
-
-**Bloco ADVBox:**
-1. Processos Dashboard
-2. Tarefas Advbox
-3. Distribuição de Tarefas
-4. Controle de Prazos
-5. Processos Ativos
-6. Movimentações Advbox
-7. Publicações ADVBox
-
-**Bloco não-ADVBox:**
-8. Pesquisa Jurisprudência
-9. Publicações DJE
-10. Portais de Tribunais
-11. Jurisprudência Interna
-
-### Arquivo alterado
-- `src/components/AppSidebar.tsx`
+**Arquivo: `src/components/AppSidebar.tsx`**
+- Remover `{ icon: Cake, path: '/aniversarios-clientes', label: 'Aniversários Clientes' }` do grupo `rh`
+- Adicionar ao grupo `producao-juridica`, no final do bloco ADVBox (após "Publicações ADVBox" e antes do bloco não-ADVBox)
 
