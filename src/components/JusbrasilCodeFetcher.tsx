@@ -19,7 +19,6 @@ export const JusbrasilCodeFetcher = () => {
   const [codes, setCodes] = useState<JusbrasilCode[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
-  const [debugData, setDebugData] = useState<any>(null);
 
   const fetchCode = async () => {
     setIsLoading(true);
