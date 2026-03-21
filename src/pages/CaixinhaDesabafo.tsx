@@ -943,7 +943,7 @@ const CaixinhaDesabafo = () => {
                   </CardHeader>
                   <CardContent>
                     {selectedMessage && messages.some(m => m.id === selectedMessage.id) ? (
-                      {renderMessageDetailSocio(selectedMessage)}
+                      renderMessageDetailSocio(selectedMessage)
                     ) : (
                       <div className="text-center py-12 text-muted-foreground">
                         <Eye className="h-12 w-12 mx-auto mb-3 opacity-50" />
