@@ -87,13 +87,14 @@ export const CRMAnalytics = () => {
           }
         });
 
-        // Add current deals in stages
+        // Add current deals in stages — use stage_changed_at or created_at (NOT updated_at which is overwritten by sync)
         deals.forEach(deal => {
           if (deal.stage_id && stageStats[deal.stage_id]) {
             stageStats[deal.stage_id].value += Number(deal.value) || 0;
             if (!deal.closed_at) {
+              const stageEntryDate = deal.stage_changed_at || deal.created_at;
               const daysInStage = Math.ceil(
-                (Date.now() - new Date(deal.updated_at).getTime()) / (1000 * 60 * 60 * 24)
+                (Date.now() - new Date(stageEntryDate).getTime()) / (1000 * 60 * 60 * 24)
               );
               stageStats[deal.stage_id].totalDays += daysInStage;
               stageStats[deal.stage_id].count++;

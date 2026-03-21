@@ -787,6 +787,23 @@ async function syncDeals(rdToken: string, supabase: any) {
     };
   });
 
+  // Fetch existing deals to detect stage changes
+  const existingDealsMap = new Map<string, { id: string; stage_id: string | null }>();
+  let existingPage = 0;
+  const existingLimit = 1000;
+  while (true) {
+    const { data: existingBatch } = await supabase
+      .from('crm_deals')
+      .select('id, rd_station_id, stage_id')
+      .range(existingPage * existingLimit, (existingPage + 1) * existingLimit - 1);
+    if (!existingBatch || existingBatch.length === 0) break;
+    for (const d of existingBatch) {
+      if (d.rd_station_id) existingDealsMap.set(d.rd_station_id, { id: d.id, stage_id: d.stage_id });
+    }
+    if (existingBatch.length < existingLimit) break;
+    existingPage++;
+  }
+
   // Batch upsert in chunks of 500 for faster processing
   const BATCH_SIZE = 500;
   let dealsCreated = 0;
@@ -805,6 +822,37 @@ async function syncDeals(rdToken: string, supabase: any) {
     }
   }
 
+  // Detect stage changes and record history + update stage_changed_at
+  const historyInserts: any[] = [];
+  const stageChangedUpdates: { id: string; stage_id: string }[] = [];
+
+  for (const deal of dealsData) {
+    const existing = existingDealsMap.get(deal.rd_station_id);
+    if (existing && deal.stage_id && existing.stage_id !== deal.stage_id) {
+      // Stage changed — record history
+      historyInserts.push({
+        deal_id: existing.id,
+        from_stage_id: existing.stage_id,
+        to_stage_id: deal.stage_id,
+      });
+      stageChangedUpdates.push({ id: existing.id, stage_id: deal.stage_id });
+    }
+  }
+
+  // Insert history records
+  if (historyInserts.length > 0) {
+    const { error: histErr } = await supabase.from('crm_deal_history').insert(historyInserts);
+    if (histErr) console.error('Error inserting deal history:', histErr);
+    else console.log(`Recorded ${historyInserts.length} stage transitions in crm_deal_history`);
+  }
+
+  // Update stage_changed_at for deals that changed stage
+  for (const upd of stageChangedUpdates) {
+    await supabase.from('crm_deals')
+      .update({ stage_changed_at: new Date().toISOString() })
+      .eq('id', upd.id);
+  }
+
   // Log sync
   await supabase.from('crm_sync_log').insert({
     sync_type: 'manual',
@@ -812,7 +860,7 @@ async function syncDeals(rdToken: string, supabase: any) {
     status: 'success'
   });
 
-  return { deals: dealsCreated };
+  return { deals: dealsCreated, stage_transitions: historyInserts.length };
 }
 
 // Sync activities/tasks from RD Station
