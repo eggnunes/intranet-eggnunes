@@ -137,17 +137,88 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
     enabled: hasConfig,
   });
 
-  const { data: aiAnalysis, isLoading: loadingAI, refetch: runAI } = useQuery({
-    queryKey: ['meta-ads-ai', metaConfig?.id, fromDateStr, toDateStr],
+  // WhatsApp leads (organic + click-to-whatsapp)
+  const { data: whatsappLeads = [], isLoading: loadingWhatsapp } = useQuery({
+    queryKey: ['whatsapp-leads', fromDateStr, toDateStr],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('meta-ads', {
-        body: { action: 'ai_analysis', date_from: fromDateStr, date_to: toDateStr },
-      });
+      const { data, error } = await supabase
+        .from('captured_leads')
+        .select('*')
+        .gte('created_at', `${fromDateStr}T00:00:00`)
+        .lte('created_at', `${toDateStr}T23:59:59`)
+        .eq('utm_source', 'whatsapp')
+        .order('created_at', { ascending: false })
+        .limit(500);
       if (error) throw error;
-      return data;
+      return data || [];
     },
-    enabled: false,
+    enabled: hasConfig,
   });
+
+  // All leads combined for the Leads tab
+  const allLeads = useMemo(() => {
+    const combined = [
+      ...metaLeads.map((l: any) => ({ ...l, _origin: 'meta' as const })),
+      ...whatsappLeads.map((l: any) => ({ ...l, _origin: 'whatsapp' as const })),
+    ];
+    // Dedup by id
+    const seen = new Set<string>();
+    return combined.filter(l => {
+      if (seen.has(l.id)) return false;
+      seen.add(l.id);
+      return true;
+    }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [metaLeads, whatsappLeads]);
+
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null);
+  const [loadingAI, setLoadingAI] = useState(false);
+
+  const runAIAnalysis = async () => {
+    setLoadingAI(true);
+    try {
+      const campaignsPayload = campaignRows.map(r => ({
+        name: r.name,
+        status: r.status,
+        impressions: r.impressions,
+        clicks: r.clicks,
+        ctr: r.ctr.toFixed(2),
+        cpc: r.cpc.toFixed(2),
+        spend: r.spend.toFixed(2),
+        conversions: r.conversions,
+        daily_budget: r.daily_budget,
+        actions: r.actions,
+      }));
+
+      const { data, error } = await supabase.functions.invoke('meta-ads-ai-analysis', {
+        body: {
+          campaigns_data: campaignsPayload,
+          totals: {
+            impressions: metaTotals.impressions,
+            reach: metaTotals.reach,
+            clicks: metaTotals.clicks,
+            ctr: metaTotals.ctr.toFixed(2),
+            cpc: metaTotals.cpc.toFixed(2),
+            spend: metaTotals.spend.toFixed(2),
+            conversions: metaTotals.conversions,
+            cpl: metaTotals.cpl,
+          },
+          leads_count: metaLeads.length,
+          whatsapp_leads_count: whatsappLeads.length,
+          date_from: fromDateStr,
+          date_to: toDateStr,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setAiAnalysis(data);
+      toast.success('Análise gerada com sucesso!');
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao gerar análise');
+    } finally {
+      setLoadingAI(false);
+    }
+  };
 
   // Mutations
   const campaignAction = useMutation({
