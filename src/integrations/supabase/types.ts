@@ -5233,6 +5233,45 @@ export type Database = {
           },
         ]
       }
+      meta_ads_ai_analyses: {
+        Row: {
+          analysis_text: string
+          campaigns_count: number | null
+          created_at: string
+          date_from: string | null
+          date_to: string | null
+          id: string
+          leads_count: number | null
+          model_used: string | null
+          total_spend: number | null
+          user_id: string
+        }
+        Insert: {
+          analysis_text: string
+          campaigns_count?: number | null
+          created_at?: string
+          date_from?: string | null
+          date_to?: string | null
+          id?: string
+          leads_count?: number | null
+          model_used?: string | null
+          total_spend?: number | null
+          user_id: string
+        }
+        Update: {
+          analysis_text?: string
+          campaigns_count?: number | null
+          created_at?: string
+          date_from?: string | null
+          date_to?: string | null
+          id?: string
+          leads_count?: number | null
+          model_used?: string | null
+          total_spend?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       meta_ads_config: {
         Row: {
           access_token: string
