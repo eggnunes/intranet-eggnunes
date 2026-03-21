@@ -173,3 +173,6 @@ verify_jwt = false
 
 [functions.whatsapp-webhook]
 verify_jwt = false
+
+[functions.meta-ads]
+verify_jwt = false
