@@ -319,10 +319,10 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
               { label: 'Impressões', value: formatNum(metaTotals.impressions), icon: Eye, color: 'text-blue-500' },
               { label: 'Alcance', value: formatNum(metaTotals.reach), icon: Users, color: 'text-violet-500' },
               { label: 'Cliques', value: formatNum(metaTotals.clicks), icon: MousePointerClick, color: 'text-amber-500' },
-              { label: 'CTR', value: metaTotals.ctr.toFixed(2) + '%', icon: TrendingUp, color: 'text-green-500' },
-              { label: 'CPC Médio', value: formatBRL(metaTotals.cpc), icon: DollarSign, color: 'text-orange-500' },
-              { label: 'Conversões', value: formatNum(metaTotals.conversions), icon: Target, color: 'text-emerald-500' },
-              { label: 'Gasto Total', value: formatBRL(metaTotals.spend), icon: DollarSign, color: 'text-destructive' },
+              { label: <AcronymTip acronym="CTR">CTR</AcronymTip>, value: metaTotals.ctr.toFixed(2) + '%', icon: TrendingUp, color: 'text-green-500', key: 'CTR' },
+              { label: <AcronymTip acronym="CPC">CPC Médio</AcronymTip>, value: formatBRL(metaTotals.cpc), icon: DollarSign, color: 'text-orange-500', key: 'CPC' },
+              { label: 'Conversões', value: formatNum(metaTotals.conversions), icon: Target, color: 'text-emerald-500', key: 'Conv' },
+              { label: 'Gasto Total', value: formatBRL(metaTotals.spend), icon: DollarSign, color: 'text-destructive', key: 'Gasto' },
             ].map((m) => (
               <Card key={m.label}>
                 <CardContent className="pt-4 pb-3 text-center">
