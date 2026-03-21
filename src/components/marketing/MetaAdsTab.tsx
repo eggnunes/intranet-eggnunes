@@ -324,7 +324,7 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
               { label: 'Conversões', value: formatNum(metaTotals.conversions), icon: Target, color: 'text-emerald-500', key: 'Conv' },
               { label: 'Gasto Total', value: formatBRL(metaTotals.spend), icon: DollarSign, color: 'text-destructive', key: 'Gasto' },
             ].map((m) => (
-              <Card key={m.label}>
+              <Card key={m.key}>
                 <CardContent className="pt-4 pb-3 text-center">
                   <m.icon className={cn("h-4 w-4 mx-auto mb-1", m.color)} />
                   <p className="text-[10px] text-muted-foreground">{m.label}</p>
