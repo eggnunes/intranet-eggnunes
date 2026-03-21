@@ -688,6 +688,34 @@ export default function MarketingHub() {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Meta Ads Config Dialog */}
+        <Dialog open={metaConfigOpen} onOpenChange={setMetaConfigOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Configurar Meta Ads</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Nome da conta (opcional)</Label>
+                <Input value={metaAccountName} onChange={e => setMetaAccountName(e.target.value)} placeholder="Ex: EggNunes Principal" />
+              </div>
+              <div>
+                <Label>Access Token</Label>
+                <Input type="password" value={metaToken} onChange={e => setMetaToken(e.target.value)} placeholder="Cole seu token aqui" required />
+                <p className="text-xs text-muted-foreground mt-1">Gere em developers.facebook.com → Tools → Graph API Explorer</p>
+              </div>
+              <div>
+                <Label>Ad Account ID</Label>
+                <Input value={metaAccountId} onChange={e => setMetaAccountId(e.target.value)} placeholder="Ex: act_123456789 ou 123456789" required />
+                <p className="text-xs text-muted-foreground mt-1">Encontre em Business Settings → Ad Accounts</p>
+              </div>
+              <DialogFooter>
+                <Button onClick={() => saveMetaConfig.mutate()} disabled={saveMetaConfig.isPending}>
+                  {saveMetaConfig.isPending ? 'Salvando...' : 'Salvar'}
+                </Button>
+              </DialogFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
