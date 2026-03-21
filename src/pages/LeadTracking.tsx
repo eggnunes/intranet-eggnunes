@@ -1,7 +1,7 @@
 import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Link2, BarChart3, FileText, Target, ShieldAlert, Package, GitCompare, MessageSquare } from 'lucide-react';
+import { BarChart3, FileText, Target, ShieldAlert, Package, GitCompare, Settings } from 'lucide-react';
 import { UTMGenerator } from '@/components/UTMGenerator';
 import { LeadFormsManager } from '@/components/LeadFormsManager';
 import { LeadsDashboard } from '@/components/LeadsDashboard';
@@ -55,26 +55,16 @@ export default function LeadTracking() {
             Tracking de Leads
           </h1>
           <p className="text-muted-foreground mt-2">
-            Gere URLs de campanha e gerencie formulários de captura de leads
+            Gerencie formulários de captura, acompanhe leads e configure integrações
           </p>
         </div>
 
-        <Tabs defaultValue="utm" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
-            <TabsTrigger value="utm" className="flex items-center gap-2">
-              <Link2 className="h-4 w-4" />
-              <span className="hidden sm:inline">Gerador UTM</span>
-              <span className="sm:hidden">UTM</span>
-            </TabsTrigger>
+        <Tabs defaultValue="forms" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
             <TabsTrigger value="forms" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               <span className="hidden sm:inline">Formulários</span>
               <span className="sm:hidden">Forms</span>
-            </TabsTrigger>
-            <TabsTrigger value="mappings" className="flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              <span className="hidden sm:inline">URL → Produto</span>
-              <span className="sm:hidden">Map</span>
             </TabsTrigger>
             <TabsTrigger value="leads" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
@@ -86,23 +76,20 @@ export default function LeadTracking() {
               <span className="hidden sm:inline">Comparar</span>
               <span className="sm:hidden">Comp</span>
             </TabsTrigger>
-            <TabsTrigger value="whatsapp" className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              <span className="hidden sm:inline">WhatsApp</span>
-              <span className="sm:hidden">WA</span>
+            <TabsTrigger value="mappings" className="flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              <span className="hidden sm:inline">URL → Produto</span>
+              <span className="sm:hidden">Map</span>
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Configurações</span>
+              <span className="sm:hidden">Config</span>
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="utm">
-            <UTMGenerator />
-          </TabsContent>
-
           <TabsContent value="forms">
             <LeadFormsManager />
-          </TabsContent>
-
-          <TabsContent value="mappings">
-            <LandingPageProductMappings />
           </TabsContent>
 
           <TabsContent value="leads">
@@ -113,8 +100,15 @@ export default function LeadTracking() {
             <LeadCampaignComparison />
           </TabsContent>
 
-          <TabsContent value="whatsapp">
-            <WhatsAppWebhookInfo />
+          <TabsContent value="mappings">
+            <LandingPageProductMappings />
+          </TabsContent>
+
+          <TabsContent value="settings">
+            <div className="space-y-6">
+              <UTMGenerator />
+              <WhatsAppWebhookInfo />
+            </div>
           </TabsContent>
         </Tabs>
       </div>
