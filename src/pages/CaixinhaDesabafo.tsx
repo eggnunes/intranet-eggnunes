@@ -890,7 +890,7 @@ const CaixinhaDesabafo = () => {
                 </CardHeader>
                 <CardContent>
                   {selectedMessage && myMessages.some(m => m.id === selectedMessage.id) ? (
-                    {renderMessageDetailOwn(selectedMessage)}
+                    renderMessageDetailOwn(selectedMessage)
                   ) : (
                     <div className="text-center py-12 text-muted-foreground">
                       <Eye className="h-12 w-12 mx-auto mb-3 opacity-50" />
