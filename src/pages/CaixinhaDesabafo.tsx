@@ -597,7 +597,10 @@ const CaixinhaDesabafo = () => {
       <div className="p-4 rounded-lg bg-muted/50 border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+            <div
+              className="h-10 w-10 rounded-full bg-muted flex items-center justify-center cursor-default select-none"
+              onClick={handleSecretReveal}
+            >
               <UserX className="h-5 w-5 text-muted-foreground" />
             </div>
             <div>
@@ -613,24 +616,6 @@ const CaixinhaDesabafo = () => {
               )}
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowSender(!showSender)}
-            className="text-xs h-7 px-2"
-          >
-            {showSender ? (
-              <>
-                <EyeOff className="h-3 w-3 mr-1" />
-                Ocultar
-              </>
-            ) : (
-              <>
-                <Eye className="h-3 w-3 mr-1" />
-                Ver
-              </>
-            )}
-          </Button>
         </div>
       </div>
 
