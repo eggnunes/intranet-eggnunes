@@ -82,7 +82,7 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [profissaoFilter, setProfissaoFilter] = useState<string>('');
+  const [profissaoFilter, setProfissaoFilter] = useState<string>('all');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Contact>>({});
