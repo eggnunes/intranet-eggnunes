@@ -486,7 +486,7 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
               <SelectValue placeholder="Todas profissões" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todas profissões</SelectItem>
+              <SelectItem value="all">Todas profissões</SelectItem>
               {profissoesDisponiveis.map(prof => (
                 <SelectItem key={prof} value={prof}>{prof}</SelectItem>
               ))}
