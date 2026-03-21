@@ -137,17 +137,88 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
     enabled: hasConfig,
   });
 
-  const { data: aiAnalysis, isLoading: loadingAI, refetch: runAI } = useQuery({
-    queryKey: ['meta-ads-ai', metaConfig?.id, fromDateStr, toDateStr],
+  // WhatsApp leads (organic + click-to-whatsapp)
+  const { data: whatsappLeads = [], isLoading: loadingWhatsapp } = useQuery({
+    queryKey: ['whatsapp-leads', fromDateStr, toDateStr],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('meta-ads', {
-        body: { action: 'ai_analysis', date_from: fromDateStr, date_to: toDateStr },
-      });
+      const { data, error } = await supabase
+        .from('captured_leads')
+        .select('*')
+        .gte('created_at', `${fromDateStr}T00:00:00`)
+        .lte('created_at', `${toDateStr}T23:59:59`)
+        .eq('utm_source', 'whatsapp')
+        .order('created_at', { ascending: false })
+        .limit(500);
       if (error) throw error;
-      return data;
+      return data || [];
     },
-    enabled: false,
+    enabled: hasConfig,
   });
+
+  // All leads combined for the Leads tab
+  const allLeads = useMemo(() => {
+    const combined = [
+      ...metaLeads.map((l: any) => ({ ...l, _origin: 'meta' as const })),
+      ...whatsappLeads.map((l: any) => ({ ...l, _origin: 'whatsapp' as const })),
+    ];
+    // Dedup by id
+    const seen = new Set<string>();
+    return combined.filter(l => {
+      if (seen.has(l.id)) return false;
+      seen.add(l.id);
+      return true;
+    }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [metaLeads, whatsappLeads]);
+
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null);
+  const [loadingAI, setLoadingAI] = useState(false);
+
+  const runAIAnalysis = async () => {
+    setLoadingAI(true);
+    try {
+      const campaignsPayload = campaignRows.map(r => ({
+        name: r.name,
+        status: r.status,
+        impressions: r.impressions,
+        clicks: r.clicks,
+        ctr: r.ctr.toFixed(2),
+        cpc: r.cpc.toFixed(2),
+        spend: r.spend.toFixed(2),
+        conversions: r.conversions,
+        daily_budget: r.daily_budget,
+        actions: r.actions,
+      }));
+
+      const { data, error } = await supabase.functions.invoke('meta-ads-ai-analysis', {
+        body: {
+          campaigns_data: campaignsPayload,
+          totals: {
+            impressions: metaTotals.impressions,
+            reach: metaTotals.reach,
+            clicks: metaTotals.clicks,
+            ctr: metaTotals.ctr.toFixed(2),
+            cpc: metaTotals.cpc.toFixed(2),
+            spend: metaTotals.spend.toFixed(2),
+            conversions: metaTotals.conversions,
+            cpl: metaTotals.cpl,
+          },
+          leads_count: metaLeads.length,
+          whatsapp_leads_count: whatsappLeads.length,
+          date_from: fromDateStr,
+          date_to: toDateStr,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setAiAnalysis(data);
+      toast.success('Análise gerada com sucesso!');
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao gerar análise');
+    } finally {
+      setLoadingAI(false);
+    }
+  };
 
   // Mutations
   const campaignAction = useMutation({
@@ -570,12 +641,20 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
         <TabsContent value="leads">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Leads do Meta Ads ({metaLeads.length})</CardTitle>
-              <CardDescription>Leads capturados com UTM de Facebook/Instagram/Meta</CardDescription>
+              <CardTitle className="text-base">Leads Consolidados ({allLeads.length})</CardTitle>
+              <CardDescription>Leads capturados via Meta Ads (UTM) e WhatsApp Business</CardDescription>
             </CardHeader>
             <CardContent>
-              {loadingLeads ? <Skeleton className="h-[200px] w-full" /> : metaLeads.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">Nenhum lead via Meta no período</p>
+              <div className="flex gap-3 mb-4">
+                <Badge variant="default" className="text-xs">
+                  <Facebook className="h-3 w-3 mr-1" /> Meta Ads: {metaLeads.length}
+                </Badge>
+                <Badge variant="secondary" className="text-xs">
+                  📱 WhatsApp: {whatsappLeads.length}
+                </Badge>
+              </div>
+              {(loadingLeads || loadingWhatsapp) ? <Skeleton className="h-[200px] w-full" /> : allLeads.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">Nenhum lead no período</p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -583,17 +662,27 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
                       <TableHead>Nome</TableHead>
                       <TableHead>Telefone</TableHead>
                       <TableHead>Campanha (UTM)</TableHead>
-                      <TableHead>Fonte</TableHead>
+                      <TableHead>Origem</TableHead>
                       <TableHead>Data</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {metaLeads.slice(0, 50).map((lead: any) => (
+                    {allLeads.slice(0, 100).map((lead: any) => (
                       <TableRow key={lead.id}>
                         <TableCell className="font-medium">{lead.name}</TableCell>
                         <TableCell>{lead.phone}</TableCell>
                         <TableCell className="max-w-[200px] truncate">{lead.utm_campaign || '—'}</TableCell>
-                        <TableCell><Badge variant="outline" className="text-xs">{lead.utm_source || '—'}</Badge></TableCell>
+                        <TableCell>
+                          {lead._origin === 'whatsapp' ? (
+                            <Badge variant="secondary" className="text-xs">📱 WhatsApp</Badge>
+                          ) : lead.utm_source === 'facebook' ? (
+                            <Badge className="text-xs bg-[#1877F2] hover:bg-[#1877F2]/90">Facebook</Badge>
+                          ) : lead.utm_source === 'instagram' ? (
+                            <Badge className="text-xs bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F77737] hover:opacity-90">Instagram</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">{lead.utm_source || 'Meta'}</Badge>
+                          )}
+                        </TableCell>
                         <TableCell>{new Date(lead.created_at).toLocaleDateString('pt-BR')}</TableCell>
                       </TableRow>
                     ))}
@@ -608,33 +697,40 @@ export default function MetaAdsTab({ metaConfig, dateRange, onOpenConfig }: Meta
         <TabsContent value="ai">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2"><Brain className="h-5 w-5" /> Análise por IA</CardTitle>
-              <CardDescription>Análise automática das campanhas com cruzamento de dados de leads</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2"><Brain className="h-5 w-5" /> Análise por IA (Claude)</CardTitle>
+              <CardDescription>Análise estratégica com Claude Sonnet — diagnóstico, otimizações e plano de ação</CardDescription>
             </CardHeader>
             <CardContent>
               {!aiAnalysis && !loadingAI ? (
                 <div className="text-center py-8 space-y-4">
                   <Brain className="h-12 w-12 mx-auto text-muted-foreground" />
-                  <p className="text-muted-foreground">Clique abaixo para gerar uma análise inteligente das suas campanhas</p>
-                  <Button onClick={() => runAI()}><Brain className="h-4 w-4 mr-1" /> Gerar Análise</Button>
+                  <p className="text-muted-foreground">Gere uma análise inteligente das suas campanhas com IA</p>
+                  <p className="text-xs text-muted-foreground">
+                    Envia métricas reais para o Claude analisar: performance, público-alvo, criativos e plano de ação
+                  </p>
+                  <Button onClick={runAIAnalysis} disabled={isLoading}>
+                    <Brain className="h-4 w-4 mr-1" /> Analisar com IA
+                  </Button>
                 </div>
               ) : loadingAI ? (
-                <div className="flex items-center justify-center py-12 gap-3">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  <p className="text-muted-foreground">Analisando campanhas e leads...</p>
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="text-muted-foreground">Analisando {campaignRows.length} campanhas com Claude...</p>
+                  <p className="text-xs text-muted-foreground">Isso pode levar alguns segundos</p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="flex gap-4 text-sm">
+                  <div className="flex flex-wrap gap-3 text-sm">
                     <Badge variant="outline">{aiAnalysis.campaigns_count} campanhas</Badge>
-                    <Badge variant="outline">{aiAnalysis.leads_count} leads Meta</Badge>
+                    <Badge variant="outline">{aiAnalysis.leads_count} leads totais</Badge>
                     <Badge variant="outline">Gasto: {formatBRL(aiAnalysis.total_spend || 0)}</Badge>
+                    <Badge variant="secondary" className="text-xs">🤖 {aiAnalysis.model}</Badge>
                   </div>
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <ReactMarkdown>{aiAnalysis.analysis}</ReactMarkdown>
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => runAI()}>
-                    <Brain className="h-3 w-3 mr-1" /> Regenerar
+                  <Button variant="outline" size="sm" onClick={runAIAnalysis} disabled={loadingAI}>
+                    <Brain className="h-3 w-3 mr-1" /> Regenerar Análise
                   </Button>
                 </div>
               )}
