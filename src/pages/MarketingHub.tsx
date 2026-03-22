@@ -145,6 +145,55 @@ export default function MarketingHub() {
     },
   });
 
+  // Google Ads insights for ROI tab
+  const { data: googleInsights = [] } = useQuery({
+    queryKey: ['marketing-google-insights', metaDateFrom, metaDateTo],
+    queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) return [];
+      const resp = await supabase.functions.invoke('google-ads', {
+        body: { action: 'insights', date_from: metaDateFrom, date_to: metaDateTo },
+      });
+      return resp.data?.insights || [];
+    },
+  });
+
+  const { data: googleDailyInsights = [] } = useQuery({
+    queryKey: ['marketing-google-daily', metaDateFrom, metaDateTo],
+    queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) return [];
+      const resp = await supabase.functions.invoke('google-ads', {
+        body: { action: 'daily_insights', date_from: metaDateFrom, date_to: metaDateTo },
+      });
+      return resp.data?.daily || [];
+    },
+  });
+
+  const { data: googleCampaigns = [], isLoading: googleCampaignsLoading } = useQuery({
+    queryKey: ['marketing-google-campaigns', metaDateFrom, metaDateTo],
+    queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) return [];
+      const resp = await supabase.functions.invoke('google-ads', {
+        body: { action: 'campaigns' },
+      });
+      return resp.data?.campaigns || [];
+    },
+  });
+
+  const { data: googleAccountInfo } = useQuery({
+    queryKey: ['marketing-google-account'],
+    queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) return null;
+      const resp = await supabase.functions.invoke('google-ads', {
+        body: { action: 'account_info' },
+      });
+      return resp.data?.account || null;
+    },
+  });
+
   // Publication mutations
   const savePub = useMutation({
     mutationFn: async (pub: any) => {
