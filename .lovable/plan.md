@@ -1,29 +1,21 @@
 
 
-## Reorganizar abas do Lead Tracking
+# Gerar Arquivo .md da Integração ADVBox
 
-### Mudanca solicitada
+O arquivo ainda não foi criado — apenas o plano foi aprovado anteriormente. Agora vou efetivamente gerar o arquivo.
 
-Reordenar as abas de 6 tabs individuais para 5 tabs com a seguinte estrutura:
+## O que será feito
 
-**Ordem atual:** UTM | Formularios | URL Produto | Leads | Comparar | WhatsApp
+1. Ler todos os 22+ arquivos relacionados à integração ADVBox (edge functions, páginas, componentes)
+2. Gerar um arquivo `/mnt/documents/advbox-integration-prompt.md` contendo:
+   - Esquema completo do banco de dados (tabelas + RLS)
+   - Código das Edge Functions genericizado
+   - Descrições detalhadas dos componentes frontend
+   - Erros conhecidos e soluções aplicadas
+   - Configurações necessárias (secrets, rotas, dependências)
+3. Disponibilizar o arquivo para download
 
-**Nova ordem:**
-1. **Formularios** — `LeadFormsManager`
-2. **Leads** — `LeadsDashboard`
-3. **Comparar** — `LeadCampaignComparison`
-4. **URL Produto** — `LandingPageProductMappings`
-5. **Configuracoes** — Nova aba que agrupa internamente:
-   - Gerador UTM (`UTMGenerator`)
-   - Webhook WhatsApp (`WhatsAppWebhookInfo`)
+## Resultado
 
-### Arquivo modificado
-
-**`src/pages/LeadTracking.tsx`**
-- Reordenar os `TabsTrigger` e `TabsContent` na nova sequencia
-- Alterar `defaultValue` de `"utm"` para `"forms"`
-- Alterar `grid-cols-6` para `grid-cols-5`
-- Adicionar aba "Configuracoes" com icone `Settings`
-- Dentro do `TabsContent` de configuracoes, renderizar ambos `UTMGenerator` e `WhatsAppWebhookInfo` empilhados (com Cards separados ou sub-tabs simples)
-- Adicionar import de `Settings` do lucide-react
+Um único arquivo `advbox-integration-prompt.md` pronto para ser colado em outro projeto Lovable.
 
