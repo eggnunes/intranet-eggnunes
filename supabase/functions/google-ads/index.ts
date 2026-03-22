@@ -23,7 +23,7 @@ async function queryGoogleAds(accessToken: string, query: string) {
   const customerId = Deno.env.get("GOOGLE_ADS_CUSTOMER_ID")!;
   const developerToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN")!;
   const loginCustomerId = Deno.env.get("GOOGLE_ADS_LOGIN_CUSTOMER_ID")!;
-  const url = "https://googleads.googleapis.com/v19/customers/" + customerId + "/googleAds:searchStream";
+  const url = "https://googleads.googleapis.com/v19/customers/" + customerId + "/googleAds:search";
   const response = await fetch(url, {
     method: "POST",
     headers: { "Authorization": "Bearer " + accessToken, "developer-token": developerToken, "login-customer-id": loginCustomerId, "Content-Type": "application/json" },
