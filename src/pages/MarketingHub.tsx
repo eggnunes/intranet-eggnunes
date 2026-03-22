@@ -26,7 +26,8 @@ import {
 } from 'recharts';
 import {
   CalendarIcon, TrendingUp, DollarSign, Users, MousePointerClick, Eye, Target,
-  Plus, Pencil, Trash2, Megaphone, BarChart3, Filter, Facebook
+  Plus, Pencil, Trash2, Megaphone, BarChart3, Filter, Facebook, Search, Globe,
+  Loader2
 } from 'lucide-react';
 import MetaAdsTab from '@/components/marketing/MetaAdsTab';
 import { TutorialOverlay } from '@/components/TutorialOverlay';
