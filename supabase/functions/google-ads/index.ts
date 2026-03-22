@@ -77,10 +77,19 @@ async function gaqlQuery(customerId: string, accessToken: string, query: string)
     body: JSON.stringify({ query }),
   });
 
-  const data = await resp.json();
+  const rawText = await resp.text();
+  let data: any;
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    console.error('Google Ads API non-JSON response:', resp.status, rawText.substring(0, 500));
+    throw new Error(`Google Ads API retornou resposta inválida (HTTP ${resp.status}): ${rawText.substring(0, 300)}`);
+  }
+
   if (data.error) {
-    console.error('Google Ads API error:', data.error);
-    throw new Error(data.error.message || 'Google Ads API error');
+    const details = JSON.stringify(data.error, null, 2);
+    console.error('Google Ads API error (HTTP ' + resp.status + '):', details);
+    throw new Error(`Google Ads API error (HTTP ${resp.status}): ${data.error.message || details}`);
   }
 
   // searchStream returns array of batches
