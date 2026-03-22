@@ -9,9 +9,19 @@ const corsHeaders = {
 const GOOGLE_ADS_API = 'https://googleads.googleapis.com/v17';
 
 async function getAccessToken(): Promise<string> {
-  const clientId = Deno.env.get('GOOGLE_ADS_CLIENT_ID')!;
-  const clientSecret = Deno.env.get('GOOGLE_ADS_CLIENT_SECRET')!;
-  const refreshToken = Deno.env.get('GOOGLE_ADS_REFRESH_TOKEN')!;
+  const clientId = Deno.env.get('GOOGLE_ADS_CLIENT_ID');
+  const clientSecret = Deno.env.get('GOOGLE_ADS_CLIENT_SECRET');
+  const refreshToken = Deno.env.get('GOOGLE_ADS_REFRESH_TOKEN');
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    const missing = [];
+    if (!clientId) missing.push('GOOGLE_ADS_CLIENT_ID');
+    if (!clientSecret) missing.push('GOOGLE_ADS_CLIENT_SECRET');
+    if (!refreshToken) missing.push('GOOGLE_ADS_REFRESH_TOKEN');
+    throw new Error(`Variáveis de ambiente ausentes: ${missing.join(', ')}`);
+  }
+
+  console.log('OAuth request - clientId length:', clientId.length, 'refreshToken length:', refreshToken.length);
 
   const resp = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -26,7 +36,8 @@ async function getAccessToken(): Promise<string> {
 
   const data = await resp.json();
   if (data.error) {
-    throw new Error(`OAuth error: ${data.error_description || data.error}`);
+    console.error('OAuth error details:', JSON.stringify(data));
+    throw new Error(`OAuth error: ${data.error} - ${data.error_description || 'Verifique se as credenciais do Google Ads estão corretas (Client ID, Client Secret e Refresh Token).'}`);
   }
   return data.access_token;
 }
