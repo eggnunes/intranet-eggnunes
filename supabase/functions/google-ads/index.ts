@@ -23,7 +23,7 @@ async function queryGoogleAds(accessToken: string, query: string) {
   const customerId = Deno.env.get("GOOGLE_ADS_CUSTOMER_ID")!;
   const developerToken = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN")!;
   const loginCustomerId = Deno.env.get("GOOGLE_ADS_LOGIN_CUSTOMER_ID")!;
-  const url = "https://googleads.googleapis.com/v19/customers/" + customerId + "/googleAds:searchStream";
+  const url = "https://googleads.googleapis.com/v19/customers/" + customerId + "/googleAds:search";
   const response = await fetch(url, {
     method: "POST",
     headers: { "Authorization": "Bearer " + accessToken, "developer-token": developerToken, "login-customer-id": loginCustomerId, "Content-Type": "application/json" },
@@ -46,8 +46,8 @@ serve(async (req) => {
       const results = await queryGoogleAds(accessToken, query);
       let campaigns = [];
       let totals = { impressions: 0, clicks: 0, conversions: 0, cost: 0 };
-      if (results && results.length > 0 && results[0].results) {
-        campaigns = results[0].results.map((row: any) => {
+      if (results && results.results) {
+        campaigns = results.results.map((row: any) => {
           const imp = parseInt(row.metrics?.impressions || "0");
           const cli = parseInt(row.metrics?.clicks || "0");
           const conv = parseFloat(row.metrics?.conversions || "0");
@@ -65,8 +65,8 @@ serve(async (req) => {
       const query = "SELECT segments.date, metrics.impressions, metrics.clicks, metrics.conversions, metrics.cost_micros FROM customer WHERE segments.date DURING LAST_30_DAYS";
       const results = await queryGoogleAds(accessToken, query);
       let dailyData = [];
-      if (results && results.length > 0 && results[0].results) {
-        dailyData = results[0].results.map((row: any) => ({ date: row.segments?.date, impressions: parseInt(row.metrics?.impressions || "0"), clicks: parseInt(row.metrics?.clicks || "0"), conversions: parseFloat(row.metrics?.conversions || "0"), cost: (parseInt(row.metrics?.costMicros || "0") / 1000000).toFixed(2) }));
+      if (results && results.results) {
+        dailyData = results.results.map((row: any) => ({ date: row.segments?.date, impressions: parseInt(row.metrics?.impressions || "0"), clicks: parseInt(row.metrics?.clicks || "0"), conversions: parseFloat(row.metrics?.conversions || "0"), cost: (parseInt(row.metrics?.costMicros || "0") / 1000000).toFixed(2) }));
       }
       return new Response(JSON.stringify({ daily_data: dailyData }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
