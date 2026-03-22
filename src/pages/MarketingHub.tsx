@@ -228,8 +228,8 @@ export default function MarketingHub() {
     onSuccess: () => { toast.success('Publicação removida'); refetchPubs(); },
   });
 
-  // ROI data from Meta Ads insights
-  const roiData = useMemo(() => metaInsights.map((i: any) => {
+  // ROI data - consolidated from Meta Ads + Google Ads
+  const metaRoiData = useMemo(() => metaInsights.map((i: any) => {
     const spend = parseFloat(i.spend || '0');
     const conversions = (i.actions || []).reduce((sum: number, a: any) => {
       if (['offsite_conversion', 'lead', 'onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.lead_grouped'].includes(a.action_type)) {
@@ -242,22 +242,81 @@ export default function MarketingHub() {
       gasto: spend,
       conversoes: conversions,
       cpl: conversions > 0 ? spend / conversions : 0,
+      platform: 'Meta Ads',
     };
   }).filter((d: any) => d.gasto > 0), [metaInsights]);
 
-  const dailyChartData = useMemo(() => metaDailyInsights.map((d: any) => {
+  const googleRoiData = useMemo(() => googleInsights.map((i: any) => {
+    const spend = parseFloat(i.spend || '0');
+    const conversions = parseInt(i.conversions || '0');
+    return {
+      name: (i.campaign_name || 'Sem nome').substring(0, 25),
+      gasto: spend,
+      conversoes: conversions,
+      cpl: conversions > 0 ? spend / conversions : 0,
+      platform: 'Google Ads',
+    };
+  }).filter((d: any) => d.gasto > 0), [googleInsights]);
+
+  const roiData = useMemo(() => [...metaRoiData, ...googleRoiData], [metaRoiData, googleRoiData]);
+
+  // Daily chart - consolidated
+  const metaDailyData = useMemo(() => metaDailyInsights.map((d: any) => {
     const conversions = (d.actions || []).reduce((sum: number, a: any) => {
       if (['offsite_conversion', 'lead', 'onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.lead_grouped'].includes(a.action_type)) {
         return sum + parseInt(a.value || '0');
       }
       return sum;
     }, 0);
-    return {
-      data: format(new Date(d.date_start), 'dd/MM'),
-      gasto: parseFloat(d.spend || '0'),
-      conversoes: conversions,
-    };
+    return { date_start: d.date_start, gasto: parseFloat(d.spend || '0'), conversoes: conversions };
   }), [metaDailyInsights]);
+
+  const googleDailyData = useMemo(() => googleDailyInsights.map((d: any) => ({
+    date_start: d.date_start,
+    gasto: parseFloat(d.spend || '0'),
+    conversoes: parseInt(d.conversions || '0'),
+  })), [googleDailyInsights]);
+
+  const dailyChartData = useMemo(() => {
+    const dateMap: Record<string, any> = {};
+    for (const d of metaDailyData) {
+      const key = d.date_start;
+      if (!dateMap[key]) dateMap[key] = { data: format(new Date(key), 'dd/MM'), gastoMeta: 0, gastoGoogle: 0, conversoesMeta: 0, conversoesGoogle: 0 };
+      dateMap[key].gastoMeta += d.gasto;
+      dateMap[key].conversoesMeta += d.conversoes;
+    }
+    for (const d of googleDailyData) {
+      const key = d.date_start;
+      if (!dateMap[key]) dateMap[key] = { data: format(new Date(key), 'dd/MM'), gastoMeta: 0, gastoGoogle: 0, conversoesMeta: 0, conversoesGoogle: 0 };
+      dateMap[key].gastoGoogle += d.gasto;
+      dateMap[key].conversoesGoogle += d.conversoes;
+    }
+    return Object.values(dateMap).sort((a: any, b: any) => a.data.localeCompare(b.data));
+  }, [metaDailyData, googleDailyData]);
+
+  // Platform distribution for pie chart
+  const platformDistribution = useMemo(() => {
+    const metaTotal = metaRoiData.reduce((s: number, c: any) => s + c.gasto, 0);
+    const googleTotal = googleRoiData.reduce((s: number, c: any) => s + c.gasto, 0);
+    const result = [];
+    if (metaTotal > 0) result.push({ name: 'Meta Ads', value: metaTotal });
+    if (googleTotal > 0) result.push({ name: 'Google Ads', value: googleTotal });
+    return result;
+  }, [metaRoiData, googleRoiData]);
+
+  // Google Ads tab metrics
+  const googleTotals = useMemo(() => {
+    let impressions = 0, clicks = 0, conversions = 0, spend = 0;
+    for (const i of googleInsights) {
+      impressions += parseInt(i.impressions || '0');
+      clicks += parseInt(i.clicks || '0');
+      conversions += parseInt(i.conversions || '0');
+      spend += parseFloat(i.spend || '0');
+    }
+    const ctr = impressions > 0 ? ((clicks / impressions) * 100).toFixed(2) : '0';
+    const cpc = clicks > 0 ? (spend / clicks).toFixed(2) : '0';
+    return { impressions, clicks, conversions, spend, ctr, cpc };
+  }, [googleInsights]);
 
   // Funnel data - ALL deals, not filtered by date
   const funnelData = useMemo(() => {
