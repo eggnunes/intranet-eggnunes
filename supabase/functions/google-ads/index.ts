@@ -46,13 +46,19 @@ async function gaqlQuery(customerId: string, accessToken: string, query: string)
   const devToken = Deno.env.get('GOOGLE_ADS_DEVELOPER_TOKEN')!;
   const cid = customerId.replace(/-/g, '');
 
+  const loginCustomerId = Deno.env.get('GOOGLE_ADS_LOGIN_CUSTOMER_ID');
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${accessToken}`,
+    'developer-token': devToken,
+    'Content-Type': 'application/json',
+  };
+  if (loginCustomerId) {
+    headers['login-customer-id'] = loginCustomerId.replace(/-/g, '');
+  }
+
   const resp = await fetch(`${GOOGLE_ADS_API}/customers/${cid}/googleAds:searchStream`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'developer-token': devToken,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({ query }),
   });
 
