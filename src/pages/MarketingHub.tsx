@@ -459,11 +459,12 @@ export default function MarketingHub() {
         {/* Tabs */}
         <Tabs defaultValue="campanhas">
           <TabsList className="w-full flex flex-wrap h-auto gap-1">
-            <TabsTrigger value="campanhas" className="flex-1 min-w-[120px]"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
-            <TabsTrigger value="meta-ads" className="flex-1 min-w-[120px]"><Facebook className="h-4 w-4 mr-1" />Meta Ads</TabsTrigger>
-            <TabsTrigger value="calendario" className="flex-1 min-w-[120px]"><CalendarIcon className="h-4 w-4 mr-1" />Calendário</TabsTrigger>
-            <TabsTrigger value="roi" className="flex-1 min-w-[120px]"><BarChart3 className="h-4 w-4 mr-1" />Relatórios ROI</TabsTrigger>
-            <TabsTrigger value="funil" className="flex-1 min-w-[120px]"><Filter className="h-4 w-4 mr-1" />Funil</TabsTrigger>
+            <TabsTrigger value="campanhas" className="flex-1 min-w-[100px]"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
+            <TabsTrigger value="meta-ads" className="flex-1 min-w-[100px]"><Facebook className="h-4 w-4 mr-1" />Meta Ads</TabsTrigger>
+            <TabsTrigger value="google-ads" className="flex-1 min-w-[100px]"><Search className="h-4 w-4 mr-1" />Google Ads</TabsTrigger>
+            <TabsTrigger value="calendario" className="flex-1 min-w-[100px]"><CalendarIcon className="h-4 w-4 mr-1" />Calendário</TabsTrigger>
+            <TabsTrigger value="roi" className="flex-1 min-w-[100px]"><BarChart3 className="h-4 w-4 mr-1" />Relatórios ROI</TabsTrigger>
+            <TabsTrigger value="funil" className="flex-1 min-w-[100px]"><Filter className="h-4 w-4 mr-1" />Funil</TabsTrigger>
           </TabsList>
 
           {/* Tab 1: Campanhas - uses Meta Ads data */}
