@@ -65,8 +65,8 @@ serve(async (req) => {
       const query = "SELECT segments.date, metrics.impressions, metrics.clicks, metrics.conversions, metrics.cost_micros FROM customer WHERE segments.date DURING LAST_30_DAYS";
       const results = await queryGoogleAds(accessToken, query);
       let dailyData = [];
-      if (results && results.length > 0 && results[0].results) {
-        dailyData = results[0].results.map((row: any) => ({ date: row.segments?.date, impressions: parseInt(row.metrics?.impressions || "0"), clicks: parseInt(row.metrics?.clicks || "0"), conversions: parseFloat(row.metrics?.conversions || "0"), cost: (parseInt(row.metrics?.costMicros || "0") / 1000000).toFixed(2) }));
+      if (results && results.results) {
+        dailyData = results.results.map((row: any) => ({ date: row.segments?.date, impressions: parseInt(row.metrics?.impressions || "0"), clicks: parseInt(row.metrics?.clicks || "0"), conversions: parseFloat(row.metrics?.conversions || "0"), cost: (parseInt(row.metrics?.costMicros || "0") / 1000000).toFixed(2) }));
       }
       return new Response(JSON.stringify({ daily_data: dailyData }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
