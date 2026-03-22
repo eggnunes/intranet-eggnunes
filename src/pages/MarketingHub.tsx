@@ -662,13 +662,13 @@ export default function MarketingHub() {
             </Card>
           </TabsContent>
 
-          {/* Tab 4: Relatórios ROI */}
+          {/* Tab 5: Relatórios ROI - Consolidado Meta + Google */}
           <TabsContent value="roi">
             {/* Summary cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <Card>
                 <CardContent className="pt-6">
-                  <div className="text-sm text-muted-foreground">Gasto Total</div>
+                  <div className="text-sm text-muted-foreground">Gasto Total (Meta + Google)</div>
                   <div className="text-2xl font-bold text-foreground">R$ {totalInvestment.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}</div>
                 </CardContent>
               </Card>
@@ -687,18 +687,25 @@ export default function MarketingHub() {
             </div>
             <div className="grid gap-6 lg:grid-cols-2">
               <Card>
-                <CardHeader><CardTitle className="text-base">Gasto vs Conversões por Campanha</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-base">Gasto vs Conversões por Campanha (Meta + Google)</CardTitle></CardHeader>
                 <CardContent>
                   {roiData.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">Sem dados de campanhas no período. Verifique se o Meta Ads está configurado.</p>
+                    <p className="text-center text-muted-foreground py-8">Sem dados de campanhas no período. Verifique se Meta Ads e/ou Google Ads estão configurados.</p>
                   ) : (
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={roiData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} angle={-20} textAnchor="end" height={60} />
+                        <XAxis dataKey="name" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} angle={-20} textAnchor="end" height={60} />
                         <YAxis yAxisId="left" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
                         <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                        <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(value: any, name: string) => [name === 'Gasto' ? `R$ ${parseFloat(value).toFixed(2)}` : value, name]} />
+                        <RechartsTooltip
+                          contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
+                          formatter={(value: any, name: string) => [name === 'Gasto' ? `R$ ${parseFloat(value).toFixed(2)}` : value, name]}
+                          labelFormatter={(label: string, payload: any[]) => {
+                            const platform = payload?.[0]?.payload?.platform;
+                            return `${label}${platform ? ` (${platform})` : ''}`;
+                          }}
+                        />
                         <Legend />
                         <Bar yAxisId="left" dataKey="gasto" name="Gasto" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
                         <Bar yAxisId="right" dataKey="conversoes" name="Conversões" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
@@ -708,7 +715,7 @@ export default function MarketingHub() {
                 </CardContent>
               </Card>
               <Card>
-                <CardHeader><CardTitle className="text-base">Evolução Temporal</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-base">Evolução Temporal (Meta + Google)</CardTitle></CardHeader>
                 <CardContent>
                   {dailyChartData.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">Sem dados diários no período</p>
@@ -717,27 +724,29 @@ export default function MarketingHub() {
                       <LineChart data={dailyChartData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                         <XAxis dataKey="data" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                        <YAxis yAxisId="left" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                        <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(value: any, name: string) => [name === 'Gasto (R$)' ? `R$ ${parseFloat(value).toFixed(2)}` : value, name]} />
+                        <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                        <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(value: any, name: string) => [name.includes('Gasto') ? `R$ ${parseFloat(value).toFixed(2)}` : value, name]} />
                         <Legend />
-                        <Line yAxisId="left" type="monotone" dataKey="gasto" name="Gasto (R$)" stroke="hsl(var(--muted-foreground))" strokeWidth={2} />
-                        <Line yAxisId="right" type="monotone" dataKey="conversoes" name="Conversões" stroke="hsl(var(--primary))" strokeWidth={2} />
+                        <Line type="monotone" dataKey="gastoMeta" name="Gasto Meta" stroke="hsl(215, 80%, 55%)" strokeWidth={2} />
+                        <Line type="monotone" dataKey="gastoGoogle" name="Gasto Google" stroke="hsl(45, 90%, 50%)" strokeWidth={2} />
+                        <Line type="monotone" dataKey="conversoesMeta" name="Conv. Meta" stroke="hsl(215, 80%, 55%)" strokeWidth={1} strokeDasharray="5 5" />
+                        <Line type="monotone" dataKey="conversoesGoogle" name="Conv. Google" stroke="hsl(45, 90%, 50%)" strokeWidth={1} strokeDasharray="5 5" />
                       </LineChart>
                     </ResponsiveContainer>
                   )}
                 </CardContent>
               </Card>
               <Card className="lg:col-span-2">
-                <CardHeader><CardTitle className="text-base">Distribuição de Gasto por Campanha</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-base">Distribuição por Plataforma</CardTitle></CardHeader>
                 <CardContent className="flex justify-center">
-                  {roiData.length === 0 ? (
+                  {platformDistribution.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">Sem dados</p>
                   ) : (
                     <ResponsiveContainer width="100%" height={300}>
                       <PieChart>
-                        <Pie data={roiData} cx="50%" cy="50%" outerRadius={100} dataKey="gasto" nameKey="name" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                          {roiData.map((_: any, i: number) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                        <Pie data={platformDistribution} cx="50%" cy="50%" outerRadius={100} dataKey="value" nameKey="name" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                          <Cell fill="hsl(215, 80%, 55%)" />
+                          <Cell fill="hsl(45, 90%, 50%)" />
                         </Pie>
                         <Legend />
                         <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(value: any) => [`R$ ${parseFloat(value).toFixed(2)}`, 'Gasto']} />
