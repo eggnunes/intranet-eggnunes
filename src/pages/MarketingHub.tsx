@@ -26,7 +26,8 @@ import {
 } from 'recharts';
 import {
   CalendarIcon, TrendingUp, DollarSign, Users, MousePointerClick, Eye, Target,
-  Plus, Pencil, Trash2, Megaphone, BarChart3, Filter, Facebook
+  Plus, Pencil, Trash2, Megaphone, BarChart3, Filter, Facebook, Search, Globe,
+  Loader2
 } from 'lucide-react';
 import MetaAdsTab from '@/components/marketing/MetaAdsTab';
 import { TutorialOverlay } from '@/components/TutorialOverlay';
@@ -144,6 +145,55 @@ export default function MarketingHub() {
     },
   });
 
+  // Google Ads insights for ROI tab
+  const { data: googleInsights = [] } = useQuery({
+    queryKey: ['marketing-google-insights', metaDateFrom, metaDateTo],
+    queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) return [];
+      const resp = await supabase.functions.invoke('google-ads', {
+        body: { action: 'insights', date_from: metaDateFrom, date_to: metaDateTo },
+      });
+      return resp.data?.insights || [];
+    },
+  });
+
+  const { data: googleDailyInsights = [] } = useQuery({
+    queryKey: ['marketing-google-daily', metaDateFrom, metaDateTo],
+    queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) return [];
+      const resp = await supabase.functions.invoke('google-ads', {
+        body: { action: 'daily_insights', date_from: metaDateFrom, date_to: metaDateTo },
+      });
+      return resp.data?.daily || [];
+    },
+  });
+
+  const { data: googleCampaigns = [], isLoading: googleCampaignsLoading } = useQuery({
+    queryKey: ['marketing-google-campaigns', metaDateFrom, metaDateTo],
+    queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) return [];
+      const resp = await supabase.functions.invoke('google-ads', {
+        body: { action: 'campaigns' },
+      });
+      return resp.data?.campaigns || [];
+    },
+  });
+
+  const { data: googleAccountInfo } = useQuery({
+    queryKey: ['marketing-google-account'],
+    queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) return null;
+      const resp = await supabase.functions.invoke('google-ads', {
+        body: { action: 'account_info' },
+      });
+      return resp.data?.account || null;
+    },
+  });
+
   // Publication mutations
   const savePub = useMutation({
     mutationFn: async (pub: any) => {
@@ -178,8 +228,8 @@ export default function MarketingHub() {
     onSuccess: () => { toast.success('Publicação removida'); refetchPubs(); },
   });
 
-  // ROI data from Meta Ads insights
-  const roiData = useMemo(() => metaInsights.map((i: any) => {
+  // ROI data - consolidated from Meta Ads + Google Ads
+  const metaRoiData = useMemo(() => metaInsights.map((i: any) => {
     const spend = parseFloat(i.spend || '0');
     const conversions = (i.actions || []).reduce((sum: number, a: any) => {
       if (['offsite_conversion', 'lead', 'onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.lead_grouped'].includes(a.action_type)) {
@@ -192,22 +242,81 @@ export default function MarketingHub() {
       gasto: spend,
       conversoes: conversions,
       cpl: conversions > 0 ? spend / conversions : 0,
+      platform: 'Meta Ads',
     };
   }).filter((d: any) => d.gasto > 0), [metaInsights]);
 
-  const dailyChartData = useMemo(() => metaDailyInsights.map((d: any) => {
+  const googleRoiData = useMemo(() => googleInsights.map((i: any) => {
+    const spend = parseFloat(i.spend || '0');
+    const conversions = parseInt(i.conversions || '0');
+    return {
+      name: (i.campaign_name || 'Sem nome').substring(0, 25),
+      gasto: spend,
+      conversoes: conversions,
+      cpl: conversions > 0 ? spend / conversions : 0,
+      platform: 'Google Ads',
+    };
+  }).filter((d: any) => d.gasto > 0), [googleInsights]);
+
+  const roiData = useMemo(() => [...metaRoiData, ...googleRoiData], [metaRoiData, googleRoiData]);
+
+  // Daily chart - consolidated
+  const metaDailyData = useMemo(() => metaDailyInsights.map((d: any) => {
     const conversions = (d.actions || []).reduce((sum: number, a: any) => {
       if (['offsite_conversion', 'lead', 'onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.lead_grouped'].includes(a.action_type)) {
         return sum + parseInt(a.value || '0');
       }
       return sum;
     }, 0);
-    return {
-      data: format(new Date(d.date_start), 'dd/MM'),
-      gasto: parseFloat(d.spend || '0'),
-      conversoes: conversions,
-    };
+    return { date_start: d.date_start, gasto: parseFloat(d.spend || '0'), conversoes: conversions };
   }), [metaDailyInsights]);
+
+  const googleDailyData = useMemo(() => googleDailyInsights.map((d: any) => ({
+    date_start: d.date_start,
+    gasto: parseFloat(d.spend || '0'),
+    conversoes: parseInt(d.conversions || '0'),
+  })), [googleDailyInsights]);
+
+  const dailyChartData = useMemo(() => {
+    const dateMap: Record<string, any> = {};
+    for (const d of metaDailyData) {
+      const key = d.date_start;
+      if (!dateMap[key]) dateMap[key] = { data: format(new Date(key), 'dd/MM'), gastoMeta: 0, gastoGoogle: 0, conversoesMeta: 0, conversoesGoogle: 0 };
+      dateMap[key].gastoMeta += d.gasto;
+      dateMap[key].conversoesMeta += d.conversoes;
+    }
+    for (const d of googleDailyData) {
+      const key = d.date_start;
+      if (!dateMap[key]) dateMap[key] = { data: format(new Date(key), 'dd/MM'), gastoMeta: 0, gastoGoogle: 0, conversoesMeta: 0, conversoesGoogle: 0 };
+      dateMap[key].gastoGoogle += d.gasto;
+      dateMap[key].conversoesGoogle += d.conversoes;
+    }
+    return Object.values(dateMap).sort((a: any, b: any) => a.data.localeCompare(b.data));
+  }, [metaDailyData, googleDailyData]);
+
+  // Platform distribution for pie chart
+  const platformDistribution = useMemo(() => {
+    const metaTotal = metaRoiData.reduce((s: number, c: any) => s + c.gasto, 0);
+    const googleTotal = googleRoiData.reduce((s: number, c: any) => s + c.gasto, 0);
+    const result = [];
+    if (metaTotal > 0) result.push({ name: 'Meta Ads', value: metaTotal });
+    if (googleTotal > 0) result.push({ name: 'Google Ads', value: googleTotal });
+    return result;
+  }, [metaRoiData, googleRoiData]);
+
+  // Google Ads tab metrics
+  const googleTotals = useMemo(() => {
+    let impressions = 0, clicks = 0, conversions = 0, spend = 0;
+    for (const i of googleInsights) {
+      impressions += parseInt(i.impressions || '0');
+      clicks += parseInt(i.clicks || '0');
+      conversions += parseInt(i.conversions || '0');
+      spend += parseFloat(i.spend || '0');
+    }
+    const ctr = impressions > 0 ? ((clicks / impressions) * 100).toFixed(2) : '0';
+    const cpc = clicks > 0 ? (spend / clicks).toFixed(2) : '0';
+    return { impressions, clicks, conversions, spend, ctr, cpc };
+  }, [googleInsights]);
 
   // Funnel data - ALL deals, not filtered by date
   const funnelData = useMemo(() => {
@@ -350,11 +459,12 @@ export default function MarketingHub() {
         {/* Tabs */}
         <Tabs defaultValue="campanhas">
           <TabsList className="w-full flex flex-wrap h-auto gap-1">
-            <TabsTrigger value="campanhas" className="flex-1 min-w-[120px]"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
-            <TabsTrigger value="meta-ads" className="flex-1 min-w-[120px]"><Facebook className="h-4 w-4 mr-1" />Meta Ads</TabsTrigger>
-            <TabsTrigger value="calendario" className="flex-1 min-w-[120px]"><CalendarIcon className="h-4 w-4 mr-1" />Calendário</TabsTrigger>
-            <TabsTrigger value="roi" className="flex-1 min-w-[120px]"><BarChart3 className="h-4 w-4 mr-1" />Relatórios ROI</TabsTrigger>
-            <TabsTrigger value="funil" className="flex-1 min-w-[120px]"><Filter className="h-4 w-4 mr-1" />Funil</TabsTrigger>
+            <TabsTrigger value="campanhas" className="flex-1 min-w-[100px]"><Megaphone className="h-4 w-4 mr-1" />Campanhas</TabsTrigger>
+            <TabsTrigger value="meta-ads" className="flex-1 min-w-[100px]"><Facebook className="h-4 w-4 mr-1" />Meta Ads</TabsTrigger>
+            <TabsTrigger value="google-ads" className="flex-1 min-w-[100px]"><Search className="h-4 w-4 mr-1" />Google Ads</TabsTrigger>
+            <TabsTrigger value="calendario" className="flex-1 min-w-[100px]"><CalendarIcon className="h-4 w-4 mr-1" />Calendário</TabsTrigger>
+            <TabsTrigger value="roi" className="flex-1 min-w-[100px]"><BarChart3 className="h-4 w-4 mr-1" />Relatórios ROI</TabsTrigger>
+            <TabsTrigger value="funil" className="flex-1 min-w-[100px]"><Filter className="h-4 w-4 mr-1" />Funil</TabsTrigger>
           </TabsList>
 
           {/* Tab 1: Campanhas - uses Meta Ads data */}
@@ -367,7 +477,140 @@ export default function MarketingHub() {
             <MetaAdsTab metaConfig={metaConfig} dateRange={dateRange} onOpenConfig={() => setMetaConfigOpen(true)} />
           </TabsContent>
 
-          {/* Tab 3: Calendário */}
+          {/* Tab 3: Google Ads */}
+          <TabsContent value="google-ads">
+            <div className="space-y-6">
+              {/* Account info */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                    <Search className="h-5 w-5" /> Google Ads
+                    {googleAccountInfo?.name && <Badge variant="outline">{googleAccountInfo.name}</Badge>}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">Dados de {metaDateFrom} a {metaDateTo}</p>
+                </div>
+              </div>
+
+              {/* Metric cards */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <Card><CardContent className="pt-4 pb-3 text-center">
+                  <Eye className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                  <div className="text-xs text-muted-foreground">Impressões</div>
+                  <div className="text-lg font-bold text-foreground">{googleTotals.impressions.toLocaleString('pt-BR')}</div>
+                </CardContent></Card>
+                <Card><CardContent className="pt-4 pb-3 text-center">
+                  <MousePointerClick className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                  <div className="text-xs text-muted-foreground">Cliques</div>
+                  <div className="text-lg font-bold text-foreground">{googleTotals.clicks.toLocaleString('pt-BR')}</div>
+                </CardContent></Card>
+                <Card><CardContent className="pt-4 pb-3 text-center">
+                  <TrendingUp className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                  <div className="text-xs text-muted-foreground">CTR</div>
+                  <div className="text-lg font-bold text-foreground">{googleTotals.ctr}%</div>
+                </CardContent></Card>
+                <Card><CardContent className="pt-4 pb-3 text-center">
+                  <DollarSign className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                  <div className="text-xs text-muted-foreground">CPC</div>
+                  <div className="text-lg font-bold text-foreground">R$ {parseFloat(googleTotals.cpc).toFixed(2).replace('.', ',')}</div>
+                </CardContent></Card>
+                <Card><CardContent className="pt-4 pb-3 text-center">
+                  <Target className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                  <div className="text-xs text-muted-foreground">Conversões</div>
+                  <div className="text-lg font-bold text-foreground">{googleTotals.conversions}</div>
+                </CardContent></Card>
+                <Card><CardContent className="pt-4 pb-3 text-center">
+                  <DollarSign className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                  <div className="text-xs text-muted-foreground">Gasto Total</div>
+                  <div className="text-lg font-bold text-foreground">R$ {googleTotals.spend.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}</div>
+                </CardContent></Card>
+              </div>
+
+              {/* Campaigns table */}
+              <Card>
+                <CardHeader><CardTitle className="text-base">Campanhas Google Ads</CardTitle></CardHeader>
+                <CardContent>
+                  {googleCampaignsLoading ? (
+                    <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                  ) : googleInsights.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">Nenhuma campanha com dados no período. Verifique se as credenciais do Google Ads estão configuradas.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Campanha</TableHead>
+                            <TableHead className="text-right">Impressões</TableHead>
+                            <TableHead className="text-right">Cliques</TableHead>
+                            <TableHead className="text-right">CTR</TableHead>
+                            <TableHead className="text-right">CPC</TableHead>
+                            <TableHead className="text-right">Conversões</TableHead>
+                            <TableHead className="text-right">Gasto</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {googleInsights.map((i: any) => (
+                            <TableRow key={i.campaign_id}>
+                              <TableCell className="font-medium">{i.campaign_name}</TableCell>
+                              <TableCell className="text-right">{parseInt(i.impressions || '0').toLocaleString('pt-BR')}</TableCell>
+                              <TableCell className="text-right">{parseInt(i.clicks || '0').toLocaleString('pt-BR')}</TableCell>
+                              <TableCell className="text-right">{parseFloat(i.ctr || '0').toFixed(2)}%</TableCell>
+                              <TableCell className="text-right">R$ {parseFloat(i.cpc || '0').toFixed(2).replace('.', ',')}</TableCell>
+                              <TableCell className="text-right">{i.conversions || '0'}</TableCell>
+                              <TableCell className="text-right">R$ {parseFloat(i.spend || '0').toFixed(2).replace('.', ',')}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Charts */}
+              <div className="grid gap-6 lg:grid-cols-2">
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Gasto por Campanha</CardTitle></CardHeader>
+                  <CardContent>
+                    {googleRoiData.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">Sem dados</p>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={googleRoiData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} angle={-20} textAnchor="end" height={60} />
+                          <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                          <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(value: any) => [`R$ ${parseFloat(value).toFixed(2)}`, 'Gasto']} />
+                          <Bar dataKey="gasto" name="Gasto" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Evolução Diária</CardTitle></CardHeader>
+                  <CardContent>
+                    {googleDailyData.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">Sem dados diários</p>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={googleDailyData.map((d: any) => ({ data: format(new Date(d.date_start), 'dd/MM'), gasto: d.gasto, conversoes: d.conversoes }))}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis dataKey="data" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                          <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                          <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(value: any, name: string) => [name === 'Gasto' ? `R$ ${parseFloat(value).toFixed(2)}` : value, name]} />
+                          <Legend />
+                          <Line type="monotone" dataKey="gasto" name="Gasto" stroke="hsl(var(--muted-foreground))" strokeWidth={2} />
+                          <Line type="monotone" dataKey="conversoes" name="Conversões" stroke="hsl(var(--primary))" strokeWidth={2} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Tab 4: Calendário */}
           <TabsContent value="calendario">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -419,13 +662,13 @@ export default function MarketingHub() {
             </Card>
           </TabsContent>
 
-          {/* Tab 4: Relatórios ROI */}
+          {/* Tab 5: Relatórios ROI - Consolidado Meta + Google */}
           <TabsContent value="roi">
             {/* Summary cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <Card>
                 <CardContent className="pt-6">
-                  <div className="text-sm text-muted-foreground">Gasto Total</div>
+                  <div className="text-sm text-muted-foreground">Gasto Total (Meta + Google)</div>
                   <div className="text-2xl font-bold text-foreground">R$ {totalInvestment.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}</div>
                 </CardContent>
               </Card>
@@ -444,18 +687,25 @@ export default function MarketingHub() {
             </div>
             <div className="grid gap-6 lg:grid-cols-2">
               <Card>
-                <CardHeader><CardTitle className="text-base">Gasto vs Conversões por Campanha</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-base">Gasto vs Conversões por Campanha (Meta + Google)</CardTitle></CardHeader>
                 <CardContent>
                   {roiData.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">Sem dados de campanhas no período. Verifique se o Meta Ads está configurado.</p>
+                    <p className="text-center text-muted-foreground py-8">Sem dados de campanhas no período. Verifique se Meta Ads e/ou Google Ads estão configurados.</p>
                   ) : (
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={roiData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} angle={-20} textAnchor="end" height={60} />
+                        <XAxis dataKey="name" tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }} angle={-20} textAnchor="end" height={60} />
                         <YAxis yAxisId="left" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
                         <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                        <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(value: any, name: string) => [name === 'Gasto' ? `R$ ${parseFloat(value).toFixed(2)}` : value, name]} />
+                        <RechartsTooltip
+                          contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
+                          formatter={(value: any, name: string) => [name === 'Gasto' ? `R$ ${parseFloat(value).toFixed(2)}` : value, name]}
+                          labelFormatter={(label: string, payload: any[]) => {
+                            const platform = payload?.[0]?.payload?.platform;
+                            return `${label}${platform ? ` (${platform})` : ''}`;
+                          }}
+                        />
                         <Legend />
                         <Bar yAxisId="left" dataKey="gasto" name="Gasto" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
                         <Bar yAxisId="right" dataKey="conversoes" name="Conversões" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
@@ -465,7 +715,7 @@ export default function MarketingHub() {
                 </CardContent>
               </Card>
               <Card>
-                <CardHeader><CardTitle className="text-base">Evolução Temporal</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-base">Evolução Temporal (Meta + Google)</CardTitle></CardHeader>
                 <CardContent>
                   {dailyChartData.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">Sem dados diários no período</p>
@@ -474,27 +724,29 @@ export default function MarketingHub() {
                       <LineChart data={dailyChartData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                         <XAxis dataKey="data" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                        <YAxis yAxisId="left" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                        <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(value: any, name: string) => [name === 'Gasto (R$)' ? `R$ ${parseFloat(value).toFixed(2)}` : value, name]} />
+                        <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                        <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(value: any, name: string) => [name.includes('Gasto') ? `R$ ${parseFloat(value).toFixed(2)}` : value, name]} />
                         <Legend />
-                        <Line yAxisId="left" type="monotone" dataKey="gasto" name="Gasto (R$)" stroke="hsl(var(--muted-foreground))" strokeWidth={2} />
-                        <Line yAxisId="right" type="monotone" dataKey="conversoes" name="Conversões" stroke="hsl(var(--primary))" strokeWidth={2} />
+                        <Line type="monotone" dataKey="gastoMeta" name="Gasto Meta" stroke="hsl(215, 80%, 55%)" strokeWidth={2} />
+                        <Line type="monotone" dataKey="gastoGoogle" name="Gasto Google" stroke="hsl(45, 90%, 50%)" strokeWidth={2} />
+                        <Line type="monotone" dataKey="conversoesMeta" name="Conv. Meta" stroke="hsl(215, 80%, 55%)" strokeWidth={1} strokeDasharray="5 5" />
+                        <Line type="monotone" dataKey="conversoesGoogle" name="Conv. Google" stroke="hsl(45, 90%, 50%)" strokeWidth={1} strokeDasharray="5 5" />
                       </LineChart>
                     </ResponsiveContainer>
                   )}
                 </CardContent>
               </Card>
               <Card className="lg:col-span-2">
-                <CardHeader><CardTitle className="text-base">Distribuição de Gasto por Campanha</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-base">Distribuição por Plataforma</CardTitle></CardHeader>
                 <CardContent className="flex justify-center">
-                  {roiData.length === 0 ? (
+                  {platformDistribution.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">Sem dados</p>
                   ) : (
                     <ResponsiveContainer width="100%" height={300}>
                       <PieChart>
-                        <Pie data={roiData} cx="50%" cy="50%" outerRadius={100} dataKey="gasto" nameKey="name" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                          {roiData.map((_: any, i: number) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                        <Pie data={platformDistribution} cx="50%" cy="50%" outerRadius={100} dataKey="value" nameKey="name" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                          <Cell fill="hsl(215, 80%, 55%)" />
+                          <Cell fill="hsl(45, 90%, 50%)" />
                         </Pie>
                         <Legend />
                         <RechartsTooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(value: any) => [`R$ ${parseFloat(value).toFixed(2)}`, 'Gasto']} />
