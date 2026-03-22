@@ -46,8 +46,8 @@ serve(async (req) => {
       const results = await queryGoogleAds(accessToken, query);
       let campaigns = [];
       let totals = { impressions: 0, clicks: 0, conversions: 0, cost: 0 };
-      if (results && results.length > 0 && results[0].results) {
-        campaigns = results[0].results.map((row: any) => {
+      if (results && results.results) {
+        campaigns = results.results.map((row: any) => {
           const imp = parseInt(row.metrics?.impressions || "0");
           const cli = parseInt(row.metrics?.clicks || "0");
           const conv = parseFloat(row.metrics?.conversions || "0");
