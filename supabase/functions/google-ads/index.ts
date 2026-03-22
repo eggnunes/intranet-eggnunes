@@ -71,7 +71,10 @@ async function gaqlQuery(customerId: string, accessToken: string, query: string)
     headers['login-customer-id'] = loginCustomerId.replace(/-/g, '');
   }
 
-  const resp = await fetch(`${GOOGLE_ADS_API}/customers/${cid}/googleAds:searchStream`, {
+  const url = `${GOOGLE_ADS_API}/customers/${cid}/googleAds:searchStream`;
+  console.log('Google Ads API URL:', url, '| CID:', cid, '| loginCustomerId:', loginCustomerId || 'not set', '| devToken length:', devToken?.length);
+
+  const resp = await fetch(url, {
     method: 'POST',
     headers,
     body: JSON.stringify({ query }),
