@@ -23,21 +23,36 @@ async function getAccessToken(): Promise<string> {
 
   console.log('OAuth request - clientId length:', clientId.length, 'refreshToken length:', refreshToken.length);
 
-  const resp = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-    }),
+  const tokenBody = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    refresh_token: refreshToken,
+    grant_type: 'refresh_token',
   });
 
-  const data = await resp.json();
+  // Try primary endpoint
+  let resp = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: tokenBody,
+  });
+
+  let data = await resp.json();
+
+  // If primary fails, try alternative endpoint
+  if (data.error) {
+    console.warn('Primary OAuth endpoint failed, trying alternative...', JSON.stringify(data));
+    resp = await fetch('https://accounts.google.com/o/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenBody,
+    });
+    data = await resp.json();
+  }
+
   if (data.error) {
     console.error('OAuth error details:', JSON.stringify(data));
-    throw new Error(`OAuth error: ${data.error} - ${data.error_description || 'Verifique se as credenciais do Google Ads estão corretas (Client ID, Client Secret e Refresh Token).'}`);
+    throw new Error(`OAuth error: ${data.error} - ${data.error_description || 'Sem descrição'} | HTTP ${resp.status} | Body: ${JSON.stringify(data)}`);
   }
   return data.access_token;
 }
