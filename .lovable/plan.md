@@ -1,40 +1,62 @@
+# Nova Aba "Relatório por Anúncios" no Marketing Hub
+
+## O que será feito
+
+Criar uma aba "Leads por Anúncio" no Marketing Hub que cruza dados de anúncios do Meta Ads com leads capturados (`captured_leads`), permitindo ver quais anúncios de quais campanhas estão gerando leads e quais não estão — com opção de pausar/ativar anúncios diretamente.
+
+---
+
+## Componentes
+
+### 1. Edge Function: `meta-ads` — Nova action `ad_insights`
+
+Adicionar uma action que busca dados no nível de **anúncio** (ad) da Meta API v25.0:
+
+- Endpoint: `/{actId}/ads?fields=id,name,status,campaign_id,adset_id,adset{name},campaign{name}` 
+- Endpoint: `/{actId}/insights?level=ad&fields=ad_name,ad_id,adset_name,adset_id,campaign_name,campaign_id,impressions,clicks,spend,actions,ctr,cpc`
+- Também adicionar action `update_ad_status` para pausar/ativar anúncios individuais
+
+### 2. Novo componente: `src/components/marketing/AdPerformanceReport.tsx`
+
+Dashboard com:
+
+- **Filtros**: Período (7/30/90 dias ou custom), Campanha (dropdown), Conjunto de Anúncios (dropdown), "Só com leads" / "Só sem leads"
+- **Cards resumo**: Total de anúncios ativos, anúncios com leads, anúncios sem leads, CPL médio
+- **Tabela principal** agrupada por campanha:
+  - Colunas: Anúncio, Conjunto, Status, Impressões, Cliques, Gasto, Leads (cruzado com `captured_leads.utm_term`), CPL, Ações (Pausar/Ativar)
+  - Cruzamento: `captured_leads.utm_term` = nome do anúncio (conforme template UTM do Meta Ads)
+  - Ordenação por qualquer coluna
+- **Gráfico de barras**: Top anúncios por leads
+- **Gráfico de pizza**: Distribuição de leads por campanha
+
+### 3. MarketingHub.tsx — Nova aba
+
+Adicionar tab "Anúncios" com ícone na lista de tabs existente, renderizando o novo componente.
+
+---
+
+## Lógica de cruzamento de dados
+
+O template UTM do Meta Ads já configurado mapeia:
+
+- `utm_campaign` → `{{campaign.name}}`  
+- `utm_content` → `{{adset.name}}`  
+- `utm_term` → `{{ad.name}}`
+
+O cruzamento será feito assim:
+
+1. Buscar insights da Meta API no nível de anúncio
+2. Buscar `captured_leads` no período, filtrados por `utm_source` contendo facebook/meta/instagram
+3. Para cada anúncio, contar leads onde `utm_term` = nome do anúncio
+4. Exibir lado a lado: métricas do Meta + leads reais capturados
+
+---
+
+## Arquivos afetados
 
 
-# Corrigir Agendamento do Resumo Diário
-
-## Problema
-
-A Edge Function `send-daily-digest` está implementada corretamente e já usa o e-mail cadastrado no perfil de cada colaborador (`profiles.email`). Porém, o job pg_cron que deveria disparar essa função diariamente às 7h (Brasília) **não foi criado** — apenas as extensões foram habilitadas.
-
-## Solução
-
-Executar um SQL (via insert tool, não migração) para criar o cron job:
-
-```sql
-SELECT cron.schedule(
-  'send-daily-digest',
-  '0 10 * * *',  -- 10:00 UTC = 07:00 BRT
-  $$
-  SELECT net.http_post(
-    url := 'https://igzcajgwqfpcgybxanjo.supabase.co/functions/v1/send-daily-digest',
-    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnemNhamd3cWZwY2d5YnhhbmpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNTE2MTAsImV4cCI6MjA3OTkyNzYxMH0.zDBmiIc9n9TrXgfkBNMgRCjfX8oybieBnu2_QdSN8cY"}'::jsonb,
-    body := '{"time": "daily-digest"}'::jsonb
-  ) AS request_id;
-  $$
-);
-```
-
-## Verificação do fluxo completo
-
-O e-mail é enviado para `profile.email` de cada colaborador ativo/aprovado/não suspenso. A lógica está correta:
-
-1. Busca perfis com `is_active=true`, `is_suspended=false`, `approval_status='approved'`
-2. Verifica preferência `notify_daily_digest` (default: true)
-3. Monta conteúdo personalizado por cargo
-4. Envia para `profile.email` via Resend
-5. Pula usuários sem e-mail ou sem conteúdo relevante
-
-## Resultado
-
-Após criar o cron job, o resumo diário será enviado automaticamente todos os dias às 7h (Brasília) para o e-mail cadastrado de cada colaborador.
-
+| Arquivo                                            | Ação                                                              |
+| -------------------------------------------------- | ----------------------------------------------------------------- |
+| `supabase/functions/meta-ads/index.ts`             | **Editar** — Adicionar actions `ad_insights` e `update_ad_status` |
+| `src/components/marketing/AdPerformanceReport.tsx` | **Criar** — Componente completo do relatório                      |
+| `src/pages/MarketingHub.tsx`                       | **Editar** — Adicionar aba "Anúncios"                             |
