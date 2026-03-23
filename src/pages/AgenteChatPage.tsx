@@ -437,7 +437,6 @@ export default function AgenteChatPage() {
           <span className="text-2xl">{agent.icon_emoji}</span>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-semibold">{agent.name}</h1>
-            <p className="text-sm text-muted-foreground line-clamp-1">{agent.objective}</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowHistory(!showHistory)}>
@@ -480,7 +479,7 @@ export default function AgenteChatPage() {
                 <div className="flex flex-col items-center justify-center h-full text-center py-20">
                   <span className="text-5xl mb-4">{agent.icon_emoji}</span>
                   <h2 className="text-xl font-semibold mb-2">Olá! Eu sou {agent.name}</h2>
-                  <p className="text-muted-foreground max-w-md line-clamp-2">{agent.objective}</p>
+                  <p className="text-muted-foreground max-w-md text-sm">{agent.objective.length > 120 ? agent.objective.slice(0, 120) + '...' : agent.objective}</p>
                   <p className="text-sm text-muted-foreground mt-4">Envie uma mensagem para começar.</p>
                 </div>
               ) : (
