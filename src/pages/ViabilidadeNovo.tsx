@@ -149,7 +149,7 @@ export default function ViabilidadeNovo() {
         body: {
           nome,
           cpf,
-          tipo_acao: tiposAcao.find(t => t.value === tipoAcao)?.label || tipoAcao,
+          tipo_acao: tipoAcao,
           descricao_caso: descricaoCaso,
           data_nascimento: dataNascimento ? format(dataNascimento, 'dd/MM/yyyy') : null,
           telefone,
