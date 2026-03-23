@@ -545,7 +545,7 @@ export default function AgenteChatPage() {
             </ScrollArea>
 
             {/* Input area */}
-            <div className="border-t pt-3 mt-2 pb-2 flex-shrink-0">
+            <div className="border-t pt-3 mt-2 pb-4 flex-shrink-0">
               {/* Attachments preview */}
               {attachments.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-2">
