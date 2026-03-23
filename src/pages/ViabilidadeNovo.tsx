@@ -19,6 +19,8 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { maskCPF, maskPhone } from '@/lib/masks';
+import { ClientImportSearch } from '@/components/viabilidade/ClientImportSearch';
+import { AddressFields, buildAddressString, type AddressData } from '@/components/viabilidade/AddressFields';
 
 const tiposAcao = [
   { value: 'civel', label: 'Cível' },
@@ -33,6 +35,8 @@ const recomendacaoConfig: Record<string, { label: string; icon: typeof CheckCirc
   necessita_mais_dados: { label: 'Necessita Mais Dados', icon: AlertTriangle, className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30' },
 };
 
+const emptyAddress: AddressData = { cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', estado: '' };
+
 export default function ViabilidadeNovo() {
   const navigate = useNavigate();
 
@@ -42,7 +46,7 @@ export default function ViabilidadeNovo() {
   const [dataNascimento, setDataNascimento] = useState<Date>();
   const [telefone, setTelefone] = useState('');
   const [email, setEmail] = useState('');
-  const [endereco, setEndereco] = useState('');
+  const [address, setAddress] = useState<AddressData>(emptyAddress);
   const [tipoAcao, setTipoAcao] = useState('');
   const [descricaoCaso, setDescricaoCaso] = useState('');
   const [modeloIA, setModeloIA] = useState<'claude' | 'chatgpt'>('claude');
@@ -54,6 +58,21 @@ export default function ViabilidadeNovo() {
   const [parecer, setParecer] = useState('');
   const [recomendacao, setRecomendacao] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const handleImportClient = (data: { nome: string; cpf: string; telefone: string; email: string; cidade?: string; estado?: string }) => {
+    if (data.nome) setNome(data.nome);
+    if (data.cpf) setCpf(maskCPF(data.cpf));
+    if (data.telefone) setTelefone(maskPhone(data.telefone));
+    if (data.email) setEmail(data.email);
+    if (data.cidade || data.estado) {
+      setAddress(prev => ({
+        ...prev,
+        cidade: data.cidade || prev.cidade,
+        estado: data.estado || prev.estado,
+      }));
+    }
+    toast.success('Dados do cliente importados!');
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -90,7 +109,7 @@ export default function ViabilidadeNovo() {
           data_nascimento: dataNascimento ? format(dataNascimento, 'dd/MM/yyyy') : null,
           telefone,
           email,
-          endereco,
+          endereco: buildAddressString(address),
           modelo: modeloIA,
         },
       });
@@ -130,7 +149,6 @@ export default function ViabilidadeNovo() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { toast.error('Usuário não autenticado'); return; }
 
-      // Upload documents
       const docPaths: string[] = [];
       for (const file of arquivos) {
         const filePath = `viabilidade/${user.id}/${Date.now()}_${file.name}`;
@@ -142,11 +160,12 @@ export default function ViabilidadeNovo() {
         }
       }
 
-      // Determine status based on recommendation
       let status = 'pendente';
       if (recomendacao === 'viavel') status = 'revisado';
       else if (recomendacao === 'inviavel') status = 'revisado';
       else if (recomendacao === 'necessita_mais_dados') status = 'em_analise';
+
+      const enderecoStr = buildAddressString(address);
 
       const { error } = await supabase.from('viabilidade_clientes').insert({
         nome,
@@ -154,7 +173,7 @@ export default function ViabilidadeNovo() {
         data_nascimento: dataNascimento ? format(dataNascimento, 'yyyy-MM-dd') : null,
         telefone: telefone || null,
         email: email || null,
-        endereco: endereco || null,
+        endereco: enderecoStr || null,
         tipo_acao: tipoAcao || null,
         descricao_caso: descricaoCaso || null,
         documentos: docPaths,
@@ -191,6 +210,9 @@ export default function ViabilidadeNovo() {
             <p className="text-sm text-muted-foreground">Preencha os dados e analise a viabilidade do caso</p>
           </div>
         </div>
+
+        {/* Import Client */}
+        <ClientImportSearch onSelect={handleImportClient} />
 
         {/* Form */}
         <Card>
@@ -247,10 +269,8 @@ export default function ViabilidadeNovo() {
               </div>
             </div>
 
-            <div>
-              <Label>Endereço</Label>
-              <Input value={endereco} onChange={e => setEndereco(e.target.value)} placeholder="Endereço completo" />
-            </div>
+            {/* Address Fields */}
+            <AddressFields address={address} onChange={setAddress} />
 
             <div>
               <Label>Descrição do Caso *</Label>
