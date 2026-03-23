@@ -38,6 +38,7 @@ const MuralAvisos = () => {
   const { canEdit, isSocioOrRafael } = useAdminPermissions();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { sendAnnouncementEmail } = useEmailNotification();
   
   // Check if user can manage announcements
   const canManageAnnouncements = isSocioOrRafael || canEdit('announcements');
