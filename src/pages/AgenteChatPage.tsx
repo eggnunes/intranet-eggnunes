@@ -62,6 +62,11 @@ export default function AgenteChatPage() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [teamsDialogOpen, setTeamsDialogOpen] = useState(false);
+  const [teamsContent, setTeamsContent] = useState({ fileName: '', fileContent: '' });
+  const [clientNameDialogOpen, setClientNameDialogOpen] = useState(false);
+  const [clientNameInput, setClientNameInput] = useState('');
+  const [pendingTeamsContent, setPendingTeamsContent] = useState('');
 
   useEffect(() => {
     if (agentId) loadAgent();
