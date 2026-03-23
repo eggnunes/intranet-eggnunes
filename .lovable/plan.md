@@ -1,36 +1,58 @@
 
-
 ## Diagnóstico
 
-Analisando o código atual em `AgenteChatPage.tsx`, os botões de **anexar documento** (Paperclip) e **microfone** (Mic) **já existem no código** (linhas 581-600), assim como o `line-clamp-1` no header (linha 440). Porém, o screenshot mostra que essas mudanças **não estão refletidas na tela** — o header ainda exibe o texto completo das instruções e os botões não aparecem.
+O problema está visível no código atual de `src/pages/AgenteChatPage.tsx`:
 
-Isso indica que as edições anteriores podem não ter sido salvas corretamente ou houve um conflito de deploy. 
+1. O resumo ainda está sendo cortado manualmente:
+   - hoje existe `agent.objective.length > 120 ? agent.objective.slice(0, 120) + '...' : agent.objective`
+   - por isso o texto no centro continua truncado
 
-## Plano: Reescrever a área de input e header para garantir funcionamento
+2. O layout do estado vazio está “empurrando” o chat para baixo:
+   - o container principal usa altura fixa `calc(100vh - 8rem)`
+   - a área vazia usa `h-full` + `justify-center` + `py-20`
+   - isso cria um bloco muito alto no meio e deixa o composer colado na base da tela
 
-### 1. Header — remover texto longo de instruções
-- Manter apenas nome do agente e objetivo truncado (1 linha com `line-clamp-1`)
-- Confirmar que o código está correto (já está nas linhas 438-441)
+3. Ainda existe espaçamento vertical excessivo entre:
+   - o resumo do agente
+   - “Envie uma mensagem para começar”
+   - a caixa de mensagem
 
-### 2. Área de input — garantir visibilidade dos botões
-- Botão de **Paperclip** (anexar arquivos: PDF, DOC, TXT, imagens) à esquerda do textarea
-- Botão de **Microfone** (gravar áudio → transcrever via edge function `voice-to-text`) à esquerda do textarea
-- Indicador de gravação quando microfone ativo
-- Preview de arquivos anexados acima do textarea
+## Plano de correção
 
-### 3. Layout cortado — corrigir altura do container
-- Aumentar padding inferior (`pb-4`) na área de input para evitar corte
-- Verificar que `h-[calc(100vh-6rem)]` não está sendo sobreposto pelo Layout
+### 1. Ajustar a estrutura vertical da página
+Em `src/pages/AgenteChatPage.tsx`:
+- trocar a estratégia de altura fixa por uma estrutura mais estável com `flex`, `min-h-0` e distribuição correta do espaço interno
+- fazer a área do chat ocupar o espaço disponível sem “forçar” o input para o rodapé visual
+- subir o composer alguns pixels, reduzindo a sensação de que ele está colado na parte de baixo
 
-### 4. Tela de boas-vindas — remover texto repetido
-- Mostrar apenas emoji, nome e uma frase curta (truncada com `line-clamp-2`)
+### 2. Corrigir o estado vazio do chat
+Na tela sem mensagens:
+- remover o truncamento manual do `objective`
+- exibir o texto completo do resumo do agente
+- limitar pela largura do bloco, não por corte de caracteres
+- reduzir o espaço vazio entre o resumo, a frase “Envie uma mensagem para começar” e o campo de mensagem
+- reposicionar esse conteúdo um pouco mais para cima, em vez de centralizar exageradamente na altura total
 
-### Arquivos a modificar
-- `src/pages/AgenteChatPage.tsx` — reescrever seções de header, welcome screen e input area para garantir que as alterações persistam
+### 3. Manter o header limpo
+No topo:
+- manter apenas ícone + nome do agente
+- não recolocar resumo no header
+- preservar os botões de histórico e nova conversa
 
-### O que o código já tem (será preservado)
-- Lógica de upload de arquivos com base64 (`handleFileSelect`)
-- Gravação de áudio com `MediaRecorder` + transcrição via `voice-to-text`
-- Botões de exportação (PDF, TXT, Copiar, Teams) nas respostas do assistente
-- Diálogos de save to Teams
+### 4. Refinar o espaçamento do composer
+Na área de envio:
+- ajustar `mt`, `pt` e `pb` do bloco inferior
+- garantir que os botões de anexo, microfone e envio continuem totalmente visíveis
+- evitar que a borda superior e o padding façam o campo parecer “afundado” no fim da página
 
+## Resultado esperado
+
+Depois da correção:
+- o resumo aparecerá só no centro da tela inicial
+- o texto do resumo não ficará cortado
+- haverá menos espaço em branco desnecessário
+- a caixa de mensagem ficará visualmente mais acima
+- o chat continuará com anexo e microfone visíveis
+
+## Arquivo a ajustar
+- `src/pages/AgenteChatPage.tsx`
