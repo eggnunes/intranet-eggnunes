@@ -148,6 +148,12 @@ export default function Viabilidade() {
     else { toast.success('Cliente excluído'); fetchClientes(); }
   };
 
+  const handleMarkRevisado = async (id: string) => {
+    const { error } = await supabase.from('viabilidade_clientes').update({ status: 'revisado' }).eq('id', id);
+    if (error) toast.error('Erro ao atualizar status');
+    else { toast.success('Cliente marcado como revisado!'); fetchClientes(); }
+  };
+
   const statCards = [
     { label: 'Total Clientes', value: stats.total, icon: Users, className: 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400' },
     { label: 'Em Análise', value: stats.em_analise, icon: Clock, className: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400' },
@@ -275,6 +281,12 @@ export default function Viabilidade() {
                             {format(new Date(c.created_at), "dd/MM/yyyy", { locale: ptBR })}
                           </TableCell>
                           <TableCell className="text-right space-x-1">
+                            {c.status === 'em_analise' && (
+                              <Button size="sm" variant="outline" className="text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10" onClick={() => handleMarkRevisado(c.id)}>
+                                <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                                Revisado
+                              </Button>
+                            )}
                             <Button size="icon" variant="ghost" onClick={() => openEditDialog(c)}>
                               <Pencil className="h-4 w-4" />
                             </Button>
