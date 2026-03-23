@@ -3643,6 +3643,27 @@ export type Database = {
           },
         ]
       }
+      fin_dashboard_cache: {
+        Row: {
+          dashboard_data: Json | null
+          id: string
+          periodo: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          dashboard_data?: Json | null
+          id?: string
+          periodo?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          dashboard_data?: Json | null
+          id?: string
+          periodo?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       fin_importacao_itens: {
         Row: {
           created_at: string | null
