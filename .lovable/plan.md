@@ -1,23 +1,26 @@
 
 
-# Atualizar chave ANTHROPIC_API_KEY
+# Mostrar nome do autor nos registros de humor
 
-## Diagnóstico confirmado
+## Problema
+A tabela "Registros" na aba "Meu Histórico" mostra apenas Data, Humor e Observações — sem o nome de quem registrou. Além disso, a aba "Visão Geral" (gestores) não tem tabela detalhada com nomes.
 
-Testei a Edge Function `suggest-task` agora e a Anthropic retornou:
+## Solução
 
-> "Your credit balance is too low to access the Anthropic API"
+### 1. Alterar a query `myHistory` para incluir o nome do perfil
+- Trocar `.select('*')` por `.select('*, profiles:user_id(full_name)')` para trazer o nome junto.
 
-A chave que aparece como **"Never used"** na sua imagem confirma que ela **nunca foi usada** — ou seja, a chave configurada no backend ainda e a antiga, que nao tem credito.
+### 2. Adicionar coluna "Nome" na tabela de registros
+- Inserir uma coluna `<TableHead>Nome</TableHead>` na tabela existente.
+- Exibir `entry.profiles?.full_name` em cada linha.
+- Ajustar `colSpan` da linha "Sem registros" de 3 para 4.
 
-## Solucao
+### 3. Adicionar tabela detalhada na aba "Visão Geral" (gestores)
+- Abaixo do gráfico de barras, adicionar uma tabela com colunas: Nome, Data, Humor, Observações.
+- Usar os dados de `allMoods` que já trazem `profiles:user_id(full_name, position)`.
 
-Preciso que voce me forneça a nova chave de API da Anthropic para eu atualizar o segredo `ANTHROPIC_API_KEY` no backend. Vou usar a ferramenta de adicionar segredo para solicitar a chave.
-
-## Passo unico
-
-1. Atualizar o segredo `ANTHROPIC_API_KEY` com a nova chave que voce criou na Anthropic (a que aparece como "Never used")
-2. Testar a funcao `suggest-task` para confirmar que funciona
-
-Nenhum arquivo de codigo precisa ser alterado — apenas o segredo.
+## Arquivo alterado
+| Arquivo | Ação |
+|---|---|
+| `src/pages/PesquisaHumor.tsx` | Ajustar query e adicionar coluna de nome nas tabelas |
 
