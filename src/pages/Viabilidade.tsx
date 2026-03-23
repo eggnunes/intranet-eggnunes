@@ -148,6 +148,12 @@ export default function Viabilidade() {
     else { toast.success('Cliente excluído'); fetchClientes(); }
   };
 
+  const handleMarkRevisado = async (id: string) => {
+    const { error } = await supabase.from('viabilidade_clientes').update({ status: 'revisado' }).eq('id', id);
+    if (error) toast.error('Erro ao atualizar status');
+    else { toast.success('Cliente marcado como revisado!'); fetchClientes(); }
+  };
+
   const statCards = [
     { label: 'Total Clientes', value: stats.total, icon: Users, className: 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400' },
     { label: 'Em Análise', value: stats.em_analise, icon: Clock, className: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400' },
