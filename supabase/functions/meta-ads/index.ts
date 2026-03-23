@@ -258,6 +258,45 @@ Seja direto, use números e percentuais. Formato Markdown.`;
       });
     }
 
+    // ==================== AD-LEVEL INSIGHTS ====================
+
+    if (action === 'ad_insights') {
+      const insightsUrl = `${META_API}/${actId}/insights?fields=ad_name,ad_id,adset_name,adset_id,campaign_name,campaign_id,impressions,clicks,spend,actions,ctr,cpc&time_range={"since":"${fromDate}","until":"${toDate}"}&level=ad&limit=500&access_token=${finalToken}`;
+      const data = await metaFetch(insightsUrl);
+      if (data instanceof Response) return data;
+
+      // Also fetch ad statuses
+      const adsUrl = `${META_API}/${actId}/ads?fields=id,name,status,campaign_id,adset_id,adset{name},campaign{name}&limit=500&access_token=${finalToken}`;
+      const adsData = await metaFetch(adsUrl);
+      const adsStatusMap: Record<string, string> = {};
+      if (!(adsData instanceof Response) && adsData.data) {
+        for (const ad of adsData.data) {
+          adsStatusMap[ad.id] = ad.status;
+        }
+      }
+
+      const insights = (data.data || []).map((i: any) => ({
+        ...i,
+        ad_status: adsStatusMap[i.ad_id] || 'UNKNOWN',
+      }));
+
+      return json({ ad_insights: insights });
+    }
+
+    if (action === 'update_ad_status') {
+      const { ad_id, new_status } = body;
+      if (!ad_id || !new_status) return json({ error: 'ad_id e new_status são obrigatórios' }, 400);
+      const url = `${META_API}/${ad_id}?access_token=${finalToken}`;
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: new_status }),
+      });
+      const data = await resp.json();
+      if (data.error) return json({ error: data.error.message }, 400);
+      return json({ success: true, ad_id });
+    }
+
     // ==================== LEADS CROSS-REFERENCE ====================
 
     if (action === 'leads_meta') {
