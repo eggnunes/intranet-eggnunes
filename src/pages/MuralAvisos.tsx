@@ -138,6 +138,28 @@ const MuralAvisos = () => {
 
       if (error) throw error;
 
+      // Send email notification to all active users
+      const { data: activeUsers } = await supabase
+        .from('profiles')
+        .select('id, email, full_name')
+        .eq('is_active', true)
+        .eq('is_suspended', false)
+        .eq('approval_status', 'approved');
+
+      if (activeUsers) {
+        for (const recipient of activeUsers) {
+          if (recipient.email && recipient.id !== userData.user.id) {
+            sendAnnouncementEmail(
+              recipient.email,
+              recipient.id,
+              recipient.full_name || 'Colaborador',
+              formData.title,
+              formData.content
+            ).catch(err => console.error('Error sending announcement email:', err));
+          }
+        }
+      }
+
       toast({
         title: 'Sucesso',
         description: 'Aviso criado com sucesso!'
