@@ -14,9 +14,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, Clock, CheckCircle, AlertCircle, Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Users, Clock, CheckCircle, AlertCircle, Plus, Pencil, Trash2, Search, XCircle, CloudUpload } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { SaveToTeamsDialog } from '@/components/SaveToTeamsDialog';
 
 type ViabilidadeCliente = {
   id: string;
@@ -27,12 +28,16 @@ type ViabilidadeCliente = {
   created_by: string;
   created_at: string;
   updated_at: string;
+  tipo_acao?: string | null;
+  descricao_caso?: string | null;
+  parecer_viabilidade?: string | null;
 };
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof Clock; className: string }> = {
   pendente: { label: 'Pendente', variant: 'destructive', icon: AlertCircle, className: 'bg-destructive text-destructive-foreground' },
   em_analise: { label: 'Em Análise', variant: 'outline', icon: Clock, className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30' },
-  revisado: { label: 'Revisado', variant: 'default', icon: CheckCircle, className: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30' },
+  viavel: { label: 'Viável', variant: 'default', icon: CheckCircle, className: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30' },
+  inviavel: { label: 'Inviável', variant: 'destructive', icon: XCircle, className: 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30' },
 };
 
 function maskCpf(cpf: string) {
@@ -57,6 +62,12 @@ export default function Viabilidade() {
   const [formStatus, setFormStatus] = useState('pendente');
   const [formObservacoes, setFormObservacoes] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Teams dialog state
+  const [teamsDialogOpen, setTeamsDialogOpen] = useState(false);
+  const [teamsFileName, setTeamsFileName] = useState('');
+  const [teamsFileContent, setTeamsFileContent] = useState('');
+  const [teamsClientName, setTeamsClientName] = useState('');
 
   useEffect(() => {
     fetchClientes();
@@ -90,7 +101,8 @@ export default function Viabilidade() {
   const stats = {
     total: clientes.length,
     em_analise: clientes.filter((c) => c.status === 'em_analise').length,
-    revisado: clientes.filter((c) => c.status === 'revisado').length,
+    viavel: clientes.filter((c) => c.status === 'viavel').length,
+    inviavel: clientes.filter((c) => c.status === 'inviavel').length,
     pendente: clientes.filter((c) => c.status === 'pendente').length,
   };
 
@@ -148,16 +160,56 @@ export default function Viabilidade() {
     else { toast.success('Cliente excluído'); fetchClientes(); }
   };
 
-  const handleMarkRevisado = async (id: string) => {
-    const { error } = await supabase.from('viabilidade_clientes').update({ status: 'revisado' }).eq('id', id);
+  const handleMarkViavel = async (id: string) => {
+    const { error } = await supabase.from('viabilidade_clientes').update({ status: 'viavel' }).eq('id', id);
     if (error) toast.error('Erro ao atualizar status');
-    else { toast.success('Cliente marcado como revisado!'); fetchClientes(); }
+    else { toast.success('Cliente marcado como viável!'); fetchClientes(); }
+  };
+
+  const handleMarkInviavel = async (id: string) => {
+    const { error } = await supabase.from('viabilidade_clientes').update({ status: 'inviavel' }).eq('id', id);
+    if (error) toast.error('Erro ao atualizar status');
+    else { toast.success('Cliente marcado como inviável!'); fetchClientes(); }
+  };
+
+  const handleSaveToTeams = (cliente: ViabilidadeCliente) => {
+    const statusLabel = statusConfig[cliente.status]?.label || cliente.status;
+    const dataFormatada = format(new Date(cliente.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+
+    const content = [
+      '=== ANÁLISE DE VIABILIDADE JURÍDICA ===',
+      '',
+      `Nome: ${cliente.nome}`,
+      `CPF: ${cliente.cpf}`,
+      `Status: ${statusLabel}`,
+      `Tipo de Ação: ${cliente.tipo_acao || 'Não informado'}`,
+      `Data de Cadastro: ${dataFormatada}`,
+      '',
+      '--- Descrição do Caso ---',
+      cliente.descricao_caso || 'Não informado',
+      '',
+      '--- Parecer de Viabilidade ---',
+      cliente.parecer_viabilidade || 'Nenhum parecer registrado',
+      '',
+      '--- Observações ---',
+      cliente.observacoes || 'Nenhuma observação',
+      '',
+      `Documento gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`,
+    ].join('\n');
+
+    const base64 = btoa(unescape(encodeURIComponent(content)));
+
+    setTeamsFileName(`Viabilidade - ${cliente.nome}.txt`);
+    setTeamsFileContent(base64);
+    setTeamsClientName(cliente.nome);
+    setTeamsDialogOpen(true);
   };
 
   const statCards = [
     { label: 'Total Clientes', value: stats.total, icon: Users, className: 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400' },
     { label: 'Em Análise', value: stats.em_analise, icon: Clock, className: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400' },
-    { label: 'Revisados', value: stats.revisado, icon: CheckCircle, className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
+    { label: 'Viáveis', value: stats.viavel, icon: CheckCircle, className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' },
+    { label: 'Inviáveis', value: stats.inviavel, icon: XCircle, className: 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400' },
     { label: 'Pendentes', value: stats.pendente, icon: AlertCircle, className: 'border-destructive/30 bg-destructive/10 text-destructive' },
   ];
 
@@ -192,7 +244,8 @@ export default function Viabilidade() {
                     <SelectContent>
                       <SelectItem value="pendente">Pendente</SelectItem>
                       <SelectItem value="em_analise">Em Análise</SelectItem>
-                      <SelectItem value="revisado">Revisado</SelectItem>
+                      <SelectItem value="viavel">Viável</SelectItem>
+                      <SelectItem value="inviavel">Inviável</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -210,7 +263,7 @@ export default function Viabilidade() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {statCards.map((s) => (
             <Card key={s.label} className={`border ${s.className}`}>
               <CardContent className="flex items-center gap-4 p-5">
@@ -236,7 +289,8 @@ export default function Viabilidade() {
               <SelectItem value="todos">Todos</SelectItem>
               <SelectItem value="pendente">Pendente</SelectItem>
               <SelectItem value="em_analise">Em Análise</SelectItem>
-              <SelectItem value="revisado">Revisado</SelectItem>
+              <SelectItem value="viavel">Viável</SelectItem>
+              <SelectItem value="inviavel">Inviável</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -282,9 +336,21 @@ export default function Viabilidade() {
                           </TableCell>
                           <TableCell className="text-right space-x-1">
                             {c.status === 'em_analise' && (
-                              <Button size="sm" variant="outline" className="text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10" onClick={() => handleMarkRevisado(c.id)}>
-                                <CheckCircle className="h-3.5 w-3.5 mr-1" />
-                                Revisado
+                              <>
+                                <Button size="sm" variant="outline" className="text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10" onClick={() => handleMarkViavel(c.id)}>
+                                  <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                                  Viável
+                                </Button>
+                                <Button size="sm" variant="outline" className="text-red-600 border-red-500/30 hover:bg-red-500/10" onClick={() => handleMarkInviavel(c.id)}>
+                                  <XCircle className="h-3.5 w-3.5 mr-1" />
+                                  Inviável
+                                </Button>
+                              </>
+                            )}
+                            {c.parecer_viabilidade && (
+                              <Button size="sm" variant="outline" onClick={() => handleSaveToTeams(c)} title="Salvar análise no Teams">
+                                <CloudUpload className="h-3.5 w-3.5 mr-1" />
+                                Teams
                               </Button>
                             )}
                             <Button size="icon" variant="ghost" onClick={() => openEditDialog(c)}>
@@ -306,6 +372,15 @@ export default function Viabilidade() {
           </CardContent>
         </Card>
       </div>
+
+      <SaveToTeamsDialog
+        open={teamsDialogOpen}
+        onOpenChange={setTeamsDialogOpen}
+        fileName={teamsFileName}
+        fileContent={teamsFileContent}
+        clientName={teamsClientName}
+        onSuccess={() => toast.success('Análise salva no Teams com sucesso!')}
+      />
     </Layout>
   );
 }
