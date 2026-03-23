@@ -476,11 +476,11 @@ export default function AgenteChatPage() {
           <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
             <ScrollArea ref={scrollRef} className="flex-1 pr-4 min-h-0">
               {messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center py-20">
-                  <span className="text-5xl mb-4">{agent.icon_emoji}</span>
+                <div className="flex flex-col items-center text-center pt-10 pb-6">
+                  <span className="text-5xl mb-3">{agent.icon_emoji}</span>
                   <h2 className="text-xl font-semibold mb-2">Olá! Eu sou {agent.name}</h2>
-                  <p className="text-muted-foreground max-w-md text-sm">{agent.objective.length > 120 ? agent.objective.slice(0, 120) + '...' : agent.objective}</p>
-                  <p className="text-sm text-muted-foreground mt-4">Envie uma mensagem para começar.</p>
+                  <p className="text-muted-foreground max-w-lg text-sm">{agent.objective}</p>
+                  <p className="text-sm text-muted-foreground mt-3">Envie uma mensagem para começar.</p>
                 </div>
               ) : (
                 <div className="space-y-4 pb-4">
