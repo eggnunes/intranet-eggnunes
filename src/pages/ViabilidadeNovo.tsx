@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -8,13 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, CalendarIcon, Upload, Brain, Save, CheckCircle, XCircle, AlertTriangle, FileText, X } from 'lucide-react';
+import { ArrowLeft, CalendarIcon, Upload, Brain, Save, CheckCircle, XCircle, AlertTriangle, FileText, X, ChevronsUpDown, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -22,12 +22,7 @@ import { maskCPF, maskPhone } from '@/lib/masks';
 import { ClientImportSearch } from '@/components/viabilidade/ClientImportSearch';
 import { AddressFields, buildAddressString, type AddressData } from '@/components/viabilidade/AddressFields';
 
-const tiposAcao = [
-  { value: 'civel', label: 'Cível' },
-  { value: 'trabalhista', label: 'Trabalhista' },
-  { value: 'previdenciario', label: 'Previdenciário' },
-  { value: 'tributario', label: 'Tributário' },
-];
+const defaultTipos = ['Cível', 'Trabalhista', 'Previdenciário', 'Tributário'];
 
 const recomendacaoConfig: Record<string, { label: string; icon: typeof CheckCircle; className: string }> = {
   viavel: { label: 'Viável', icon: CheckCircle, className: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30' },
@@ -48,9 +43,59 @@ export default function ViabilidadeNovo() {
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState<AddressData>(emptyAddress);
   const [tipoAcao, setTipoAcao] = useState('');
+  const [tipoAcaoOpen, setTipoAcaoOpen] = useState(false);
+  const [tiposAcaoOptions, setTiposAcaoOptions] = useState<{ label: string; source: string }[]>([]);
+  const [loadingTipos, setLoadingTipos] = useState(true);
   const [descricaoCaso, setDescricaoCaso] = useState('');
   const [modeloIA, setModeloIA] = useState<'claude' | 'chatgpt'>('claude');
   const [arquivos, setArquivos] = useState<File[]>([]);
+
+  // Fetch dynamic action types
+  useEffect(() => {
+    const fetchTipos = async () => {
+      setLoadingTipos(true);
+      try {
+        const [contractsRes, dealsRes, leadsRes] = await Promise.all([
+          supabase.from('contract_drafts').select('product_name'),
+          supabase.from('crm_deals').select('product_name'),
+          supabase.from('captured_leads').select('product_name'),
+        ]);
+
+        const seen = new Set<string>();
+        const options: { label: string; source: string }[] = [];
+
+        const addItems = (items: any[] | null, source: string) => {
+          items?.forEach((item: any) => {
+            const name = item.product_name?.trim();
+            if (name && !seen.has(name.toLowerCase())) {
+              seen.add(name.toLowerCase());
+              options.push({ label: name, source });
+            }
+          });
+        };
+
+        addItems(contractsRes.data, 'ADVBox');
+        addItems(dealsRes.data, 'CRM');
+        addItems(leadsRes.data, 'Leads');
+
+        // Add defaults that aren't already present
+        defaultTipos.forEach(t => {
+          if (!seen.has(t.toLowerCase())) {
+            seen.add(t.toLowerCase());
+            options.push({ label: t, source: 'Padrão' });
+          }
+        });
+
+        setTiposAcaoOptions(options);
+      } catch (err) {
+        console.error('Error fetching action types:', err);
+        setTiposAcaoOptions(defaultTipos.map(t => ({ label: t, source: 'Padrão' })));
+      } finally {
+        setLoadingTipos(false);
+      }
+    };
+    fetchTipos();
+  }, []);
 
   // Analysis
   const [analyzing, setAnalyzing] = useState(false);
@@ -104,7 +149,7 @@ export default function ViabilidadeNovo() {
         body: {
           nome,
           cpf,
-          tipo_acao: tiposAcao.find(t => t.value === tipoAcao)?.label || tipoAcao,
+          tipo_acao: tipoAcao,
           descricao_caso: descricaoCaso,
           data_nascimento: dataNascimento ? format(dataNascimento, 'dd/MM/yyyy') : null,
           telefone,
@@ -260,12 +305,43 @@ export default function ViabilidadeNovo() {
               </div>
               <div>
                 <Label>Tipo de Ação *</Label>
-                <Select value={tipoAcao} onValueChange={setTipoAcao}>
-                  <SelectTrigger><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
-                  <SelectContent>
-                    {tiposAcao.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Popover open={tipoAcaoOpen} onOpenChange={setTipoAcaoOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={tipoAcaoOpen} className="w-full justify-between font-normal">
+                      {tipoAcao || 'Selecione o tipo de ação...'}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Buscar tipo de ação..." />
+                      <CommandList>
+                        <CommandEmpty>Nenhum tipo encontrado.</CommandEmpty>
+                        {['ADVBox', 'CRM', 'Leads', 'Padrão'].map(source => {
+                          const items = tiposAcaoOptions.filter(o => o.source === source);
+                          if (items.length === 0) return null;
+                          return (
+                            <CommandGroup key={source} heading={source}>
+                              {items.map(opt => (
+                                <CommandItem
+                                  key={opt.label}
+                                  value={opt.label}
+                                  onSelect={(val) => {
+                                    setTipoAcao(val);
+                                    setTipoAcaoOpen(false);
+                                  }}
+                                >
+                                  <Check className={cn("mr-2 h-4 w-4", tipoAcao === opt.label ? "opacity-100" : "opacity-0")} />
+                                  {opt.label}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          );
+                        })}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
