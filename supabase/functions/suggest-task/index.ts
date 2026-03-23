@@ -205,7 +205,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
         });
       }
       
-      throw new Error(`Anthropic API error: ${response.status}`);
+      const errorMessage = (() => {
+        try {
+          const parsed = JSON.parse(errorText);
+          return parsed?.error?.message || `Erro da API Anthropic (${response.status})`;
+        } catch {
+          return `Erro da API Anthropic (${response.status})`;
+        }
+      })();
+      
+      return new Response(JSON.stringify({ error: errorMessage }), {
+        status: response.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const aiResponse = await response.json();
