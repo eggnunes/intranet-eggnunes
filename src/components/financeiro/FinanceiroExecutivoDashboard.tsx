@@ -519,10 +519,17 @@ export function FinanceiroExecutivoDashboard() {
           </Select>
 
         </div>
-        <Button variant="outline" onClick={fetchData} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Atualizar
-        </Button>
+        <div className="flex items-center gap-2">
+          {lastUpdated && (
+            <span className="text-xs text-muted-foreground">
+              Atualizado: {format(new Date(lastUpdated), 'dd/MM HH:mm')}
+            </span>
+          )}
+          <Button variant="outline" onClick={triggerRefresh} disabled={loading || refreshing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${(loading || refreshing) ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Atualizando...' : 'Atualizar'}
+          </Button>
+        </div>
       </div>
 
       {/* Cards principais com variação */}
