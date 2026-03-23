@@ -44,8 +44,38 @@ async function loadSettings() {
   }
 }
 
-// Carregar configurações ao iniciar
-loadSettings();
+// Helper: Save dashboard cache to DB (non-blocking, uses service_role)
+async function saveDashboardCacheToDb(updates: Record<string, any>) {
+  try {
+    if (!SUPABASE_SERVICE_ROLE_KEY) {
+      console.warn('No service role key, skipping dashboard cache save');
+      return;
+    }
+    const body: Record<string, any> = { id: 'singleton', updated_at: new Date().toISOString(), ...updates };
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/advbox_dashboard_cache?id=eq.singleton`,
+      {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_SERVICE_ROLE_KEY,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify(body),
+      }
+    );
+    if (!response.ok) {
+      console.warn('Failed to save dashboard cache:', response.status, await response.text());
+    } else {
+      console.log('Dashboard cache saved to DB:', Object.keys(updates));
+    }
+  } catch (err) {
+    console.warn('Error saving dashboard cache to DB:', err);
+  }
+}
+
+
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
