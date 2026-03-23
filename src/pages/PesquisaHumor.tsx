@@ -61,7 +61,7 @@ const PesquisaHumor = () => {
       const since = subDays(new Date(), 30).toISOString();
       const { data } = await (supabase as any)
         .from('mood_surveys')
-        .select('*')
+        .select('*, profiles:user_id(full_name)')
         .eq('user_id', user!.id)
         .gte('created_at', since)
         .order('created_at', { ascending: true });
@@ -228,6 +228,7 @@ const PesquisaHumor = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Nome</TableHead>
                       <TableHead>Data</TableHead>
                       <TableHead>Humor</TableHead>
                       <TableHead>Observações</TableHead>
@@ -238,6 +239,7 @@ const PesquisaHumor = () => {
                       const info = getMoodInfo(entry.mood);
                       return (
                         <TableRow key={entry.id}>
+                          <TableCell className="font-medium">{entry.profiles?.full_name || '—'}</TableCell>
                           <TableCell>{format(new Date(entry.created_at), "dd/MM/yyyy", { locale: ptBR })}</TableCell>
                           <TableCell>
                             <Badge variant="outline">{info.emoji} {info.label}</Badge>
@@ -248,7 +250,7 @@ const PesquisaHumor = () => {
                     })}
                     {myHistory.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={3} className="text-center text-muted-foreground">Sem registros</TableCell>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground">Sem registros</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -323,6 +325,48 @@ const PesquisaHumor = () => {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Detailed table */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Registros Detalhados</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Humor</TableHead>
+                        <TableHead>Observações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(filtroPosition === 'all'
+                        ? allMoods
+                        : allMoods.filter((m: any) => m.profiles?.position === filtroPosition)
+                      ).map((entry: any) => {
+                        const info = getMoodInfo(entry.mood);
+                        return (
+                          <TableRow key={entry.id}>
+                            <TableCell className="font-medium">{entry.profiles?.full_name || '—'}</TableCell>
+                            <TableCell>{format(new Date(entry.created_at), "dd/MM/yyyy", { locale: ptBR })}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{info.emoji} {info.label}</Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">{entry.observacoes || '—'}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {allMoods.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground">Sem registros</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+                </Card>
             </TabsContent>
           )}
         </Tabs>
