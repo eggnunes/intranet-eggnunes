@@ -88,6 +88,8 @@ function isRegistroInterno(descricao: string | null): boolean {
 export function FinanceiroExecutivoDashboard() {
   const [periodo, setPeriodo] = useState('mes_atual');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   
   const [data, setData] = useState<DashboardData>({
     totalReceitas: 0,
@@ -117,7 +119,54 @@ export function FinanceiroExecutivoDashboard() {
     asaasBalance: null
   });
 
-  const fetchData = async () => {
+  // Load data from cache
+  const loadFromCache = async () => {
+    try {
+      const { data: cache, error } = await supabase
+        .from('fin_dashboard_cache')
+        .select('*')
+        .eq('id', 'singleton')
+        .single();
+
+      if (error || !cache?.dashboard_data) {
+        console.log('Cache vazio, executando cálculo local...');
+        await fetchDataDirectly();
+        return;
+      }
+
+      const allData = cache.dashboard_data as Record<string, any>;
+      const periodoData = allData[periodo];
+
+      if (periodoData) {
+        setData(periodoData as DashboardData);
+        setLastUpdated(cache.updated_at);
+        setLoading(false);
+      } else {
+        await fetchDataDirectly();
+      }
+    } catch (err) {
+      console.error('Erro ao carregar cache:', err);
+      await fetchDataDirectly();
+    }
+  };
+
+  // Trigger Edge Function to refresh cache
+  const triggerRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await supabase.functions.invoke('fin-dashboard-cache-refresh', {
+        body: { periodo }
+      });
+    } catch (err) {
+      console.error('Erro ao atualizar cache:', err);
+      // Fallback: calculate directly
+      await fetchDataDirectly();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const fetchDataDirectly = async () => {
     setLoading(true);
     try {
       const hoje = new Date();
@@ -126,7 +175,6 @@ export function FinanceiroExecutivoDashboard() {
       const mesAnteriorInicio = startOfMonth(subMonths(hoje, 1));
       const mesAnteriorFim = endOfMonth(subMonths(hoje, 1));
 
-      // Determinar período selecionado
       let dataInicio: Date;
       let dataFim: Date;
 
@@ -152,13 +200,11 @@ export function FinanceiroExecutivoDashboard() {
           dataFim = mesAtualFim;
       }
 
-      // Fetch contas
       const { data: contas } = await supabase
         .from('fin_contas')
         .select('*')
         .eq('ativa', true);
 
-      // Fetch lançamentos do período - usando data_vencimento (regime de competência)
       const { data: lancamentos } = await supabase
         .from('fin_lancamentos')
         .select(`*, categoria:fin_categorias(nome, cor)`)
@@ -167,7 +213,6 @@ export function FinanceiroExecutivoDashboard() {
         .eq('status', 'pago')
         .is('deleted_at', null);
 
-      // Lançamentos mês atual (regime de competência)
       const { data: lancMesAtual } = await supabase
         .from('fin_lancamentos')
         .select('tipo, valor, descricao')
@@ -176,7 +221,6 @@ export function FinanceiroExecutivoDashboard() {
         .eq('status', 'pago')
         .is('deleted_at', null);
 
-      // Lançamentos mês anterior (regime de competência)
       const { data: lancMesAnterior } = await supabase
         .from('fin_lancamentos')
         .select('tipo, valor, descricao')
@@ -185,7 +229,6 @@ export function FinanceiroExecutivoDashboard() {
         .eq('status', 'pago')
         .is('deleted_at', null);
 
-      // Despesas a reembolsar
       const { data: reembolsos } = await supabase
         .from('fin_lancamentos')
         .select('valor')
@@ -193,28 +236,22 @@ export function FinanceiroExecutivoDashboard() {
         .eq('reembolsada', false)
         .is('deleted_at', null);
 
-      // Filter out internal records (REPASSE, DISTRIBUIÇÃO DE LUCRO) from both income and expenses
       const filterOperacional = (items: any[] | null) => {
         if (!items) return [];
         return items.filter(l => !isRegistroInterno(l.descricao));
       };
 
-      // Apply operational filter
       const lancamentosFiltered = filterOperacional(lancamentos);
       const lancMesAtualFiltered = filterOperacional(lancMesAtual);
       const lancMesAnteriorFiltered = filterOperacional(lancMesAnterior);
 
-      // Calcular totais
       const totalReceitas = lancamentosFiltered.filter(l => l.tipo === 'receita')
         .reduce((acc, l) => acc + Number(l.valor), 0);
-      
       const totalDespesas = lancamentosFiltered.filter(l => l.tipo === 'despesa')
         .reduce((acc, l) => acc + Number(l.valor), 0);
-
       const lucro = totalReceitas - totalDespesas;
       const margemLucro = totalReceitas > 0 ? (lucro / totalReceitas) * 100 : 0;
 
-      // Comparativo mês a mês
       const receitasMesAtual = lancMesAtualFiltered.filter(l => l.tipo === 'receita')
         .reduce((acc, l) => acc + Number(l.valor), 0);
       const despesasMesAtual = lancMesAtualFiltered.filter(l => l.tipo === 'despesa')
@@ -224,20 +261,15 @@ export function FinanceiroExecutivoDashboard() {
       const despesasMesAnterior = lancMesAnteriorFiltered.filter(l => l.tipo === 'despesa')
         .reduce((acc, l) => acc + Number(l.valor), 0);
 
-      const variacaoReceitas = receitasMesAnterior > 0 
-        ? ((receitasMesAtual - receitasMesAnterior) / receitasMesAnterior) * 100 
-        : 0;
-      const variacaoDespesas = despesasMesAnterior > 0 
-        ? ((despesasMesAtual - despesasMesAnterior) / despesasMesAnterior) * 100 
-        : 0;
-      
+      const variacaoReceitas = receitasMesAnterior > 0
+        ? ((receitasMesAtual - receitasMesAnterior) / receitasMesAnterior) * 100 : 0;
+      const variacaoDespesas = despesasMesAnterior > 0
+        ? ((despesasMesAtual - despesasMesAnterior) / despesasMesAnterior) * 100 : 0;
       const lucroMesAtual = receitasMesAtual - despesasMesAtual;
       const lucroMesAnterior = receitasMesAnterior - despesasMesAnterior;
-      const variacaoLucro = lucroMesAnterior !== 0 
-        ? ((lucroMesAtual - lucroMesAnterior) / Math.abs(lucroMesAnterior)) * 100 
-        : 0;
+      const variacaoLucro = lucroMesAnterior !== 0
+        ? ((lucroMesAtual - lucroMesAnterior) / Math.abs(lucroMesAnterior)) * 100 : 0;
 
-      // Saldo por conta - check saldo_inicial
       let contasSaldo: ContaSaldo[] = contas?.map(c => {
         const isAsaas = c.nome?.toLowerCase().includes('asaas') || c.tipo === 'pagamentos';
         const saldoInicial = Number(c.saldo_inicial) || 0;
@@ -251,10 +283,8 @@ export function FinanceiroExecutivoDashboard() {
         };
       }) || [];
 
-      // Despesas a reembolsar
       const despesasReembolsar = reembolsos?.reduce((acc, r) => acc + Number(r.valor), 0) || 0;
 
-      // Receitas por categoria
       const receitasMap = new Map<string, { valor: number; cor: string }>();
       lancamentosFiltered.filter(l => l.tipo === 'receita').forEach(l => {
         const nome = l.categoria?.nome || 'Sem categoria';
@@ -266,7 +296,6 @@ export function FinanceiroExecutivoDashboard() {
         .map(([nome, { valor, cor }]) => ({ nome, valor, cor }))
         .sort((a, b) => b.valor - a.valor);
 
-      // Despesas por categoria
       const despesasMap = new Map<string, { valor: number; cor: string }>();
       lancamentosFiltered.filter(l => l.tipo === 'despesa').forEach(l => {
         const nome = l.categoria?.nome || 'Sem categoria';
@@ -278,16 +307,15 @@ export function FinanceiroExecutivoDashboard() {
         .map(([nome, { valor, cor }]) => ({ nome, valor, cor }))
         .sort((a, b) => b.valor - a.valor);
 
-      // Evolução mensal (últimos 6 meses)
       const evolucaoMensal: { mes: string; receitas: number; despesas: number; lucro: number }[] = [];
       let somaReceitas3m = 0;
       let somaDespesas3m = 0;
-      
+
       for (let i = 5; i >= 0; i--) {
         const mesData = subMonths(hoje, i);
         const mesInicio = startOfMonth(mesData);
         const mesFim = endOfMonth(mesData);
-        
+
         const { data: mesLancamentos } = await supabase
           .from('fin_lancamentos')
           .select('tipo, valor, descricao')
@@ -297,7 +325,6 @@ export function FinanceiroExecutivoDashboard() {
           .is('deleted_at', null);
 
         const mesLancFiltered = filterOperacional(mesLancamentos);
-
         const mesReceitas = mesLancFiltered.filter(l => l.tipo === 'receita')
           .reduce((acc, l) => acc + Number(l.valor), 0);
         const mesDespesas = mesLancFiltered.filter(l => l.tipo === 'despesa')
@@ -310,7 +337,6 @@ export function FinanceiroExecutivoDashboard() {
           lucro: mesReceitas - mesDespesas
         });
 
-        // Últimos 3 meses para tendência
         if (i <= 2) {
           somaReceitas3m += mesReceitas;
           somaDespesas3m += mesDespesas;
@@ -319,81 +345,44 @@ export function FinanceiroExecutivoDashboard() {
 
       const mediaReceitas3m = somaReceitas3m / 3;
       const mediaDespesas3m = somaDespesas3m / 3;
-
-      // Determinar tendências
       const ultimoMes = evolucaoMensal[evolucaoMensal.length - 1];
-      const tendenciaReceitas: 'up' | 'down' | 'stable' = 
+      const tendenciaReceitas: 'up' | 'down' | 'stable' =
         ultimoMes.receitas > mediaReceitas3m * 1.05 ? 'up' :
         ultimoMes.receitas < mediaReceitas3m * 0.95 ? 'down' : 'stable';
-      const tendenciaDespesas: 'up' | 'down' | 'stable' = 
+      const tendenciaDespesas: 'up' | 'down' | 'stable' =
         ultimoMes.despesas > mediaDespesas3m * 1.05 ? 'up' :
         ultimoMes.despesas < mediaDespesas3m * 0.95 ? 'down' : 'stable';
 
-      // Fetch Asaas balance and update contasSaldo
       let asaasBalance: number | null = null;
       try {
-        console.log('Buscando saldo do Asaas (Executivo Dashboard)...');
-        
         const { data: asaasData, error: asaasError } = await supabase.functions.invoke('asaas-integration', {
           body: { action: 'get_balance' }
         });
-        
-        console.log('Resposta Asaas (Executivo):', asaasData, 'Erro:', asaasError);
-        
         if (!asaasError && asaasData?.balance !== undefined) {
           asaasBalance = Number(asaasData.balance) || 0;
-        } else {
-          try {
-            const response = await fetch(
-              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/asaas-integration`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-                  'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-                },
-                body: JSON.stringify({ action: 'get_balance' })
-              }
-            );
-            
-            if (response.ok) {
-              const fallbackData = await response.json();
-              if (fallbackData && fallbackData.balance !== undefined) {
-                asaasBalance = Number(fallbackData.balance) || 0;
-              }
-            }
-          } catch (fallbackErr) {
-            console.error('Fallback Asaas também falhou:', fallbackErr);
-          }
-        }
-        
-        // Atualizar saldo da conta Asaas na lista
-        if (asaasBalance !== null) {
-          console.log('Saldo Asaas encontrado (Executivo):', asaasBalance);
-          
-          let asaasAtualizado = false;
-          contasSaldo = contasSaldo.map(conta => {
-            if (conta.isAsaas || conta.nome.toLowerCase().includes('asaas')) {
-              console.log(`Atualizando saldo da conta "${conta.nome}" para:`, asaasBalance);
-              asaasAtualizado = true;
-              return { ...conta, saldo: asaasBalance!, saldoConfigurado: true };
-            }
-            return conta;
-          });
-          
-          if (!asaasAtualizado && asaasBalance > 0) {
-            contasSaldo.push({
-              nome: 'Asaas',
-              saldo: asaasBalance,
-              cor: '#9D5CFF',
-              isAsaas: true,
-              saldoConfigurado: true
-            });
-          }
         }
       } catch (asaasErr) {
         console.error('Erro ao obter saldo do Asaas:', asaasErr);
+      }
+
+      if (asaasBalance !== null) {
+        let asaasAtualizado = false;
+        contasSaldo = contasSaldo.map(conta => {
+          if (conta.isAsaas || conta.nome.toLowerCase().includes('asaas')) {
+            asaasAtualizado = true;
+            return { ...conta, saldo: asaasBalance!, saldoConfigurado: true };
+          }
+          return conta;
+        });
+        if (!asaasAtualizado && asaasBalance > 0) {
+          contasSaldo.push({
+            nome: 'Asaas',
+            saldo: asaasBalance,
+            cor: '#9D5CFF',
+            isAsaas: true,
+            saldoConfigurado: true
+          });
+        }
       }
 
       setData({
@@ -430,8 +419,43 @@ export function FinanceiroExecutivoDashboard() {
     }
   };
 
+  // Load from cache on mount / period change
   useEffect(() => {
-    fetchData();
+    loadFromCache();
+  }, [periodo]);
+
+  // Subscribe to Realtime updates on cache table
+  useEffect(() => {
+    const channel = supabase
+      .channel('fin-dashboard-cache-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'fin_dashboard_cache',
+          filter: 'id=eq.singleton'
+        },
+        (payload: any) => {
+          console.log('Cache financeiro atualizado via Realtime');
+          const newData = payload.new;
+          if (newData?.dashboard_data) {
+            const allData = newData.dashboard_data as Record<string, any>;
+            const periodoData = allData[periodo];
+            if (periodoData) {
+              setData(periodoData as DashboardData);
+              setLastUpdated(newData.updated_at);
+              setLoading(false);
+              setRefreshing(false);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [periodo]);
 
   const formatCurrency = (value: number) => {
