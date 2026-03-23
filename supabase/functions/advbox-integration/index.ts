@@ -803,6 +803,16 @@ Deno.serve(async (req) => {
             timestamp: now,
           });
           
+          // Salvar movimentações no cache persistente do banco (non-blocking)
+          saveDashboardCacheToDb({
+            total_movements: totalCount,
+            movements_data: allItems.map((m: any) => ({
+              lawsuit_id: m.lawsuit_id, date: m.date, title: m.title,
+              header: m.header, process_number: m.process_number,
+              protocol_number: m.protocol_number, customers: m.customers,
+            })),
+          }).catch(() => {});
+          
           return new Response(JSON.stringify({
             data: allItems,
             totalCount,
