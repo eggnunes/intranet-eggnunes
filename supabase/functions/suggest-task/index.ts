@@ -186,6 +186,24 @@ Responda APENAS com o JSON, sem texto adicional.`;
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+
+      if (response.status === 400 && errorText.toLowerCase().includes('credit balance')) {
+        return new Response(JSON.stringify({ 
+          error: 'A API de IA está sem créditos. Entre em contato com o administrador para recarregar os créditos da Anthropic.' 
+        }), {
+          status: 402,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ 
+          error: 'A API de IA está sem créditos. Entre em contato com o administrador para recarregar os créditos da Anthropic.' 
+        }), {
+          status: 402,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       
       throw new Error(`Anthropic API error: ${response.status}`);
     }
