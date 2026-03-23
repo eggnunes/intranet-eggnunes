@@ -1,39 +1,23 @@
 
 
-# Puxar Tipos de Ação do ADVBox/CRM/Leads na Viabilidade
+# Adicionar gravação de áudio com transcrição na Descrição do Caso
 
-## Problema
-O seletor "Tipo de Ação" no formulário de nova viabilidade usa valores fixos (Cível, Trabalhista, Previdenciário, Tributário). O usuário quer que as opções venham dinamicamente das fontes de dados existentes.
+## O que será feito
 
-## Solução
+Adicionar um botão de microfone ao lado do campo "Descrição do Caso" que permite gravar áudio pelo navegador. Ao parar a gravação, o áudio é enviado à edge function `voice-to-text` (já existente, usa Whisper) e o texto transcrito é adicionado ao campo de descrição.
 
-### Alteração em `src/pages/ViabilidadeNovo.tsx`
+## Alteração
 
-1. **Buscar tipos de ação dinamicamente** ao carregar a página:
-   - Consultar `DISTINCT product_name` de `contract_drafts` (ADVBox/contratos)
-   - Consultar `DISTINCT product_name` de `crm_deals` (CRM)
-   - Consultar `DISTINCT product_name` de `captured_leads` (Leads)
-   - Unificar os resultados removendo duplicatas e valores nulos
-   - Manter os 4 tipos fixos como fallback caso nenhum dado seja encontrado
-
-2. **Trocar o Select por um Combobox com busca**:
-   - Permitir selecionar um tipo existente da lista combinada
-   - Permitir digitar um tipo personalizado caso não exista na lista
-   - Agrupar visualmente por fonte (ADVBox, CRM, Leads) para facilitar identificação
-
-3. **Lógica de carregamento**:
-   - `useEffect` na montagem do componente com 3 queries paralelas
-   - Merge + deduplica por nome (case-insensitive)
-   - Estado `tiposAcaoOptions` com loading state
+| Arquivo | Ação |
+|---|---|
+| `src/pages/ViabilidadeNovo.tsx` | Adicionar botão de microfone com lógica de gravação (MediaRecorder API) e chamada à function `voice-to-text` para transcrição |
 
 ## Detalhes técnicos
 
-| Arquivo | Alteração |
-|---|---|
-| `src/pages/ViabilidadeNovo.tsx` | Remover array estático `tiposAcao`, adicionar `useEffect` para buscar `product_name` de 3 tabelas, trocar `Select` por combo pesquisável com fallback |
-
-- Queries: `supabase.from('contract_drafts').select('product_name')`, `supabase.from('crm_deals').select('product_name')`, `supabase.from('captured_leads').select('product_name')`
-- Deduplica com `Set` normalizado por `toLowerCase()`
-- Mantém os 4 tipos fixos mesclados com os dinâmicos
-- Nenhuma migração de banco necessária
+1. **Gravação**: Usar `navigator.mediaDevices.getUserMedia({ audio: true })` + `MediaRecorder` para capturar áudio em `audio/webm`
+2. **Envio**: Converter blob para base64, chamar `supabase.functions.invoke('voice-to-text', { body: { audio: base64 } })`
+3. **Resultado**: Append do texto transcrito ao `descricaoCaso` existente (não substituir, concatenar)
+4. **UI**: Botão `Mic` / `Square` (parar) ao lado do label "Descrição do Caso", com indicador visual de gravação (pulsing red dot)
+5. **Estados**: `isRecording`, `isTranscribing` com loading spinner durante transcrição
+6. Nenhuma migração ou nova edge function necessária — `voice-to-text` já existe e aceita `{ audio: base64 }`
 
