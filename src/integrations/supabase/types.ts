@@ -2672,8 +2672,10 @@ export type Database = {
           notify_approvals: boolean | null
           notify_birthdays: boolean | null
           notify_crm: boolean | null
+          notify_daily_digest: boolean | null
           notify_financial: boolean | null
           notify_forum: boolean | null
+          notify_intranet_updates: boolean | null
           notify_messages: boolean | null
           notify_tasks: boolean | null
           notify_vacation: boolean | null
@@ -2687,8 +2689,10 @@ export type Database = {
           notify_approvals?: boolean | null
           notify_birthdays?: boolean | null
           notify_crm?: boolean | null
+          notify_daily_digest?: boolean | null
           notify_financial?: boolean | null
           notify_forum?: boolean | null
+          notify_intranet_updates?: boolean | null
           notify_messages?: boolean | null
           notify_tasks?: boolean | null
           notify_vacation?: boolean | null
@@ -2702,8 +2706,10 @@ export type Database = {
           notify_approvals?: boolean | null
           notify_birthdays?: boolean | null
           notify_crm?: boolean | null
+          notify_daily_digest?: boolean | null
           notify_financial?: boolean | null
           notify_forum?: boolean | null
+          notify_intranet_updates?: boolean | null
           notify_messages?: boolean | null
           notify_tasks?: boolean | null
           notify_vacation?: boolean | null
