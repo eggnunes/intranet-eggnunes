@@ -428,7 +428,7 @@ export default function AgenteChatPage() {
 
   return (
     <Layout>
-      <div className="flex flex-col h-[calc(100vh-6rem)]">
+      <div className="flex flex-col" style={{ height: 'calc(100vh - 8rem)', maxHeight: 'calc(100vh - 8rem)' }}>
         {/* Header */}
         <div className="flex items-center gap-3 pb-3 border-b flex-shrink-0">
           <Button variant="ghost" size="icon" onClick={() => navigate('/agentes-ia')}>
