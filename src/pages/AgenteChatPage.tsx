@@ -474,8 +474,8 @@ export default function AgenteChatPage() {
           )}
 
           {/* Chat area */}
-          <div className="flex-1 flex flex-col min-w-0">
-            <ScrollArea ref={scrollRef} className="flex-1 pr-4">
+          <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+            <ScrollArea ref={scrollRef} className="flex-1 pr-4 min-h-0">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center py-20">
                   <span className="text-5xl mb-4">{agent.icon_emoji}</span>
