@@ -366,7 +366,8 @@ const PesquisaHumor = () => {
                     </TableBody>
                   </Table>
                 </CardContent>
-              </Card>
+                </Card>
+            </TabsContent>
           )}
         </Tabs>
 
