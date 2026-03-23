@@ -61,7 +61,7 @@ const PesquisaHumor = () => {
       const since = subDays(new Date(), 30).toISOString();
       const { data } = await (supabase as any)
         .from('mood_surveys')
-        .select('*')
+        .select('*, profiles:user_id(full_name)')
         .eq('user_id', user!.id)
         .gte('created_at', since)
         .order('created_at', { ascending: true });
