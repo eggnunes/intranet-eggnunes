@@ -344,6 +344,76 @@ export default function AgenteChatPage() {
     }
   };
 
+  const downloadAsPDF = (content: string) => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 15;
+    const maxWidth = pageWidth - margin * 2;
+    const lines = doc.splitTextToSize(content, maxWidth);
+    let y = margin;
+    const lineHeight = 7;
+
+    for (const line of lines) {
+      if (y + lineHeight > doc.internal.pageSize.getHeight() - margin) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.text(line, margin, y);
+      y += lineHeight;
+    }
+
+    const fileName = `${agent?.name || 'resposta'}_${new Date().toISOString().slice(0, 10)}.pdf`;
+    doc.save(fileName);
+    toast.success('PDF baixado com sucesso!');
+  };
+
+  const downloadAsTXT = (content: string) => {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${agent?.name || 'resposta'}_${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('TXT baixado com sucesso!');
+  };
+
+  const copyToClipboard = (content: string) => {
+    navigator.clipboard.writeText(content);
+    toast.success('Copiado para a área de transferência!');
+  };
+
+  const handleSaveToTeams = (content: string) => {
+    setPendingTeamsContent(content);
+    setClientNameInput('');
+    setClientNameDialogOpen(true);
+  };
+
+  const confirmSaveToTeams = () => {
+    const fileName = `${agent?.name || 'resposta'}_${new Date().toISOString().slice(0, 10)}.pdf`;
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 15;
+    const maxWidth = pageWidth - margin * 2;
+    const lines = doc.splitTextToSize(pendingTeamsContent, maxWidth);
+    let y = margin;
+    const lineHeight = 7;
+
+    for (const line of lines) {
+      if (y + lineHeight > doc.internal.pageSize.getHeight() - margin) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.text(line, margin, y);
+      y += lineHeight;
+    }
+
+    const base64 = doc.output('datauristring').split(',')[1];
+    setTeamsContent({ fileName, fileContent: base64 });
+    setClientNameDialogOpen(false);
+    setTeamsDialogOpen(true);
+  };
+
   if (loadingAgent) {
     return (
       <Layout>
