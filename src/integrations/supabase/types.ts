@@ -296,6 +296,36 @@ export type Database = {
         }
         Relationships: []
       }
+      advbox_dashboard_cache: {
+        Row: {
+          id: string
+          lawsuits_data: Json | null
+          metadata: Json | null
+          movements_data: Json | null
+          total_lawsuits: number | null
+          total_movements: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          lawsuits_data?: Json | null
+          metadata?: Json | null
+          movements_data?: Json | null
+          total_lawsuits?: number | null
+          total_movements?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          lawsuits_data?: Json | null
+          metadata?: Json | null
+          movements_data?: Json | null
+          total_lawsuits?: number | null
+          total_movements?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       advbox_financial_sync: {
         Row: {
           advbox_data: Json
