@@ -14,7 +14,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, CalendarIcon, Upload, Brain, Save, CheckCircle, XCircle, AlertTriangle, FileText, X, ChevronsUpDown, Check } from 'lucide-react';
+import { ArrowLeft, CalendarIcon, Upload, Brain, Save, CheckCircle, XCircle, AlertTriangle, FileText, X, ChevronsUpDown, Check, Mic, Square, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
