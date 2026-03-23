@@ -788,13 +788,10 @@ export default function ProcessosDashboard() {
   };
 
   useEffect(() => {
-    // Se tem cache, faz refresh silencioso em background
-    if (cachedData || cachedMovements) {
-      setIsRefreshing(true);
-      fetchData().finally(() => setIsRefreshing(false));
-    } else {
-      fetchData();
-    }
+    // Sempre fazer refresh em background — os dados do DB cache são mostrados imediatamente
+    // O fetchData salva os dados no banco via edge function, e o Realtime entrega ao frontend
+    setIsRefreshing(true);
+    fetchData().finally(() => setIsRefreshing(false));
   }, []);
 
   // Filtrar processos locais quando dados carregam (para período padrão de 30 dias)
