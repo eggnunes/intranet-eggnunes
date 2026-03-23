@@ -5,11 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { ArrowLeft, Send, Loader2, User, Plus, Trash2, History, Paperclip, Mic, MicOff, X, FileText } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, User, Plus, Trash2, History, Paperclip, Mic, MicOff, X, FileText, Download, CloudUpload, Copy } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import jsPDF from 'jspdf';
+import { SaveToTeamsDialog } from '@/components/SaveToTeamsDialog';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -58,6 +62,11 @@ export default function AgenteChatPage() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [teamsDialogOpen, setTeamsDialogOpen] = useState(false);
+  const [teamsContent, setTeamsContent] = useState({ fileName: '', fileContent: '' });
+  const [clientNameDialogOpen, setClientNameDialogOpen] = useState(false);
+  const [clientNameInput, setClientNameInput] = useState('');
+  const [pendingTeamsContent, setPendingTeamsContent] = useState('');
 
   useEffect(() => {
     if (agentId) loadAgent();
@@ -335,6 +344,76 @@ export default function AgenteChatPage() {
     }
   };
 
+  const downloadAsPDF = (content: string) => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 15;
+    const maxWidth = pageWidth - margin * 2;
+    const lines = doc.splitTextToSize(content, maxWidth);
+    let y = margin;
+    const lineHeight = 7;
+
+    for (const line of lines) {
+      if (y + lineHeight > doc.internal.pageSize.getHeight() - margin) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.text(line, margin, y);
+      y += lineHeight;
+    }
+
+    const fileName = `${agent?.name || 'resposta'}_${new Date().toISOString().slice(0, 10)}.pdf`;
+    doc.save(fileName);
+    toast.success('PDF baixado com sucesso!');
+  };
+
+  const downloadAsTXT = (content: string) => {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${agent?.name || 'resposta'}_${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('TXT baixado com sucesso!');
+  };
+
+  const copyToClipboard = (content: string) => {
+    navigator.clipboard.writeText(content);
+    toast.success('Copiado para a área de transferência!');
+  };
+
+  const handleSaveToTeams = (content: string) => {
+    setPendingTeamsContent(content);
+    setClientNameInput('');
+    setClientNameDialogOpen(true);
+  };
+
+  const confirmSaveToTeams = () => {
+    const fileName = `${agent?.name || 'resposta'}_${new Date().toISOString().slice(0, 10)}.pdf`;
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 15;
+    const maxWidth = pageWidth - margin * 2;
+    const lines = doc.splitTextToSize(pendingTeamsContent, maxWidth);
+    let y = margin;
+    const lineHeight = 7;
+
+    for (const line of lines) {
+      if (y + lineHeight > doc.internal.pageSize.getHeight() - margin) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.text(line, margin, y);
+      y += lineHeight;
+    }
+
+    const base64 = doc.output('datauristring').split(',')[1];
+    setTeamsContent({ fileName, fileContent: base64 });
+    setClientNameDialogOpen(false);
+    setTeamsDialogOpen(true);
+  };
+
   if (loadingAgent) {
     return (
       <Layout>
@@ -413,15 +492,37 @@ export default function AgenteChatPage() {
                           {agent.icon_emoji}
                         </div>
                       )}
-                      <Card className={`max-w-[80%] p-3 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                        {msg.role === 'assistant' ? (
-                          <div className="prose prose-sm dark:prose-invert max-w-none">
-                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      <div className="max-w-[80%]">
+                        <Card className={`p-3 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                          {msg.role === 'assistant' ? (
+                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                              <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            </div>
+                          ) : (
+                            <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                          )}
+                        </Card>
+                        {msg.role === 'assistant' && !isStreaming && (
+                          <div className="flex items-center gap-1 mt-1.5 ml-1">
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground" onClick={() => downloadAsPDF(msg.content)} title="Baixar como PDF">
+                              <Download className="h-3 w-3" />
+                              PDF
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground" onClick={() => downloadAsTXT(msg.content)} title="Baixar como TXT">
+                              <FileText className="h-3 w-3" />
+                              TXT
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground" onClick={() => copyToClipboard(msg.content)} title="Copiar texto">
+                              <Copy className="h-3 w-3" />
+                              Copiar
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground" onClick={() => handleSaveToTeams(msg.content)} title="Salvar no Teams">
+                              <CloudUpload className="h-3 w-3" />
+                              Teams
+                            </Button>
                           </div>
-                        ) : (
-                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                         )}
-                      </Card>
+                      </div>
                       {msg.role === 'user' && (
                         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center">
                           <User className="h-4 w-4 text-primary-foreground" />
@@ -520,6 +621,43 @@ export default function AgenteChatPage() {
           </div>
         </div>
       </div>
+
+      {/* Client name dialog for Teams */}
+      <Dialog open={clientNameDialogOpen} onOpenChange={setClientNameDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Salvar no Teams</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Informe o nome do cliente para salvar na pasta correspondente no Teams.
+            </p>
+            <Input
+              placeholder="Nome do cliente (opcional)"
+              value={clientNameInput}
+              onChange={(e) => setClientNameInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && confirmSaveToTeams()}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClientNameDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={confirmSaveToTeams}>
+              <CloudUpload className="h-4 w-4 mr-2" />
+              Continuar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save to Teams dialog */}
+      <SaveToTeamsDialog
+        open={teamsDialogOpen}
+        onOpenChange={setTeamsDialogOpen}
+        fileName={teamsContent.fileName}
+        fileContent={teamsContent.fileContent}
+        clientName={clientNameInput || undefined}
+        onSuccess={() => toast.success('Documento salvo no Teams!')}
+      />
     </Layout>
   );
 }
