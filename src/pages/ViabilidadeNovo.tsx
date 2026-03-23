@@ -275,10 +275,7 @@ export default function ViabilidadeNovo() {
         }
       }
 
-      let status = 'pendente';
-      if (recomendacao === 'viavel') status = 'revisado';
-      else if (recomendacao === 'inviavel') status = 'revisado';
-      else if (recomendacao === 'necessita_mais_dados') status = 'em_analise';
+      let status = parecer ? 'em_analise' : 'pendente';
 
       const enderecoStr = buildAddressString(address);
 

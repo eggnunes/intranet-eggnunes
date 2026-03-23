@@ -275,6 +275,12 @@ export default function Viabilidade() {
                             {format(new Date(c.created_at), "dd/MM/yyyy", { locale: ptBR })}
                           </TableCell>
                           <TableCell className="text-right space-x-1">
+                            {c.status === 'em_analise' && (
+                              <Button size="sm" variant="outline" className="text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10" onClick={() => handleMarkRevisado(c.id)}>
+                                <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                                Revisado
+                              </Button>
+                            )}
                             <Button size="icon" variant="ghost" onClick={() => openEditDialog(c)}>
                               <Pencil className="h-4 w-4" />
                             </Button>
