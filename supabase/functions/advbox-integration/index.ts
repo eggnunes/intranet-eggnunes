@@ -9,6 +9,7 @@ const ADVBOX_API_BASE = 'https://app.advbox.com.br/api/v1';
 const ADVBOX_TOKEN = Deno.env.get('ADVBOX_API_TOKEN');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 // Cache simples em memória (válido durante a vida da instância)
 const cache = new Map<string, { data: any; timestamp: number; fromCache?: boolean; rateLimited?: boolean }>();
