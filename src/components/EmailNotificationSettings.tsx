@@ -21,7 +21,9 @@ import {
   Users,
   Loader2,
   Save,
-  Lock
+  Lock,
+  Newspaper,
+  RefreshCw
 } from 'lucide-react';
 
 interface EmailPreferences {
