@@ -329,6 +329,41 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
         <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
+    // Atualização da intranet
+    intranet_update: `
+      ${baseStyles}
+      <div class="container">
+        <div class="header" style="background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);"><h1>🔄 Atualização da Intranet</h1></div>
+        <div class="content">
+          <p>Olá <strong>${data.userName}</strong>,</p>
+          <p>A intranet recebeu uma nova ${data.category === 'fix' ? 'correção' : data.category === 'improvement' ? 'melhoria' : 'funcionalidade'}:</p>
+          <div class="info-box">
+            <strong>${data.title}</strong><br>
+            <p>${data.description || ''}</p>
+          </div>
+          ${data.actionUrl ? `<a href="${data.actionUrl}" class="button">Ver Mais</a>` : ''}
+        </div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
+      </div>
+    `,
+
+    // Comunicado urgente
+    announcement_urgent: `
+      ${baseStyles}
+      <div class="container">
+        <div class="header" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);"><h1>🚨 Comunicado Urgente</h1></div>
+        <div class="content">
+          <p>Olá <strong>${data.userName}</strong>,</p>
+          <p>Um comunicado urgente foi publicado:</p>
+          <div class="highlight">
+            <strong>${data.title}</strong>
+          </div>
+          <p>${data.content}</p>
+          <a href="${data.actionUrl}" class="button">Ver Comunicado</a>
+        </div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
+      </div>
+    `,
   };
 
   return templates[templateType] || templates.generic;
@@ -342,8 +377,8 @@ async function sendEmailViaResend(to: string, subject: string, html: string): Pr
     throw new Error("RESEND_API_KEY não configurada");
   }
 
-  const fromEmail = "notificacoes@intraneteggnunes.com.br";
-  const fromName = "Egg Nunes - Intranet";
+  const fromEmail = "avisos@intranetagnunes.com.br";
+  const fromName = "Egg Nunes - Avisos";
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -451,6 +486,7 @@ const handler = async (req: Request): Promise<Response> => {
           approval_rejected: "notify_approvals",
           financial_due: "notify_financial",
           announcement: "notify_announcements",
+          announcement_urgent: "notify_announcements",
           vacation_approved: "notify_vacation",
           vacation_rejected: "notify_vacation",
           vacation_requested: "notify_vacation",
@@ -459,6 +495,7 @@ const handler = async (req: Request): Promise<Response> => {
           new_message: "notify_messages",
           crm_deal_update: "notify_crm",
           crm_follow_up: "notify_crm",
+          intranet_update: "notify_intranet_updates",
         };
 
         const prefKey = templateToPreference[templateType];

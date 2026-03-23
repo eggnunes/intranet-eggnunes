@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useEmailNotification } from './useEmailNotification';
 import { toast } from 'sonner';
 
 export interface Conversation {
@@ -48,6 +49,7 @@ export interface Message {
 
 export const useMessaging = () => {
   const { user } = useAuth();
+  const { sendNewMessageEmail } = useEmailNotification();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
@@ -227,9 +229,10 @@ export const useMessaging = () => {
         .update({ updated_at: new Date().toISOString() })
         .eq('id', conversationId);
 
-      // Create notification for other participants
+      // Create notification and send email for other participants
       const conversation = conversations.find(c => c.id === conversationId);
       const otherParticipants = conversation?.participants?.filter(p => p.user_id !== user.id) || [];
+      const senderName = user.user_metadata?.full_name || 'Alguém';
 
       for (const participant of otherParticipants) {
         await supabase
@@ -237,10 +240,29 @@ export const useMessaging = () => {
           .insert({
             user_id: participant.user_id,
             title: 'Nova mensagem',
-            message: `${user.user_metadata?.full_name || 'Alguém'} enviou uma mensagem`,
+            message: `${senderName} enviou uma mensagem`,
             type: 'message',
             action_url: '/mensagens'
           });
+
+        // Send email notification
+        if (participant.profile?.id) {
+          const { data: recipientProfile } = await supabase
+            .from('profiles')
+            .select('email, full_name')
+            .eq('id', participant.user_id)
+            .maybeSingle();
+
+          if (recipientProfile?.email) {
+            sendNewMessageEmail(
+              recipientProfile.email,
+              participant.user_id,
+              recipientProfile.full_name || 'Colaborador',
+              senderName,
+              content.trim().substring(0, 100)
+            ).catch(err => console.error('Email notification error:', err));
+          }
+        }
       }
 
       return data;

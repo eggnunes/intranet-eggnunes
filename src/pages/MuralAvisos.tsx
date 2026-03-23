@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { useAuth } from '@/hooks/useAuth';
+import { useEmailNotification } from '@/hooks/useEmailNotification';
 import { Megaphone, Plus, Trash2, Pin, Calendar, Trophy } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -37,6 +38,7 @@ const MuralAvisos = () => {
   const { canEdit, isSocioOrRafael } = useAdminPermissions();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { sendAnnouncementEmail } = useEmailNotification();
   
   // Check if user can manage announcements
   const canManageAnnouncements = isSocioOrRafael || canEdit('announcements');
@@ -135,6 +137,28 @@ const MuralAvisos = () => {
         });
 
       if (error) throw error;
+
+      // Send email notification to all active users
+      const { data: activeUsers } = await supabase
+        .from('profiles')
+        .select('id, email, full_name')
+        .eq('is_active', true)
+        .eq('is_suspended', false)
+        .eq('approval_status', 'approved');
+
+      if (activeUsers) {
+        for (const recipient of activeUsers) {
+          if (recipient.email && recipient.id !== userData.user.id) {
+            sendAnnouncementEmail(
+              recipient.email,
+              recipient.id,
+              recipient.full_name || 'Colaborador',
+              formData.title,
+              formData.content
+            ).catch(err => console.error('Error sending announcement email:', err));
+          }
+        }
+      }
 
       toast({
         title: 'Sucesso',
