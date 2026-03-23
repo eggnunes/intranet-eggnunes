@@ -65,7 +65,7 @@ export default function ProcessosDashboard() {
   const MOVEMENTS_CACHE_KEY = 'advbox-movements-full-cache';
   const MOVEMENTS_CACHE_TIMESTAMP_KEY = 'advbox-movements-full-cache-timestamp';
   
-  // Carregar dados do cache imediatamente
+  // Carregar dados do localStorage como fallback offline
   const loadFromCache = () => {
     try {
       const cached = localStorage.getItem(CACHE_KEY);
@@ -104,8 +104,8 @@ export default function ProcessosDashboard() {
   
   const [lawsuits, setLawsuits] = useState<Lawsuit[]>(cachedData?.lawsuits || []);
   const [movements, setMovements] = useState<Movement[]>(cachedMovements || cachedData?.movements || []);
-  const [loading, setLoading] = useState(!cachedData && !cachedMovements); // Só mostra loading se NÃO tem cache
-  const [isRefreshing, setIsRefreshing] = useState(false); // Atualização em background
+  const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [movementSearchTerm, setMovementSearchTerm] = useState('');
   const [selectedResponsibles, setSelectedResponsibles] = useState<string[]>([]);
@@ -115,7 +115,7 @@ export default function ProcessosDashboard() {
   const [periodFilter, setPeriodFilter] = useState<string>('all');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [showAllStatuses, setShowAllStatuses] = useState(true);
-  const [evolutionPeriod, setEvolutionPeriod] = useState<string>('30'); // dias: 7, 30, 90, all - padrão "30 dias"
+  const [evolutionPeriod, setEvolutionPeriod] = useState<string>('30');
   const [totalLawsuits, setTotalLawsuits] = useState<number | null>(cachedData?.totalLawsuits || null);
   const [totalMovements, setTotalMovements] = useState<number | null>(cachedMovements?.length || cachedData?.totalMovements || null);
   const [metadata, setMetadata] = useState<{ fromCache: boolean; rateLimited: boolean; cacheAge: number } | null>(cachedData?.metadata || null);
@@ -139,6 +139,85 @@ export default function ProcessosDashboard() {
   
   const { toast } = useToast();
   const { isAdmin } = useUserRole();
+
+  // ===== CARGA INSTANTÂNEA DO BANCO (cache persistente) =====
+  useEffect(() => {
+    const loadFromDb = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('advbox_dashboard_cache')
+          .select('*')
+          .eq('id', 'singleton')
+          .single();
+
+        if (error || !data) {
+          console.log('[DB Cache] No cached data found, will fetch from API');
+          return;
+        }
+
+        const dbLawsuits = (data.lawsuits_data as any[]) || [];
+        const dbMovements = (data.movements_data as any[]) || [];
+        const dbTotalLawsuits = data.total_lawsuits || 0;
+        const dbTotalMovements = data.total_movements || 0;
+
+        if (dbLawsuits.length > 0) {
+          console.log(`[DB Cache] Loaded ${dbLawsuits.length} lawsuits, ${dbMovements.length} movements from DB cache (updated: ${data.updated_at})`);
+          setLawsuits(dbLawsuits as Lawsuit[]);
+          setMovements(dbMovements as Movement[]);
+          setTotalLawsuits(dbTotalLawsuits);
+          setTotalMovements(dbTotalMovements);
+          setMetadata(data.metadata as any);
+          setLastUpdate(new Date(data.updated_at));
+          setHasCompleteData(true);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.warn('[DB Cache] Error loading from DB:', err);
+      }
+    };
+
+    loadFromDb();
+  }, []);
+
+  // ===== REALTIME: Atualização automática quando edge function salva novos dados =====
+  useEffect(() => {
+    const channel = supabase
+      .channel('advbox-dashboard-cache-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'advbox_dashboard_cache',
+          filter: 'id=eq.singleton',
+        },
+        (payload) => {
+          console.log('[Realtime] Dashboard cache updated!', payload);
+          const newData = payload.new as any;
+          const dbLawsuits = (newData.lawsuits_data as any[]) || [];
+          const dbMovements = (newData.movements_data as any[]) || [];
+
+          if (dbLawsuits.length > 0) {
+            setLawsuits(dbLawsuits as Lawsuit[]);
+            setTotalLawsuits(newData.total_lawsuits || dbLawsuits.length);
+            setHasCompleteData(true);
+          }
+          if (dbMovements.length > 0) {
+            setMovements(dbMovements as Movement[]);
+            setTotalMovements(newData.total_movements || dbMovements.length);
+          }
+          setLastUpdate(new Date(newData.updated_at));
+          setMetadata(newData.metadata as any);
+          setIsRefreshing(false);
+          setLoading(false);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Função para enviar cobrança de documentos via ChatGuru
   const sendDocumentRequest = async (lawsuit: Lawsuit) => {
