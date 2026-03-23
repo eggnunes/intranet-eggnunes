@@ -428,7 +428,7 @@ export default function AgenteChatPage() {
 
   return (
     <Layout>
-      <div className="flex flex-col h-[calc(100vh-6rem)]">
+      <div className="flex flex-col" style={{ height: 'calc(100vh - 8rem)', maxHeight: 'calc(100vh - 8rem)' }}>
         {/* Header */}
         <div className="flex items-center gap-3 pb-3 border-b flex-shrink-0">
           <Button variant="ghost" size="icon" onClick={() => navigate('/agentes-ia')}>
@@ -474,8 +474,8 @@ export default function AgenteChatPage() {
           )}
 
           {/* Chat area */}
-          <div className="flex-1 flex flex-col min-w-0">
-            <ScrollArea ref={scrollRef} className="flex-1 pr-4">
+          <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+            <ScrollArea ref={scrollRef} className="flex-1 pr-4 min-h-0">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center py-20">
                   <span className="text-5xl mb-4">{agent.icon_emoji}</span>
@@ -545,7 +545,7 @@ export default function AgenteChatPage() {
             </ScrollArea>
 
             {/* Input area */}
-            <div className="border-t pt-3 mt-2 pb-2 flex-shrink-0">
+            <div className="border-t pt-3 mt-2 pb-4 flex-shrink-0">
               {/* Attachments preview */}
               {attachments.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-2">
