@@ -1,49 +1,35 @@
 
 
-## Plan: Melhorias na Página de Chat dos Agentes de IA
+## Plano: Ações de Exportação nas Respostas do Agente de IA
 
-### Problemas Identificados (da imagem)
+### Verificação do que já funciona
 
-1. **Header mostra instruções completas** abaixo do nome do agente -- texto longo demais
-2. **Tela de boas-vindas repete as instruções** no centro da página -- duplicação
-3. **Sem opção de anexar documentos** na área de input
-4. **Sem opção de microfone** para gravação de voz (voice-to-text)
-5. **Caixa de texto cortada** no final do layout
+O chat do agente **já suporta** interações contínuas: após a IA dar uma resposta, você pode enviar outra mensagem para refinar o resultado, seja digitando ou usando o microfone. O anexo de arquivos também já está implementado. Não há nada quebrado nessa parte.
 
-### Alterações Planejadas
+### O que será adicionado
 
-#### 1. Corrigir Header (arquivo: `src/pages/AgenteChatPage.tsx`)
-- Manter apenas o emoji, nome do agente e o campo `objective` (resumo curto)
-- Remover qualquer exibição das instruções completas no header
+Botões de ação em cada mensagem do assistente com 3 opções:
 
-#### 2. Corrigir Tela de Boas-Vindas
-- No estado vazio (sem mensagens), mostrar apenas o emoji, nome e `objective`
-- Remover a exibição das instruções -- atualmente mostra `agent.objective` que contém o texto longo das instruções. O campo `objective` parece estar preenchido com o conteúdo das instruções pelo usuário, então vamos truncar para no máximo 2 linhas com `line-clamp-2`
-
-#### 3. Adicionar Botão de Anexar Documento
-- Adicionar input hidden para upload de arquivos (aceitar PDF, DOC, DOCX, TXT, imagens)
-- Adicionar botão com ícone de clipe (Paperclip) ao lado da caixa de texto
-- Mostrar preview dos arquivos anexados acima da caixa de texto
-- Enviar arquivos como base64 junto com a mensagem para o edge function
-- Atualizar o edge function `chat-with-agent` para receber e processar attachments
-
-#### 4. Adicionar Botão de Microfone (Voice-to-Text)
-- Reutilizar o padrão já existente em `AssistenteIA.tsx` com `MediaRecorder`
-- Adicionar botão de microfone ao lado do botão de enviar
-- Usar a edge function `voice-to-text` existente (Whisper) para transcrever
-- Mostrar indicador visual de gravação em andamento
-
-#### 5. Corrigir Layout da Caixa de Texto
-- Ajustar o container principal para `h-[calc(100vh-6rem)]` e adicionar padding inferior
-- Garantir que a área de input tenha espaço adequado com `pb-4` no container
+1. **Baixar como PDF** -- Gera um PDF formatado com o conteúdo da resposta e faz download
+2. **Baixar como TXT** -- Gera um arquivo .txt com o conteúdo e faz download
+3. **Salvar no Teams** -- Abre o dialog existente `SaveToTeamsDialog` para salvar na pasta do cliente no Microsoft Teams (cria a pasta automaticamente se não existir)
 
 ### Detalhes Técnicos
 
-**Arquivos modificados:**
-- `src/pages/AgenteChatPage.tsx` -- todas as alterações de layout, microfone e anexo
-- `supabase/functions/chat-with-agent/index.ts` -- aceitar attachments no payload e incluir no contexto da mensagem
+**Arquivo modificado:** `src/pages/AgenteChatPage.tsx`
 
-**Padrão de voz:** Reutiliza `voice-to-text` edge function existente (OpenAI Whisper), mesmo padrão de `AssistenteIA.tsx`.
+- Adicionar botões de ação (ícones pequenos) abaixo de cada mensagem do assistente: `Download` (PDF), `FileText` (TXT), `CloudUpload` (Teams)
+- Para PDF: usar `jsPDF` para gerar o documento com o conteúdo markdown convertido para texto
+- Para TXT: criar Blob com o conteúdo e disparar download
+- Para Teams: reutilizar o componente `SaveToTeamsDialog` já existente, passando o conteúdo como base64 e permitindo informar o nome do cliente
+- Adicionar um pequeno input/dialog para informar o nome do cliente ao salvar no Teams
 
-**Padrão de anexos:** Upload via input file, converter para base64, enviar no corpo da requisição. No edge function, incluir metadados dos arquivos no contexto da conversa.
+### Fluxo do Usuário
+
+```text
+Mensagem do Assistente
+├── [📄 PDF]  → Download direto
+├── [📝 TXT]  → Download direto
+└── [☁️ Teams] → Dialog para escolher/criar pasta do cliente → Upload
+```
 
