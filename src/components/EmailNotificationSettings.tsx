@@ -34,6 +34,8 @@ interface EmailPreferences {
   notify_forum: boolean;
   notify_messages: boolean;
   notify_crm: boolean;
+  notify_daily_digest: boolean;
+  notify_intranet_updates: boolean;
 }
 
 const defaultPreferences: EmailPreferences = {
@@ -46,6 +48,8 @@ const defaultPreferences: EmailPreferences = {
   notify_forum: true,
   notify_messages: true,
   notify_crm: true,
+  notify_daily_digest: true,
+  notify_intranet_updates: true,
 };
 
 const preferenceConfig = [
