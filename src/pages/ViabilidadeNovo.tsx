@@ -43,9 +43,59 @@ export default function ViabilidadeNovo() {
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState<AddressData>(emptyAddress);
   const [tipoAcao, setTipoAcao] = useState('');
+  const [tipoAcaoOpen, setTipoAcaoOpen] = useState(false);
+  const [tiposAcaoOptions, setTiposAcaoOptions] = useState<{ label: string; source: string }[]>([]);
+  const [loadingTipos, setLoadingTipos] = useState(true);
   const [descricaoCaso, setDescricaoCaso] = useState('');
   const [modeloIA, setModeloIA] = useState<'claude' | 'chatgpt'>('claude');
   const [arquivos, setArquivos] = useState<File[]>([]);
+
+  // Fetch dynamic action types
+  useEffect(() => {
+    const fetchTipos = async () => {
+      setLoadingTipos(true);
+      try {
+        const [contractsRes, dealsRes, leadsRes] = await Promise.all([
+          supabase.from('contract_drafts').select('product_name'),
+          supabase.from('crm_deals').select('product_name'),
+          supabase.from('captured_leads').select('product_name'),
+        ]);
+
+        const seen = new Set<string>();
+        const options: { label: string; source: string }[] = [];
+
+        const addItems = (items: any[] | null, source: string) => {
+          items?.forEach((item: any) => {
+            const name = item.product_name?.trim();
+            if (name && !seen.has(name.toLowerCase())) {
+              seen.add(name.toLowerCase());
+              options.push({ label: name, source });
+            }
+          });
+        };
+
+        addItems(contractsRes.data, 'ADVBox');
+        addItems(dealsRes.data, 'CRM');
+        addItems(leadsRes.data, 'Leads');
+
+        // Add defaults that aren't already present
+        defaultTipos.forEach(t => {
+          if (!seen.has(t.toLowerCase())) {
+            seen.add(t.toLowerCase());
+            options.push({ label: t, source: 'Padrão' });
+          }
+        });
+
+        setTiposAcaoOptions(options);
+      } catch (err) {
+        console.error('Error fetching action types:', err);
+        setTiposAcaoOptions(defaultTipos.map(t => ({ label: t, source: 'Padrão' })));
+      } finally {
+        setLoadingTipos(false);
+      }
+    };
+    fetchTipos();
+  }, []);
 
   // Analysis
   const [analyzing, setAnalyzing] = useState(false);
