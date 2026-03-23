@@ -49,6 +49,7 @@ export interface Message {
 
 export const useMessaging = () => {
   const { user } = useAuth();
+  const { sendNewMessageEmail } = useEmailNotification();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
