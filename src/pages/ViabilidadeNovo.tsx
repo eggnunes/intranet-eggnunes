@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -14,7 +14,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, CalendarIcon, Upload, Brain, Save, CheckCircle, XCircle, AlertTriangle, FileText, X, ChevronsUpDown, Check } from 'lucide-react';
+import { ArrowLeft, CalendarIcon, Upload, Brain, Save, CheckCircle, XCircle, AlertTriangle, FileText, X, ChevronsUpDown, Check, Mic, Square, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -96,6 +96,76 @@ export default function ViabilidadeNovo() {
     };
     fetchTipos();
   }, []);
+
+  // Audio recording
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await transcribeAudio(audioBlob);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Mic error:', err);
+      toast.error('Não foi possível acessar o microfone.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+  };
+
+  const transcribeAudio = async (blob: Blob) => {
+    setIsTranscribing(true);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      const { data, error } = await supabase.functions.invoke('voice-to-text', {
+        body: { audio: base64 },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      if (data?.text) {
+        setDescricaoCaso(prev => prev ? `${prev}\n${data.text}` : data.text);
+        toast.success('Áudio transcrito com sucesso!');
+      }
+    } catch (err) {
+      console.error('Transcription error:', err);
+      toast.error('Erro ao transcrever o áudio.');
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
 
   // Analysis
   const [analyzing, setAnalyzing] = useState(false);
@@ -349,11 +419,33 @@ export default function ViabilidadeNovo() {
             <AddressFields address={address} onChange={setAddress} />
 
             <div>
-              <Label>Descrição do Caso *</Label>
+              <div className="flex items-center gap-2 mb-1">
+                <Label>Descrição do Caso *</Label>
+                {isTranscribing ? (
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Transcrevendo...
+                  </span>
+                ) : isRecording ? (
+                  <Button type="button" size="sm" variant="destructive" className="h-7 gap-1.5 text-xs" onClick={stopRecording}>
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive-foreground opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive-foreground" />
+                    </span>
+                    <Square className="h-3 w-3" />
+                    Parar
+                  </Button>
+                ) : (
+                  <Button type="button" size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={startRecording}>
+                    <Mic className="h-3.5 w-3.5" />
+                    Gravar áudio
+                  </Button>
+                )}
+              </div>
               <Textarea
                 value={descricaoCaso}
                 onChange={e => setDescricaoCaso(e.target.value)}
-                placeholder="Descreva detalhadamente o caso do cliente..."
+                placeholder="Descreva detalhadamente o caso do cliente ou use o botão de gravar áudio acima..."
                 rows={5}
               />
             </div>
