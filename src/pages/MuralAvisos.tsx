@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { useAuth } from '@/hooks/useAuth';
+import { useEmailNotification } from '@/hooks/useEmailNotification';
 import { Megaphone, Plus, Trash2, Pin, Calendar, Trophy } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
