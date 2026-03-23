@@ -458,11 +458,26 @@ Deno.serve(async (req) => {
         try {
           const result = await fetchAllPaginatedComplete('/lawsuits', cacheKey, 1000, 50);
           
-          // Salvar no cache
+          // Salvar no cache em memória
           cache.set(cacheKey, { 
             data: { items: result.items, totalCount: result.totalCount },
             timestamp: now,
           });
+          
+          // Salvar no banco para cache persistente (non-blocking)
+          saveDashboardCacheToDb({
+            total_lawsuits: result.totalCount,
+            lawsuits_data: result.items.map((l: any) => ({
+              id: l.id, process_number: l.process_number, protocol_number: l.protocol_number,
+              folder: l.folder, process_date: l.process_date, fees_expec: l.fees_expec,
+              fees_money: l.fees_money, contingency: l.contingency, type_lawsuit_id: l.type_lawsuit_id,
+              type: l.type, group_id: l.group_id, group: l.group, created_at: l.created_at,
+              status_closure: l.status_closure, exit_production: l.exit_production,
+              exit_execution: l.exit_execution, responsible_id: l.responsible_id,
+              responsible: l.responsible, customers: l.customers,
+            })),
+            metadata: { fromCache: false, rateLimited: false, cacheAge: 0 },
+          }).catch(() => {});
           
           return new Response(JSON.stringify({
             data: result.items,
