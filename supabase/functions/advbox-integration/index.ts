@@ -9,6 +9,7 @@ const ADVBOX_API_BASE = 'https://app.advbox.com.br/api/v1';
 const ADVBOX_TOKEN = Deno.env.get('ADVBOX_API_TOKEN');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 // Cache simples em memória (válido durante a vida da instância)
 const cache = new Map<string, { data: any; timestamp: number; fromCache?: boolean; rateLimited?: boolean }>();
@@ -43,8 +44,38 @@ async function loadSettings() {
   }
 }
 
-// Carregar configurações ao iniciar
-loadSettings();
+// Helper: Save dashboard cache to DB (non-blocking, uses service_role)
+async function saveDashboardCacheToDb(updates: Record<string, any>) {
+  try {
+    if (!SUPABASE_SERVICE_ROLE_KEY) {
+      console.warn('No service role key, skipping dashboard cache save');
+      return;
+    }
+    const body: Record<string, any> = { id: 'singleton', updated_at: new Date().toISOString(), ...updates };
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/advbox_dashboard_cache?id=eq.singleton`,
+      {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_SERVICE_ROLE_KEY,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify(body),
+      }
+    );
+    if (!response.ok) {
+      console.warn('Failed to save dashboard cache:', response.status, await response.text());
+    } else {
+      console.log('Dashboard cache saved to DB:', Object.keys(updates));
+    }
+  } catch (err) {
+    console.warn('Error saving dashboard cache to DB:', err);
+  }
+}
+
+
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -427,11 +458,26 @@ Deno.serve(async (req) => {
         try {
           const result = await fetchAllPaginatedComplete('/lawsuits', cacheKey, 1000, 50);
           
-          // Salvar no cache
+          // Salvar no cache em memória
           cache.set(cacheKey, { 
             data: { items: result.items, totalCount: result.totalCount },
             timestamp: now,
           });
+          
+          // Salvar no banco para cache persistente (non-blocking)
+          saveDashboardCacheToDb({
+            total_lawsuits: result.totalCount,
+            lawsuits_data: result.items.map((l: any) => ({
+              id: l.id, process_number: l.process_number, protocol_number: l.protocol_number,
+              folder: l.folder, process_date: l.process_date, fees_expec: l.fees_expec,
+              fees_money: l.fees_money, contingency: l.contingency, type_lawsuit_id: l.type_lawsuit_id,
+              type: l.type, group_id: l.group_id, group: l.group, created_at: l.created_at,
+              status_closure: l.status_closure, exit_production: l.exit_production,
+              exit_execution: l.exit_execution, responsible_id: l.responsible_id,
+              responsible: l.responsible, customers: l.customers,
+            })),
+            metadata: { fromCache: false, rateLimited: false, cacheAge: 0 },
+          }).catch(() => {});
           
           return new Response(JSON.stringify({
             data: result.items,
@@ -756,6 +802,16 @@ Deno.serve(async (req) => {
             data: { items: allItems, totalCount },
             timestamp: now,
           });
+          
+          // Salvar movimentações no cache persistente do banco (non-blocking)
+          saveDashboardCacheToDb({
+            total_movements: totalCount,
+            movements_data: allItems.map((m: any) => ({
+              lawsuit_id: m.lawsuit_id, date: m.date, title: m.title,
+              header: m.header, process_number: m.process_number,
+              protocol_number: m.protocol_number, customers: m.customers,
+            })),
+          }).catch(() => {});
           
           return new Response(JSON.stringify({
             data: allItems,
