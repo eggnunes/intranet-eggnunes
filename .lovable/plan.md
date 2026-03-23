@@ -1,35 +1,36 @@
 
 
-## Plano: Ações de Exportação nas Respostas do Agente de IA
+## Diagnóstico
 
-### Verificação do que já funciona
+Analisando o código atual em `AgenteChatPage.tsx`, os botões de **anexar documento** (Paperclip) e **microfone** (Mic) **já existem no código** (linhas 581-600), assim como o `line-clamp-1` no header (linha 440). Porém, o screenshot mostra que essas mudanças **não estão refletidas na tela** — o header ainda exibe o texto completo das instruções e os botões não aparecem.
 
-O chat do agente **já suporta** interações contínuas: após a IA dar uma resposta, você pode enviar outra mensagem para refinar o resultado, seja digitando ou usando o microfone. O anexo de arquivos também já está implementado. Não há nada quebrado nessa parte.
+Isso indica que as edições anteriores podem não ter sido salvas corretamente ou houve um conflito de deploy. 
 
-### O que será adicionado
+## Plano: Reescrever a área de input e header para garantir funcionamento
 
-Botões de ação em cada mensagem do assistente com 3 opções:
+### 1. Header — remover texto longo de instruções
+- Manter apenas nome do agente e objetivo truncado (1 linha com `line-clamp-1`)
+- Confirmar que o código está correto (já está nas linhas 438-441)
 
-1. **Baixar como PDF** -- Gera um PDF formatado com o conteúdo da resposta e faz download
-2. **Baixar como TXT** -- Gera um arquivo .txt com o conteúdo e faz download
-3. **Salvar no Teams** -- Abre o dialog existente `SaveToTeamsDialog` para salvar na pasta do cliente no Microsoft Teams (cria a pasta automaticamente se não existir)
+### 2. Área de input — garantir visibilidade dos botões
+- Botão de **Paperclip** (anexar arquivos: PDF, DOC, TXT, imagens) à esquerda do textarea
+- Botão de **Microfone** (gravar áudio → transcrever via edge function `voice-to-text`) à esquerda do textarea
+- Indicador de gravação quando microfone ativo
+- Preview de arquivos anexados acima do textarea
 
-### Detalhes Técnicos
+### 3. Layout cortado — corrigir altura do container
+- Aumentar padding inferior (`pb-4`) na área de input para evitar corte
+- Verificar que `h-[calc(100vh-6rem)]` não está sendo sobreposto pelo Layout
 
-**Arquivo modificado:** `src/pages/AgenteChatPage.tsx`
+### 4. Tela de boas-vindas — remover texto repetido
+- Mostrar apenas emoji, nome e uma frase curta (truncada com `line-clamp-2`)
 
-- Adicionar botões de ação (ícones pequenos) abaixo de cada mensagem do assistente: `Download` (PDF), `FileText` (TXT), `CloudUpload` (Teams)
-- Para PDF: usar `jsPDF` para gerar o documento com o conteúdo markdown convertido para texto
-- Para TXT: criar Blob com o conteúdo e disparar download
-- Para Teams: reutilizar o componente `SaveToTeamsDialog` já existente, passando o conteúdo como base64 e permitindo informar o nome do cliente
-- Adicionar um pequeno input/dialog para informar o nome do cliente ao salvar no Teams
+### Arquivos a modificar
+- `src/pages/AgenteChatPage.tsx` — reescrever seções de header, welcome screen e input area para garantir que as alterações persistam
 
-### Fluxo do Usuário
-
-```text
-Mensagem do Assistente
-├── [📄 PDF]  → Download direto
-├── [📝 TXT]  → Download direto
-└── [☁️ Teams] → Dialog para escolher/criar pasta do cliente → Upload
-```
+### O que o código já tem (será preservado)
+- Lógica de upload de arquivos com base64 (`handleFileSelect`)
+- Gravação de áudio com `MediaRecorder` + transcrição via `voice-to-text`
+- Botões de exportação (PDF, TXT, Copiar, Teams) nas respostas do assistente
+- Diálogos de save to Teams
 
