@@ -131,6 +131,8 @@ export function EmailNotificationSettings() {
           notify_forum: data.notify_forum ?? true,
           notify_messages: data.notify_messages ?? true,
           notify_crm: data.notify_crm ?? true,
+          notify_daily_digest: (data as any).notify_daily_digest ?? true,
+          notify_intranet_updates: (data as any).notify_intranet_updates ?? true,
         };
         setPreferences(prefs);
         setOriginalPreferences(prefs);
