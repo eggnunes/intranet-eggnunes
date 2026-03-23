@@ -1,58 +1,37 @@
+## Diagnóstico: Por que o Resumo Diário não foi enviado
 
-## Diagnóstico
+A função **executou hoje às 07:00** (BRT), mas **enviou 0 e-mails e pulou todos os 18 colaboradores**. Log registrado no banco:
 
-O problema está visível no código atual de `src/pages/AgenteChatPage.tsx`:
+```
+sentCount: 0, skippedCount: 18, totalUsers: 18
+```
 
-1. O resumo ainda está sendo cortado manualmente:
-   - hoje existe `agent.objective.length > 120 ? agent.objective.slice(0, 120) + '...' : agent.objective`
-   - por isso o texto no centro continua truncado
+### Causas identificadas
 
-2. O layout do estado vazio está “empurrando” o chat para baixo:
-   - o container principal usa altura fixa `calc(100vh - 8rem)`
-   - a área vazia usa `h-full` + `justify-center` + `py-20`
-   - isso cria um bloco muito alto no meio e deixa o composer colado na base da tela
+**1. Limite de 1.000 linhas na consulta de tarefas**
+A consulta busca todas as tarefas não concluídas — são **7.953 tarefas**. O banco retorna apenas as primeiras 1.000 por padrão. As tarefas dos colaboradores ativos provavelmente ficam fora desse corte, resultando em 0 tarefas encontradas para cada usuário.
 
-3. Ainda existe espaçamento vertical excessivo entre:
-   - o resumo do agente
-   - “Envie uma mensagem para começar”
-   - a caixa de mensagem
+**2. Nomes com espaço extra no perfil**
+Alguns perfis têm espaço no final do nome (ex: `"Marcos Luiz Egg Nunes "` com espaço). Quando comparados com o campo `assigned_users` do Advbox (sem espaço), o `.includes()` falha e não encontra as tarefas.
 
-## Plano de correção
+**3. Falta de dados de movimentações processuais**
+O código não inclui publicações do DJE (`publicacoes_dje`) no resumo do operacional. Existem 83 publicações nos últimos 7 dias que poderiam ser incluídas para advogados.
 
-### 1. Ajustar a estrutura vertical da página
-Em `src/pages/AgenteChatPage.tsx`:
-- trocar a estratégia de altura fixa por uma estrutura mais estável com `flex`, `min-h-0` e distribuição correta do espaço interno
-- fazer a área do chat ocupar o espaço disponível sem “forçar” o input para o rodapé visual
-- subir o composer alguns pixels, reduzindo a sensação de que ele está colado na parte de baixo
+### Plano de correção
 
-### 2. Corrigir o estado vazio do chat
-Na tela sem mensagens:
-- remover o truncamento manual do `objective`
-- exibir o texto completo do resumo do agente
-- limitar pela largura do bloco, não por corte de caracteres
-- reduzir o espaço vazio entre o resumo, a frase “Envie uma mensagem para começar” e o campo de mensagem
-- reposicionar esse conteúdo um pouco mais para cima, em vez de centralizar exageradamente na altura total
+**Arquivo:** `supabase/functions/send-daily-digest/index.ts`
 
-### 3. Manter o header limpo
-No topo:
-- manter apenas ícone + nome do agente
-- não recolocar resumo no header
-- preservar os botões de histórico e nova conversa
+1. **Corrigir a consulta de tarefas** — Em vez de buscar todas as 7.953 tarefas em uma query (limitada a 1.000), buscar as tarefas por usuário individualmente usando `ilike` no campo `assigned_users`, com `trim()` no nome
+2. **Tratar espaços extras nos nomes** — Aplicar `.trim()` no `full_name` antes de comparar com `assigned_users`
+3. **Adicionar publicações do DJE para o operacional** — Buscar publicações recentes da tabela `publicacoes_dje` e incluí-las no resumo dos advogados/operacional, vinculando pelo nome do advogado
+4. **Incluir seção de leads semanal para o comercial** — Ajustar a seção de leads para sempre mostrar o resumo semanal mesmo que não tenha havido leads no dia anterior (o resumo semanal de 83+ registros ainda é relevante)
+5. **Garantir envio mesmo com conteúdo parcial** — Relaxar a condição `hasContent` para considerar tarefas pendentes (que existem para quase todos)
+6. **Redesdobrar a edge function** após as correções
 
-### 4. Refinar o espaçamento do composer
-Na área de envio:
-- ajustar `mt`, `pt` e `pb` do bloco inferior
-- garantir que os botões de anexo, microfone e envio continuem totalmente visíveis
-- evitar que a borda superior e o padding façam o campo parecer “afundado” no fim da página
+### Resultado esperado
 
-## Resultado esperado
+Após a correção, o cron às 07:00 BRT enviará o resumo diário com:
 
-Depois da correção:
-- o resumo aparecerá só no centro da tela inicial
-- o texto do resumo não ficará cortado
-- haverá menos espaço em branco desnecessário
-- a caixa de mensagem ficará visualmente mais acima
-- o chat continuará com anexo e microfone visíveis
-
-## Arquivo a ajustar
-- `src/pages/AgenteChatPage.tsx`
+- **Comercial**: resumo de leads (dia anterior + semana) + tarefas pendentes
+- **Operacional/Advogados**: movimentações processuais no advbox do processo em que o usuário é responsável+ tarefas atrasadas/próximas do prazo + tarefas pendentes
+- **Todos**: mensagens recebidas, comunicados e atualizações da intranet (quando houver)
