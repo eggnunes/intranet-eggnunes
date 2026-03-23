@@ -492,15 +492,37 @@ export default function AgenteChatPage() {
                           {agent.icon_emoji}
                         </div>
                       )}
-                      <Card className={`max-w-[80%] p-3 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                        {msg.role === 'assistant' ? (
-                          <div className="prose prose-sm dark:prose-invert max-w-none">
-                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      <div className="max-w-[80%]">
+                        <Card className={`p-3 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                          {msg.role === 'assistant' ? (
+                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                              <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            </div>
+                          ) : (
+                            <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                          )}
+                        </Card>
+                        {msg.role === 'assistant' && !isStreaming && (
+                          <div className="flex items-center gap-1 mt-1.5 ml-1">
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground" onClick={() => downloadAsPDF(msg.content)} title="Baixar como PDF">
+                              <Download className="h-3 w-3" />
+                              PDF
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground" onClick={() => downloadAsTXT(msg.content)} title="Baixar como TXT">
+                              <FileText className="h-3 w-3" />
+                              TXT
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground" onClick={() => copyToClipboard(msg.content)} title="Copiar texto">
+                              <Copy className="h-3 w-3" />
+                              Copiar
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground" onClick={() => handleSaveToTeams(msg.content)} title="Salvar no Teams">
+                              <CloudUpload className="h-3 w-3" />
+                              Teams
+                            </Button>
                           </div>
-                        ) : (
-                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                         )}
-                      </Card>
+                      </div>
                       {msg.role === 'user' && (
                         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center">
                           <User className="h-4 w-4 text-primary-foreground" />
