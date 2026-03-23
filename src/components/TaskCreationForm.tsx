@@ -121,19 +121,27 @@ export function TaskCreationForm({
         },
       });
 
-      if (error) throw error;
+      // supabase.functions.invoke retorna data mesmo em erros HTTP
+      if (data?.error) {
+        throw new Error(data.error);
+      }
 
-      if (data && !data.error) {
+      if (error) {
+        throw new Error(error.message || 'Erro ao chamar a função de sugestão.');
+      }
+
+      if (data) {
         setAiSuggestion(data);
         toast({
           title: 'Sugestão gerada',
           description: 'Clique em "Aplicar Sugestão" para preencher os campos.',
         });
       }
-    } catch (error) {
+    } catch (error: any) {
+      const message = error?.message || 'Não foi possível gerar sugestão.';
       toast({
-        title: 'Erro',
-        description: 'Não foi possível gerar sugestão.',
+        title: 'Erro ao sugerir tarefa',
+        description: message,
         variant: 'destructive',
       });
     } finally {
