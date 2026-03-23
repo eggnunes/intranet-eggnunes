@@ -329,6 +329,41 @@ const getEmailTemplate = (templateType: string, data: Record<string, any>): stri
         <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
       </div>
     `,
+    // Atualização da intranet
+    intranet_update: `
+      ${baseStyles}
+      <div class="container">
+        <div class="header" style="background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);"><h1>🔄 Atualização da Intranet</h1></div>
+        <div class="content">
+          <p>Olá <strong>${data.userName}</strong>,</p>
+          <p>A intranet recebeu uma nova ${data.category === 'fix' ? 'correção' : data.category === 'improvement' ? 'melhoria' : 'funcionalidade'}:</p>
+          <div class="info-box">
+            <strong>${data.title}</strong><br>
+            <p>${data.description || ''}</p>
+          </div>
+          ${data.actionUrl ? `<a href="${data.actionUrl}" class="button">Ver Mais</a>` : ''}
+        </div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
+      </div>
+    `,
+
+    // Comunicado urgente
+    announcement_urgent: `
+      ${baseStyles}
+      <div class="container">
+        <div class="header" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);"><h1>🚨 Comunicado Urgente</h1></div>
+        <div class="content">
+          <p>Olá <strong>${data.userName}</strong>,</p>
+          <p>Um comunicado urgente foi publicado:</p>
+          <div class="highlight">
+            <strong>${data.title}</strong>
+          </div>
+          <p>${data.content}</p>
+          <a href="${data.actionUrl}" class="button">Ver Comunicado</a>
+        </div>
+        <div class="footer">Egg Nunes Advogados Associados - Sistema de Gestão Interna</div>
+      </div>
+    `,
   };
 
   return templates[templateType] || templates.generic;
