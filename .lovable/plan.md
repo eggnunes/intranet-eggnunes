@@ -1,46 +1,49 @@
 
 
-# Substituir "Revisado" por "Viável/Inviável" + Salvar no Teams
+## Plan: Melhorias na Página de Chat dos Agentes de IA
 
-## Resumo
+### Problemas Identificados (da imagem)
 
-Duas mudanças principais:
-1. Trocar o status final "revisado" por "viavel" e "inviavel", para que o comercial saiba se deve elaborar proposta de honorários
-2. Adicionar botão para salvar a análise de viabilidade como arquivo texto na pasta do cliente no Microsoft Teams/SharePoint
+1. **Header mostra instruções completas** abaixo do nome do agente -- texto longo demais
+2. **Tela de boas-vindas repete as instruções** no centro da página -- duplicação
+3. **Sem opção de anexar documentos** na área de input
+4. **Sem opção de microfone** para gravação de voz (voice-to-text)
+5. **Caixa de texto cortada** no final do layout
 
-## Alterações
+### Alterações Planejadas
 
-### 1. `src/pages/Viabilidade.tsx` — Atualizar status e ações
+#### 1. Corrigir Header (arquivo: `src/pages/AgenteChatPage.tsx`)
+- Manter apenas o emoji, nome do agente e o campo `objective` (resumo curto)
+- Remover qualquer exibição das instruções completas no header
 
-- Remover `revisado` do `statusConfig` e adicionar `viavel` e `inviavel`:
-  - `viavel`: badge verde "Viável" com ícone CheckCircle
-  - `inviavel`: badge vermelha "Inviável" com ícone XCircle
-- Substituir `handleMarkRevisado` por `handleMarkViavel(id)` e `handleMarkInviavel(id)` que fazem update no status
-- Na tabela, para clientes `em_analise`, mostrar dois botões: "Viável" (verde) e "Inviável" (vermelho)
-- Atualizar stats cards: trocar "Revisados" por "Viáveis" + "Inviáveis" (ou combinar em "Finalizados")
-- Atualizar filtros de status no Select e no dialog de edição
-- Adicionar botão "Salvar no Teams" para clientes com parecer, que abre o `SaveToTeamsDialog` passando o conteúdo do parecer como arquivo `.txt` e o `clientName` para auto-navegação
+#### 2. Corrigir Tela de Boas-Vindas
+- No estado vazio (sem mensagens), mostrar apenas o emoji, nome e `objective`
+- Remover a exibição das instruções -- atualmente mostra `agent.objective` que contém o texto longo das instruções. O campo `objective` parece estar preenchido com o conteúdo das instruções pelo usuário, então vamos truncar para no máximo 2 linhas com `line-clamp-2`
 
-### 2. `src/pages/ViabilidadeNovo.tsx` — Atualizar status no save
+#### 3. Adicionar Botão de Anexar Documento
+- Adicionar input hidden para upload de arquivos (aceitar PDF, DOC, DOCX, TXT, imagens)
+- Adicionar botão com ícone de clipe (Paperclip) ao lado da caixa de texto
+- Mostrar preview dos arquivos anexados acima da caixa de texto
+- Enviar arquivos como base64 junto com a mensagem para o edge function
+- Atualizar o edge function `chat-with-agent` para receber e processar attachments
 
-- Linha 278: manter lógica `em_analise` / `pendente` (sem mudança, pois viável/inviável é decisão posterior manual)
+#### 4. Adicionar Botão de Microfone (Voice-to-Text)
+- Reutilizar o padrão já existente em `AssistenteIA.tsx` com `MediaRecorder`
+- Adicionar botão de microfone ao lado do botão de enviar
+- Usar a edge function `voice-to-text` existente (Whisper) para transcrever
+- Mostrar indicador visual de gravação em andamento
 
-### 3. Salvar no Teams — Integração com `SaveToTeamsDialog`
+#### 5. Corrigir Layout da Caixa de Texto
+- Ajustar o container principal para `h-[calc(100vh-6rem)]` e adicionar padding inferior
+- Garantir que a área de input tenha espaço adequado com `pb-4` no container
 
-- Importar `SaveToTeamsDialog` e `useTeamsUpload` em `Viabilidade.tsx`
-- Ao clicar "Salvar no Teams" em um cliente:
-  - Buscar o registro completo do cliente (com `parecer_viabilidade`, `descricao_caso`, etc.)
-  - Montar um conteúdo texto com: nome, CPF, tipo de ação, descrição do caso, parecer, status, data
-  - Converter para base64
-  - Abrir `SaveToTeamsDialog` com `fileName="Viabilidade - {nome}.txt"`, `fileContent={base64}`, `clientName={nome}`
-  - O dialog já auto-navega para a pasta do cliente no site Jurídico
+### Detalhes Técnicos
 
-## Arquivos modificados
+**Arquivos modificados:**
+- `src/pages/AgenteChatPage.tsx` -- todas as alterações de layout, microfone e anexo
+- `supabase/functions/chat-with-agent/index.ts` -- aceitar attachments no payload e incluir no contexto da mensagem
 
-| Arquivo | Alteração |
-|---|---|
-| `src/pages/Viabilidade.tsx` | Trocar "revisado" por "viavel"/"inviavel", adicionar botões de status + botão salvar no Teams |
-| `src/pages/ViabilidadeNovo.tsx` | Sem mudança (status ao salvar já é pendente/em_analise) |
+**Padrão de voz:** Reutiliza `voice-to-text` edge function existente (OpenAI Whisper), mesmo padrão de `AssistenteIA.tsx`.
 
-Nenhuma migração de banco necessária — o campo `status` é `text`, aceita qualquer valor.
+**Padrão de anexos:** Upload via input file, converter para base64, enviar no corpo da requisição. No edge function, incluir metadados dos arquivos no contexto da conversa.
 
