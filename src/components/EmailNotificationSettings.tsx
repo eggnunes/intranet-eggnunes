@@ -55,6 +55,7 @@ const defaultPreferences: EmailPreferences = {
 };
 
 const preferenceConfig = [
+  { key: 'notify_daily_digest', label: 'Resumo Diário', description: 'Receba um e-mail diário com resumo de tarefas, mensagens e avisos', icon: Newspaper, color: 'text-emerald-500', requiresAdmin: false },
   { key: 'notify_tasks', label: 'Tarefas', description: 'Novas tarefas, prazos próximos e atrasos', icon: CheckCircle2, color: 'text-blue-500', requiresAdmin: false },
   { key: 'notify_approvals', label: 'Aprovações', description: 'Solicitações de aprovação e resultados', icon: Bell, color: 'text-purple-500', requiresAdmin: false },
   { key: 'notify_financial', label: 'Financeiro', description: 'Vencimentos e alertas financeiros', icon: DollarSign, color: 'text-green-500', requiresAdmin: true },
@@ -64,6 +65,7 @@ const preferenceConfig = [
   { key: 'notify_forum', label: 'Fórum', description: 'Respostas em tópicos que você participa', icon: MessageSquare, color: 'text-indigo-500', requiresAdmin: false },
   { key: 'notify_messages', label: 'Mensagens', description: 'Novas mensagens diretas', icon: Mail, color: 'text-red-500', requiresAdmin: false },
   { key: 'notify_crm', label: 'CRM', description: 'Atualizações de negócios e follow-ups', icon: Users, color: 'text-amber-500', requiresAdmin: true },
+  { key: 'notify_intranet_updates', label: 'Atualizações da Intranet', description: 'Melhorias e novidades da intranet', icon: RefreshCw, color: 'text-teal-500', requiresAdmin: false },
 ];
 
 export function EmailNotificationSettings() {
