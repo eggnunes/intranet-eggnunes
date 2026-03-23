@@ -3,13 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { ArrowLeft, Send, Loader2, Bot, User, Plus, Trash2, History } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, User, Plus, Trash2, History, Paperclip, Mic, MicOff, X, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface Message {
@@ -32,12 +31,21 @@ interface Agent {
   icon_emoji: string;
 }
 
+interface Attachment {
+  name: string;
+  type: string;
+  base64: string;
+}
+
 export default function AgenteChatPage() {
   const { agentId } = useParams<{ agentId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const [agent, setAgent] = useState<Agent | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -47,6 +55,9 @@ export default function AgenteChatPage() {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [loadingAgent, setLoadingAgent] = useState(true);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
 
   useEffect(() => {
     if (agentId) loadAgent();
@@ -112,6 +123,7 @@ export default function AgenteChatPage() {
     setMessages([]);
     setCurrentConversationId(null);
     setShowHistory(false);
+    setAttachments([]);
   };
 
   const deleteConversation = async (conversationId: string, e: React.MouseEvent) => {
@@ -126,17 +138,97 @@ export default function AgenteChatPage() {
     }
   };
 
+  // File upload
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    for (const file of Array.from(files)) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`Arquivo ${file.name} excede 10MB`);
+        continue;
+      }
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+        reader.readAsDataURL(file);
+      });
+      setAttachments(prev => [...prev, { name: file.name, type: file.type, base64 }]);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Voice recording
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        stream.getTracks().forEach(track => track.stop());
+        setIsTranscribing(true);
+
+        try {
+          const base64Audio = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+            reader.readAsDataURL(audioBlob);
+          });
+
+          const { data, error } = await supabase.functions.invoke('voice-to-text', {
+            body: { audio: base64Audio }
+          });
+
+          if (error) throw error;
+          if (data.text) {
+            setInput(prev => prev + (prev ? ' ' : '') + data.text);
+          }
+        } catch (error) {
+          console.error('Transcription error:', error);
+          toast.error('Não foi possível transcrever o áudio');
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      toast.error('Não foi possível acessar o microfone');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
   const sendMessage = useCallback(async () => {
     if (!input.trim() || isStreaming || !agent || !user) return;
 
     const userMessage: Message = { role: 'user', content: input.trim() };
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
+    const currentAttachments = [...attachments];
     setInput('');
+    setAttachments([]);
     setIsStreaming(true);
 
     try {
-      // Create or use conversation
       let convId = currentConversationId;
       if (!convId) {
         const { data: conv, error } = await supabase
@@ -149,14 +241,12 @@ export default function AgenteChatPage() {
         setCurrentConversationId(convId);
       }
 
-      // Save user message
       await supabase.from('intranet_agent_messages').insert({
         conversation_id: convId,
         role: 'user',
         content: userMessage.content,
       });
 
-      // Stream response
       const chatUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-with-agent`;
       const resp = await fetch(chatUrl, {
         method: 'POST',
@@ -167,6 +257,11 @@ export default function AgenteChatPage() {
         body: JSON.stringify({
           agentId: agent.id,
           messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+          attachments: currentAttachments.length > 0 ? currentAttachments.map(a => ({
+            name: a.name,
+            type: a.type,
+            base64: a.base64,
+          })) : undefined,
         }),
       });
 
@@ -216,7 +311,6 @@ export default function AgenteChatPage() {
         }
       }
 
-      // Save assistant message
       if (assistantContent) {
         await supabase.from('intranet_agent_messages').insert({
           conversation_id: convId,
@@ -232,7 +326,7 @@ export default function AgenteChatPage() {
     }
 
     setIsStreaming(false);
-  }, [input, isStreaming, agent, user, messages, currentConversationId]);
+  }, [input, isStreaming, agent, user, messages, currentConversationId, attachments]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -255,30 +349,30 @@ export default function AgenteChatPage() {
 
   return (
     <Layout>
-      <div className="flex flex-col h-[calc(100vh-8rem)]">
+      <div className="flex flex-col h-[calc(100vh-6rem)]">
         {/* Header */}
-        <div className="flex items-center gap-3 pb-4 border-b">
+        <div className="flex items-center gap-3 pb-3 border-b flex-shrink-0">
           <Button variant="ghost" size="icon" onClick={() => navigate('/agentes-ia')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <span className="text-2xl">{agent.icon_emoji}</span>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <h1 className="text-lg font-semibold">{agent.name}</h1>
-            <p className="text-sm text-muted-foreground">{agent.objective}</p>
+            <p className="text-sm text-muted-foreground line-clamp-1">{agent.objective}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowHistory(!showHistory)}>
               <History className="h-4 w-4" />
-              Histórico
+              <span className="hidden sm:inline">Histórico</span>
             </Button>
             <Button variant="outline" size="sm" className="gap-1.5" onClick={startNewConversation}>
               <Plus className="h-4 w-4" />
-              Nova Conversa
+              <span className="hidden sm:inline">Nova Conversa</span>
             </Button>
           </div>
         </div>
 
-        <div className="flex flex-1 overflow-hidden mt-4 gap-4">
+        <div className="flex flex-1 overflow-hidden mt-3 gap-4">
           {/* History sidebar */}
           {showHistory && (
             <div className="w-72 border rounded-lg p-3 overflow-y-auto flex-shrink-0">
@@ -307,7 +401,7 @@ export default function AgenteChatPage() {
                 <div className="flex flex-col items-center justify-center h-full text-center py-20">
                   <span className="text-5xl mb-4">{agent.icon_emoji}</span>
                   <h2 className="text-xl font-semibold mb-2">Olá! Eu sou {agent.name}</h2>
-                  <p className="text-muted-foreground max-w-md">{agent.objective}</p>
+                  <p className="text-muted-foreground max-w-md line-clamp-2">{agent.objective}</p>
                   <p className="text-sm text-muted-foreground mt-4">Envie uma mensagem para começar.</p>
                 </div>
               ) : (
@@ -349,9 +443,60 @@ export default function AgenteChatPage() {
               )}
             </ScrollArea>
 
-            {/* Input */}
-            <div className="border-t pt-4 mt-2">
-              <div className="flex gap-2">
+            {/* Input area */}
+            <div className="border-t pt-3 mt-2 pb-2 flex-shrink-0">
+              {/* Attachments preview */}
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {attachments.map((att, i) => (
+                    <div key={i} className="flex items-center gap-1.5 bg-muted rounded-md px-2 py-1 text-xs">
+                      <FileText className="h-3 w-3 text-muted-foreground" />
+                      <span className="truncate max-w-[120px]">{att.name}</span>
+                      <button onClick={() => removeAttachment(i)} className="text-muted-foreground hover:text-foreground">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Transcribing indicator */}
+              {isTranscribing && (
+                <div className="flex items-center gap-2 mb-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Transcrevendo áudio...
+                </div>
+              )}
+
+              <div className="flex gap-2 items-end">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  multiple
+                  accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp,.csv,.xlsx"
+                  onChange={handleFileSelect}
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="flex-shrink-0 h-10 w-10"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isStreaming}
+                  title="Anexar documento"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={isRecording ? 'destructive' : 'outline'}
+                  size="icon"
+                  className="flex-shrink-0 h-10 w-10"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={isStreaming || isTranscribing}
+                  title={isRecording ? 'Parar gravação' : 'Gravar áudio'}
+                >
+                  {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </Button>
                 <Textarea
                   ref={textareaRef}
                   value={input}
@@ -359,10 +504,15 @@ export default function AgenteChatPage() {
                   onKeyDown={handleKeyDown}
                   placeholder={`Envie uma mensagem para ${agent.name}...`}
                   rows={2}
-                  className="resize-none"
+                  className="resize-none min-h-[44px]"
                   disabled={isStreaming}
                 />
-                <Button onClick={sendMessage} disabled={!input.trim() || isStreaming} className="self-end">
+                <Button
+                  onClick={sendMessage}
+                  disabled={!input.trim() || isStreaming}
+                  className="flex-shrink-0 h-10 w-10"
+                  size="icon"
+                >
                   {isStreaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </Button>
               </div>

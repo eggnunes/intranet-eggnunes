@@ -10,13 +10,12 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { agentId, messages } = await req.json();
+    const { agentId, messages, attachments } = await req.json();
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Load agent
     const { data: agent, error: agentError } = await supabase
       .from("intranet_agents")
       .select("*")
@@ -25,13 +24,11 @@ serve(async (req) => {
 
     if (agentError || !agent) throw new Error("Agent not found");
 
-    // Load knowledge base files (URLs/descriptions)
     const { data: files } = await supabase
       .from("intranet_agent_files")
       .select("file_name, file_type, file_url")
       .eq("agent_id", agentId);
 
-    // Build system prompt
     let systemPrompt = `Você é "${agent.name}".
 
 ## Objetivo
@@ -48,15 +45,34 @@ ${agent.instructions}`;
       systemPrompt += `\nUse essas informações como referência para suas respostas quando relevante.`;
     }
 
+    // Process attachments - add file info to the last user message
+    const processedMessages = [...messages];
+    if (attachments && attachments.length > 0) {
+      const lastMsg = processedMessages[processedMessages.length - 1];
+      if (lastMsg && lastMsg.role === "user") {
+        let attachmentContext = "\n\n[Arquivos anexados pelo usuário:]\n";
+        for (const att of attachments) {
+          attachmentContext += `- ${att.name} (${att.type})\n`;
+          // For text-based files, decode and include content
+          if (att.type.includes("text") || att.name.endsWith(".txt") || att.name.endsWith(".csv")) {
+            try {
+              const decoded = atob(att.base64);
+              attachmentContext += `\nConteúdo de ${att.name}:\n\`\`\`\n${decoded.slice(0, 50000)}\n\`\`\`\n`;
+            } catch { /* skip */ }
+          }
+        }
+        lastMsg.content += attachmentContext;
+      }
+    }
+
     const model = agent.model || "google/gemini-3-flash-preview";
 
-    // Route to the correct provider
     if (model.startsWith("anthropic/")) {
-      return await handleAnthropic(systemPrompt, messages, model);
+      return await handleAnthropic(systemPrompt, processedMessages, model);
     } else if (model.startsWith("perplexity/")) {
-      return await handlePerplexity(systemPrompt, messages, model);
+      return await handlePerplexity(systemPrompt, processedMessages, model);
     } else {
-      return await handleLovableGateway(systemPrompt, messages, model);
+      return await handleLovableGateway(systemPrompt, processedMessages, model);
     }
   } catch (e) {
     console.error("chat-with-agent error:", e);
@@ -100,7 +116,6 @@ async function handleAnthropic(systemPrompt: string, messages: any[], model: str
     throw new Error(`Anthropic error: ${response.status}`);
   }
 
-  // Transform Anthropic SSE to OpenAI-compatible SSE
   const transformStream = new TransformStream({
     transform(chunk, controller) {
       const text = new TextDecoder().decode(chunk);
