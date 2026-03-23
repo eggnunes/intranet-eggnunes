@@ -5,11 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { ArrowLeft, Send, Loader2, User, Plus, Trash2, History, Paperclip, Mic, MicOff, X, FileText } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, User, Plus, Trash2, History, Paperclip, Mic, MicOff, X, FileText, Download, CloudUpload, Copy } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import jsPDF from 'jspdf';
+import { SaveToTeamsDialog } from '@/components/SaveToTeamsDialog';
 
 interface Message {
   role: 'user' | 'assistant';
