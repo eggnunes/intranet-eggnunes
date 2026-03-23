@@ -209,9 +209,9 @@ export default function AdPerformanceReport({ dateRange }: AdPerformanceReportPr
               <label className="text-xs text-muted-foreground mb-1 block">Campanha</label>
               <Select value={campaignFilter} onValueChange={v => { setCampaignFilter(v); setAdsetFilter('all'); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
+                  <SelectContent>
                   <SelectItem value="all">Todas as campanhas</SelectItem>
-                  {campaigns.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {campaigns.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -221,7 +221,7 @@ export default function AdPerformanceReport({ dateRange }: AdPerformanceReportPr
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os conjuntos</SelectItem>
-                  {adsets.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                  {adsets.map((a: string) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
