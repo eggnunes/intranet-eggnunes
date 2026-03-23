@@ -279,6 +279,39 @@ export const useEmailNotification = () => {
     });
   }, [sendEmail]);
 
+  const sendIntranetUpdateEmail = useCallback(async (
+    to: string,
+    toUserId: string,
+    userName: string,
+    title: string,
+    description: string,
+    category: string
+  ) => {
+    return sendEmail({
+      to,
+      toUserId,
+      subject: `🔄 Atualização da Intranet: ${title}`,
+      templateType: 'intranet_update',
+      data: { userName, title, description, category, actionUrl: `${window.location.origin}/dashboard` }
+    });
+  }, [sendEmail]);
+
+  const sendAnnouncementUrgentEmail = useCallback(async (
+    to: string,
+    toUserId: string,
+    userName: string,
+    title: string,
+    content: string
+  ) => {
+    return sendEmail({
+      to,
+      toUserId,
+      subject: `🚨 Comunicado Urgente: ${title}`,
+      templateType: 'announcement_urgent',
+      data: { userName, title, content, actionUrl: `${window.location.origin}/mural-avisos` }
+    });
+  }, [sendEmail]);
+
   return {
     sendEmail,
     sendTaskAssignedEmail,
@@ -295,5 +328,7 @@ export const useEmailNotification = () => {
     sendCRMDealUpdateEmail,
     sendCRMFollowUpEmail,
     sendGenericEmail,
+    sendIntranetUpdateEmail,
+    sendAnnouncementUrgentEmail,
   };
 };
