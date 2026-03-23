@@ -305,12 +305,43 @@ export default function ViabilidadeNovo() {
               </div>
               <div>
                 <Label>Tipo de Ação *</Label>
-                <Select value={tipoAcao} onValueChange={setTipoAcao}>
-                  <SelectTrigger><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
-                  <SelectContent>
-                    {tiposAcao.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Popover open={tipoAcaoOpen} onOpenChange={setTipoAcaoOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={tipoAcaoOpen} className="w-full justify-between font-normal">
+                      {tipoAcao || 'Selecione o tipo de ação...'}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Buscar tipo de ação..." />
+                      <CommandList>
+                        <CommandEmpty>Nenhum tipo encontrado.</CommandEmpty>
+                        {['ADVBox', 'CRM', 'Leads', 'Padrão'].map(source => {
+                          const items = tiposAcaoOptions.filter(o => o.source === source);
+                          if (items.length === 0) return null;
+                          return (
+                            <CommandGroup key={source} heading={source}>
+                              {items.map(opt => (
+                                <CommandItem
+                                  key={opt.label}
+                                  value={opt.label}
+                                  onSelect={(val) => {
+                                    setTipoAcao(val);
+                                    setTipoAcaoOpen(false);
+                                  }}
+                                >
+                                  <Check className={cn("mr-2 h-4 w-4", tipoAcao === opt.label ? "opacity-100" : "opacity-0")} />
+                                  {opt.label}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          );
+                        })}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
