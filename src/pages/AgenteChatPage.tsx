@@ -437,7 +437,6 @@ export default function AgenteChatPage() {
           <span className="text-2xl">{agent.icon_emoji}</span>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-semibold">{agent.name}</h1>
-            <p className="text-sm text-muted-foreground line-clamp-1">{agent.objective}</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowHistory(!showHistory)}>
