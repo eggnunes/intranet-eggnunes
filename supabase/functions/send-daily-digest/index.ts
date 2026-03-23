@@ -32,6 +32,14 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function buildBaseStyles(): string {
   return `
     <style>
@@ -69,10 +77,11 @@ interface UserDigestData {
   tasks: any[];
   overdueTasks: any[];
   dueSoonTasks: any[];
+  publications: any[];
   leads?: { today: number; week: number; bySources: Record<string, number> };
 }
 
-function buildDigestHtml(userName: string, position: string, data: UserDigestData, baseUrl: string): string {
+function buildDigestHtml(userName: string, data: UserDigestData, baseUrl: string): string {
   const dateStr = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
   
   let sections = "";
@@ -88,6 +97,7 @@ function buildDigestHtml(userName: string, position: string, data: UserDigestDat
             <div class="item-meta">Venceu em: ${t.due_date ? formatDate(t.due_date) : 'Sem data'} · <span class="badge badge-red">Atrasada</span></div>
           </div>
         `).join("")}
+        ${data.overdueTasks.length > 10 ? `<p class="item-meta">...e mais ${data.overdueTasks.length - 10} tarefas atrasadas</p>` : ""}
       </div>
     `;
   }
@@ -119,6 +129,24 @@ function buildDigestHtml(userName: string, position: string, data: UserDigestDat
           </div>
         `).join("")}
         ${data.tasks.length > 8 ? `<p class="item-meta">...e mais ${data.tasks.length - 8} tarefas</p>` : ""}
+      </div>
+    `;
+  }
+
+  // DJE Publications (operational)
+  if (data.publications.length > 0) {
+    sections += `
+      <div class="section">
+        <div class="section-title">📰 Publicações DJE Recentes (${data.publications.length})</div>
+        ${data.publications.slice(0, 8).map(p => `
+          <div class="item">
+            <div class="item-title">${escapeHtml(p.tipo_comunicacao || 'Publicação')} - ${escapeHtml(p.numero_processo || '')}</div>
+            <div class="item-meta">${p.tribunal ? `Tribunal: ${escapeHtml(p.tribunal)}` : ''} · ${p.data_publicacao ? formatDate(p.data_publicacao) : ''}</div>
+            ${p.conteudo ? `<div class="item-meta" style="margin-top:4px;">${escapeHtml((p.conteudo || '').substring(0, 150))}${(p.conteudo || '').length > 150 ? '...' : ''}</div>` : ''}
+          </div>
+        `).join("")}
+        ${data.publications.length > 8 ? `<p class="item-meta">...e mais ${data.publications.length - 8} publicações</p>` : ""}
+        <a href="${baseUrl}/publicacoes-dje" class="button" style="margin-top:10px;">Ver Publicações</a>
       </div>
     `;
   }
@@ -156,7 +184,7 @@ function buildDigestHtml(userName: string, position: string, data: UserDigestDat
     `;
   }
 
-  // Intranet updates
+  // Updates
   if (data.updates.length > 0) {
     sections += `
       <div class="section">
@@ -171,7 +199,7 @@ function buildDigestHtml(userName: string, position: string, data: UserDigestDat
     `;
   }
 
-  // Leads section (for commercial)
+  // Leads (commercial)
   if (data.leads && (data.leads.today > 0 || data.leads.week > 0)) {
     const sourceItems = Object.entries(data.leads.bySources || {}).map(([source, count]) => 
       `<div class="item"><div class="item-title">${escapeHtml(source || 'Direto')}</div><div class="item-meta">${count} lead(s)</div></div>`
@@ -196,7 +224,7 @@ function buildDigestHtml(userName: string, position: string, data: UserDigestDat
     `;
   }
 
-  if (!sections) return ""; // Don't send empty digest
+  if (!sections) return "";
 
   return `
     ${buildBaseStyles()}
@@ -215,14 +243,6 @@ function buildDigestHtml(userName: string, position: string, data: UserDigestDat
       </div>
     </div>
   `;
-}
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 const COMMERCIAL_POSITIONS = ["comercial", "setor_comercial", "marketing"];
@@ -244,6 +264,8 @@ const handler = async (req: Request): Promise<Response> => {
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const nowStr = now.toISOString().split("T")[0];
+    const threeDaysStr = threeDaysFromNow.toISOString().split("T")[0];
 
     // 1. Get all active, approved, non-suspended profiles
     const { data: profiles, error: profilesError } = await supabase
@@ -261,7 +283,7 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // 2. Get email preferences for all users
+    // 2. Get email preferences
     const userIds = profiles.map(p => p.id);
     const { data: allPrefs } = await supabase
       .from("email_notification_preferences")
@@ -271,67 +293,53 @@ const handler = async (req: Request): Promise<Response> => {
     const prefsMap = new Map(allPrefs?.map(p => [p.user_id, p]) || []);
 
     // 3. Fetch shared data (announcements, updates, leads)
-    const { data: recentAnnouncements } = await supabase
-      .from("announcements")
-      .select("*")
-      .gte("created_at", yesterday.toISOString())
-      .order("created_at", { ascending: false });
+    const [announcementsRes, updatesRes, leadsTodayRes, leadsWeekRes] = await Promise.all([
+      supabase.from("announcements").select("*").gte("created_at", yesterday.toISOString()).order("created_at", { ascending: false }),
+      supabase.from("intranet_updates").select("*").gte("created_at", yesterday.toISOString()).order("created_at", { ascending: false }),
+      supabase.from("captured_leads").select("id, utm_source, utm_campaign").gte("created_at", yesterday.toISOString()),
+      supabase.from("captured_leads").select("id").gte("created_at", weekAgo.toISOString()),
+    ]);
 
-    const { data: recentUpdates } = await supabase
-      .from("intranet_updates")
-      .select("*")
-      .gte("created_at", yesterday.toISOString())
-      .order("created_at", { ascending: false });
-
-    // Leads data (for commercial)
-    const { data: leadsToday } = await supabase
-      .from("captured_leads")
-      .select("id, utm_source, utm_campaign")
-      .gte("created_at", yesterday.toISOString());
-
-    const { data: leadsWeek } = await supabase
-      .from("captured_leads")
-      .select("id")
-      .gte("created_at", weekAgo.toISOString());
+    const recentAnnouncements = announcementsRes.data || [];
+    const recentUpdates = updatesRes.data || [];
+    const leadsToday = leadsTodayRes.data || [];
+    const leadsWeek = leadsWeekRes.data || [];
 
     const leadsBySources: Record<string, number> = {};
-    leadsToday?.forEach(l => {
+    leadsToday.forEach(l => {
       const src = l.utm_source || "Direto";
       leadsBySources[src] = (leadsBySources[src] || 0) + 1;
     });
 
-    // 4. Get all pending tasks
-    const { data: allTasks } = await supabase
-      .from("advbox_tasks")
-      .select("id, title, due_date, status, assigned_users, process_number")
-      .neq("status", "completed")
-      .neq("status", "concluida");
-
-    // 5. Get all recent messages with sender info
+    // 4. Fetch recent messages with sender info
     const { data: recentMessages } = await supabase
       .from("messages")
       .select("id, conversation_id, sender_id, content, created_at")
       .gte("created_at", yesterday.toISOString())
       .order("created_at", { ascending: false });
 
-    // Get sender profiles for messages
     const senderIds = [...new Set(recentMessages?.map(m => m.sender_id) || [])];
-    const { data: senderProfiles } = senderIds.length > 0
-      ? await supabase.from("profiles").select("id, full_name").in("id", senderIds)
-      : { data: [] };
-    const senderMap = new Map(senderProfiles?.map(p => [p.id, p.full_name]) || []);
+    const [senderProfilesRes, allParticipantsRes] = await Promise.all([
+      senderIds.length > 0
+        ? supabase.from("profiles").select("id, full_name").in("id", senderIds)
+        : Promise.resolve({ data: [] }),
+      supabase.from("conversation_participants").select("conversation_id, user_id"),
+    ]);
 
-    // Get conversation participants
-    const { data: allParticipants } = await supabase
-      .from("conversation_participants")
-      .select("conversation_id, user_id");
-
+    const senderMap = new Map(senderProfilesRes.data?.map(p => [p.id, p.full_name]) || []);
     const participantsByConv = new Map<string, string[]>();
-    allParticipants?.forEach(p => {
+    allParticipantsRes.data?.forEach(p => {
       const list = participantsByConv.get(p.conversation_id) || [];
       list.push(p.user_id);
       participantsByConv.set(p.conversation_id, list);
     });
+
+    // 5. Fetch recent DJE publications (last 7 days for operational)
+    const { data: recentPublications } = await supabase
+      .from("publicacoes_dje")
+      .select("id, numero_processo, tribunal, tipo_comunicacao, data_publicacao, conteudo, nome_advogado")
+      .gte("created_at", weekAgo.toISOString())
+      .order("data_publicacao", { ascending: false });
 
     // 6. Process each user
     let sentCount = 0;
@@ -342,7 +350,6 @@ const handler = async (req: Request): Promise<Response> => {
         if (!profile.email) { skippedCount++; continue; }
 
         const prefs = prefsMap.get(profile.id);
-        // Check if daily digest is enabled (default true)
         if (prefs && prefs.notify_daily_digest === false) {
           skippedCount++;
           continue;
@@ -350,57 +357,72 @@ const handler = async (req: Request): Promise<Response> => {
 
         const position = (profile.position || "").toLowerCase();
         const isCommercial = COMMERCIAL_POSITIONS.some(p => position.includes(p));
-        const userName = profile.full_name || profile.email;
+        const isOperational = OPERATIONAL_POSITIONS.some(p => position.includes(p));
+        const userName = (profile.full_name || profile.email).trim();
 
-        // User's messages (received, not sent by them)
+        // --- TASKS: query per user using ilike to bypass 1000-row limit ---
+        const { data: userTasks } = await supabase
+          .from("advbox_tasks")
+          .select("id, title, due_date, status, process_number")
+          .neq("status", "completed")
+          .neq("status", "concluida")
+          .ilike("assigned_users", `%${userName}%`)
+          .order("due_date", { ascending: true })
+          .limit(50);
+
+        const tasks = userTasks || [];
+        const overdueTasks = tasks.filter(t => t.due_date && t.due_date < nowStr);
+        const dueSoonTasks = tasks.filter(t => t.due_date && t.due_date >= nowStr && t.due_date <= threeDaysStr);
+        const pendingTasks = tasks.filter(t => !overdueTasks.includes(t) && !dueSoonTasks.includes(t));
+
+        // --- MESSAGES ---
         const userMessages = recentMessages?.filter(m => {
           const convParticipants = participantsByConv.get(m.conversation_id) || [];
           return convParticipants.includes(profile.id) && m.sender_id !== profile.id;
         }).map(m => ({ ...m, sender_name: senderMap.get(m.sender_id) })) || [];
 
-        // User's tasks (assigned to them)
-        const userFullName = profile.full_name || "";
-        const userTasks = allTasks?.filter(t => {
-          const assigned = (t.assigned_users || "").toLowerCase();
-          return assigned.includes(userFullName.toLowerCase());
-        }) || [];
+        // --- PUBLICATIONS (operational only) ---
+        const userPublications = isOperational
+          ? (recentPublications || []).filter(p =>
+              p.nome_advogado && userName.toLowerCase().includes(p.nome_advogado.toLowerCase().split(" ")[0])
+            )
+          : [];
 
-        const nowStr = now.toISOString().split("T")[0];
-        const threeDaysStr = threeDaysFromNow.toISOString().split("T")[0];
+        // --- LEADS (commercial only) ---
+        const leadsData = isCommercial ? {
+          today: leadsToday.length,
+          week: leadsWeek.length,
+          bySources: leadsBySources,
+        } : undefined;
 
-        const overdueTasks = userTasks.filter(t => t.due_date && t.due_date < nowStr);
-        const dueSoonTasks = userTasks.filter(t => t.due_date && t.due_date >= nowStr && t.due_date <= threeDaysStr);
-        const pendingTasks = userTasks.filter(t => !overdueTasks.includes(t) && !dueSoonTasks.includes(t));
-
-        const digestData: UserDigestData = {
-          messages: userMessages,
-          announcements: recentAnnouncements || [],
-          updates: recentUpdates || [],
-          tasks: pendingTasks,
-          overdueTasks,
-          dueSoonTasks,
-          leads: isCommercial ? {
-            today: leadsToday?.length || 0,
-            week: leadsWeek?.length || 0,
-            bySources: leadsBySources,
-          } : undefined,
-        };
-
-        // Check if there's any content
-        const hasContent = userMessages.length > 0 ||
-          (recentAnnouncements?.length || 0) > 0 ||
-          (recentUpdates?.length || 0) > 0 ||
+        // Check if there's any content (relaxed: tasks count too)
+        const hasContent =
           overdueTasks.length > 0 ||
           dueSoonTasks.length > 0 ||
           pendingTasks.length > 0 ||
-          (isCommercial && (leadsToday?.length || 0) > 0);
+          userMessages.length > 0 ||
+          recentAnnouncements.length > 0 ||
+          recentUpdates.length > 0 ||
+          userPublications.length > 0 ||
+          (isCommercial && leadsWeek.length > 0);
 
         if (!hasContent) {
           skippedCount++;
           continue;
         }
 
-        const html = buildDigestHtml(userName, position, digestData, BASE_URL);
+        const digestData: UserDigestData = {
+          messages: userMessages,
+          announcements: recentAnnouncements,
+          updates: recentUpdates,
+          tasks: pendingTasks,
+          overdueTasks,
+          dueSoonTasks,
+          publications: userPublications,
+          leads: leadsData,
+        };
+
+        const html = buildDigestHtml(userName, digestData, BASE_URL);
         if (!html) { skippedCount++; continue; }
 
         const subject = `📬 Resumo Diário - ${now.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`;
