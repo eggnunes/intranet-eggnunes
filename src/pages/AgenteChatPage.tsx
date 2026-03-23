@@ -621,6 +621,43 @@ export default function AgenteChatPage() {
           </div>
         </div>
       </div>
+
+      {/* Client name dialog for Teams */}
+      <Dialog open={clientNameDialogOpen} onOpenChange={setClientNameDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Salvar no Teams</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Informe o nome do cliente para salvar na pasta correspondente no Teams.
+            </p>
+            <Input
+              placeholder="Nome do cliente (opcional)"
+              value={clientNameInput}
+              onChange={(e) => setClientNameInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && confirmSaveToTeams()}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClientNameDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={confirmSaveToTeams}>
+              <CloudUpload className="h-4 w-4 mr-2" />
+              Continuar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save to Teams dialog */}
+      <SaveToTeamsDialog
+        open={teamsDialogOpen}
+        onOpenChange={setTeamsDialogOpen}
+        fileName={teamsContent.fileName}
+        fileContent={teamsContent.fileContent}
+        clientName={clientNameInput || undefined}
+        onSuccess={() => toast.success('Documento salvo no Teams!')}
+      />
     </Layout>
   );
 }
