@@ -27,9 +27,10 @@ import {
 import {
   CalendarIcon, TrendingUp, DollarSign, Users, MousePointerClick, Eye, Target,
   Plus, Pencil, Trash2, Megaphone, BarChart3, Filter, Facebook, Search, Globe,
-  Loader2
+  Loader2, FileBarChart
 } from 'lucide-react';
 import MetaAdsTab from '@/components/marketing/MetaAdsTab';
+import AdPerformanceReport from '@/components/marketing/AdPerformanceReport';
 import { TutorialOverlay } from '@/components/TutorialOverlay';
 import { tutorialsByPage } from '@/components/tutorialData';
 
