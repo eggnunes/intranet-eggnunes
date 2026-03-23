@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -8,13 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, CalendarIcon, Upload, Brain, Save, CheckCircle, XCircle, AlertTriangle, FileText, X } from 'lucide-react';
+import { ArrowLeft, CalendarIcon, Upload, Brain, Save, CheckCircle, XCircle, AlertTriangle, FileText, X, ChevronsUpDown, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -22,12 +22,7 @@ import { maskCPF, maskPhone } from '@/lib/masks';
 import { ClientImportSearch } from '@/components/viabilidade/ClientImportSearch';
 import { AddressFields, buildAddressString, type AddressData } from '@/components/viabilidade/AddressFields';
 
-const tiposAcao = [
-  { value: 'civel', label: 'Cível' },
-  { value: 'trabalhista', label: 'Trabalhista' },
-  { value: 'previdenciario', label: 'Previdenciário' },
-  { value: 'tributario', label: 'Tributário' },
-];
+const defaultTipos = ['Cível', 'Trabalhista', 'Previdenciário', 'Tributário'];
 
 const recomendacaoConfig: Record<string, { label: string; icon: typeof CheckCircle; className: string }> = {
   viavel: { label: 'Viável', icon: CheckCircle, className: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30' },
