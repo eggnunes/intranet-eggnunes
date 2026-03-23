@@ -486,6 +486,7 @@ const handler = async (req: Request): Promise<Response> => {
           approval_rejected: "notify_approvals",
           financial_due: "notify_financial",
           announcement: "notify_announcements",
+          announcement_urgent: "notify_announcements",
           vacation_approved: "notify_vacation",
           vacation_rejected: "notify_vacation",
           vacation_requested: "notify_vacation",
@@ -494,6 +495,7 @@ const handler = async (req: Request): Promise<Response> => {
           new_message: "notify_messages",
           crm_deal_update: "notify_crm",
           crm_follow_up: "notify_crm",
+          intranet_update: "notify_intranet_updates",
         };
 
         const prefKey = templateToPreference[templateType];
