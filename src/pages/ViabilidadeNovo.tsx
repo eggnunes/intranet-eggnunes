@@ -419,11 +419,33 @@ export default function ViabilidadeNovo() {
             <AddressFields address={address} onChange={setAddress} />
 
             <div>
-              <Label>Descrição do Caso *</Label>
+              <div className="flex items-center gap-2 mb-1">
+                <Label>Descrição do Caso *</Label>
+                {isTranscribing ? (
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Transcrevendo...
+                  </span>
+                ) : isRecording ? (
+                  <Button type="button" size="sm" variant="destructive" className="h-7 gap-1.5 text-xs" onClick={stopRecording}>
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive-foreground opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive-foreground" />
+                    </span>
+                    <Square className="h-3 w-3" />
+                    Parar
+                  </Button>
+                ) : (
+                  <Button type="button" size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={startRecording}>
+                    <Mic className="h-3.5 w-3.5" />
+                    Gravar áudio
+                  </Button>
+                )}
+              </div>
               <Textarea
                 value={descricaoCaso}
                 onChange={e => setDescricaoCaso(e.target.value)}
-                placeholder="Descreva detalhadamente o caso do cliente..."
+                placeholder="Descreva detalhadamente o caso do cliente ou use o botão de gravar áudio acima..."
                 rows={5}
               />
             </div>
