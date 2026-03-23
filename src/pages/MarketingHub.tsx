@@ -464,9 +464,15 @@ export default function MarketingHub() {
             <TabsTrigger value="meta-ads" className="flex-1 min-w-[100px]"><Facebook className="h-4 w-4 mr-1" />Meta Ads</TabsTrigger>
             <TabsTrigger value="google-ads" className="flex-1 min-w-[100px]"><Search className="h-4 w-4 mr-1" />Google Ads</TabsTrigger>
             <TabsTrigger value="calendario" className="flex-1 min-w-[100px]"><CalendarIcon className="h-4 w-4 mr-1" />Calendário</TabsTrigger>
+            <TabsTrigger value="leads-anuncios" className="flex-1 min-w-[100px]"><FileBarChart className="h-4 w-4 mr-1" />Leads por Anúncio</TabsTrigger>
             <TabsTrigger value="roi" className="flex-1 min-w-[100px]"><BarChart3 className="h-4 w-4 mr-1" />Relatórios ROI</TabsTrigger>
             <TabsTrigger value="funil" className="flex-1 min-w-[100px]"><Filter className="h-4 w-4 mr-1" />Funil</TabsTrigger>
           </TabsList>
+
+          {/* Tab: Leads por Anúncio */}
+          <TabsContent value="leads-anuncios">
+            <AdPerformanceReport dateRange={dateRange} />
+          </TabsContent>
 
           {/* Tab 1: Campanhas - uses Meta Ads data */}
           <TabsContent value="campanhas">
