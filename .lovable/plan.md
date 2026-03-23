@@ -1,49 +1,23 @@
 
 
-# Cache Persistente do Dashboard Financeiro
+# Melhorar tratamento de erro de créditos na Edge Function `suggest-task`
 
 ## Problema
-O Dashboard Financeiro Executivo (`FinanceiroExecutivoDashboard.tsx`) abre zerado e faz ~10 queries sequenciais ao banco + chamada à API do Asaas antes de mostrar dados. Isso causa delay perceptível e tela vazia durante o carregamento.
+Quando a API da Anthropic retorna erro 400 por falta de créditos ("Your credit balance is too low"), a função não trata esse caso específico e exibe uma mensagem genérica.
 
 ## Solução
-Mesma abordagem aplicada ao Dashboard de Processos: tabela de cache no banco, preenchida automaticamente, carregada instantaneamente pelo frontend com Realtime para atualizações em background.
+Adicionar tratamento para status 400 que detecta a mensagem de créditos insuficientes e retorna uma mensagem clara ao usuário.
 
----
+## Mudança
 
-## Componentes
+### `supabase/functions/suggest-task/index.ts`
+Adicionar no bloco de tratamento de erros (após o check de status 401, linha ~188):
 
-### 1. Nova tabela: `fin_dashboard_cache`
-Singleton que armazena o snapshot completo do dashboard:
-- `id` TEXT PRIMARY KEY ('singleton')
-- `dashboard_data` JSONB — objeto completo `DashboardData` (receitas, despesas, lucro, contas, categorias, evolução mensal, comparativo, tendências, saldo Asaas)
-- `periodo` TEXT — período do último cálculo
-- `updated_at` TIMESTAMPTZ
-- RLS: leitura para authenticated
-- Realtime habilitado
-
-### 2. Nova Edge Function: `fin-dashboard-cache-refresh`
-Função que:
-- Executa a mesma lógica de cálculo que o frontend faz hoje (queries de lançamentos, contas, reembolsos, evolução mensal, comparativo, Asaas)
-- Salva o resultado na tabela `fin_dashboard_cache` via service_role
-- Calcula para os 4 períodos (mes_atual, mes_anterior, trimestre, ano) e armazena todos
-
-### 3. Frontend `FinanceiroExecutivoDashboard.tsx`
-- **Ao abrir**: carregar dados da `fin_dashboard_cache` (query instantânea)
-- **Realtime**: assinar canal para atualizações automáticas
-- **Botão "Atualizar"**: chama a Edge Function para forçar refresh
-- **Fallback**: se cache vazio, executa lógica atual normalmente
-
-### 4. pg_cron
-Agendar `fin-dashboard-cache-refresh` a cada 1h para manter dados frescos.
-
----
-
-## Arquivos afetados
+- Tratar **status 400** verificando se o corpo contém "credit balance"
+- Retornar mensagem clara: "A API de IA está sem créditos. Entre em contato com o administrador para recarregar os créditos da Anthropic."
+- Também tratar **status 402** (payment required) com a mesma mensagem
 
 | Arquivo | Ação |
 |---------|------|
-| Migração SQL | **Criar** — tabela `fin_dashboard_cache` + Realtime |
-| `supabase/functions/fin-dashboard-cache-refresh/index.ts` | **Criar** — lógica de cálculo e salvamento |
-| `src/components/financeiro/FinanceiroExecutivoDashboard.tsx` | **Editar** — carregar do cache + Realtime |
-| pg_cron | **Configurar** — agendar refresh a cada 1h |
+| `supabase/functions/suggest-task/index.ts` | **Editar** — adicionar tratamento de erro 400/402 para créditos insuficientes |
 
