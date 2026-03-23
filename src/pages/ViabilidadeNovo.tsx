@@ -97,6 +97,76 @@ export default function ViabilidadeNovo() {
     fetchTipos();
   }, []);
 
+  // Audio recording
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await transcribeAudio(audioBlob);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Mic error:', err);
+      toast.error('Não foi possível acessar o microfone.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+  };
+
+  const transcribeAudio = async (blob: Blob) => {
+    setIsTranscribing(true);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      const { data, error } = await supabase.functions.invoke('voice-to-text', {
+        body: { audio: base64 },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      if (data?.text) {
+        setDescricaoCaso(prev => prev ? `${prev}\n${data.text}` : data.text);
+        toast.success('Áudio transcrito com sucesso!');
+      }
+    } catch (err) {
+      console.error('Transcription error:', err);
+      toast.error('Erro ao transcrever o áudio.');
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
   // Analysis
   const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
