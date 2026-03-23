@@ -1,40 +1,40 @@
 
 
-# Cache Persistente do Dashboard de Processos no Banco de Dados
+# Cache Persistente do Dashboard Financeiro
 
 ## Problema
-Toda vez que o Dashboard de Processos é aberto, os números aparecem zerados e o sistema precisa chamar a API do ADVBox para carregar os dados. O cache atual usa `localStorage`, que é volátil e precisa de refresh a cada visita.
+O Dashboard Financeiro Executivo (`FinanceiroExecutivoDashboard.tsx`) abre zerado e faz ~10 queries sequenciais ao banco + chamada à API do Asaas antes de mostrar dados. Isso causa delay perceptível e tela vazia durante o carregamento.
 
 ## Solução
-Criar uma tabela no banco que armazena um **snapshot dos números do dashboard** (contadores, totais). A Edge Function `advbox-integration` salva esses números sempre que uma sincronização completa termina. O frontend lê esse snapshot instantaneamente ao abrir a página — sem esperar API. Quando uma atualização ocorre em background, o frontend recebe os novos dados automaticamente via **Realtime**.
+Mesma abordagem aplicada ao Dashboard de Processos: tabela de cache no banco, preenchida automaticamente, carregada instantaneamente pelo frontend com Realtime para atualizações em background.
 
 ---
 
 ## Componentes
 
-### 1. Nova tabela: `advbox_dashboard_cache`
-Armazena os contadores e dados resumidos do dashboard:
-- `id` (sempre 1, registro único — singleton)
-- `total_lawsuits` (int) — total de processos
-- `total_movements` (int) — total de movimentações
-- `lawsuits_data` (jsonb) — array completo dos processos (compactado)
-- `movements_data` (jsonb) — array completo das movimentações
-- `metadata` (jsonb) — metadados da última sync
-- `updated_at` (timestamptz) — quando foi atualizado por último
-- RLS: leitura para authenticated, escrita via service_role
-- Realtime habilitado para notificar o frontend de atualizações
+### 1. Nova tabela: `fin_dashboard_cache`
+Singleton que armazena o snapshot completo do dashboard:
+- `id` TEXT PRIMARY KEY ('singleton')
+- `dashboard_data` JSONB — objeto completo `DashboardData` (receitas, despesas, lucro, contas, categorias, evolução mensal, comparativo, tendências, saldo Asaas)
+- `periodo` TEXT — período do último cálculo
+- `updated_at` TIMESTAMPTZ
+- RLS: leitura para authenticated
+- Realtime habilitado
 
-### 2. Edge Function `advbox-integration` — Atualização
-Após buscar processos/movimentações da API ADVBox, salvar os dados na tabela `advbox_dashboard_cache` usando upsert com service_role.
+### 2. Nova Edge Function: `fin-dashboard-cache-refresh`
+Função que:
+- Executa a mesma lógica de cálculo que o frontend faz hoje (queries de lançamentos, contas, reembolsos, evolução mensal, comparativo, Asaas)
+- Salva o resultado na tabela `fin_dashboard_cache` via service_role
+- Calcula para os 4 períodos (mes_atual, mes_anterior, trimestre, ano) e armazena todos
 
-### 3. Frontend `ProcessosDashboard.tsx` — Atualização
-- **Ao abrir**: Buscar dados da tabela `advbox_dashboard_cache` (query instantânea ao banco, sem chamar Edge Function)
-- **Realtime**: Assinar canal Realtime na tabela para receber atualizações automáticas quando a Edge Function salvar novos dados
-- **Botão "Atualizar"**: Continua chamando a Edge Function para forçar refresh, mas agora ela salva no banco e o Realtime entrega os dados novos
-- Manter `localStorage` como fallback offline
+### 3. Frontend `FinanceiroExecutivoDashboard.tsx`
+- **Ao abrir**: carregar dados da `fin_dashboard_cache` (query instantânea)
+- **Realtime**: assinar canal para atualizações automáticas
+- **Botão "Atualizar"**: chama a Edge Function para forçar refresh
+- **Fallback**: se cache vazio, executa lógica atual normalmente
 
-### 4. Agendamento automático (pg_cron)
-Agendar a Edge Function `advbox-cache-refresh` para rodar periodicamente (a cada 2h por exemplo), mantendo os dados sempre atualizados no banco sem que o usuário precise abrir a página.
+### 4. pg_cron
+Agendar `fin-dashboard-cache-refresh` a cada 1h para manter dados frescos.
 
 ---
 
@@ -42,8 +42,8 @@ Agendar a Edge Function `advbox-cache-refresh` para rodar periodicamente (a cada
 
 | Arquivo | Ação |
 |---------|------|
-| Migração SQL | **Criar** — tabela `advbox_dashboard_cache` + Realtime |
-| `supabase/functions/advbox-integration/index.ts` | **Editar** — salvar dados na nova tabela após sync |
-| `src/pages/ProcessosDashboard.tsx` | **Editar** — carregar do banco + assinar Realtime |
-| pg_cron | **Configurar** — agendar refresh automático |
+| Migração SQL | **Criar** — tabela `fin_dashboard_cache` + Realtime |
+| `supabase/functions/fin-dashboard-cache-refresh/index.ts` | **Criar** — lógica de cálculo e salvamento |
+| `src/components/financeiro/FinanceiroExecutivoDashboard.tsx` | **Editar** — carregar do cache + Realtime |
+| pg_cron | **Configurar** — agendar refresh a cada 1h |
 
