@@ -1,24 +1,39 @@
 
 
-## Adicionar linha de totais na tabela de pagamentos
+## Correção: Tutorial abrindo toda vez no login
 
-### O que será feito
-Adicionar uma linha de rodapé (`tfoot`) na tabela de pagamentos que soma todos os valores de Vantagens, Descontos e Líquido do mês filtrado, permitindo conferência rápida do total.
+### Problema
+O estado "tutorial já visto" é salvo no `localStorage` do navegador. Quando o usuário faz logout (e o `localStorage` é limpo pelo `signOut`) ou troca de navegador/dispositivo, o estado é perdido e o tutorial reaparece.
 
-### Implementação
+### Solução
 
-**Arquivo: `src/components/rh/RHPagamentos.tsx`**
+**1. Migração — Criar tabela `tutorial_seen`**
 
-Após o `</TableBody>` (linha 1557), adicionar um `<tfoot>` com uma `TableRow` de totais:
+```sql
+CREATE TABLE public.tutorial_seen (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  page_key TEXT NOT NULL,
+  seen_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, page_key)
+);
+ALTER TABLE public.tutorial_seen ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users manage own tutorial state" ON public.tutorial_seen
+  FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+```
 
-- Colunas vazias para checkbox, colaborador, mês
-- **Total Vantagens** (verde): soma de `pag.total_vantagens` de todos os pagamentos
-- **Total Descontos** (vermelho): soma de `pag.total_descontos`
-- **Total Líquido** (negrito): soma de `pag.total_liquido`
-- Colunas vazias para status e ações
-- Label "TOTAL" na coluna do colaborador em negrito
-- Background destacado (`bg-muted`) para diferenciar visualmente
-- Só aparece quando há pagamentos (`pagamentos.length > 0`)
+**2. Atualizar `src/components/TutorialOverlay.tsx`**
 
-Os totais serão calculados inline com `pagamentos.reduce()`, usando o `formatCurrency` já existente.
+- Importar `supabase` e `useAuth`
+- No `useEffect`, verificar se existe registro em `tutorial_seen` para o `user_id` + `pageKey`
+  - Se existe → não abrir
+  - Se não existe → abrir o tutorial
+- No `handleClose`, inserir registro em `tutorial_seen` (e manter o localStorage como fallback)
+- Manter o botão "Ver tutorial" para reabrir manualmente
+
+**3. Manter compatibilidade**
+
+- Continuar verificando `localStorage` como fallback imediato (evita flash enquanto a query carrega)
+- Se localStorage diz "visto" → não abre (mesmo antes da query retornar)
+- Se a query retorna "visto" mas localStorage não tem → marca localStorage também
 
