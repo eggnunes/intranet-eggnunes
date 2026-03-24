@@ -8142,6 +8142,27 @@ export type Database = {
         }
         Relationships: []
       }
+      tutorial_seen: {
+        Row: {
+          id: string
+          page_key: string
+          seen_at: string | null
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          page_key: string
+          seen_at?: string | null
+          user_id: string
+        }
+        Update: {
+          id?: string
+          page_key?: string
+          seen_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       usage_history: {
         Row: {
           action: string
