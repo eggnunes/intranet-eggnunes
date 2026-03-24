@@ -37,6 +37,10 @@ ${agent.objective}
 ## Instruções
 ${agent.instructions}`;
 
+    if (agent.function_role) {
+      systemPrompt += `\n\n## Função/Especialidade\n${agent.function_role}`;
+    }
+
     if (files && files.length > 0) {
       systemPrompt += `\n\n## Base de Conhecimento\nVocê tem acesso aos seguintes documentos/recursos:\n`;
       for (const file of files) {
@@ -45,7 +49,73 @@ ${agent.instructions}`;
       systemPrompt += `\nUse essas informações como referência para suas respostas quando relevante.`;
     }
 
-    // Process attachments - add file info to the last user message
+    // Inject system data based on data_access permissions
+    const dataAccess: string[] = agent.data_access || [];
+    if (dataAccess.length > 0) {
+      const hasAccess = (key: string) => dataAccess.includes('all') || dataAccess.includes(key);
+      const dataBlocks: string[] = [];
+
+      if (hasAccess('leads')) {
+        const { data: deals } = await supabase.from("crm_deals").select("name, value, status, won, product_name, created_at").order("created_at", { ascending: false }).limit(30);
+        const { data: contacts } = await supabase.from("crm_contacts").select("name, email, phone, source, created_at").order("created_at", { ascending: false }).limit(30);
+        if (deals?.length || contacts?.length) {
+          let block = "### Leads / CRM\n";
+          if (contacts?.length) block += `**Contatos recentes (${contacts.length}):**\n${contacts.map(c => `- ${c.name} | ${c.email || ''} | ${c.phone || ''} | Fonte: ${c.source || 'N/A'}`).join('\n')}\n\n`;
+          if (deals?.length) block += `**Deals recentes (${deals.length}):**\n${deals.map(d => `- ${d.name} | R$ ${d.value || 0} | ${d.status} | ${d.won ? 'Ganho' : 'Aberto'} | Produto: ${d.product_name || 'N/A'}`).join('\n')}\n`;
+          dataBlocks.push(block);
+        }
+      }
+
+      if (hasAccess('colaboradores')) {
+        const { data: profiles } = await supabase.from("profiles").select("full_name, email, position, department, is_active").eq("is_active", true).eq("approval_status", "approved").limit(50);
+        if (profiles?.length) {
+          dataBlocks.push(`### Colaboradores Ativos (${profiles.length})\n${profiles.map(p => `- ${p.full_name} | ${p.email} | Cargo: ${p.position || 'N/A'} | Setor: ${p.department || 'N/A'}`).join('\n')}`);
+        }
+      }
+
+      if (hasAccess('intimacoes')) {
+        const { data: pubs } = await supabase.from("publicacoes_dje").select("titulo, conteudo_resumo, data_publicacao, processo_numero, responsavel").order("data_publicacao", { ascending: false }).limit(20);
+        if (pubs?.length) {
+          dataBlocks.push(`### Publicações DJE Recentes (${pubs.length})\n${pubs.map(p => `- ${p.data_publicacao} | Proc: ${p.processo_numero || 'N/A'} | ${p.titulo || ''} | Resp: ${p.responsavel || 'N/A'}`).join('\n')}`);
+        }
+      }
+
+      if (hasAccess('financeiro')) {
+        const { data: lancamentos } = await supabase.from("fin_lancamentos").select("tipo, valor, status, descricao, data_vencimento").is("deleted_at", null).order("data_vencimento", { ascending: false }).limit(30);
+        if (lancamentos?.length) {
+          const receitas = lancamentos.filter(l => l.tipo === 'receita').reduce((s, l) => s + (l.valor || 0), 0);
+          const despesas = lancamentos.filter(l => l.tipo === 'despesa').reduce((s, l) => s + (l.valor || 0), 0);
+          dataBlocks.push(`### Financeiro (últimos ${lancamentos.length} lançamentos)\n**Resumo:** Receitas: R$ ${receitas.toFixed(2)} | Despesas: R$ ${despesas.toFixed(2)} | Saldo: R$ ${(receitas - despesas).toFixed(2)}\n${lancamentos.slice(0, 15).map(l => `- ${l.data_vencimento} | ${l.tipo} | R$ ${l.valor} | ${l.status} | ${l.descricao?.slice(0, 60) || ''}`).join('\n')}`);
+        }
+      }
+
+      if (hasAccess('campanhas')) {
+        const { data: campaigns } = await supabase.from("crm_campaigns").select("name, status, type, start_date, end_date, budget").order("created_at", { ascending: false }).limit(20);
+        if (campaigns?.length) {
+          dataBlocks.push(`### Campanhas de Marketing (${campaigns.length})\n${campaigns.map(c => `- ${c.name} | ${c.status} | Tipo: ${c.type || 'N/A'} | Orçamento: R$ ${c.budget || 0}`).join('\n')}`);
+        }
+      }
+
+      if (hasAccess('tarefas')) {
+        const { data: tasks } = await supabase.from("advbox_tasks").select("title, status, due_date, assigned_users, process_number").in("status", ["pending", "in_progress"]).order("due_date", { ascending: true }).limit(30);
+        if (tasks?.length) {
+          dataBlocks.push(`### Tarefas Pendentes (${tasks.length})\n${tasks.map(t => `- ${t.title} | ${t.status} | Venc: ${t.due_date || 'N/A'} | Resp: ${t.assigned_users || 'N/A'} | Proc: ${t.process_number || 'N/A'}`).join('\n')}`);
+        }
+      }
+
+      if (hasAccess('processos')) {
+        const { data: cache } = await supabase.from("advbox_dashboard_cache").select("total_lawsuits, total_movements, metadata").limit(1).single();
+        if (cache) {
+          dataBlocks.push(`### Processos (Advbox)\n**Total de processos:** ${cache.total_lawsuits || 0}\n**Total de movimentações:** ${cache.total_movements || 0}`);
+        }
+      }
+
+      if (dataBlocks.length > 0) {
+        systemPrompt += `\n\n## Dados do Sistema (consulta em tempo real)\nAbaixo estão dados atualizados do sistema que você pode usar para responder perguntas:\n\n${dataBlocks.join('\n\n')}`;
+      }
+    }
+
+    // Process attachments
     const processedMessages = [...messages];
     if (attachments && attachments.length > 0) {
       const lastMsg = processedMessages[processedMessages.length - 1];
@@ -53,7 +123,6 @@ ${agent.instructions}`;
         let attachmentContext = "\n\n[Arquivos anexados pelo usuário:]\n";
         for (const att of attachments) {
           attachmentContext += `- ${att.name} (${att.type})\n`;
-          // For text-based files, decode and include content
           if (att.type.includes("text") || att.name.endsWith(".txt") || att.name.endsWith(".csv")) {
             try {
               const decoded = atob(att.base64);
@@ -130,9 +199,7 @@ async function handleAnthropic(systemPrompt: string, messages: any[], model: str
           try {
             const parsed = JSON.parse(jsonStr);
             if (parsed.type === "content_block_delta" && parsed.delta?.text) {
-              const openaiFormat = {
-                choices: [{ delta: { content: parsed.delta.text } }]
-              };
+              const openaiFormat = { choices: [{ delta: { content: parsed.delta.text } }] };
               controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(openaiFormat)}\n\n`));
             } else if (parsed.type === "message_stop") {
               controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
