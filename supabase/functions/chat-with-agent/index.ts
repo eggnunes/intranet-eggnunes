@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
+import pdf from "https://esm.sh/pdf-parse@1.1.1";
+import mammoth from "https://esm.sh/mammoth@1.8.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,6 +32,12 @@ serve(async (req) => {
       .eq("agent_id", agentId);
 
     let systemPrompt = `Você é "${agent.name}".
+
+## REGRA CRÍTICA
+- NUNCA invente, fabrique ou suponha informações que não foram fornecidas.
+- Quando o usuário anexar um documento, sua resposta DEVE ser baseada EXCLUSIVAMENTE no conteúdo desse documento.
+- Se não conseguir ler ou interpretar o conteúdo do documento, informe isso claramente ao usuário em vez de inventar uma resposta.
+- Se a informação solicitada não estiver presente no documento, diga explicitamente que não encontrou essa informação.
 
 ## Objetivo
 ${agent.objective}
@@ -115,7 +123,7 @@ ${agent.instructions}`;
       }
     }
 
-    // Process attachments
+    // Process attachments - extract content from documents
     const processedMessages = [...messages];
     if (attachments && attachments.length > 0) {
       const lastMsg = processedMessages[processedMessages.length - 1];
@@ -123,11 +131,47 @@ ${agent.instructions}`;
         let attachmentContext = "\n\n[Arquivos anexados pelo usuário:]\n";
         for (const att of attachments) {
           attachmentContext += `- ${att.name} (${att.type})\n`;
-          if (att.type.includes("text") || att.name.endsWith(".txt") || att.name.endsWith(".csv")) {
-            try {
+          const fileName = att.name?.toLowerCase() || '';
+          const fileType = att.type?.toLowerCase() || '';
+          
+          try {
+            if (fileType.includes('pdf') || fileName.endsWith('.pdf')) {
+              // Extract text from PDF
+              const binaryData = Uint8Array.from(atob(att.base64), (c: string) => c.charCodeAt(0));
+              const pdfData = await pdf({ data: binaryData });
+              const extractedText = pdfData.text?.slice(0, 80000) || '';
+              if (extractedText.trim()) {
+                attachmentContext += `\nConteúdo extraído de ${att.name}:\n\`\`\`\n${extractedText}\n\`\`\`\n`;
+              } else {
+                attachmentContext += `\n[Não foi possível extrair texto de ${att.name} - o PDF pode ser uma imagem escaneada]\n`;
+              }
+            } else if (fileType.includes('wordprocessingml') || fileType.includes('msword') || fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
+              // Extract text from DOCX
+              const binaryData = Uint8Array.from(atob(att.base64), (c: string) => c.charCodeAt(0));
+              const result = await mammoth.extractRawText({ buffer: binaryData.buffer });
+              const extractedText = result.value?.slice(0, 80000) || '';
+              if (extractedText.trim()) {
+                attachmentContext += `\nConteúdo extraído de ${att.name}:\n\`\`\`\n${extractedText}\n\`\`\`\n`;
+              } else {
+                attachmentContext += `\n[Não foi possível extrair texto de ${att.name}]\n`;
+              }
+            } else if (
+              fileType.includes('text') || 
+              fileName.endsWith('.txt') || fileName.endsWith('.csv') ||
+              fileName.endsWith('.json') || fileName.endsWith('.xml') ||
+              fileName.endsWith('.md') || fileName.endsWith('.html') ||
+              fileName.endsWith('.htm') || fileName.endsWith('.yaml') ||
+              fileName.endsWith('.yml')
+            ) {
+              // Decode text-based files
               const decoded = atob(att.base64);
-              attachmentContext += `\nConteúdo de ${att.name}:\n\`\`\`\n${decoded.slice(0, 50000)}\n\`\`\`\n`;
-            } catch { /* skip */ }
+              attachmentContext += `\nConteúdo de ${att.name}:\n\`\`\`\n${decoded.slice(0, 80000)}\n\`\`\`\n`;
+            } else {
+              attachmentContext += `\n[Arquivo ${att.name} anexado, mas não foi possível extrair o conteúdo deste formato]\n`;
+            }
+          } catch (extractError) {
+            console.error(`Error extracting content from ${att.name}:`, extractError);
+            attachmentContext += `\n[Erro ao tentar extrair conteúdo de ${att.name}: ${extractError instanceof Error ? extractError.message : 'erro desconhecido'}]\n`;
           }
         }
         lastMsg.content += attachmentContext;
