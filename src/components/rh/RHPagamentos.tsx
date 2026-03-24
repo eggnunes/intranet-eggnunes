@@ -1555,6 +1555,26 @@ export function RHPagamentos() {
                 </TableRow>
               ))}
             </TableBody>
+            {pagamentos.length > 0 && (
+              <tfoot>
+                <TableRow className="bg-muted font-bold border-t-2">
+                  <TableCell />
+                  <TableCell className="font-bold text-base">TOTAL</TableCell>
+                  <TableCell />
+                  <TableCell className="text-right text-green-600">
+                    {formatCurrency(pagamentos.reduce((acc, p) => acc + (p.total_vantagens || 0), 0))}
+                  </TableCell>
+                  <TableCell className="text-right text-red-600">
+                    {formatCurrency(pagamentos.reduce((acc, p) => acc + (p.total_descontos || 0), 0))}
+                  </TableCell>
+                  <TableCell className="text-right font-bold text-base">
+                    {formatCurrency(pagamentos.reduce((acc, p) => acc + (p.total_liquido || 0), 0))}
+                  </TableCell>
+                  <TableCell />
+                  <TableCell />
+                </TableRow>
+              </tfoot>
+            )}
           </Table>
 
           {pagamentos.length === 0 && (
