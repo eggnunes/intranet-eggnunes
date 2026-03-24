@@ -1,42 +1,44 @@
 
 
-## Correção: Agente de IA não analisa documentos anexados
+## Redução do consumo de Cloud — Limpeza e otimização de auditoria
 
-### Problema raiz
-O código de processamento de anexos (linhas 118-135 da edge function `chat-with-agent`) apenas lista o **nome** dos arquivos PDF/DOCX sem extrair o conteúdo. Somente arquivos de texto puro (.txt, .csv) têm seu conteúdo decodificado e injetado no prompt. Como o modelo recebe apenas "- contrato.pdf (application/pdf)" sem o texto do documento, ele inventa a resposta.
+### O que será feito
 
-### Solução
+1. **Limpeza imediata** — Deletar registros de `audit_log` e `fin_auditoria` com mais de 90 dias
+2. **Cron job semanal** — Agendar limpeza automática via pg_cron + edge function
+3. **Otimizar triggers** — Alterar `audit_trigger_fn` e `fin_audit_trigger` para salvar apenas campos alterados (diff) em vez do JSON completo
+4. **Reduzir auditoria CRM** — Remover triggers de auditoria das tabelas `crm_contacts` e `crm_deals` (geram ~170k registros desnecessários)
 
-**1. Extrair texto de PDFs na edge function `chat-with-agent/index.ts`**
+### Implementação
 
-- Importar a biblioteca `pdf-parse` (via esm.sh) para extrair texto de arquivos PDF a partir do base64
-- Para arquivos DOCX, decodificar o base64 e usar `mammoth` (via esm.sh) para extrair texto
-- Injetar o texto extraído no contexto da mensagem, da mesma forma que já é feito para .txt/.csv
-- Limitar a 80.000 caracteres por arquivo para não estourar o contexto do modelo
+**1. Edge function `cleanup-audit-logs/index.ts`**
+- Deleta registros de `audit_log` onde `created_at < NOW() - INTERVAL '90 days'`
+- Deleta registros de `fin_auditoria` onde `created_at < NOW() - INTERVAL '90 days'`
+- Retorna contagem de registros removidos
 
-**2. Adicionar instrução anti-alucinação no system prompt**
+**2. Cron job semanal (SQL via insert tool)**
+- Habilitar extensões `pg_cron` e `pg_net` (migração)
+- Agendar chamada semanal (domingo 3h) à edge function de limpeza
 
-No bloco do system prompt (linha 32), adicionar regra explícita:
+**3. Migração — Otimizar `audit_trigger_fn`**
+- No caso de UPDATE, calcular diff: salvar em `dados_anteriores` apenas os campos que mudaram (valor antigo) e em `dados_novos` apenas os campos que mudaram (valor novo)
+- Ignorar campos de timestamp (`updated_at`, `created_at`) no diff para evitar registros inúteis
+- Manter comportamento atual para INSERT e DELETE
 
-```
-## REGRA CRÍTICA
-- NUNCA invente, fabrique ou suponha informações que não foram fornecidas.
-- Quando o usuário anexar um documento, sua resposta DEVE ser baseada EXCLUSIVAMENTE no conteúdo desse documento.
-- Se não conseguir ler ou interpretar o conteúdo do documento, informe isso claramente ao usuário em vez de inventar uma resposta.
-- Se a informação solicitada não estiver presente no documento, diga explicitamente que não encontrou essa informação.
-```
+**4. Migração — Otimizar `fin_audit_trigger`**
+- Mesma lógica de diff para UPDATE
+- Salvar apenas campos alterados
 
-**3. Melhorar o processamento de anexos**
+**5. Migração — Remover triggers de auditoria do CRM**
+- `DROP TRIGGER IF EXISTS audit_crm_contacts ON crm_contacts`
+- `DROP TRIGGER IF EXISTS audit_crm_deals ON crm_deals`
 
-Expandir a lógica de decodificação para cobrir:
-- `.pdf` → extrair texto via pdf-parse
-- `.docx` → extrair texto via mammoth  
-- `.json`, `.xml`, `.md`, `.html` → decodificar base64 como texto (mesmo tratamento de .txt/.csv)
-- Outros formatos → informar no contexto que o arquivo foi anexado mas o conteúdo não pôde ser extraído
+**6. Limpeza inicial (via insert tool)**
+- `DELETE FROM audit_log WHERE created_at < NOW() - INTERVAL '90 days'`
+- `DELETE FROM fin_auditoria WHERE created_at < NOW() - INTERVAL '90 days'`
 
-### Detalhes técnicos
-
-- Bibliotecas: `import pdf from "https://esm.sh/pdf-parse@1.1.1"` e `import mammoth from "https://esm.sh/mammoth@1.8.0"`
-- O base64 do arquivo será convertido para `Uint8Array` via `Uint8Array.from(atob(base64), c => c.charCodeAt(0))` antes de passar ao parser
-- Fallback: se a extração falhar, incluir mensagem no contexto dizendo "Não foi possível extrair o conteúdo de [nome_arquivo]"
+### Resultado esperado
+- Liberação imediata de ~400MB+ de espaço
+- Crescimento futuro drasticamente reduzido (diff em vez de JSON completo)
+- Limpeza automática semanal mantendo apenas 90 dias de histórico
 
