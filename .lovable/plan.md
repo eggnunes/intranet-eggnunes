@@ -1,37 +1,33 @@
-## Diagnóstico: Por que o Resumo Diário não foi enviado
 
-A função **executou hoje às 07:00** (BRT), mas **enviou 0 e-mails e pulou todos os 18 colaboradores**. Log registrado no banco:
 
-```
-sentCount: 0, skippedCount: 18, totalUsers: 18
-```
+## Problema
 
-### Causas identificadas
+O ranking de vendedores no CRM apresenta dois problemas:
 
-**1. Limite de 1.000 linhas na consulta de tarefas**
-A consulta busca todas as tarefas não concluídas — são **7.953 tarefas**. O banco retorna apenas as primeiras 1.000 por padrão. As tarefas dos colaboradores ativos provavelmente ficam fora desse corte, resultando em 0 tarefas encontradas para cada usuário.
+1. **Sem filtro de período** — busca TODOS os deals históricos, sem aplicar o ciclo comercial (dia 25 ao dia 24)
+2. **Inclui não-vendedores** — Rafael (sócio) aparece no ranking mesmo não sendo do comercial
+3. **Sem indicação do período** — não mostra qual período está sendo contabilizado
+4. **Sem total de contratos** — não exibe o total consolidado do período
 
-**2. Nomes com espaço extra no perfil**
-Alguns perfis têm espaço no final do nome (ex: `"Marcos Luiz Egg Nunes "` com espaço). Quando comparados com o campo `assigned_users` do Advbox (sem espaço), o `.includes()` falha e não encontra as tarefas.
+## Plano de correção
 
-**3. Falta de dados de movimentações processuais**
-O código não inclui publicações do DJE (`publicacoes_dje`) no resumo do operacional. Existem 83 publicações nos últimos 7 dias que poderiam ser incluídas para advogados.
+### Arquivo: `src/components/crm/CRMRanking.tsx`
 
-### Plano de correção
+1. **Calcular o ciclo comercial vigente** — Reutilizar a mesma lógica já presente no `CRMDashboard.tsx`: se dia atual >= 25, período = dia 25 do mês atual até dia 24 do próximo; caso contrário, dia 25 do mês anterior até dia 24 do mês atual
 
-**Arquivo:** `supabase/functions/send-daily-digest/index.ts`
+2. **Filtrar deals por período** — Adicionar `.gte('closed_at', periodStart)` e `.lte('closed_at', periodEnd)` na query de `crm_deals`, buscando apenas deals fechados dentro do ciclo vigente
 
-1. **Corrigir a consulta de tarefas** — Em vez de buscar todas as 7.953 tarefas em uma query (limitada a 1.000), buscar as tarefas por usuário individualmente usando `ilike` no campo `assigned_users`, com `trim()` no nome
-2. **Tratar espaços extras nos nomes** — Aplicar `.trim()` no `full_name` antes de comparar com `assigned_users`
-3. **Adicionar publicações do DJE para o operacional** — Buscar publicações recentes da tabela `publicacoes_dje` e incluí-las no resumo dos advogados/operacional, vinculando pelo nome do advogado
-4. **Incluir seção de leads semanal para o comercial** — Ajustar a seção de leads para sempre mostrar o resumo semanal mesmo que não tenha havido leads no dia anterior (o resumo semanal de 83+ registros ainda é relevante)
-5. **Garantir envio mesmo com conteúdo parcial** — Relaxar a condição `hasContent` para considerar tarefas pendentes (que existem para quase todos)
-6. **Redesdobrar a edge function** após as correções
+3. **Filtrar atividades por período** — Aplicar o mesmo filtro de data nas `crm_activities` usando o campo `created_at`
 
-### Resultado esperado
+4. **Excluir Rafael do ranking** — Filtrar pelo nome "Rafael Egg Nunes" (ou pelo e-mail `rafael@eggnunes.com.br`) após carregar os perfis, removendo-o da lista antes de montar as estatísticas
 
-Após a correção, o cron às 07:00 BRT enviará o resumo diário com:
+5. **Exibir período no header** — Adicionar um subtítulo/badge abaixo do título "Ranking de Vendedores" mostrando "Período: 25/02/2026 a 24/03/2026"
 
-- **Comercial**: resumo de leads (dia anterior + semana) + tarefas pendentes
-- **Operacional/Advogados**: movimentações processuais no advbox do processo em que o usuário é responsável+ tarefas atrasadas/próximas do prazo + tarefas pendentes
-- **Todos**: mensagens recebidas, comunicados e atualizações da intranet (quando houver)
+6. **Exibir total de contratos fechados** — Adicionar um card/badge de destaque mostrando o total consolidado de fechamentos no período (soma de todos os vendedores)
+
+### Detalhes técnicos
+
+- A lógica do ciclo comercial será extraída como função auxiliar dentro do componente (mesma lógica do CRMDashboard)
+- O filtro de exclusão usará o nome do perfil com `.toLowerCase().includes('rafael egg')`
+- O total será calculado como `sorted.reduce((acc, s) => acc + s.closings, 0)` e exibido acima da lista
+
