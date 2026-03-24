@@ -377,7 +377,7 @@ async function sendEmailViaResend(to: string, subject: string, html: string): Pr
     throw new Error("RESEND_API_KEY não configurada");
   }
 
-  const fromEmail = "avisos@intranetagnunes.com.br";
+  const fromEmail = "avisos@intraneteggnunes.com.br";
   const fromName = "Egg Nunes - Avisos";
 
   const response = await fetch("https://api.resend.com/emails", {
