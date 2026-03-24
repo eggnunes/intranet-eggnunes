@@ -4989,8 +4989,11 @@ export type Database = {
       }
       intranet_agents: {
         Row: {
+          card_color: string | null
           created_at: string
           created_by: string
+          data_access: string[] | null
+          function_role: string | null
           icon_emoji: string
           id: string
           instructions: string
@@ -5001,8 +5004,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          card_color?: string | null
           created_at?: string
           created_by: string
+          data_access?: string[] | null
+          function_role?: string | null
           icon_emoji?: string
           id?: string
           instructions: string
@@ -5013,8 +5019,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          card_color?: string | null
           created_at?: string
           created_by?: string
+          data_access?: string[] | null
+          function_role?: string | null
           icon_emoji?: string
           id?: string
           instructions?: string
