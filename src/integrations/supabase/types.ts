@@ -2541,6 +2541,56 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_digest_logs: {
+        Row: {
+          created_at: string
+          details: Json
+          email: string | null
+          id: string
+          position: string | null
+          profile_id: string | null
+          reason: string | null
+          run_at: string
+          run_id: string
+          status: string
+          user_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          email?: string | null
+          id?: string
+          position?: string | null
+          profile_id?: string | null
+          reason?: string | null
+          run_at?: string
+          run_id: string
+          status: string
+          user_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          email?: string | null
+          id?: string
+          position?: string | null
+          profile_id?: string | null
+          reason?: string | null
+          run_at?: string
+          run_id?: string
+          status?: string
+          user_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_digest_logs_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       defaulter_exclusions: {
         Row: {
           created_at: string | null
