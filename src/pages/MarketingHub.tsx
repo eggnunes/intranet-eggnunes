@@ -253,17 +253,17 @@ export default function MarketingHub() {
     };
   }).filter((d: any) => d.gasto > 0), [metaInsights]);
 
-  const googleRoiData = useMemo(() => googleInsights.map((i: any) => {
-    const spend = parseFloat(i.spend || '0');
-    const conversions = parseInt(i.conversions || '0');
+  const googleRoiData = useMemo(() => googleCampaigns.map((c: any) => {
+    const spend = parseFloat(c.cost || '0');
+    const conversions = parseFloat(c.conversions || '0');
     return {
-      name: (i.campaign_name || 'Sem nome').substring(0, 25),
+      name: (c.name || 'Sem nome').substring(0, 25),
       gasto: spend,
       conversoes: conversions,
       cpl: conversions > 0 ? spend / conversions : 0,
       platform: 'Google Ads',
     };
-  }).filter((d: any) => d.gasto > 0), [googleInsights]);
+  }).filter((d: any) => d.gasto > 0), [googleCampaigns]);
 
   const roiData = useMemo(() => [...metaRoiData, ...googleRoiData], [metaRoiData, googleRoiData]);
 
@@ -279,9 +279,9 @@ export default function MarketingHub() {
   }), [metaDailyInsights]);
 
   const googleDailyData = useMemo(() => googleDailyInsights.map((d: any) => ({
-    date_start: d.date_start,
-    gasto: parseFloat(d.spend || '0'),
-    conversoes: parseInt(d.conversions || '0'),
+    date_start: d.date,
+    gasto: parseFloat(d.cost || '0'),
+    conversoes: parseFloat(d.conversions || '0'),
   })), [googleDailyInsights]);
 
   const dailyChartData = useMemo(() => {
