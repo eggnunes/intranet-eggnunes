@@ -153,9 +153,9 @@ export default function MarketingHub() {
       const { data: session } = await supabase.auth.getSession();
       if (!session?.session?.access_token) return [];
       const resp = await supabase.functions.invoke('google-ads', {
-        body: { action: 'insights', date_from: metaDateFrom, date_to: metaDateTo },
+        body: { action: 'insights' },
       });
-      return resp.data?.insights || [];
+      return resp.data?.daily_data || [];
     },
   });
 
@@ -171,17 +171,23 @@ export default function MarketingHub() {
     },
   });
 
-  const { data: googleCampaigns = [], isLoading: googleCampaignsLoading } = useQuery({
-    queryKey: ['marketing-google-campaigns', metaDateFrom, metaDateTo],
+  const { data: googleCampaignsData, isLoading: googleCampaignsLoading } = useQuery({
+    queryKey: ['marketing-google-campaigns'],
     queryFn: async () => {
       const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.access_token) return [];
+      if (!session?.session?.access_token) return { campaigns: [], totals: null };
       const resp = await supabase.functions.invoke('google-ads', {
         body: { action: 'campaigns' },
       });
-      return resp.data?.campaigns || [];
+      if (resp.error) {
+        console.error('Google Ads campaigns error:', resp.error);
+        return { campaigns: [], totals: null };
+      }
+      return { campaigns: resp.data?.campaigns || [], totals: resp.data?.totals || null };
     },
   });
+  const googleCampaigns = googleCampaignsData?.campaigns || [];
+  const googleCampaignTotals = googleCampaignsData?.totals;
 
   const { data: googleAccountInfo } = useQuery({
     queryKey: ['marketing-google-account'],
