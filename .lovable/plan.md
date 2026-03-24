@@ -1,24 +1,24 @@
 
 
-## Correção do domínio de envio de e-mails
+## Adicionar linha de totais na tabela de pagamentos
 
-### Problema
-Dois remetentes errados impedem o envio de todos os e-mails:
+### O que será feito
+Adicionar uma linha de rodapé (`tfoot`) na tabela de pagamentos que soma todos os valores de Vantagens, Descontos e Líquido do mês filtrado, permitindo conferência rápida do total.
 
-| Edge Function | Remetente atual (ERRADO) | Problema |
-|---|---|---|
-| `send-notification-email` | `avisos@intranetagnunes.com.br` | Typo: "agnunes" em vez de "eggnunes" |
-| `send-daily-digest` | `avisos@eggnunes.com.br` | Domínio não verificado no Resend |
+### Implementação
 
-O domínio verificado é **`intraneteggnunes.com.br`** (confirmado na imagem do Resend).
+**Arquivo: `src/components/rh/RHPagamentos.tsx`**
 
-### Correção
+Após o `</TableBody>` (linha 1557), adicionar um `<tfoot>` com uma `TableRow` de totais:
 
-**1. `supabase/functions/send-notification-email/index.ts` (linha 380)**
-- Alterar `avisos@intranetagnunes.com.br` para `avisos@intraneteggnunes.com.br`
+- Colunas vazias para checkbox, colaborador, mês
+- **Total Vantagens** (verde): soma de `pag.total_vantagens` de todos os pagamentos
+- **Total Descontos** (vermelho): soma de `pag.total_descontos`
+- **Total Líquido** (negrito): soma de `pag.total_liquido`
+- Colunas vazias para status e ações
+- Label "TOTAL" na coluna do colaborador em negrito
+- Background destacado (`bg-muted`) para diferenciar visualmente
+- Só aparece quando há pagamentos (`pagamentos.length > 0`)
 
-**2. `supabase/functions/send-daily-digest/index.ts` (linha 10)**
-- Alterar `avisos@eggnunes.com.br` para `avisos@intraneteggnunes.com.br`
-
-**3. Deploy das duas edge functions e teste manual** para confirmar que os e-mails passam a ser enviados com sucesso.
+Os totais serão calculados inline com `pagamentos.reduce()`, usando o `formatCurrency` já existente.
 
