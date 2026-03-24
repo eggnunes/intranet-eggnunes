@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { ChevronRight, ChevronLeft, X, BookOpen } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface TutorialStep {
   title: string;
@@ -20,18 +22,48 @@ const TUTORIAL_PREFIX = 'tutorial-seen-';
 export const TutorialOverlay = ({ pageKey, steps, pageName }: TutorialOverlayProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
+  const { user } = useAuth();
 
   useEffect(() => {
-    const seen = localStorage.getItem(TUTORIAL_PREFIX + pageKey);
-    if (!seen) {
-      setIsOpen(true);
-    }
-  }, [pageKey]);
+    // Fast check: localStorage fallback to avoid flash
+    const seenLocal = localStorage.getItem(TUTORIAL_PREFIX + pageKey);
+    if (seenLocal) return;
 
-  const handleClose = () => {
-    localStorage.setItem(TUTORIAL_PREFIX + pageKey, 'true');
+    if (!user) return;
+
+    // Check database
+    const checkSeen = async () => {
+      const { data } = await (supabase as any)
+        .from('tutorial_seen')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('page_key', pageKey)
+        .maybeSingle();
+
+      if (data) {
+        // Sync to localStorage for future fast checks
+        localStorage.setItem(TUTORIAL_PREFIX + pageKey, 'true');
+      } else {
+        setIsOpen(true);
+      }
+    };
+
+    checkSeen();
+  }, [pageKey, user]);
+
+  const handleClose = async () => {
     setIsOpen(false);
     setCurrentStep(0);
+    localStorage.setItem(TUTORIAL_PREFIX + pageKey, 'true');
+
+    if (user) {
+      await (supabase as any)
+        .from('tutorial_seen')
+        .upsert(
+          { user_id: user.id, page_key: pageKey },
+          { onConflict: 'user_id,page_key' }
+        );
+    }
   };
 
   const handleNext = () => {
