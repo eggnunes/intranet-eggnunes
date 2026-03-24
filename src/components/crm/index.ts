@@ -8,3 +8,4 @@ export { MarketingAutomation } from './MarketingAutomation';
 export { CRMDailyLog } from './CRMDailyLog';
 export { CRMCampaigns } from './CRMCampaigns';
 export { CRMRanking } from './CRMRanking';
+export { CRMZapSignContracts } from './CRMZapSignContracts';

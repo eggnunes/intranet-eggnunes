@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, Calendar, Settings, LayoutDashboard, BarChart3, Bell, Star, MessageSquare, Clock, CheckCircle2, Zap, ClipboardList, Megaphone, Trophy } from 'lucide-react';
+import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, Calendar, Settings, LayoutDashboard, BarChart3, Bell, Star, MessageSquare, Clock, CheckCircle2, Zap, ClipboardList, Megaphone, Trophy, FileSignature } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CRMContactsList } from './CRMContactsList';
@@ -21,6 +21,7 @@ import { MarketingAutomation } from './MarketingAutomation';
 import { CRMDailyLog } from './CRMDailyLog';
 import { CRMCampaigns } from './CRMCampaigns';
 import { CRMRanking } from './CRMRanking';
+import { CRMZapSignContracts } from './CRMZapSignContracts';
 import { useUserRole } from '@/hooks/useUserRole';
 
 interface CRMStats {
@@ -335,6 +336,10 @@ export const CRMDashboard = () => {
             <Zap className="h-3.5 w-3.5" />
             Automação
           </TabsTrigger>
+          <TabsTrigger value="zapsign" className="flex items-center gap-1">
+            <FileSignature className="h-3.5 w-3.5" />
+            ZapSign
+          </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="settings" className="flex items-center gap-1">
               <Settings className="h-3.5 w-3.5" />
@@ -506,6 +511,10 @@ export const CRMDashboard = () => {
 
         <TabsContent value="automation" className="mt-6">
           <MarketingAutomation />
+        </TabsContent>
+
+        <TabsContent value="zapsign" className="mt-6">
+          <CRMZapSignContracts />
         </TabsContent>
         
         {isAdmin && (

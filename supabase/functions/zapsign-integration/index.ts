@@ -127,7 +127,81 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const body: CreateDocumentRequest = await req.json();
+    const body = await req.json();
+
+    // ===== ACTION: check_status =====
+    if (body.action === 'check_status' && body.documentToken) {
+      console.log('Verificando status do documento:', body.documentToken);
+      const docResponse = await fetch(`${ZAPSIGN_API_URL}/docs/${body.documentToken}/`, {
+        headers: { 'Authorization': `Bearer ${ZAPSIGN_API_TOKEN}` },
+      });
+      if (!docResponse.ok) {
+        const errText = await docResponse.text();
+        console.error('Erro ao consultar ZapSign:', docResponse.status, errText);
+        return new Response(JSON.stringify({ success: false, error: errText }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const docData = await docResponse.json();
+      console.log('Status ZapSign:', { status: docData.status, signers: docData.signers?.length });
+
+      // Map ZapSign status
+      const mapStatus = (s: string) => {
+        if (s === 'signed' || s === 'Assinado') return 'signed';
+        if (s === 'refused' || s === 'Recusado') return 'refused';
+        return 'pending';
+      };
+
+      const overallSigned = docData.status === 'signed' || docData.signers?.every((s: any) => s.status === 'signed');
+      const updateData: Record<string, any> = {
+        status: overallSigned ? 'signed' : mapStatus(docData.status || 'pending'),
+        signed_file_url: docData.signed_file || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (overallSigned && !updateData.completed_at) {
+        updateData.completed_at = new Date().toISOString();
+        updateData.signed_at = new Date().toISOString();
+      }
+
+      // Update each signer status
+      const signers = docData.signers || [];
+      if (signers.length >= 1) {
+        // For contracts: 0=Marcos, 1=Rafael, 2=Client, 3=W1, 4=W2
+        // For procuração: 0=Client
+        const { data: existingDoc } = await supabase
+          .from('zapsign_documents')
+          .select('document_type')
+          .eq('document_token', body.documentToken)
+          .single();
+
+        const isContract = existingDoc?.document_type === 'contrato';
+
+        if (isContract && signers.length >= 3) {
+          updateData.marcos_signer_status = mapStatus(signers[0]?.status);
+          updateData.office_signer_status = mapStatus(signers[0]?.status);
+          updateData.rafael_signer_status = mapStatus(signers[1]?.status);
+          updateData.client_signer_status = mapStatus(signers[2]?.status);
+          if (signers[3]) updateData.witness1_signer_status = mapStatus(signers[3]?.status);
+          if (signers[4]) updateData.witness2_signer_status = mapStatus(signers[4]?.status);
+        } else {
+          updateData.client_signer_status = mapStatus(signers[0]?.status);
+        }
+      }
+
+      const { error: updateError } = await supabase
+        .from('zapsign_documents')
+        .update(updateData)
+        .eq('document_token', body.documentToken);
+
+      if (updateError) console.error('Erro ao atualizar banco:', updateError);
+
+      return new Response(JSON.stringify({ success: true, status: updateData.status, signers: signers.length }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // ===== ORIGINAL: Create document flow =====
     console.log('Recebido pedido para criar documento no ZapSign:', {
       documentType: body.documentType,
       documentName: body.documentName,
