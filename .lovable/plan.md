@@ -1,33 +1,42 @@
 
 
-## Problema
+## Nova aba "Contratos ZapSign" no CRM
 
-O ranking de vendedores no CRM apresenta dois problemas:
+### Objetivo
+Criar uma aba no CRM que lista todos os documentos da tabela `zapsign_documents`, mostrando status de assinatura de cada signatário em tempo real, ordenados do mais recente ao mais antigo.
 
-1. **Sem filtro de período** — busca TODOS os deals históricos, sem aplicar o ciclo comercial (dia 25 ao dia 24)
-2. **Inclui não-vendedores** — Rafael (sócio) aparece no ranking mesmo não sendo do comercial
-3. **Sem indicação do período** — não mostra qual período está sendo contabilizado
-4. **Sem total de contratos** — não exibe o total consolidado do período
+### Implementação
 
-## Plano de correção
+**1. Novo componente: `src/components/crm/CRMZapSignContracts.tsx`**
 
-### Arquivo: `src/components/crm/CRMRanking.tsx`
+- Busca todos os registros de `zapsign_documents` ordenados por `created_at desc`
+- Exibe cards de resumo no topo: total de contratos, assinados (status = 'signed'), pendentes (status = 'pending'), e expirados/cancelados
+- Tabela com colunas: Nome do Documento, Tipo (contrato/procuração), Cliente, Status Geral, Status Cliente, Status Marcos, Status Rafael, Testemunhas, Data de Criação, Data de Assinatura
+- Filtros: por status (todos/pendentes/assinados), por tipo (contrato/procuração), e busca por nome do cliente
+- Badges coloridos para status: verde (signed), amarelo (pending), vermelho (refused/expired)
+- Botão "Atualizar Status" que chama a API do ZapSign para cada documento pendente, consultando `GET /docs/{token}` e atualizando o banco local
+- Link para o documento original e para a URL de assinatura do cliente
 
-1. **Calcular o ciclo comercial vigente** — Reutilizar a mesma lógica já presente no `CRMDashboard.tsx`: se dia atual >= 25, período = dia 25 do mês atual até dia 24 do próximo; caso contrário, dia 25 do mês anterior até dia 24 do mês atual
+**2. Edge function: Adicionar action `check_status` à `zapsign-integration`**
 
-2. **Filtrar deals por período** — Adicionar `.gte('closed_at', periodStart)` e `.lte('closed_at', periodEnd)` na query de `crm_deals`, buscando apenas deals fechados dentro do ciclo vigente
+- Nova action que recebe um `document_token` e consulta `GET https://api.zapsign.com.br/api/v1/docs/{token}/` com o `ZAPSIGN_API_TOKEN`
+- Retorna o status atualizado de cada signatário
+- Atualiza a tabela `zapsign_documents` com os status mais recentes
+- Também suporta action `list_documents` que busca todos os docs da API ZapSign para sincronização em massa
 
-3. **Filtrar atividades por período** — Aplicar o mesmo filtro de data nas `crm_activities` usando o campo `created_at`
+**3. Adicionar a aba no `CRMDashboard.tsx`**
 
-4. **Excluir Rafael do ranking** — Filtrar pelo nome "Rafael Egg Nunes" (ou pelo e-mail `rafael@eggnunes.com.br`) após carregar os perfis, removendo-o da lista antes de montar as estatísticas
+- Nova tab "ZapSign" com ícone `FileSignature` (do lucide-react) entre as abas existentes
+- Import e render do novo componente `CRMZapSignContracts`
 
-5. **Exibir período no header** — Adicionar um subtítulo/badge abaixo do título "Ranking de Vendedores" mostrando "Período: 25/02/2026 a 24/03/2026"
+**4. Exportar no `index.ts`**
 
-6. **Exibir total de contratos fechados** — Adicionar um card/badge de destaque mostrando o total consolidado de fechamentos no período (soma de todos os vendedores)
+- Adicionar export do novo componente
 
 ### Detalhes técnicos
 
-- A lógica do ciclo comercial será extraída como função auxiliar dentro do componente (mesma lógica do CRMDashboard)
-- O filtro de exclusão usará o nome do perfil com `.toLowerCase().includes('rafael egg')`
-- O total será calculado como `sorted.reduce((acc, s) => acc + s.closings, 0)` e exibido acima da lista
+- A tabela `zapsign_documents` já existe no banco com todos os campos necessários (status, client_signer_status, marcos_signer_status, rafael_signer_status, witness1/2_signer_status, sign_url, signed_file_url, etc.)
+- O componente usa realtime subscription em `zapsign_documents` para atualização automática quando o webhook do ZapSign atualizar registros
+- O botão "Atualizar Status" faz `supabase.functions.invoke('zapsign-integration', { body: { action: 'check_status', documentToken } })` para cada doc pendente
+- Paginação com `.range()` para suportar grande volume de documentos
 
