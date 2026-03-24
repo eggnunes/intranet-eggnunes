@@ -1,44 +1,36 @@
 
 
-## Redução do consumo de Cloud — Limpeza e otimização de auditoria
+## Visualizar análise de viabilidade ao clicar no cliente
 
-### O que será feito
+### Problema
+Na tabela de viabilidade, o nome do cliente é texto estático. Não há como visualizar o parecer/análise diretamente -- apenas salvar no Teams.
 
-1. **Limpeza imediata** — Deletar registros de `audit_log` e `fin_auditoria` com mais de 90 dias
-2. **Cron job semanal** — Agendar limpeza automática via pg_cron + edge function
-3. **Otimizar triggers** — Alterar `audit_trigger_fn` e `fin_audit_trigger` para salvar apenas campos alterados (diff) em vez do JSON completo
-4. **Reduzir auditoria CRM** — Remover triggers de auditoria das tabelas `crm_contacts` e `crm_deals` (geram ~170k registros desnecessários)
+### Solução
+Adicionar um Dialog que abre ao clicar no nome do cliente na tabela, exibindo todos os detalhes da análise.
 
 ### Implementação
 
-**1. Edge function `cleanup-audit-logs/index.ts`**
-- Deleta registros de `audit_log` onde `created_at < NOW() - INTERVAL '90 days'`
-- Deleta registros de `fin_auditoria` onde `created_at < NOW() - INTERVAL '90 days'`
-- Retorna contagem de registros removidos
+**Arquivo: `src/pages/Viabilidade.tsx`**
 
-**2. Cron job semanal (SQL via insert tool)**
-- Habilitar extensões `pg_cron` e `pg_net` (migração)
-- Agendar chamada semanal (domingo 3h) à edge function de limpeza
+1. **Novo estado** para controlar o dialog de visualização:
+   - `viewingCliente: ViabilidadeCliente | null`
 
-**3. Migração — Otimizar `audit_trigger_fn`**
-- No caso de UPDATE, calcular diff: salvar em `dados_anteriores` apenas os campos que mudaram (valor antigo) e em `dados_novos` apenas os campos que mudaram (valor novo)
-- Ignorar campos de timestamp (`updated_at`, `created_at`) no diff para evitar registros inúteis
-- Manter comportamento atual para INSERT e DELETE
+2. **Tornar o nome clicável** na TableCell (linha 326):
+   - Trocar texto simples por um `button` com estilo de link (`text-primary underline cursor-pointer`)
+   - Ao clicar, setar `viewingCliente` com o cliente correspondente
 
-**4. Migração — Otimizar `fin_audit_trigger`**
-- Mesma lógica de diff para UPDATE
-- Salvar apenas campos alterados
+3. **Novo Dialog de visualização** com o conteúdo completo:
+   - Nome, CPF, Status (badge colorido)
+   - Tipo de Ação
+   - Data de cadastro
+   - Descrição do caso (se houver)
+   - **Parecer de Viabilidade** renderizado com formatação (negrito para títulos com `**`)
+   - Observações
+   - Botões: "Salvar no Teams" e "Fechar"
+   - Se não houver parecer, exibir mensagem "Nenhuma análise realizada ainda"
 
-**5. Migração — Remover triggers de auditoria do CRM**
-- `DROP TRIGGER IF EXISTS audit_crm_contacts ON crm_contacts`
-- `DROP TRIGGER IF EXISTS audit_crm_deals ON crm_deals`
-
-**6. Limpeza inicial (via insert tool)**
-- `DELETE FROM audit_log WHERE created_at < NOW() - INTERVAL '90 days'`
-- `DELETE FROM fin_auditoria WHERE created_at < NOW() - INTERVAL '90 days'`
-
-### Resultado esperado
-- Liberação imediata de ~400MB+ de espaço
-- Crescimento futuro drasticamente reduzido (diff em vez de JSON completo)
-- Limpeza automática semanal mantendo apenas 90 dias de histórico
+4. **Renderização do parecer** com formatação markdown básica:
+   - Converter linhas que começam com `**` em títulos em negrito
+   - Converter `- ` em itens de lista
+   - Preservar quebras de linha
 
