@@ -1,48 +1,59 @@
 
 
-## Melhorias na Pesquisa de Humor — Baseado nas Referências
+## Melhorias no Formulário de Criação de Agentes de IA
 
-### O que falta no sistema atual (comparando com os prints)
+### O que falta (comparando com a imagem de referência)
 
-| Recurso | Referência | Sistema Atual |
-|---------|-----------|---------------|
-| Cards de contagem por humor com barra de progresso | Image 1 | Apenas gráfico de barras |
-| Score médio do ciclo (ex: 4.5/5 "Excelente") | Image 1 | Ausente |
-| Cabeçalho de ciclo (período, total colaboradores, dias com registro, total respostas) | Image 1 | Ausente |
-| Gráfico de pizza — Distribuição Geral | Image 1 | Ausente (só barras) |
-| Gráfico radar — Score por Departamento | Image 1 | Ausente |
-| Gráfico de barras horizontais — Humor por Departamento (stacked) | Image 2 | Ausente |
-| Gráfico de barras empilhadas — Evolução Diária | Image 2 | Ausente |
-| Timeline de registros — cards agrupados por dia com avatar, nome, departamento e comentário | Image 3 | Apenas tabela |
-| Filtro de período (Mensal + seletor de mês) | Image 1 | Fixo em 30 dias |
+| Campo | Referência | Sistema Atual |
+|-------|-----------|---------------|
+| Função (role/especialidade) | Presente | Ausente |
+| Status (Ativo/Inativo) | Presente | Ausente no form (existe no DB) |
+| Cor do Card | Presente | Ausente |
+| Acesso a Dados do Sistema (checkboxes) | Presente (Leads, Colaboradores, Intimações, Financeiro, Campanhas) | Ausente |
 
 ### Plano de implementação
 
-**Arquivo:** `src/pages/PesquisaHumor.tsx`
+**1. Migração de banco de dados — Adicionar colunas à tabela `intranet_agents`**
 
-1. **Filtro de período mensal** — Adicionar seletor de mês/ano no header. A query de `allMoods` passará a filtrar pelo mês selecionado em vez de "últimos 30 dias"
+Novos campos:
+- `function_role TEXT` — Função/especialidade do agente (ex: "Especialista em Direito Previdenciário")
+- `card_color TEXT DEFAULT 'purple'` — Cor do card (purple, blue, green, orange, red, yellow, pink)
+- `data_access TEXT[] DEFAULT '{}'` — Array de permissões de acesso a dados do sistema
 
-2. **Cabeçalho de ciclo** — Card no topo da aba "Visão Geral" mostrando: nome do mês, total de colaboradores com registro, dias únicos com registro, total de respostas, e score médio (média dos scores de todos os registros do período) com classificação textual (Excelente/Bom/Regular/Ruim)
+**2. Atualizar `CreateAgentDialog.tsx` — Adicionar os novos campos ao formulário**
 
-3. **Cards de contagem por humor** — Grid de 5 cards (um por mood), cada um com emoji, contagem, label, e barra de progresso colorida mostrando a porcentagem relativa ao total
+- Campo "Função" ao lado do Nome (mesma linha, layout 2 colunas)
+- Seletor de "Status" (Ativo/Inativo) e "Cor do Card" na mesma linha do ícone emoji
+- Seção "Acesso a Dados do Sistema" com checkboxes para: Leads (crm_contacts, crm_deals), Colaboradores (profiles), Intimações/Publicações (publicacoes_dje), Financeiro (fin_lancamentos, fin_contratos), Campanhas (crm_campaigns), Tarefas (tasks), Processos (advbox data), e "Acesso Total ao Sistema"
+- O checkbox "Acesso Total" marca/desmarca todos automaticamente
 
-4. **Gráfico de pizza — Distribuição Geral** — `PieChart` do Recharts substituindo ou complementando o bar chart atual, com labels de porcentagem e cores por humor
+**3. Atualizar `chat-with-agent/index.ts` — Injetar dados do sistema no contexto do agente**
 
-5. **Gráfico radar — Score por Departamento** — `RadarChart` do Recharts mostrando o score médio de cada departamento (position do profile) nos eixos do radar
+Quando o agente tiver `data_access` configurado, a edge function buscará dados relevantes do banco e os incluirá no system prompt:
+- `leads` → busca resumo de leads/deals recentes do CRM
+- `colaboradores` → busca lista de colaboradores ativos
+- `intimacoes` → busca publicações DJE recentes
+- `financeiro` → busca resumo financeiro (totais, saldos)
+- `campanhas` → busca campanhas de marketing ativas
+- `tarefas` → busca tarefas pendentes/recentes
+- `processos` → busca dados de processos ativos
 
-6. **Gráfico de barras horizontais — Humor por Departamento** — `BarChart` horizontal com barras empilhadas por tipo de humor, agrupadas por departamento
+Cada categoria injeta um bloco de dados no prompt com os registros mais recentes/relevantes (limitado para não estourar contexto).
 
-7. **Gráfico de evolução diária** — `BarChart` vertical com barras empilhadas por dia, mostrando a distribuição de humores em cada dia do período, com legenda colorida
+**4. Atualizar `IntranetAgentsTab.tsx` — Exibir cor do card e badges de acesso**
 
-8. **Timeline de registros por dia** — Substituir a tabela detalhada por uma visualização em timeline: registros agrupados por data (ex: "quinta-feira, 26 de fevereiro (3 registros)"), cada entrada mostrando avatar colorido pelo humor, nome em destaque, departamento como badge, e observação (se houver)
+- Aplicar a cor do card no componente Card (borda/gradiente superior)
+- Mostrar badges indicando quais acessos o agente possui
+
+**5. Atualizar `CreateAgentDialog.tsx` — Salvar novos campos**
+
+- Incluir `function_role`, `card_color`, `data_access` no insert/update do Supabase
 
 ### Detalhes técnicos
 
-- Importar `PieChart, Pie, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis` do Recharts
-- O score médio será calculado como `allMoods.reduce((sum, m) => sum + getMoodInfo(m.mood).score, 0) / allMoods.length`
-- O filtro de mês usará `useState` com mês/ano atuais como default, e a query filtrará por `survey_date` entre o primeiro e último dia do mês
-- Os departamentos serão extraídos do campo `profiles.position` já disponível na query
-- A timeline agrupará por `survey_date` usando `Object.groupBy` ou reduce manual
-- Manter a aba "Meu Histórico" sem alterações
-- Manter os alertas de humor baixo existentes
+- O campo `data_access` usa tipo `TEXT[]` (array de strings) no PostgreSQL
+- As opções de acesso disponíveis: `leads`, `colaboradores`, `intimacoes`, `financeiro`, `campanhas`, `tarefas`, `processos`, `all`
+- Quando `all` está presente no array, todos os dados são injetados
+- Os dados injetados são resumidos (últimos 50 registros por categoria) para manter o contexto dentro dos limites do modelo
+- A edge function faz as queries somente para as categorias permitidas, evitando consultas desnecessárias
 
