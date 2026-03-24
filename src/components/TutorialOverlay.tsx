@@ -33,7 +33,7 @@ export const TutorialOverlay = ({ pageKey, steps, pageName }: TutorialOverlayPro
 
     // Check database
     const checkSeen = async () => {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('tutorial_seen')
         .select('id')
         .eq('user_id', user.id)
@@ -57,7 +57,7 @@ export const TutorialOverlay = ({ pageKey, steps, pageName }: TutorialOverlayPro
     localStorage.setItem(TUTORIAL_PREFIX + pageKey, 'true');
 
     if (user) {
-      await supabase
+      await (supabase as any)
         .from('tutorial_seen')
         .upsert(
           { user_id: user.id, page_key: pageKey },
