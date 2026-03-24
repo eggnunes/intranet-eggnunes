@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const RESEND_API_KEY = () => Deno.env.get("RESEND_API_KEY");
-const FROM_EMAIL = "Egg Nunes - Avisos <avisos@eggnunes.com.br>";
+const FROM_EMAIL = "Egg Nunes - Avisos <avisos@intraneteggnunes.com.br>";
 
 function normalizeText(value: string | null | undefined): string {
   return (value || "")
