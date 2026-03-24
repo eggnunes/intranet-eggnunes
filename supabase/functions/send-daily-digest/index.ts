@@ -7,7 +7,29 @@ const corsHeaders = {
 };
 
 const RESEND_API_KEY = () => Deno.env.get("RESEND_API_KEY");
-const FROM_EMAIL = "Egg Nunes - Avisos <avisos@intranetagnunes.com.br>";
+const FROM_EMAIL = "Egg Nunes - Avisos <avisos@eggnunes.com.br>";
+
+function normalizeText(value: string | null | undefined): string {
+  return (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+}
+
+function buildTaskSearchCandidates(userName: string): string[] {
+  const normalized = userName.replace(/\s+/g, " ").trim();
+  const parts = normalized.split(" ").filter(Boolean);
+
+  return [...new Set([
+    normalized,
+    parts.slice(0, 4).join(" "),
+    parts.slice(0, 3).join(" "),
+    parts.slice(0, 2).join(" "),
+    parts[0],
+  ].filter((candidate) => candidate && candidate.length >= 3))];
+}
 
 async function sendEmailViaResend(to: string, subject: string, html: string) {
   const apiKey = RESEND_API_KEY();
@@ -79,6 +101,35 @@ interface UserDigestData {
   dueSoonTasks: any[];
   publications: any[];
   leads?: { today: number; week: number; bySources: Record<string, number> };
+}
+
+async function insertDigestLog(
+  supabase: ReturnType<typeof createClient>,
+  payload: {
+    runId: string;
+    profileId?: string;
+    userName?: string;
+    email?: string;
+    position?: string;
+    status: string;
+    reason?: string;
+    details?: Record<string, unknown>;
+  }
+) {
+  const { error } = await supabase.from("daily_digest_logs").insert({
+    run_id: payload.runId,
+    profile_id: payload.profileId ?? null,
+    user_name: payload.userName ?? null,
+    email: payload.email ?? null,
+    position: payload.position ?? null,
+    status: payload.status,
+    reason: payload.reason ?? null,
+    details: payload.details ?? {},
+  });
+
+  if (error) {
+    console.error("[send-daily-digest] Failed to persist daily digest log:", error);
+  }
 }
 
 function buildDigestHtml(userName: string, data: UserDigestData, baseUrl: string): string {
@@ -260,6 +311,7 @@ const handler = async (req: Request): Promise<Response> => {
     );
 
     const BASE_URL = "https://intranet-eggnunes.lovable.app";
+    const runId = crypto.randomUUID();
     const now = new Date();
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -345,32 +397,73 @@ const handler = async (req: Request): Promise<Response> => {
     let sentCount = 0;
     let skippedCount = 0;
 
+    if (!RESEND_API_KEY()) {
+      throw new Error("RESEND_API_KEY não configurada");
+    }
+
     for (const profile of profiles) {
       try {
-        if (!profile.email) { skippedCount++; continue; }
+        const userName = (profile.full_name || profile.email || "").trim();
+        const position = (profile.position || "").toLowerCase();
+
+        if (!profile.email) {
+          skippedCount++;
+          await insertDigestLog(supabase, {
+            runId,
+            profileId: profile.id,
+            userName,
+            email: profile.email,
+            position,
+            status: "skipped",
+            reason: "missing_email",
+            details: { fromEmail: FROM_EMAIL },
+          });
+          continue;
+        }
 
         const prefs = prefsMap.get(profile.id);
         if (prefs && prefs.notify_daily_digest === false) {
           skippedCount++;
+          await insertDigestLog(supabase, {
+            runId,
+            profileId: profile.id,
+            userName,
+            email: profile.email,
+            position,
+            status: "skipped",
+            reason: "user_opted_out",
+            details: { fromEmail: FROM_EMAIL },
+          });
           continue;
         }
 
-        const position = (profile.position || "").toLowerCase();
         const isCommercial = COMMERCIAL_POSITIONS.some(p => position.includes(p));
         const isOperational = OPERATIONAL_POSITIONS.some(p => position.includes(p));
-        const userName = (profile.full_name || profile.email).trim();
+        const taskCandidates = buildTaskSearchCandidates(userName);
 
         // --- TASKS: query per user using ilike to bypass 1000-row limit ---
-        const { data: userTasks } = await supabase
-          .from("advbox_tasks")
-          .select("id, title, due_date, status, process_number")
-          .neq("status", "completed")
-          .neq("status", "concluida")
-          .ilike("assigned_users", `%${userName}%`)
-          .order("due_date", { ascending: true })
-          .limit(50);
+        let tasks: any[] = [];
+        for (const candidate of taskCandidates) {
+          const { data: userTasks, error: userTasksError } = await supabase
+            .from("advbox_tasks")
+            .select("id, title, due_date, status, process_number, assigned_users")
+            .neq("status", "completed")
+            .neq("status", "concluida")
+            .ilike("assigned_users", `%${candidate}%`)
+            .order("due_date", { ascending: true })
+            .limit(100);
 
-        const tasks = userTasks || [];
+          if (userTasksError) throw userTasksError;
+
+          if (userTasks && userTasks.length > 0) {
+            const dedupedTasks = new Map<string, any>();
+            [...tasks, ...userTasks].forEach((task) => dedupedTasks.set(task.id, task));
+            tasks = Array.from(dedupedTasks.values());
+          }
+
+          if (tasks.length > 0) break;
+        }
+
         const overdueTasks = tasks.filter(t => t.due_date && t.due_date < nowStr);
         const dueSoonTasks = tasks.filter(t => t.due_date && t.due_date >= nowStr && t.due_date <= threeDaysStr);
         const pendingTasks = tasks.filter(t => !overdueTasks.includes(t) && !dueSoonTasks.includes(t));
@@ -382,9 +475,18 @@ const handler = async (req: Request): Promise<Response> => {
         }).map(m => ({ ...m, sender_name: senderMap.get(m.sender_id) })) || [];
 
         // --- PUBLICATIONS (operational only) ---
+        const normalizedUserName = normalizeText(userName);
+        const userNameTokens = normalizedUserName.split(" ").filter(Boolean);
         const userPublications = isOperational
           ? (recentPublications || []).filter(p =>
-              p.nome_advogado && userName.toLowerCase().includes(p.nome_advogado.toLowerCase().split(" ")[0])
+              p.nome_advogado && (() => {
+                const normalizedLawyerName = normalizeText(p.nome_advogado);
+                return normalizedLawyerName && (
+                  normalizedUserName.includes(normalizedLawyerName) ||
+                  normalizedLawyerName.includes(normalizedUserName) ||
+                  userNameTokens.slice(0, 2).every(token => normalizedLawyerName.includes(token))
+                );
+              })()
             )
           : [];
 
@@ -408,6 +510,40 @@ const handler = async (req: Request): Promise<Response> => {
 
         if (!hasContent) {
           skippedCount++;
+          await insertDigestLog(supabase, {
+            runId,
+            profileId: profile.id,
+            userName,
+            email: profile.email,
+            position,
+            status: "skipped",
+            reason: "no_content",
+            details: {
+              fromEmail: FROM_EMAIL,
+              isCommercial,
+              isOperational,
+              taskCandidates,
+              taskCount: tasks.length,
+              overdueCount: overdueTasks.length,
+              dueSoonCount: dueSoonTasks.length,
+              pendingCount: pendingTasks.length,
+              messageCount: userMessages.length,
+              announcementCount: recentAnnouncements.length,
+              updateCount: recentUpdates.length,
+              publicationCount: userPublications.length,
+              leadsToday: leadsData?.today ?? 0,
+              leadsWeek: leadsData?.week ?? 0,
+            },
+          });
+          console.log(`[send-daily-digest] Skipped ${userName}: no content`, {
+            taskCount: tasks.length,
+            overdueCount: overdueTasks.length,
+            dueSoonCount: dueSoonTasks.length,
+            pendingCount: pendingTasks.length,
+            messageCount: userMessages.length,
+            publicationCount: userPublications.length,
+            leadsWeek: leadsData?.week ?? 0,
+          });
           continue;
         }
 
@@ -429,6 +565,41 @@ const handler = async (req: Request): Promise<Response> => {
 
         await sendEmailViaResend(profile.email, subject, html);
         sentCount++;
+        await insertDigestLog(supabase, {
+          runId,
+          profileId: profile.id,
+          userName,
+          email: profile.email,
+          position,
+          status: "sent",
+          reason: "email_sent",
+          details: {
+            fromEmail: FROM_EMAIL,
+            isCommercial,
+            isOperational,
+            taskCandidates,
+            taskCount: tasks.length,
+            overdueCount: overdueTasks.length,
+            dueSoonCount: dueSoonTasks.length,
+            pendingCount: pendingTasks.length,
+            messageCount: userMessages.length,
+            announcementCount: recentAnnouncements.length,
+            updateCount: recentUpdates.length,
+            publicationCount: userPublications.length,
+            leadsToday: leadsData?.today ?? 0,
+            leadsWeek: leadsData?.week ?? 0,
+          },
+        });
+        console.log(`[send-daily-digest] Sent to ${userName} <${profile.email}>`, {
+          taskCount: tasks.length,
+          overdueCount: overdueTasks.length,
+          dueSoonCount: dueSoonTasks.length,
+          pendingCount: pendingTasks.length,
+          messageCount: userMessages.length,
+          publicationCount: userPublications.length,
+          leadsWeek: leadsData?.week ?? 0,
+          fromEmail: FROM_EMAIL,
+        });
 
         // Rate limiting: 200ms delay between emails
         await new Promise(r => setTimeout(r, 200));
@@ -436,6 +607,19 @@ const handler = async (req: Request): Promise<Response> => {
       } catch (userError) {
         console.error(`[send-daily-digest] Error for user ${profile.id}:`, userError);
         skippedCount++;
+        await insertDigestLog(supabase, {
+          runId,
+          profileId: profile.id,
+          userName: (profile.full_name || profile.email || "").trim(),
+          email: profile.email,
+          position: (profile.position || "").toLowerCase(),
+          status: "error",
+          reason: "send_failed",
+          details: {
+            fromEmail: FROM_EMAIL,
+            error: userError instanceof Error ? userError.message : String(userError),
+          },
+        });
       }
     }
 
@@ -445,7 +629,7 @@ const handler = async (req: Request): Promise<Response> => {
       subject: "Daily Digest Execution",
       template_type: "daily_digest",
       status: "sent",
-      metadata: { sentCount, skippedCount, totalUsers: profiles.length },
+      metadata: { runId, sentCount, skippedCount, totalUsers: profiles.length, fromEmail: FROM_EMAIL },
       sent_at: new Date().toISOString(),
     });
 
