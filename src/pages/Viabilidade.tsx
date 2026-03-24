@@ -55,6 +55,7 @@ export default function Viabilidade() {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<ViabilidadeCliente | null>(null);
+  const [viewingCliente, setViewingCliente] = useState<ViabilidadeCliente | null>(null);
 
   // Form state
   const [formNome, setFormNome] = useState('');
@@ -323,7 +324,14 @@ export default function Viabilidade() {
                       const StatusIcon = cfg.icon;
                       return (
                         <TableRow key={c.id}>
-                          <TableCell className="font-medium">{c.nome}</TableCell>
+                          <TableCell>
+                            <button
+                              className="font-medium text-primary underline cursor-pointer hover:text-primary/80 text-left"
+                              onClick={() => setViewingCliente(c)}
+                            >
+                              {c.nome}
+                            </button>
+                          </TableCell>
                           <TableCell className="text-muted-foreground">{maskCpf(c.cpf)}</TableCell>
                           <TableCell>
                             <Badge className={`gap-1 ${cfg.className}`}>
@@ -372,6 +380,91 @@ export default function Viabilidade() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dialog de visualização da análise */}
+      <Dialog open={!!viewingCliente} onOpenChange={(open) => !open && setViewingCliente(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Análise de Viabilidade</DialogTitle>
+          </DialogHeader>
+          {viewingCliente && (() => {
+            const cfg = statusConfig[viewingCliente.status] || statusConfig.pendente;
+            const StatusIcon = cfg.icon;
+            return (
+              <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">{viewingCliente.nome}</h3>
+                    <p className="text-sm text-muted-foreground">CPF: {viewingCliente.cpf}</p>
+                  </div>
+                  <Badge className={`gap-1 ${cfg.className}`}>
+                    <StatusIcon className="h-3 w-3" />
+                    {cfg.label}
+                  </Badge>
+                </div>
+
+                {viewingCliente.tipo_acao && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Tipo de Ação</Label>
+                    <p className="text-sm text-foreground">{viewingCliente.tipo_acao}</p>
+                  </div>
+                )}
+
+                <div>
+                  <Label className="text-xs text-muted-foreground">Data de Cadastro</Label>
+                  <p className="text-sm text-foreground">
+                    {format(new Date(viewingCliente.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  </p>
+                </div>
+
+                {viewingCliente.descricao_caso && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Descrição do Caso</Label>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{viewingCliente.descricao_caso}</p>
+                  </div>
+                )}
+
+                <div>
+                  <Label className="text-xs text-muted-foreground">Parecer de Viabilidade</Label>
+                  {viewingCliente.parecer_viabilidade ? (
+                    <div className="mt-1 p-4 rounded-md border bg-muted/50 text-sm text-foreground">
+                      {viewingCliente.parecer_viabilidade.split('\n').map((line, i) => {
+                        const boldMatch = line.match(/^\*\*(.+?)\*\*(.*)$/);
+                        if (boldMatch) {
+                          return <p key={i} className="mt-2 first:mt-0"><strong>{boldMatch[1]}</strong>{boldMatch[2]}</p>;
+                        }
+                        if (line.startsWith('- ')) {
+                          return <li key={i} className="ml-4 list-disc">{line.slice(2)}</li>;
+                        }
+                        if (line.trim() === '') return <br key={i} />;
+                        return <p key={i}>{line}</p>;
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic mt-1">Nenhuma análise realizada ainda.</p>
+                  )}
+                </div>
+
+                {viewingCliente.observacoes && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Observações</Label>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{viewingCliente.observacoes}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            {viewingCliente?.parecer_viabilidade && (
+              <Button variant="outline" onClick={() => { handleSaveToTeams(viewingCliente!); }}>
+                <CloudUpload className="h-4 w-4 mr-2" />
+                Salvar no Teams
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setViewingCliente(null)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <SaveToTeamsDialog
         open={teamsDialogOpen}
