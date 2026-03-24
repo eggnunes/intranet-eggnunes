@@ -336,6 +336,10 @@ export const CRMDashboard = () => {
             <Zap className="h-3.5 w-3.5" />
             Automação
           </TabsTrigger>
+          <TabsTrigger value="zapsign" className="flex items-center gap-1">
+            <FileSignature className="h-3.5 w-3.5" />
+            ZapSign
+          </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="settings" className="flex items-center gap-1">
               <Settings className="h-3.5 w-3.5" />
@@ -507,6 +511,10 @@ export const CRMDashboard = () => {
 
         <TabsContent value="automation" className="mt-6">
           <MarketingAutomation />
+        </TabsContent>
+
+        <TabsContent value="zapsign" className="mt-6">
+          <CRMZapSignContracts />
         </TabsContent>
         
         {isAdmin && (
