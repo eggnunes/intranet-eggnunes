@@ -153,9 +153,9 @@ export default function MarketingHub() {
       const { data: session } = await supabase.auth.getSession();
       if (!session?.session?.access_token) return [];
       const resp = await supabase.functions.invoke('google-ads', {
-        body: { action: 'insights', date_from: metaDateFrom, date_to: metaDateTo },
+        body: { action: 'insights' },
       });
-      return resp.data?.insights || [];
+      return resp.data?.daily_data || [];
     },
   });
 
@@ -171,17 +171,23 @@ export default function MarketingHub() {
     },
   });
 
-  const { data: googleCampaigns = [], isLoading: googleCampaignsLoading } = useQuery({
-    queryKey: ['marketing-google-campaigns', metaDateFrom, metaDateTo],
+  const { data: googleCampaignsData, isLoading: googleCampaignsLoading } = useQuery({
+    queryKey: ['marketing-google-campaigns'],
     queryFn: async () => {
       const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.access_token) return [];
+      if (!session?.session?.access_token) return { campaigns: [], totals: null };
       const resp = await supabase.functions.invoke('google-ads', {
         body: { action: 'campaigns' },
       });
-      return resp.data?.campaigns || [];
+      if (resp.error) {
+        console.error('Google Ads campaigns error:', resp.error);
+        return { campaigns: [], totals: null };
+      }
+      return { campaigns: resp.data?.campaigns || [], totals: resp.data?.totals || null };
     },
   });
+  const googleCampaigns = googleCampaignsData?.campaigns || [];
+  const googleCampaignTotals = googleCampaignsData?.totals;
 
   const { data: googleAccountInfo } = useQuery({
     queryKey: ['marketing-google-account'],
@@ -247,17 +253,17 @@ export default function MarketingHub() {
     };
   }).filter((d: any) => d.gasto > 0), [metaInsights]);
 
-  const googleRoiData = useMemo(() => googleInsights.map((i: any) => {
-    const spend = parseFloat(i.spend || '0');
-    const conversions = parseInt(i.conversions || '0');
+  const googleRoiData = useMemo(() => googleCampaigns.map((c: any) => {
+    const spend = parseFloat(c.cost || '0');
+    const conversions = parseFloat(c.conversions || '0');
     return {
-      name: (i.campaign_name || 'Sem nome').substring(0, 25),
+      name: (c.name || 'Sem nome').substring(0, 25),
       gasto: spend,
       conversoes: conversions,
       cpl: conversions > 0 ? spend / conversions : 0,
       platform: 'Google Ads',
     };
-  }).filter((d: any) => d.gasto > 0), [googleInsights]);
+  }).filter((d: any) => d.gasto > 0), [googleCampaigns]);
 
   const roiData = useMemo(() => [...metaRoiData, ...googleRoiData], [metaRoiData, googleRoiData]);
 
@@ -273,9 +279,9 @@ export default function MarketingHub() {
   }), [metaDailyInsights]);
 
   const googleDailyData = useMemo(() => googleDailyInsights.map((d: any) => ({
-    date_start: d.date_start,
-    gasto: parseFloat(d.spend || '0'),
-    conversoes: parseInt(d.conversions || '0'),
+    date_start: d.date,
+    gasto: parseFloat(d.cost || '0'),
+    conversoes: parseFloat(d.conversions || '0'),
   })), [googleDailyInsights]);
 
   const dailyChartData = useMemo(() => {
@@ -305,19 +311,20 @@ export default function MarketingHub() {
     return result;
   }, [metaRoiData, googleRoiData]);
 
-  // Google Ads tab metrics
+  // Google Ads tab metrics - use totals from campaigns endpoint
   const googleTotals = useMemo(() => {
-    let impressions = 0, clicks = 0, conversions = 0, spend = 0;
-    for (const i of googleInsights) {
-      impressions += parseInt(i.impressions || '0');
-      clicks += parseInt(i.clicks || '0');
-      conversions += parseInt(i.conversions || '0');
-      spend += parseFloat(i.spend || '0');
+    if (googleCampaignTotals) {
+      return {
+        impressions: parseInt(googleCampaignTotals.impressions || '0'),
+        clicks: parseInt(googleCampaignTotals.clicks || '0'),
+        conversions: parseFloat(googleCampaignTotals.conversions || '0'),
+        spend: parseFloat(googleCampaignTotals.cost || '0'),
+        ctr: googleCampaignTotals.ctr || '0',
+        cpc: googleCampaignTotals.cpc || '0',
+      };
     }
-    const ctr = impressions > 0 ? ((clicks / impressions) * 100).toFixed(2) : '0';
-    const cpc = clicks > 0 ? (spend / clicks).toFixed(2) : '0';
-    return { impressions, clicks, conversions, spend, ctr, cpc };
-  }, [googleInsights]);
+    return { impressions: 0, clicks: 0, conversions: 0, spend: 0, ctr: '0', cpc: '0' };
+  }, [googleCampaignTotals]);
 
   // Funnel data - ALL deals, not filtered by date
   const funnelData = useMemo(() => {
@@ -538,7 +545,7 @@ export default function MarketingHub() {
                 <CardContent>
                   {googleCampaignsLoading ? (
                     <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-                  ) : googleInsights.length === 0 ? (
+                  ) : googleCampaigns.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">Nenhuma campanha com dados no período. Verifique se as credenciais do Google Ads estão configuradas.</p>
                   ) : (
                     <div className="overflow-x-auto">
@@ -546,24 +553,26 @@ export default function MarketingHub() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Campanha</TableHead>
+                            <TableHead>Status</TableHead>
                             <TableHead className="text-right">Impressões</TableHead>
                             <TableHead className="text-right">Cliques</TableHead>
                             <TableHead className="text-right">CTR</TableHead>
                             <TableHead className="text-right">CPC</TableHead>
                             <TableHead className="text-right">Conversões</TableHead>
-                            <TableHead className="text-right">Gasto</TableHead>
+                            <TableHead className="text-right">Custo</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {googleInsights.map((i: any) => (
-                            <TableRow key={i.campaign_id}>
-                              <TableCell className="font-medium">{i.campaign_name}</TableCell>
-                              <TableCell className="text-right">{parseInt(i.impressions || '0').toLocaleString('pt-BR')}</TableCell>
-                              <TableCell className="text-right">{parseInt(i.clicks || '0').toLocaleString('pt-BR')}</TableCell>
-                              <TableCell className="text-right">{parseFloat(i.ctr || '0').toFixed(2)}%</TableCell>
-                              <TableCell className="text-right">R$ {parseFloat(i.cpc || '0').toFixed(2).replace('.', ',')}</TableCell>
-                              <TableCell className="text-right">{i.conversions || '0'}</TableCell>
-                              <TableCell className="text-right">R$ {parseFloat(i.spend || '0').toFixed(2).replace('.', ',')}</TableCell>
+                          {googleCampaigns.map((c: any) => (
+                            <TableRow key={c.id}>
+                              <TableCell className="font-medium">{c.name}</TableCell>
+                              <TableCell><Badge variant={c.status === 'ENABLED' ? 'default' : 'secondary'}>{c.status}</Badge></TableCell>
+                              <TableCell className="text-right">{parseInt(c.impressions || '0').toLocaleString('pt-BR')}</TableCell>
+                              <TableCell className="text-right">{parseInt(c.clicks || '0').toLocaleString('pt-BR')}</TableCell>
+                              <TableCell className="text-right">{c.ctr}%</TableCell>
+                              <TableCell className="text-right">R$ {parseFloat(c.cpc || '0').toFixed(2).replace('.', ',')}</TableCell>
+                              <TableCell className="text-right">{c.conversions}</TableCell>
+                              <TableCell className="text-right">R$ {parseFloat(c.cost || '0').toFixed(2).replace('.', ',')}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
