@@ -1309,7 +1309,8 @@ const Mensagens = () => {
                               
                               <div
                                 className={cn(
-                                  "max-w-[85%] min-w-[100px] rounded-2xl px-4 py-2",
+                                  "min-w-[100px] rounded-2xl px-4 py-2",
+                                  isEditing ? "max-w-[95%]" : "max-w-[90%]",
                                   isMe
                                     ? "bg-primary text-primary-foreground rounded-tr-sm"
                                     : "bg-muted rounded-tl-sm"
@@ -1341,7 +1342,7 @@ const Mensagens = () => {
                                     <Textarea
                                       value={editingContent}
                                       onChange={(e) => setEditingContent(e.target.value)}
-                                      className="min-h-[60px] text-sm bg-background text-foreground"
+                                      className="min-h-[120px] max-h-[300px] text-sm bg-background text-foreground resize-y overflow-auto"
                                       autoFocus
                                     />
                                     <div className="flex gap-1 justify-end">
@@ -1732,17 +1733,24 @@ const Mensagens = () => {
                       />
                       
                       <div className="flex gap-2">
-                        <Input
+                        <Textarea
                           placeholder="Digite sua mensagem..."
                           value={newMessage}
                           onChange={(e) => setNewMessage(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSend();
+                            }
+                          }}
                           onFocus={() => {
                             if (templates.length > 0 && !newMessage.trim()) {
                               setShowTemplates(true);
                             }
                           }}
                           disabled={sending}
-                          className="flex-1"
+                          className="flex-1 min-h-[44px] max-h-[200px] resize-none"
+                          rows={1}
                         />
                         <Button
                           type="button"
