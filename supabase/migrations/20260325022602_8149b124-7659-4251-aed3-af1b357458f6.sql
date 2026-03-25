@@ -1,0 +1,1 @@
+DELETE FROM crm_notifications WHERE type = 'stale_deal';
