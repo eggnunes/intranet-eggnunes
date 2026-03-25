@@ -784,7 +784,7 @@ async function syncDeals(rdToken: string, supabase: any) {
       name: deal.name || 'Deal sem nome',
       value: deal.amount_total || 0,
       expected_close_date: deal.prediction_date || null,
-      closed_at: deal.closed_at || (dealIsWon ? (deal.last_activity_at || deal.created_at || new Date().toISOString()) : null),
+      closed_at: deal.closed_at || (dealIsWon ? (deal.last_activity_at || null) : null),
       won: dealIsWon,
       loss_reason: deal.loss_reason || null,
       product_name: deal.deal_products?.[0]?.name || null,
@@ -855,10 +855,15 @@ async function syncDeals(rdToken: string, supabase: any) {
     else console.log(`Recorded ${historyInserts.length} stage transitions in crm_deal_history`);
   }
 
-  // Update stage_changed_at for deals that changed stage
+  // Update stage_changed_at for deals that changed stage (and closed_at + won for won stages)
   for (const upd of stageChangedUpdates) {
+    const updateData: any = { stage_changed_at: new Date().toISOString() };
+    if (wonStageIds.has(upd.stage_id)) {
+      updateData.closed_at = new Date().toISOString();
+      updateData.won = true;
+    }
     await supabase.from('crm_deals')
-      .update({ stage_changed_at: new Date().toISOString() })
+      .update(updateData)
       .eq('id', upd.id);
   }
 
