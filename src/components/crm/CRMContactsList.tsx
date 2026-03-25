@@ -459,16 +459,51 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  const handleCreateLead = async () => {
+    if (!newLeadForm.name.trim()) {
+      toast.error('Nome é obrigatório');
+      return;
+    }
+    setCreatingLead(true);
+    try {
+      if (syncEnabled) {
+        const { data: result, error } = await supabase.functions.invoke('crm-sync', {
+          body: { action: 'create_contact', data: newLeadForm }
+        });
+        if (error) throw error;
+        if (result?.synced_to_rd) {
+          toast.success('Lead criado e sincronizado com RD Station');
+        } else {
+          toast.success('Lead criado localmente (erro ao sincronizar com RD Station)');
+        }
+      } else {
+        const { error } = await supabase.from('crm_contacts').insert({
+          name: newLeadForm.name.trim(),
+          email: newLeadForm.email?.trim() || null,
+          phone: newLeadForm.phone?.trim() || null,
+          company: newLeadForm.company?.trim() || null,
+          job_title: newLeadForm.job_title?.trim() || null,
+          city: newLeadForm.city?.trim() || null,
+          state: newLeadForm.state?.trim() || null,
+          website: newLeadForm.website?.trim() || null,
+          linkedin: newLeadForm.linkedin?.trim() || null,
+          notes: newLeadForm.notes?.trim() || null,
+        });
+        if (error) throw error;
+        toast.success('Lead criado com sucesso');
+      }
+      setNewLeadForm({ name: '', email: '', phone: '', company: '', job_title: '', city: '', state: '', website: '', linkedin: '', notes: '' });
+      setNewLeadDialogOpen(false);
+      fetchContacts();
+    } catch (error) {
+      console.error('Error creating lead:', error);
+      toast.error('Erro ao criar lead');
+    } finally {
+      setCreatingLead(false);
+    }
+  };
 
-  return (
-    <div className="space-y-4">
+  if (loading) {
       {/* Search and filters */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
