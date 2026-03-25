@@ -86,6 +86,9 @@ serve(async (req) => {
       case 'fetch_contact_activities':
         result = await fetchContactActivitiesFromRdStation(rdToken, supabase, data);
         break;
+      case 'create_contact':
+        result = await createContactInRdStation(rdToken, supabase, data);
+        break;
         
       default:
         return new Response(
