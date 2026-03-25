@@ -19,6 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useAccessTracking } from '@/hooks/useAccessTracking';
 import { useMessageNotifications } from '@/hooks/useMessageNotifications';
+import { getMenuGroups } from '@/lib/menuData';
 
 import logoEggNunes from '@/assets/logo-eggnunes.png';
 
