@@ -155,6 +155,11 @@ export const Layout = ({ children }: LayoutProps) => {
 
   const searchCategories = [...new Set(allSearchableItems.map(item => item.category))];
 
+  const handleSearchSelect = (path: string) => {
+    setSearchOpen(false);
+    navigate(path);
+  };
+
   return (
     <SidebarProvider defaultOpen={true}>
       <div className="min-h-[100dvh] flex w-full">
