@@ -134,59 +134,24 @@ export const Layout = ({ children }: LayoutProps) => {
     setUnreadAnnouncementsCount(unreadCount);
   };
 
-  // All searchable items for global search
-  const allSearchableItems = [
-    { path: '/dashboard', label: 'Dashboard', description: 'Página inicial', category: 'Início' },
-    { path: '/mural-avisos', label: 'Mural de Avisos', description: 'Comunicados e eventos', category: 'Início' },
-    { path: '/assistente-ia', label: 'Assistente de IA', description: 'Chat com IA', category: 'Inteligência Artificial' },
-    { path: '/agentes-ia', label: 'Agentes de IA', description: 'Agentes especializados', category: 'Inteligência Artificial' },
-    { path: '/pesquisa-jurisprudencia', label: 'Pesquisa Jurisprudência', description: 'Busca em jurisprudência', category: 'Inteligência Artificial' },
-    { path: '/tools/rotadoc', label: 'RotaDoc', description: 'Organização de documentos', category: 'Inteligência Artificial' },
-    { path: '/processos', label: 'Processos', description: 'Dashboard de processos', category: 'Advbox' },
-    { path: '/publicacoes', label: 'Publicações', description: 'Feed de publicações', category: 'Advbox' },
-    { path: '/tarefas-advbox', label: 'Tarefas', description: 'Gestão de tarefas', category: 'Advbox' },
-    { path: '/relatorios-produtividade-tarefas', label: 'Produtividade', description: 'Relatórios de produtividade', category: 'Advbox' },
-    { path: '/relatorios-financeiros', label: 'Financeiro', description: 'Relatórios financeiros', category: 'Advbox' },
-    { path: '/advbox-analytics', label: 'Analytics', description: 'Gráficos e métricas', category: 'Advbox' },
-    { path: '/aniversarios-clientes', label: 'Aniversários Clientes', description: 'Clientes aniversariantes', category: 'Advbox' },
-    { path: '/historico-mensagens-aniversario', label: 'Histórico Mensagens', description: 'Mensagens de aniversário', category: 'Advbox' },
-    { path: '/decisoes-favoraveis', label: 'Jurisprudência Interna', description: 'Registro de decisões e jurimetria', category: 'Gestão Processual' },
-    { path: '/codigos-autenticacao', label: 'Códigos TOTP', description: 'Autenticação de tribunais', category: 'Gestão Processual' },
-    { path: '/setor-comercial', label: 'Painel Comercial', description: 'Gerador de documentos', category: 'Comercial' },
-    { path: '/crm', label: 'CRM', description: 'Gestão de leads', category: 'Comercial' },
-    { path: '/lead-tracking', label: 'Tracking de Leads', description: 'UTMs e formulários', category: 'Comercial' },
-    { path: '/equipe', label: 'Equipe', description: 'Membros da equipe', category: 'Equipe e RH' },
-    { path: '/aniversarios', label: 'Aniversários', description: 'Aniversários da equipe', category: 'Equipe e RH' },
-    { path: '/ferias', label: 'Férias', description: 'Gestão de férias', category: 'Equipe e RH' },
-    { path: '/home-office', label: 'Home Office', description: 'Escala de home office', category: 'Equipe e RH' },
-    { path: '/contratacao', label: 'Recrutamento', description: 'Gestão de currículos', category: 'Equipe e RH' },
-    { path: '/onboarding', label: 'Onboarding', description: 'Materiais de integração', category: 'Equipe e RH' },
-    { path: '/mensagens', label: 'Mensagens', description: 'Chat com a equipe', category: 'Comunicação' },
-    { path: '/whatsapp-avisos', label: 'WhatsApp Avisos', description: 'Mensagens WhatsApp para clientes', category: 'Comunicação' },
-    { path: '/forum', label: 'Fórum', description: 'Discussões da equipe', category: 'Comunicação' },
-    { path: '/sugestoes', label: 'Sugestões', description: 'Envie suas ideias', category: 'Comunicação' },
-    { path: '/caixinha-desabafo', label: 'Caixinha de Desabafo', description: 'Canal anônimo', category: 'Comunicação' },
-    { path: '/arquivos-teams', label: 'Arquivos Teams', description: 'Microsoft Teams', category: 'Microsoft Teams' },
-    { path: '/documentos-uteis', label: 'Documentos Úteis', description: 'Documentos internos', category: 'Documentos' },
-    { path: '/solicitacoes-administrativas', label: 'Solicitações', description: 'Pedidos administrativos', category: 'Administrativo' },
-    { path: '/copa-cozinha', label: 'Copa e Cozinha', description: 'Sugestões de alimentos', category: 'Administrativo' },
-    { path: '/sala-reuniao', label: 'Sala de Reunião', description: 'Reservar sala', category: 'Administrativo' },
-    { path: '/galeria-eventos', label: 'Galeria de Eventos', description: 'Fotos dos eventos', category: 'Administrativo' },
-    { path: '/documentos-uteis', label: 'Documentos Úteis', description: 'Documentos internos', category: 'Administrativo' },
-    { path: '/sobre-escritorio', label: 'Sobre o Escritório', description: 'História e áreas de atuação', category: 'Sobre o Escritório' },
-    { path: '/profile', label: 'Perfil', description: 'Editar perfil', category: 'Minha Conta' },
-    { path: '/historico', label: 'Histórico', description: 'Histórico de uso', category: 'Minha Conta' },
-    ...(isAdmin ? [
-      { path: '/admin', label: 'Painel Admin', description: 'Configurações do sistema', category: 'Administração' },
-      { path: '/integracoes', label: 'Integrações', description: 'Webhooks e APIs', category: 'Administração' },
-      { path: '/dashboard-sugestoes', label: 'Estatísticas', description: 'Dashboard de métricas', category: 'Administração' },
-    ] : []),
-  ];
-
-  const handleSearchSelect = (path: string) => {
-    setSearchOpen(false);
-    navigate(path);
-  };
+  // All searchable items generated dynamically from shared menu data
+  const allSearchableItems = useMemo(() => {
+    const groups = getMenuGroups(isAdmin, profile?.position === 'socio', {});
+    return groups
+      .map(g => ({
+        ...g,
+        items: g.items.filter(i => i.condition === undefined || i.condition),
+      }))
+      .filter(g => g.items.length > 0)
+      .flatMap(g =>
+        g.items.map(i => ({
+          path: i.path,
+          label: i.label,
+          description: i.searchDescription || '',
+          category: g.label,
+        }))
+      );
+  }, [isAdmin, profile?.position]);
 
   const searchCategories = [...new Set(allSearchableItems.map(item => item.category))];
 
