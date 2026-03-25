@@ -1,48 +1,54 @@
 
 
-## Título automático com IA + filtro por produto na Viabilidade Jurídica
+## Nova sub-aba "Comissão dos Vendedores" no CRM
 
 ### O que será feito
-1. Adicionar coluna `titulo` na tabela `viabilidade_clientes` para armazenar um título curto gerado pela IA
-2. Após a análise de viabilidade, a IA gera automaticamente um título curto (ex: "Revisão de Benefício INSS", "Indenização por Danos Morais")
-3. Adicionar filtro por produto (tipo_acao) na listagem de viabilidades
-4. Exibir o título na tabela de listagem
+1. Criar tabela `crm_commission_rules` para armazenar as faixas de comissionamento (editável por admins)
+2. Criar componente `CRMCommissions.tsx` com dashboard de comissões e painel de configuração de regras
+3. Adicionar sub-aba "Comissões" no CRM Dashboard
 
-### Implementação
-
-**1. Migração SQL** — nova coluna `titulo`
+### 1. Migração SQL — Tabela de regras de comissão
 
 ```sql
-ALTER TABLE viabilidade_clientes ADD COLUMN titulo TEXT;
+CREATE TABLE crm_commission_rules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  min_contracts INTEGER NOT NULL,
+  max_contracts INTEGER, -- NULL = sem limite (faixa aberta)
+  value_per_contract NUMERIC(10,2) NOT NULL,
+  created_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
 ```
 
-**2. Edge function `analyze-viability/index.ts`**
+Inserir as 3 faixas padrão (1-29 = R$75, 30-44 = R$100, 45+ = R$125). RLS: leitura para autenticados aprovados, escrita apenas para admins/sócios.
 
-Após receber o parecer da IA, fazer uma segunda chamada rápida (Lovable AI, Gemini Flash) para gerar um título curto de até 8 palavras baseado no tipo de ação e descrição do caso. Retornar o título junto com `parecer` e `recomendacao`:
+### 2. Componente `CRMCommissions.tsx`
 
-```typescript
-// Nova chamada após o parecer
-const titulo = await generateTitle(tipoAcao, descricaoCaso, parecer);
-return { parecer, recomendacao, titulo, modelo_usado };
-```
+- Reutiliza a lógica de `getBusinessCyclePeriod()` (ciclo 25-24) e `EXCLUDED_NAMES` do Ranking
+- Busca deals `won=true` no período com `closed_at` filtrado, agrupando por `owner_id`
+- Busca as regras de comissão da tabela `crm_commission_rules`
+- Calcula:
+  - **Total de contratos da equipe** (soma de todos os vendedores)
+  - **Faixa vigente** com base no total da equipe
+  - **Comissão individual** = contratos do vendedor × valor da faixa vigente
 
-Prompt: "Gere um título curto (máximo 8 palavras) que identifique o tipo de caso jurídico. Responda APENAS com o título."
+**Interface:**
+- Card superior com: total de contratos da equipe, faixa atual, valor por contrato
+- Tabela/lista de vendedores com: nome, contratos fechados, valor da comissão (R$)
+- Barra de progresso mostrando proximidade da próxima faixa
+- Seção "Configurar Regras" (visível apenas para admins) com formulário para editar as 3 faixas
 
-**3. `src/pages/ViabilidadeNovo.tsx`**
+### 3. Integração no `CRMDashboard.tsx`
 
-- Capturar `data.titulo` do retorno da edge function
-- Salvar no insert: `titulo: data.titulo || tipoAcao || null`
-
-**4. `src/pages/Viabilidade.tsx`**
-
-- Adicionar coluna "Título/Produto" na tabela (entre Nome e CPF)
-- Adicionar filtro dropdown por `tipo_acao` (produto) ao lado do filtro de status
-- Extrair lista única de `tipo_acao` dos clientes carregados
-- Incluir `titulo` e `tipo_acao` no type `ViabilidadeCliente`
+- Importar `CRMCommissions`
+- Adicionar `TabsTrigger` com ícone `Wallet` e label "Comissões"
+- Adicionar `TabsContent` correspondente
+- Atualizar export em `index.ts`
 
 ### Arquivos modificados
-- **Migração SQL** — coluna `titulo`
-- **`supabase/functions/analyze-viability/index.ts`** — geração de título via Lovable AI
-- **`src/pages/ViabilidadeNovo.tsx`** — salvar título
-- **`src/pages/Viabilidade.tsx`** — exibir título + filtro por produto
+- **Migração SQL** — tabela `crm_commission_rules` + seed das 3 faixas
+- **`src/components/crm/CRMCommissions.tsx`** — novo componente
+- **`src/components/crm/CRMDashboard.tsx`** — nova aba
+- **`src/components/crm/index.ts`** — export
 
