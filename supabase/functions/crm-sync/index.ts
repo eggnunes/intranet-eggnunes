@@ -889,7 +889,7 @@ async function syncDeals(rdToken: string, supabase: any) {
       for (const d of missingWonDeals) {
         await supabase.from('crm_deals').update({
           won: true,
-          closed_at: d.stage_changed_at || d.updated_at || d.created_at || new Date().toISOString()
+          closed_at: d.stage_changed_at || d.updated_at || new Date().toISOString()
         }).eq('id', d.id);
       }
     }
@@ -906,7 +906,7 @@ async function syncDeals(rdToken: string, supabase: any) {
       console.log(`Fixing ${missingClosedAt.length} won deals missing closed_at`);
       for (const d of missingClosedAt) {
         await supabase.from('crm_deals').update({
-          closed_at: d.stage_changed_at || d.updated_at || d.created_at || new Date().toISOString()
+          closed_at: d.stage_changed_at || d.updated_at || new Date().toISOString()
         }).eq('id', d.id);
       }
     }
