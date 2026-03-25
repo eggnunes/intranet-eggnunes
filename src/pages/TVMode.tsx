@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Tooltip, LabelList } from 'recharts';
-import { Users, Trophy, DollarSign, TrendingUp, RefreshCw } from 'lucide-react';
+import { UserCheck, UserMinus, UserX, Trophy, DollarSign, TrendingUp, RefreshCw } from 'lucide-react';
 
 const FUNNEL_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e'];
 
