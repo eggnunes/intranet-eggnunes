@@ -1,0 +1,1 @@
+ALTER TABLE viabilidade_clientes ADD COLUMN titulo TEXT;
