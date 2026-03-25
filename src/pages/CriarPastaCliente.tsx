@@ -11,6 +11,7 @@ import { FolderPlus, CheckCircle, AlertCircle, Loader2, ExternalLink, ArrowLeft 
 import { toast } from 'sonner';
 
 export default function CriarPastaCliente() {
+  const navigate = useNavigate();
   const { sites, drives, loadingSites, loadingDrives, loadSites, loadDrives, findFolderByPath, createFolderByPath } = useTeamsUpload();
 
   const [selectedSiteId, setSelectedSiteId] = useState('');
