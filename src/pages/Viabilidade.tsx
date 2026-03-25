@@ -31,6 +31,7 @@ type ViabilidadeCliente = {
   tipo_acao?: string | null;
   descricao_caso?: string | null;
   parecer_viabilidade?: string | null;
+  titulo?: string | null;
 };
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof Clock; className: string }> = {
@@ -52,6 +53,7 @@ export default function Viabilidade() {
   const [clientes, setClientes] = useState<ViabilidadeCliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('todos');
+  const [filterProduto, setFilterProduto] = useState<string>('todos');
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<ViabilidadeCliente | null>(null);
@@ -90,11 +92,14 @@ export default function Viabilidade() {
     setLoading(false);
   };
 
+  const produtoOptions = [...new Set(clientes.map(c => c.tipo_acao).filter(Boolean))] as string[];
+
   const filtered = clientes.filter((c) => {
     const matchStatus = filterStatus === 'todos' || c.status === filterStatus;
+    const matchProduto = filterProduto === 'todos' || c.tipo_acao === filterProduto;
     const q = search.toLowerCase();
-    const matchSearch = !q || c.nome.toLowerCase().includes(q) || c.cpf.replace(/\D/g, '').includes(q.replace(/\D/g, ''));
-    return matchStatus && matchSearch;
+    const matchSearch = !q || c.nome.toLowerCase().includes(q) || c.cpf.replace(/\D/g, '').includes(q.replace(/\D/g, '')) || (c.titulo?.toLowerCase().includes(q));
+    return matchStatus && matchProduto && matchSearch;
   });
 
   const displayClientes = filtered.slice(0, 10);
@@ -287,13 +292,24 @@ export default function Viabilidade() {
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="Filtrar status" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="todos">Todos os Status</SelectItem>
               <SelectItem value="pendente">Pendente</SelectItem>
               <SelectItem value="em_analise">Em Análise</SelectItem>
               <SelectItem value="viavel">Viável</SelectItem>
               <SelectItem value="inviavel">Inviável</SelectItem>
             </SelectContent>
           </Select>
+          {produtoOptions.length > 0 && (
+            <Select value={filterProduto} onValueChange={setFilterProduto}>
+              <SelectTrigger className="w-[200px]"><SelectValue placeholder="Filtrar produto" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os Produtos</SelectItem>
+                {produtoOptions.map(p => (
+                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         {/* Table */}
@@ -312,6 +328,7 @@ export default function Viabilidade() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nome</TableHead>
+                      <TableHead>Título/Produto</TableHead>
                       <TableHead>CPF</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Data Criação</TableHead>
@@ -331,6 +348,9 @@ export default function Viabilidade() {
                             >
                               {c.nome}
                             </button>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
+                            {c.titulo || c.tipo_acao || '—'}
                           </TableCell>
                           <TableCell className="text-muted-foreground">{maskCpf(c.cpf)}</TableCell>
                           <TableCell>

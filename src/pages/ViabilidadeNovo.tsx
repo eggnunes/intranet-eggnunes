@@ -173,6 +173,7 @@ export default function ViabilidadeNovo() {
   const [parecer, setParecer] = useState('');
   const [recomendacao, setRecomendacao] = useState('');
   const [saving, setSaving] = useState(false);
+  const [tituloGerado, setTituloGerado] = useState('');
 
   const handleImportClient = (data: { nome: string; cpf: string; telefone: string; email: string; cidade?: string; estado?: string }) => {
     if (data.nome) setNome(data.nome);
@@ -241,6 +242,7 @@ export default function ViabilidadeNovo() {
 
       setParecer(data.parecer);
       setRecomendacao(data.recomendacao);
+      if (data.titulo) setTituloGerado(data.titulo);
       toast.success('Análise concluída!');
     } catch (err: any) {
       clearInterval(progressInterval);
@@ -291,6 +293,7 @@ export default function ViabilidadeNovo() {
         documentos: docPaths,
         parecer_viabilidade: parecer || null,
         analise_realizada_em: parecer ? new Date().toISOString() : null,
+        titulo: tituloGerado || tipoAcao || null,
         status,
         created_by: user.id,
       } as any);
