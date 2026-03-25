@@ -173,6 +173,7 @@ export default function ViabilidadeNovo() {
   const [parecer, setParecer] = useState('');
   const [recomendacao, setRecomendacao] = useState('');
   const [saving, setSaving] = useState(false);
+  const [tituloGerado, setTituloGerado] = useState('');
 
   const handleImportClient = (data: { nome: string; cpf: string; telefone: string; email: string; cidade?: string; estado?: string }) => {
     if (data.nome) setNome(data.nome);
