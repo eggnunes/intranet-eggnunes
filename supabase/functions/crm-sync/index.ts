@@ -429,7 +429,7 @@ async function syncPipelines(rdToken: string, supabase: any) {
       rd_station_id: stage._id,
       name: stage.name,
       order_index: stage.order || 0,
-      is_won: stage.name?.toLowerCase().includes('ganho') || stage.name?.toLowerCase().includes('won'),
+      is_won: stage.name?.toLowerCase().includes('ganho') || stage.name?.toLowerCase().includes('won') || stage.name?.toLowerCase().includes('fechamento'),
       is_lost: stage.name?.toLowerCase().includes('perdido') || stage.name?.toLowerCase().includes('lost')
     });
   }
@@ -697,13 +697,18 @@ async function syncDeals(rdToken: string, supabase: any) {
 
   console.log(`Total deals to sync: ${allDeals.length}`);
 
-  // Get stage mappings
+  // Get stage mappings (including is_won flag)
   const { data: stages } = await supabase
     .from('crm_deal_stages')
-    .select('id, rd_station_id, pipeline_id');
+    .select('id, rd_station_id, pipeline_id, is_won');
   
   const stageMap = new Map<string, { id: string; pipeline_id: string; rd_station_id: string }>(
     stages?.map((s: any) => [s.rd_station_id, s]) || []
+  );
+
+  // Build set of won stage IDs for quick lookup
+  const wonStageIds = new Set<string>(
+    stages?.filter((s: any) => s.is_won).map((s: any) => s.id) || []
   );
 
   // Get contact mappings - fetch all without limit
@@ -766,6 +771,10 @@ async function syncDeals(rdToken: string, supabase: any) {
       ownerId = emailToProfileMap.get(deal.user.email.toLowerCase()) || null;
     }
 
+    // Check if deal is in a won stage
+    const stageIsWon = stageInfo && wonStageIds.has(stageInfo.id);
+    const dealIsWon = deal.win === true || deal.win === 'won' || deal.win === 1 || stageIsWon;
+
     return {
       rd_station_id: deal._id,
       contact_id: contactId || null,
@@ -775,8 +784,8 @@ async function syncDeals(rdToken: string, supabase: any) {
       name: deal.name || 'Deal sem nome',
       value: deal.amount_total || 0,
       expected_close_date: deal.prediction_date || null,
-      closed_at: deal.closed_at || null,
-      won: deal.win === true || deal.win === 'won' || deal.win === 1,
+      closed_at: deal.closed_at || (dealIsWon ? (deal.last_activity_at || deal.created_at || new Date().toISOString()) : null),
+      won: dealIsWon,
       loss_reason: deal.loss_reason || null,
       product_name: deal.deal_products?.[0]?.name || null,
       campaign_name: deal.campaign?.name || null,
@@ -851,6 +860,43 @@ async function syncDeals(rdToken: string, supabase: any) {
     await supabase.from('crm_deals')
       .update({ stage_changed_at: new Date().toISOString() })
       .eq('id', upd.id);
+  }
+
+  // Fix deals in won stages that are missing won=true or closed_at
+  if (wonStageIds.size > 0) {
+    const wonStageIdsArr = Array.from(wonStageIds);
+    const { data: missingWonDeals } = await supabase
+      .from('crm_deals')
+      .select('id, stage_changed_at, updated_at, created_at')
+      .in('stage_id', wonStageIdsArr)
+      .eq('won', false);
+
+    if (missingWonDeals && missingWonDeals.length > 0) {
+      console.log(`Fixing ${missingWonDeals.length} deals in won stages missing won=true`);
+      for (const d of missingWonDeals) {
+        await supabase.from('crm_deals').update({
+          won: true,
+          closed_at: d.stage_changed_at || d.updated_at || d.created_at || new Date().toISOString()
+        }).eq('id', d.id);
+      }
+    }
+
+    // Also fix deals that are won=true but missing closed_at
+    const { data: missingClosedAt } = await supabase
+      .from('crm_deals')
+      .select('id, stage_changed_at, updated_at, created_at')
+      .in('stage_id', wonStageIdsArr)
+      .eq('won', true)
+      .is('closed_at', null);
+
+    if (missingClosedAt && missingClosedAt.length > 0) {
+      console.log(`Fixing ${missingClosedAt.length} won deals missing closed_at`);
+      for (const d of missingClosedAt) {
+        await supabase.from('crm_deals').update({
+          closed_at: d.stage_changed_at || d.updated_at || d.created_at || new Date().toISOString()
+        }).eq('id', d.id);
+      }
+    }
   }
 
   // Log sync
