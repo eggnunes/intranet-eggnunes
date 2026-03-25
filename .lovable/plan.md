@@ -1,36 +1,42 @@
 
 
-## Visualizar análise de viabilidade ao clicar no cliente
+## Sincronizar busca global com o menu lateral (fonte única de verdade)
 
 ### Problema
-Na tabela de viabilidade, o nome do cliente é texto estático. Não há como visualizar o parecer/análise diretamente -- apenas salvar no Teams.
+A lista de itens buscáveis em `Layout.tsx` é hardcoded e separada do menu lateral (`AppSidebar.tsx`). Quando novas funcionalidades são adicionadas ao sidebar, a busca não é atualizada. Há ~20 itens faltando na busca.
 
 ### Solução
-Adicionar um Dialog que abre ao clicar no nome do cliente na tabela, exibindo todos os detalhes da análise.
+Extrair a definição dos grupos de menu para um arquivo compartilhado. Tanto o `AppSidebar` quanto o `Layout` importam a mesma fonte. Qualquer item novo no menu aparece automaticamente na busca.
 
 ### Implementação
 
-**Arquivo: `src/pages/Viabilidade.tsx`**
+**1. Criar `src/lib/menuData.ts`**
+- Exportar a interface `MenuItemDef` e `MenuGroupDef` (mover de AppSidebar)
+- Exportar uma função `getMenuGroups(isAdmin, isSocio, counts)` que retorna os 11 grupos de menu com todos os itens (o mesmo array que está hoje nas linhas 171-323 do AppSidebar)
+- Cada item ganha um campo opcional `searchDescription` para a busca (ex: "Chat com IA", "Gestão de leads")
 
-1. **Novo estado** para controlar o dialog de visualização:
-   - `viewingCliente: ViabilidadeCliente | null`
+**2. Atualizar `src/components/AppSidebar.tsx`**
+- Remover as interfaces e o array `menuGroups` inline
+- Importar `getMenuGroups` de `@/lib/menuData`
+- Chamar `getMenuGroups(isAdmin, isSocio, { criticalTasksCount, pendingUsersCount })` no `useMemo`
+- Resto do componente permanece igual
 
-2. **Tornar o nome clicável** na TableCell (linha 326):
-   - Trocar texto simples por um `button` com estilo de link (`text-primary underline cursor-pointer`)
-   - Ao clicar, setar `viewingCliente` com o cliente correspondente
+**3. Atualizar `src/components/Layout.tsx`**
+- Remover o array `allSearchableItems` hardcoded (linhas 137-183)
+- Importar `getMenuGroups` de `@/lib/menuData`
+- Gerar os itens buscáveis dinamicamente a partir dos grupos filtrados:
+  ```
+  const searchableItems = filteredGroups.flatMap(g =>
+    g.items.map(i => ({ path: i.path, label: i.label, description: i.searchDescription || '', category: g.label }))
+  )
+  ```
+- O `CommandDialog` usa esse array derivado em vez do hardcoded
 
-3. **Novo Dialog de visualização** com o conteúdo completo:
-   - Nome, CPF, Status (badge colorido)
-   - Tipo de Ação
-   - Data de cadastro
-   - Descrição do caso (se houver)
-   - **Parecer de Viabilidade** renderizado com formatação (negrito para títulos com `**`)
-   - Observações
-   - Botões: "Salvar no Teams" e "Fechar"
-   - Se não houver parecer, exibir mensagem "Nenhuma análise realizada ainda"
+### Itens que serão adicionados automaticamente (faltam hoje)
+Corretor de Português, Gerador de QR Code, TV Mode, Marketing Hub, Contratos, Parceiros, Distribuição de Tarefas, Controle de Prazos, Movimentações Advbox, Publicações DJE, Portais de Tribunais, Dashboard Financeiro, Asaas, Gestão de Cobranças, Financeiro Admin, Dashboard RH, Pesquisa de Humor, Gestão de Folgas, Viabilidade, Novo Cliente Viabilidade, Notificações, Mensagens Encaminhadas, Cadastros Úteis, Criar Pasta de Cliente
 
-4. **Renderização do parecer** com formatação markdown básica:
-   - Converter linhas que começam com `**` em títulos em negrito
-   - Converter `- ` em itens de lista
-   - Preservar quebras de linha
+### Resultado
+- Fonte única de verdade para menu e busca
+- Qualquer item adicionado ao sidebar aparece automaticamente na busca
+- Zero manutenção futura na lista de busca
 
