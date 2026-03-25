@@ -251,7 +251,7 @@ const TVMode = () => {
       {/* Body */}
       <div className="flex-1 flex flex-col gap-5 p-6 overflow-hidden">
         {/* KPI Cards */}
-        <div className="grid grid-cols-4 gap-5">
+        <div className="grid grid-cols-6 gap-4">
           {kpis.map(kpi => (
             <div key={kpi.label} className="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex items-center gap-4">
               <div className={`p-3.5 rounded-xl ${kpi.bg}`}>
