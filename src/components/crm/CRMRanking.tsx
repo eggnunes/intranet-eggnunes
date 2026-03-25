@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Phone, CalendarCheck, Trophy, Percent, FileCheck } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Loader2, Phone, CalendarCheck, Trophy, Percent, FileCheck, ChevronDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
@@ -20,6 +21,14 @@ interface SellerStats {
   closings: number;
   totalDeals: number;
   conversion: number;
+}
+
+interface DealDetail {
+  id: string;
+  name: string;
+  value: number | null;
+  closedAt: string | null;
+  contactName: string | null;
 }
 
 const CRITERIA_CONFIG: Record<Criteria, { label: string; icon: typeof Phone; suffix: string }> = {
@@ -70,19 +79,22 @@ const PERIOD_OPTIONS = [
 
 export const CRMRanking = () => {
   const [sellers, setSellers] = useState<SellerStats[]>([]);
+  const [dealsByOwner, setDealsByOwner] = useState<Map<string, DealDetail[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [criteria, setCriteria] = useState<Criteria>('closings');
   const [selectedOffset, setSelectedOffset] = useState(0);
+  const [expandedSellerId, setExpandedSellerId] = useState<string | null>(null);
 
   const period = useMemo(() => getBusinessCyclePeriodWithOffset(selectedOffset), [selectedOffset]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setExpandedSellerId(null);
     try {
-      const [dealsRes, activitiesRes, profilesRes] = await Promise.all([
+      const [dealsRes, activitiesRes, profilesRes, contactsRes] = await Promise.all([
         supabase
           .from('crm_deals')
-          .select('owner_id, won, closed_at')
+          .select('id, name, value, owner_id, won, closed_at, contact_id, product_name')
           .gte('closed_at', period.start)
           .lte('closed_at', period.end),
         supabase
@@ -91,6 +103,7 @@ export const CRMRanking = () => {
           .gte('created_at', period.start)
           .lte('created_at', period.end + 'T23:59:59'),
         supabase.from('profiles').select('id, full_name'),
+        supabase.from('crm_contacts').select('id, name'),
       ]);
 
       const deals = dealsRes.data || [];
@@ -98,8 +111,10 @@ export const CRMRanking = () => {
       const profiles = (profilesRes.data || []).filter(
         p => !EXCLUDED_NAMES.some(ex => (p.full_name || '').toLowerCase().includes(ex))
       );
+      const contacts = contactsRes.data || [];
 
       const profileMap = new Map(profiles.map(p => [p.id, p.full_name || 'Sem nome']));
+      const contactMap = new Map(contacts.map(c => [c.id, c.name]));
       const allowedIds = new Set(profiles.map(p => p.id));
 
       const ownerIds = new Set<string>();
@@ -107,12 +122,15 @@ export const CRMRanking = () => {
       activities.forEach(a => a.owner_id && allowedIds.has(a.owner_id) && ownerIds.add(a.owner_id));
 
       const statsMap = new Map<string, SellerStats>();
+      const dealsMap = new Map<string, DealDetail[]>();
+
       ownerIds.forEach(id => {
         statsMap.set(id, {
           ownerId: id,
           name: profileMap.get(id) || id.substring(0, 8),
           calls: 0, meetings: 0, closings: 0, totalDeals: 0, conversion: 0,
         });
+        dealsMap.set(id, []);
       });
 
       deals.forEach(d => {
@@ -120,7 +138,19 @@ export const CRMRanking = () => {
         const s = statsMap.get(d.owner_id);
         if (!s) return;
         s.totalDeals++;
-        if (d.won === true) s.closings++;
+        if (d.won === true) {
+          s.closings++;
+          const arr = dealsMap.get(d.owner_id);
+          if (arr) {
+            arr.push({
+              id: d.id,
+              name: d.product_name || d.name,
+              value: d.value,
+              closedAt: d.closed_at,
+              contactName: d.contact_id ? (contactMap.get(d.contact_id) || null) : null,
+            });
+          }
+        }
       });
 
       activities.forEach(a => {
@@ -136,6 +166,7 @@ export const CRMRanking = () => {
       });
 
       setSellers(Array.from(statsMap.values()));
+      setDealsByOwner(dealsMap);
     } catch (err) {
       console.error('Error fetching ranking data:', err);
     } finally {
@@ -154,6 +185,11 @@ export const CRMRanking = () => {
   const totalClosings = useMemo(() => sellers.reduce((acc, s) => acc + s.closings, 0), [sellers]);
 
   const periodLabel = `${format(period.startDate, 'dd/MM/yyyy', { locale: ptBR })} a ${format(period.endDate, 'dd/MM/yyyy', { locale: ptBR })}`;
+
+  const formatCurrency = (value: number | null) => {
+    if (value == null) return '—';
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  };
 
   if (loading) {
     return (
@@ -216,24 +252,59 @@ export const CRMRanking = () => {
                   const isTop3 = idx < 3;
                   const value = seller[criteria];
                   const suffix = CRITERIA_CONFIG[criteria].suffix;
+                  const sellerDeals = dealsByOwner.get(seller.ownerId) || [];
+                  const isExpanded = expandedSellerId === seller.ownerId;
+
                   return (
                     <motion.div key={seller.ownerId} layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3, delay: idx * 0.05 }}>
-                      <div className={`flex items-center gap-4 p-4 rounded-lg border-2 transition-colors ${isTop3 ? `${MEDAL_BORDERS[idx]} shadow-md bg-card` : 'border-border bg-card'}`}>
-                        <div className="flex-shrink-0 w-10 text-center">
-                          {isTop3 ? <span className="text-2xl">{MEDALS[idx]}</span> : <span className="text-lg font-bold text-muted-foreground">{idx + 1}º</span>}
-                        </div>
-                        <Avatar className={isTop3 ? 'h-12 w-12' : 'h-10 w-10'}>
-                          <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                            {seller.name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className={`font-semibold truncate ${isTop3 ? 'text-lg' : ''}`}>{seller.name}</p>
-                        </div>
-                        <div className="flex-shrink-0 text-right">
-                          <span className={`font-bold ${isTop3 ? 'text-2xl text-primary' : 'text-xl text-muted-foreground'}`}>{value}{suffix}</span>
-                        </div>
-                      </div>
+                      <Collapsible open={isExpanded} onOpenChange={() => setExpandedSellerId(isExpanded ? null : seller.ownerId)}>
+                        <CollapsibleTrigger asChild>
+                          <div className={`flex items-center gap-4 p-4 rounded-lg border-2 transition-colors cursor-pointer hover:bg-muted/30 ${isTop3 ? `${MEDAL_BORDERS[idx]} shadow-md bg-card` : 'border-border bg-card'}`}>
+                            <div className="flex-shrink-0 w-10 text-center">
+                              {isTop3 ? <span className="text-2xl">{MEDALS[idx]}</span> : <span className="text-lg font-bold text-muted-foreground">{idx + 1}º</span>}
+                            </div>
+                            <Avatar className={isTop3 ? 'h-12 w-12' : 'h-10 w-10'}>
+                              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                                {seller.name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className={`font-semibold truncate ${isTop3 ? 'text-lg' : ''}`}>{seller.name}</p>
+                              {sellerDeals.length > 0 && (
+                                <p className="text-xs text-muted-foreground">{sellerDeals.length} contrato{sellerDeals.length !== 1 ? 's' : ''} — clique para detalhes</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                              <span className={`font-bold ${isTop3 ? 'text-2xl text-primary' : 'text-xl text-muted-foreground'}`}>{value}{suffix}</span>
+                              {sellerDeals.length > 0 && (
+                                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                              )}
+                            </div>
+                          </div>
+                        </CollapsibleTrigger>
+                        {sellerDeals.length > 0 && (
+                          <CollapsibleContent>
+                            <div className="mt-1 ml-14 mr-2 mb-2 rounded-lg border bg-muted/20 overflow-hidden">
+                              <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-x-4 px-4 py-2 text-xs font-medium text-muted-foreground border-b">
+                                <span>Cliente</span>
+                                <span>Produto</span>
+                                <span className="text-right">Valor</span>
+                                <span className="text-right">Fechamento</span>
+                              </div>
+                              {sellerDeals.map(deal => (
+                                <div key={deal.id} className="grid grid-cols-[1fr_1fr_auto_auto] gap-x-4 px-4 py-2.5 text-sm border-b last:border-b-0 hover:bg-muted/30">
+                                  <span className="truncate font-medium">{deal.contactName || 'Sem contato'}</span>
+                                  <span className="truncate text-muted-foreground">{deal.name}</span>
+                                  <span className="text-right whitespace-nowrap font-medium">{formatCurrency(deal.value)}</span>
+                                  <span className="text-right whitespace-nowrap text-muted-foreground">
+                                    {deal.closedAt ? format(new Date(deal.closedAt), 'dd/MM/yyyy', { locale: ptBR }) : '—'}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </CollapsibleContent>
+                        )}
+                      </Collapsible>
                     </motion.div>
                   );
                 })}
