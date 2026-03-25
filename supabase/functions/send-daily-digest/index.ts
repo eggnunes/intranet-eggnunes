@@ -137,6 +137,24 @@ function buildDigestHtml(userName: string, data: UserDigestData, baseUrl: string
   
   let sections = "";
 
+  // DJE Publications FIRST (operational priority)
+  if (data.publications.length > 0) {
+    sections += `
+      <div class="section">
+        <div class="section-title">📰 Movimentações nos seus Processos (${data.publications.length})</div>
+        ${data.publications.slice(0, 8).map(p => `
+          <div class="item">
+            <div class="item-title">${escapeHtml(p.tipo_comunicacao || 'Publicação')} - ${escapeHtml(p.numero_processo || '')}</div>
+            <div class="item-meta">${p.tribunal ? `Tribunal: ${escapeHtml(p.tribunal)}` : ''} · ${p.data_publicacao ? formatDate(p.data_publicacao) : ''}</div>
+            ${p.conteudo ? `<div class="item-meta" style="margin-top:4px;">${escapeHtml((p.conteudo || '').substring(0, 150))}${(p.conteudo || '').length > 150 ? '...' : ''}</div>` : ''}
+          </div>
+        `).join("")}
+        ${data.publications.length > 8 ? `<p class="item-meta">...e mais ${data.publications.length - 8} publicações</p>` : ""}
+        <a href="${baseUrl}/publicacoes-dje" class="button" style="margin-top:10px;">Ver Publicações</a>
+      </div>
+    `;
+  }
+
   // Overdue tasks
   if (data.overdueTasks.length > 0) {
     sections += `
@@ -180,24 +198,6 @@ function buildDigestHtml(userName: string, data: UserDigestData, baseUrl: string
           </div>
         `).join("")}
         ${data.tasks.length > 8 ? `<p class="item-meta">...e mais ${data.tasks.length - 8} tarefas</p>` : ""}
-      </div>
-    `;
-  }
-
-  // DJE Publications (operational)
-  if (data.publications.length > 0) {
-    sections += `
-      <div class="section">
-        <div class="section-title">📰 Publicações DJE Recentes (${data.publications.length})</div>
-        ${data.publications.slice(0, 8).map(p => `
-          <div class="item">
-            <div class="item-title">${escapeHtml(p.tipo_comunicacao || 'Publicação')} - ${escapeHtml(p.numero_processo || '')}</div>
-            <div class="item-meta">${p.tribunal ? `Tribunal: ${escapeHtml(p.tribunal)}` : ''} · ${p.data_publicacao ? formatDate(p.data_publicacao) : ''}</div>
-            ${p.conteudo ? `<div class="item-meta" style="margin-top:4px;">${escapeHtml((p.conteudo || '').substring(0, 150))}${(p.conteudo || '').length > 150 ? '...' : ''}</div>` : ''}
-          </div>
-        `).join("")}
-        ${data.publications.length > 8 ? `<p class="item-meta">...e mais ${data.publications.length - 8} publicações</p>` : ""}
-        <a href="${baseUrl}/publicacoes-dje" class="button" style="margin-top:10px;">Ver Publicações</a>
       </div>
     `;
   }
@@ -297,7 +297,7 @@ function buildDigestHtml(userName: string, data: UserDigestData, baseUrl: string
 }
 
 const COMMERCIAL_POSITIONS = ["comercial", "setor_comercial", "marketing"];
-const OPERATIONAL_POSITIONS = ["advogado", "estagiario", "paralegal", "operacional", "socio", "junior", "pleno", "senior"];
+const OPERATIONAL_POSITIONS = ["advogado", "estagiario", "paralegal", "operacional", "junior", "pleno", "senior"];
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -437,7 +437,7 @@ const handler = async (req: Request): Promise<Response> => {
           continue;
         }
 
-        const isCommercial = COMMERCIAL_POSITIONS.some(p => position.includes(p));
+        const isCommercial = COMMERCIAL_POSITIONS.some(p => position.includes(p)) || position === 'socio';
         const isOperational = OPERATIONAL_POSITIONS.some(p => position.includes(p));
         const taskCandidates = buildTaskSearchCandidates(userName);
 
@@ -474,21 +474,24 @@ const handler = async (req: Request): Promise<Response> => {
           return convParticipants.includes(profile.id) && m.sender_id !== profile.id;
         }).map(m => ({ ...m, sender_name: senderMap.get(m.sender_id) })) || [];
 
-        // --- PUBLICATIONS (operational only) ---
-        const normalizedUserName = normalizeText(userName);
-        const userNameTokens = normalizedUserName.split(" ").filter(Boolean);
-        const userPublications = isOperational
-          ? (recentPublications || []).filter(p =>
-              p.nome_advogado && (() => {
-                const normalizedLawyerName = normalizeText(p.nome_advogado);
-                return normalizedLawyerName && (
-                  normalizedUserName.includes(normalizedLawyerName) ||
-                  normalizedLawyerName.includes(normalizedUserName) ||
-                  userNameTokens.slice(0, 2).every(token => normalizedLawyerName.includes(token))
-                );
-              })()
-            )
-          : [];
+        // --- PUBLICATIONS (operational only — matched by process numbers the user is responsible for) ---
+        let userPublications: any[] = [];
+        if (isOperational) {
+          // Get distinct process numbers from this user's tasks
+          const userProcessNumbers = [...new Set(
+            tasks
+              .filter(t => t.process_number && t.process_number.trim())
+              .map(t => t.process_number.trim())
+          )];
+
+          if (userProcessNumbers.length > 0) {
+            userPublications = (recentPublications || []).filter(p =>
+              p.numero_processo && userProcessNumbers.some(pn =>
+                p.numero_processo.replace(/[.\-/]/g, '').includes(pn.replace(/[.\-/]/g, ''))
+              )
+            );
+          }
+        }
 
         // --- LEADS (commercial only) ---
         const leadsData = isCommercial ? {

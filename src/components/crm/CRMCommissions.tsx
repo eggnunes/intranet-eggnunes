@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Wallet, Users, TrendingUp, Settings, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,22 +29,22 @@ interface SellerCommission {
 
 const EXCLUDED_NAMES = ['rafael egg'];
 
-function getBusinessCyclePeriod() {
+function getBusinessCyclePeriodWithOffset(offset: number) {
   const now = new Date();
   const day = now.getDate();
   const year = now.getFullYear();
   const month = now.getMonth();
 
-  let startDate: Date;
-  let endDate: Date;
-
+  let baseMonth: number;
   if (day >= 25) {
-    startDate = new Date(year, month, 25);
-    endDate = new Date(year, month + 1, 24, 23, 59, 59);
+    baseMonth = month;
   } else {
-    startDate = new Date(year, month - 1, 25);
-    endDate = new Date(year, month, 24, 23, 59, 59);
+    baseMonth = month - 1;
   }
+
+  const adjustedMonth = baseMonth + offset;
+  const startDate = new Date(year, adjustedMonth, 25);
+  const endDate = new Date(year, adjustedMonth + 1, 24, 23, 59, 59);
 
   return { start: startDate.toISOString().split('T')[0], end: endDate.toISOString().split('T')[0], startDate, endDate };
 }
@@ -64,6 +64,15 @@ function getNextRule(rules: CommissionRule[], totalContracts: number): Commissio
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
+const PERIOD_OPTIONS = [
+  { value: '0', label: 'Período Atual' },
+  { value: '-1', label: 'Período Anterior' },
+  { value: '-2', label: '2 períodos atrás' },
+  { value: '-3', label: '3 períodos atrás' },
+  { value: '-4', label: '4 períodos atrás' },
+  { value: '-5', label: '5 períodos atrás' },
+];
+
 export const CRMCommissions = () => {
   const { isAdmin } = useUserRole();
   const [loading, setLoading] = useState(true);
@@ -72,14 +81,12 @@ export const CRMCommissions = () => {
   const [editRules, setEditRules] = useState<CommissionRule[]>([]);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectedOffset, setSelectedOffset] = useState(0);
 
-  const period = useMemo(() => getBusinessCyclePeriod(), []);
+  const period = useMemo(() => getBusinessCyclePeriodWithOffset(selectedOffset), [selectedOffset]);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
       const [rulesRes, dealsRes, profilesRes] = await Promise.all([
         supabase.from('crm_commission_rules').select('*').order('min_contracts'),
@@ -120,7 +127,11 @@ export const CRMCommissions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [period]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const totalContracts = sellers.reduce((s, v) => s + v.contracts, 0);
   const activeRule = getActiveRule(rules, totalContracts);
@@ -167,6 +178,21 @@ export const CRMCommissions = () => {
 
   return (
     <div className="space-y-6">
+      {/* Period selector */}
+      <div className="flex items-center gap-3">
+        <Select value={String(selectedOffset)} onValueChange={(v) => setSelectedOffset(Number(v))}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PERIOD_OPTIONS.map(opt => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="text-sm text-muted-foreground">Período: {periodLabel}</span>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
@@ -215,9 +241,6 @@ export const CRMCommissions = () => {
           </CardContent>
         </Card>
       </div>
-
-      {/* Period info */}
-      <p className="text-sm text-muted-foreground">Período: {periodLabel}</p>
 
       {/* Seller table */}
       <Card>
