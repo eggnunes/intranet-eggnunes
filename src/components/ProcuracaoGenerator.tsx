@@ -126,6 +126,71 @@ export const ProcuracaoGenerator = ({
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
 
+  // Refs para auto-save no unmount (evitar stale closures)
+  const localQualificationRef = useRef(localQualification);
+  const temPoderesEspeciaisRef = useRef(temPoderesEspeciais);
+  const poderesEspeciaisRef = useRef(poderesEspeciais);
+  const clientRef = useRef(client);
+  const userRef = useRef(user);
+
+  useEffect(() => { localQualificationRef.current = localQualification; }, [localQualification]);
+  useEffect(() => { temPoderesEspeciaisRef.current = temPoderesEspeciais; }, [temPoderesEspeciais]);
+  useEffect(() => { poderesEspeciaisRef.current = poderesEspeciais; }, [poderesEspeciais]);
+  useEffect(() => { clientRef.current = client; }, [client]);
+  useEffect(() => { userRef.current = user; }, [user]);
+
+  // Função silenciosa de auto-save (sem toast)
+  const autoSaveProcuracaoSilently = useCallback(async () => {
+    const c = clientRef.current;
+    const u = userRef.current;
+    if (!c || !u) return;
+
+    const hasData = localQualificationRef.current.trim() || poderesEspeciaisRef.current.trim();
+    if (!hasData) return;
+
+    try {
+      const draftData = {
+        user_id: u.id,
+        client_id: c.id,
+        client_name: c.nomeCompleto,
+        qualification: localQualificationRef.current,
+        tem_poderes_especiais: temPoderesEspeciaisRef.current,
+        poderes_especiais: poderesEspeciaisRef.current,
+      };
+
+      const { data: existing } = await supabase
+        .from('procuracao_drafts' as any)
+        .select('id')
+        .eq('user_id', u.id)
+        .eq('client_id', c.id)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase.from('procuracao_drafts' as any).update(draftData).eq('id', (existing as any).id);
+      } else {
+        await supabase.from('procuracao_drafts' as any).insert(draftData);
+      }
+      console.log('Auto-save periódico da procuração executado');
+    } catch (error) {
+      console.error('Erro no auto-save periódico da procuração:', error);
+    }
+  }, []);
+
+  // Auto-save periódico (30s) + save no unmount
+  useEffect(() => {
+    if (!open) return;
+
+    const interval = setInterval(() => {
+      autoSaveProcuracaoSilently();
+    }, 30000);
+
+    return () => {
+      clearInterval(interval);
+      // Fire-and-forget save on unmount/navigation
+      autoSaveProcuracaoSilently();
+    };
+  }, [open, autoSaveProcuracaoSilently]);
+
   // Sincronizar qualificação local com prop
   useEffect(() => {
     setLocalQualification(qualification);

@@ -261,6 +261,94 @@ export const ContractGenerator = ({
  
   const { isAdmin } = useUserRole();
 
+  // Refs para auto-save no unmount (evitar stale closures)
+  const contraPartidaRef = useRef(contraPartida);
+  const objetoContratoRef = useRef(objetoContrato);
+  const clausulaPrimeiraGeradaRef = useRef(clausulaPrimeiraGerada);
+  const initialFeeOptionsRef = useRef(initialFeeOptions);
+  const temHonorariosExitoRef = useRef(temHonorariosExito);
+  const exitoOptionsRef = useRef(exitoOptions);
+  const contractPreviewTextRef = useRef(contractPreviewText);
+  const rascunhoExistenteRef = useRef(rascunhoExistente);
+  const clientRef = useRef(client);
+  const userRef = useRef(user);
+
+  useEffect(() => { contraPartidaRef.current = contraPartida; }, [contraPartida]);
+  useEffect(() => { objetoContratoRef.current = objetoContrato; }, [objetoContrato]);
+  useEffect(() => { clausulaPrimeiraGeradaRef.current = clausulaPrimeiraGerada; }, [clausulaPrimeiraGerada]);
+  useEffect(() => { initialFeeOptionsRef.current = initialFeeOptions; }, [initialFeeOptions]);
+  useEffect(() => { temHonorariosExitoRef.current = temHonorariosExito; }, [temHonorariosExito]);
+  useEffect(() => { exitoOptionsRef.current = exitoOptions; }, [exitoOptions]);
+  useEffect(() => { contractPreviewTextRef.current = contractPreviewText; }, [contractPreviewText]);
+  useEffect(() => { rascunhoExistenteRef.current = rascunhoExistente; }, [rascunhoExistente]);
+  useEffect(() => { clientRef.current = client; }, [client]);
+  useEffect(() => { userRef.current = user; }, [user]);
+
+  // Função silenciosa de auto-save (sem toast)
+  const autoSaveSilently = useCallback(async () => {
+    const c = clientRef.current;
+    const u = userRef.current;
+    if (!c || !u) return;
+
+    const hasData = contraPartidaRef.current.trim() || objetoContratoRef.current.trim() || 
+      clausulaPrimeiraGeradaRef.current.trim() || 
+      initialFeeOptionsRef.current.some(o => o.valorTotal.trim()) || 
+      exitoOptionsRef.current.some(o => o.descricao.trim());
+    if (!hasData) return;
+
+    try {
+      const firstOption = initialFeeOptionsRef.current[0];
+      const draftData = {
+        user_id: u.id,
+        client_id: c.id,
+        client_name: c.nomeCompleto,
+        product_name: productName,
+        qualification: qualification,
+        contra_partida: contraPartidaRef.current,
+        objeto_contrato: objetoContratoRef.current,
+        clausula_primeira_gerada: clausulaPrimeiraGeradaRef.current,
+        tipo_honorarios: firstOption?.tipoHonorarios || "avista",
+        valor_total: firstOption?.valorTotal || "",
+        numero_parcelas: firstOption?.numeroParcelas || "",
+        valor_parcela: firstOption?.valorParcela || "",
+        tem_entrada: firstOption?.temEntrada || false,
+        valor_entrada: firstOption?.valorEntrada || "",
+        forma_pagamento: firstOption?.formasPagamento.join(',') || "pix",
+        data_vencimento: firstOption?.dataVencimento || "",
+        tem_honorarios_exito: temHonorariosExitoRef.current,
+        descricao_honorarios_exito: exitoOptionsRef.current.map(o => o.descricao).join(' | '),
+        clausula_exito_gerada: exitoOptionsRef.current.map(o => o.clausulaGerada).join('\n\n'),
+        contract_preview_text: contractPreviewTextRef.current,
+      };
+
+      const existingId = rascunhoExistenteRef.current;
+      if (existingId) {
+        await supabase.from('contract_drafts').update(draftData).eq('id', existingId);
+      } else {
+        const { data } = await supabase.from('contract_drafts').insert(draftData).select('id').single();
+        if (data) rascunhoExistenteRef.current = data.id;
+      }
+      console.log('Auto-save periódico do contrato executado');
+    } catch (error) {
+      console.error('Erro no auto-save periódico do contrato:', error);
+    }
+  }, [productName, qualification]);
+
+  // Auto-save periódico (30s) + save no unmount
+  useEffect(() => {
+    if (!open) return;
+
+    const interval = setInterval(() => {
+      autoSaveSilently();
+    }, 30000);
+
+    return () => {
+      clearInterval(interval);
+      // Fire-and-forget save on unmount/navigation
+      autoSaveSilently();
+    };
+  }, [open, autoSaveSilently]);
+
   // Carregar todos os templates
   useEffect(() => {
     const loadAllTemplates = async () => {
