@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 type Criteria = 'calls' | 'meetings' | 'closings' | 'conversion';
 
@@ -58,7 +58,7 @@ const CHART_COLORS = [
   'hsl(160, 60%, 45%)',
 ];
 
-const PIE_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
+
 
 const EXCLUDED_NAMES = ['rafael egg'];
 
@@ -214,17 +214,6 @@ export const CRMRanking = () => {
       }));
   }, [sellers]);
 
-  // Chart data: closings by product/action type
-  const productChartData = useMemo(() => {
-    const productCounts = new Map<string, number>();
-    allWonDeals.forEach(d => {
-      const product = d.productName || 'Sem produto';
-      productCounts.set(product, (productCounts.get(product) || 0) + 1);
-    });
-    return Array.from(productCounts.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  }, [allWonDeals]);
 
   const periodLabel = `${format(period.startDate, 'dd/MM/yyyy', { locale: ptBR })} a ${format(period.endDate, 'dd/MM/yyyy', { locale: ptBR })}`;
 
@@ -356,79 +345,39 @@ export const CRMRanking = () => {
         </CardContent>
       </Card>
 
-      {/* Charts */}
+      {/* Chart - closings per seller */}
       {totalClosings > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Bar chart - closings per seller */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-primary" />
-                Fechamentos por Vendedor
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={sellerChartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="name" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                  <YAxis allowDecimals={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
-                    labelStyle={{ color: 'hsl(var(--foreground))' }}
-                    formatter={(value: number) => [`${value} contrato${value !== 1 ? 's' : ''}`, 'Fechamentos']}
-                    labelFormatter={(label: string) => {
-                      const item = sellerChartData.find(s => s.name === label);
-                      return item?.fullName || label;
-                    }}
-                  />
-                  <Bar dataKey="contratos" radius={[4, 4, 0, 0]}>
-                    {sellerChartData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Pie chart - closings by product type */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-yellow-500" />
-                Fechamentos por Tipo de Ação
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={productChartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={3}
-                    dataKey="value"
-                    nameKey="name"
-                    label={({ name, value }) => `${name} (${value})`}
-                    labelLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                  >
-                    {productChartData.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
-                    formatter={(value: number) => [`${value} contrato${value !== 1 ? 's' : ''}`, 'Quantidade']}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              Fechamentos por Vendedor
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={sellerChartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <XAxis dataKey="name" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis allowDecimals={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
+                  labelStyle={{ color: 'hsl(var(--foreground))' }}
+                  formatter={(value: number) => [`${value} contrato${value !== 1 ? 's' : ''}`, 'Fechamentos']}
+                  labelFormatter={(label: string) => {
+                    const item = sellerChartData.find(s => s.name === label);
+                    return item?.fullName || label;
+                  }}
+                />
+                <Bar dataKey="contratos" radius={[4, 4, 0, 0]}>
+                  {sellerChartData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
