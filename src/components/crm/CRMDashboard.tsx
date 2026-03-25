@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, Calendar, Settings, LayoutDashboard, BarChart3, Bell, Star, MessageSquare, Clock, CheckCircle2, Zap, ClipboardList, Megaphone, Trophy, FileSignature } from 'lucide-react';
+import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, Calendar, Settings, LayoutDashboard, BarChart3, Bell, Star, Clock, CheckCircle2, Zap, ClipboardList, Trophy, FileSignature } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CRMContactsList } from './CRMContactsList';
@@ -15,11 +15,11 @@ import { CRMAnalytics } from './CRMAnalytics';
 import { CRMNotifications } from './CRMNotifications';
 import { CRMLeadScoring } from './CRMLeadScoring';
 import { CRMFollowUp } from './CRMFollowUp';
-import { CRMWhatsAppLogs } from './CRMWhatsAppLogs';
+
 import { CRMTasks } from './CRMTasks';
 import { MarketingAutomation } from './MarketingAutomation';
 import { CRMDailyLog } from './CRMDailyLog';
-import { CRMCampaigns } from './CRMCampaigns';
+
 import { CRMRanking } from './CRMRanking';
 import { CRMZapSignContracts } from './CRMZapSignContracts';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -316,17 +316,9 @@ export const CRMDashboard = () => {
             <Star className="h-3.5 w-3.5" />
             Scoring
           </TabsTrigger>
-          <TabsTrigger value="whatsapp" className="flex items-center gap-1">
-            <MessageSquare className="h-3.5 w-3.5" />
-            WhatsApp
-          </TabsTrigger>
           <TabsTrigger value="dailylog" className="flex items-center gap-1">
             <ClipboardList className="h-3.5 w-3.5" />
             Diário
-          </TabsTrigger>
-          <TabsTrigger value="campaigns" className="flex items-center gap-1">
-            <Megaphone className="h-3.5 w-3.5" />
-            Campanhas
           </TabsTrigger>
           <TabsTrigger value="ranking" className="flex items-center gap-1">
             <Trophy className="h-3.5 w-3.5" />
@@ -493,16 +485,8 @@ export const CRMDashboard = () => {
           <CRMLeadScoring />
         </TabsContent>
         
-        <TabsContent value="whatsapp" className="mt-6">
-          <CRMWhatsAppLogs />
-        </TabsContent>
-
         <TabsContent value="dailylog" className="mt-6">
           <CRMDailyLog />
-        </TabsContent>
-
-        <TabsContent value="campaigns" className="mt-6">
-          <CRMCampaigns />
         </TabsContent>
 
         <TabsContent value="ranking" className="mt-6">
