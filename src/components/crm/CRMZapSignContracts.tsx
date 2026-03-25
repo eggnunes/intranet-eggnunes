@@ -221,8 +221,7 @@ export const CRMZapSignContracts = () => {
         .from('whatsapp_templates')
         .select('content')
         .eq('shortcut', '/lembrete-assinatura')
-        .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
       if (!template) {
         toast.error('Template de lembrete não encontrado');
