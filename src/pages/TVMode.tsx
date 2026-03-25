@@ -173,19 +173,33 @@ const TVMode = () => {
   useEffect(() => {
     const t = setInterval(async () => {
       setRefreshing(true);
-      await Promise.all([r1(), r2(), r3(), r4(), r5()]);
+    await Promise.all([r1(), r1b(), r2(), r3(), r4(), r5()]);
       setTimeout(() => setRefreshing(false), 800);
     }, 30000);
     return () => clearInterval(t);
-  }, [r1, r2, r3, r4, r5]);
+  }, [r1, r1b, r2, r3, r4, r5]);
 
   const kpis = [
     {
-      label: 'Leads no Período',
-      value: leadsCount.toLocaleString('pt-BR'),
-      icon: Users,
-      color: 'text-blue-400',
-      bg: 'bg-blue-500/10',
+      label: 'Qualificados',
+      value: qualification.qualificados.toLocaleString('pt-BR'),
+      icon: UserCheck,
+      color: 'text-emerald-400',
+      bg: 'bg-emerald-500/10',
+    },
+    {
+      label: 'Indefinidos',
+      value: qualification.indefinidos.toLocaleString('pt-BR'),
+      icon: UserMinus,
+      color: 'text-amber-400',
+      bg: 'bg-amber-500/10',
+    },
+    {
+      label: 'Desqualificados',
+      value: qualification.desqualificados.toLocaleString('pt-BR'),
+      icon: UserX,
+      color: 'text-red-400',
+      bg: 'bg-red-500/10',
     },
     {
       label: 'Contratos Fechados',
