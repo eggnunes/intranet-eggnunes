@@ -292,13 +292,24 @@ export default function Viabilidade() {
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="Filtrar status" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="todos">Todos os Status</SelectItem>
               <SelectItem value="pendente">Pendente</SelectItem>
               <SelectItem value="em_analise">Em Análise</SelectItem>
               <SelectItem value="viavel">Viável</SelectItem>
               <SelectItem value="inviavel">Inviável</SelectItem>
             </SelectContent>
           </Select>
+          {produtoOptions.length > 0 && (
+            <Select value={filterProduto} onValueChange={setFilterProduto}>
+              <SelectTrigger className="w-[200px]"><SelectValue placeholder="Filtrar produto" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os Produtos</SelectItem>
+                {produtoOptions.map(p => (
+                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         {/* Table */}
@@ -317,6 +328,7 @@ export default function Viabilidade() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nome</TableHead>
+                      <TableHead>Título/Produto</TableHead>
                       <TableHead>CPF</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Data Criação</TableHead>
