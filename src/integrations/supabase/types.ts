@@ -6201,6 +6201,42 @@ export type Database = {
         }
         Relationships: []
       }
+      procuracao_drafts: {
+        Row: {
+          client_id: number
+          client_name: string | null
+          created_at: string | null
+          id: string
+          poderes_especiais: string | null
+          qualification: string | null
+          tem_poderes_especiais: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          client_id: number
+          client_name?: string | null
+          created_at?: string | null
+          id?: string
+          poderes_especiais?: string | null
+          qualification?: string | null
+          tem_poderes_especiais?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          client_id?: number
+          client_name?: string | null
+          created_at?: string | null
+          id?: string
+          poderes_especiais?: string | null
+          qualification?: string | null
+          tem_poderes_especiais?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       product_template_associations: {
         Row: {
           contra_partida_template_id: string | null
