@@ -540,9 +540,145 @@ export default function MarketingHub() {
             <AdPerformanceReport dateRange={dateRange} />
           </TabsContent>
 
-          {/* Tab 1: Campanhas - uses Meta Ads data */}
+          {/* Tab 1: Campanhas - visão consolidada Google + Meta */}
           <TabsContent value="campanhas">
-            <MetaAdsTab metaConfig={metaConfig} dateRange={dateRange} onOpenConfig={() => setMetaConfigOpen(true)} />
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                  <Megaphone className="h-5 w-5" /> Visão Consolidada
+                  <Badge variant="outline">{consolidatedCampaigns.length} campanhas</Badge>
+                </h3>
+                <p className="text-sm text-muted-foreground">Dados combinados de Meta Ads e Google Ads</p>
+              </div>
+
+              {/* Summary cards */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <Card><CardContent className="pt-4 pb-3 text-center">
+                  <Eye className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                  <div className="text-xs text-muted-foreground">Impressões</div>
+                  <div className="text-lg font-bold text-foreground">{consolidatedTotals.impressions.toLocaleString('pt-BR')}</div>
+                </CardContent></Card>
+                <Card><CardContent className="pt-4 pb-3 text-center">
+                  <MousePointerClick className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                  <div className="text-xs text-muted-foreground">Cliques</div>
+                  <div className="text-lg font-bold text-foreground">{consolidatedTotals.clicks.toLocaleString('pt-BR')}</div>
+                </CardContent></Card>
+                <Card><CardContent className="pt-4 pb-3 text-center">
+                  <TrendingUp className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                  <div className="text-xs text-muted-foreground">CTR</div>
+                  <div className="text-lg font-bold text-foreground">{consolidatedTotals.ctr.toFixed(2)}%</div>
+                </CardContent></Card>
+                <Card><CardContent className="pt-4 pb-3 text-center">
+                  <DollarSign className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                  <div className="text-xs text-muted-foreground">CPC Médio</div>
+                  <div className="text-lg font-bold text-foreground">R$ {consolidatedTotals.cpc.toFixed(2).replace('.', ',')}</div>
+                </CardContent></Card>
+                <Card><CardContent className="pt-4 pb-3 text-center">
+                  <DollarSign className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                  <div className="text-xs text-muted-foreground">Gasto Total</div>
+                  <div className="text-lg font-bold text-foreground">R$ {consolidatedTotals.spend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                </CardContent></Card>
+                <Card><CardContent className="pt-4 pb-3 text-center">
+                  <Target className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                  <div className="text-xs text-muted-foreground">Conversões</div>
+                  <div className="text-lg font-bold text-foreground">{totalConversions}</div>
+                </CardContent></Card>
+              </div>
+
+              {/* Platform distribution */}
+              {platformDistribution.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Distribuição por Plataforma</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={200}>
+                        <PieChart>
+                          <Pie data={platformDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                            {platformDistribution.map((_: any, i: number) => (
+                              <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip formatter={(v: any) => `R$ ${parseFloat(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Gasto por Plataforma</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Facebook className="h-4 w-4 text-blue-500" />
+                          <span className="text-sm text-foreground">Meta Ads</span>
+                        </div>
+                        <span className="font-semibold text-foreground">R$ {consolidatedTotals.metaSpend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Search className="h-4 w-4 text-yellow-500" />
+                          <span className="text-sm text-foreground">Google Ads</span>
+                        </div>
+                        <span className="font-semibold text-foreground">R$ {consolidatedTotals.googleSpend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Consolidated table */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Todas as Campanhas</CardTitle>
+                  <CardDescription>Campanhas de Meta Ads e Google Ads ordenadas por gasto</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nome</TableHead>
+                          <TableHead>Plataforma</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Impressões</TableHead>
+                          <TableHead className="text-right">Cliques</TableHead>
+                          <TableHead className="text-right">CTR</TableHead>
+                          <TableHead className="text-right">CPC</TableHead>
+                          <TableHead className="text-right">Gasto</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {consolidatedCampaigns.length === 0 ? (
+                          <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhuma campanha encontrada</TableCell></TableRow>
+                        ) : consolidatedCampaigns.map((c) => (
+                          <TableRow key={`${c.platform}-${c.id}`}>
+                            <TableCell className="font-medium max-w-[200px] truncate">{c.name}</TableCell>
+                            <TableCell>
+                              <Badge className={c.platform === 'Meta' ? 'bg-blue-500/20 text-blue-600 border-0' : 'bg-yellow-500/20 text-yellow-600 border-0'}>
+                                {c.platform === 'Meta' ? <><Facebook className="h-3 w-3 mr-1" />Meta</> : <><Search className="h-3 w-3 mr-1" />Google</>}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={c.status === 'ACTIVE' || c.status === 'ENABLED' ? 'default' : 'secondary'}>
+                                {c.status === 'ACTIVE' || c.status === 'ENABLED' ? 'Ativo' : c.status === 'PAUSED' ? 'Pausado' : c.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">{c.impressions.toLocaleString('pt-BR')}</TableCell>
+                            <TableCell className="text-right">{c.clicks.toLocaleString('pt-BR')}</TableCell>
+                            <TableCell className="text-right">{c.ctr.toFixed(2)}%</TableCell>
+                            <TableCell className="text-right">R$ {c.cpc.toFixed(2).replace('.', ',')}</TableCell>
+                            <TableCell className="text-right font-medium">R$ {c.spend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           {/* Tab 2: Meta Ads - full manager */}
