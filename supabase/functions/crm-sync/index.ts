@@ -862,6 +862,43 @@ async function syncDeals(rdToken: string, supabase: any) {
       .eq('id', upd.id);
   }
 
+  // Fix deals in won stages that are missing won=true or closed_at
+  if (wonStageIds.size > 0) {
+    const wonStageIdsArr = Array.from(wonStageIds);
+    const { data: missingWonDeals } = await supabase
+      .from('crm_deals')
+      .select('id, stage_changed_at, updated_at, created_at')
+      .in('stage_id', wonStageIdsArr)
+      .eq('won', false);
+
+    if (missingWonDeals && missingWonDeals.length > 0) {
+      console.log(`Fixing ${missingWonDeals.length} deals in won stages missing won=true`);
+      for (const d of missingWonDeals) {
+        await supabase.from('crm_deals').update({
+          won: true,
+          closed_at: d.stage_changed_at || d.updated_at || d.created_at || new Date().toISOString()
+        }).eq('id', d.id);
+      }
+    }
+
+    // Also fix deals that are won=true but missing closed_at
+    const { data: missingClosedAt } = await supabase
+      .from('crm_deals')
+      .select('id, stage_changed_at, updated_at, created_at')
+      .in('stage_id', wonStageIdsArr)
+      .eq('won', true)
+      .is('closed_at', null);
+
+    if (missingClosedAt && missingClosedAt.length > 0) {
+      console.log(`Fixing ${missingClosedAt.length} won deals missing closed_at`);
+      for (const d of missingClosedAt) {
+        await supabase.from('crm_deals').update({
+          closed_at: d.stage_changed_at || d.updated_at || d.created_at || new Date().toISOString()
+        }).eq('id', d.id);
+      }
+    }
+  }
+
   // Log sync
   await supabase.from('crm_sync_log').insert({
     sync_type: 'manual',
