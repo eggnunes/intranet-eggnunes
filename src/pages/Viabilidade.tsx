@@ -349,6 +349,9 @@ export default function Viabilidade() {
                               {c.nome}
                             </button>
                           </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
+                            {c.titulo || c.tipo_acao || '—'}
+                          </TableCell>
                           <TableCell className="text-muted-foreground">{maskCpf(c.cpf)}</TableCell>
                           <TableCell>
                             <Badge className={`gap-1 ${cfg.className}`}>
