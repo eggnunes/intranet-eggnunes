@@ -1917,6 +1917,36 @@ export type Database = {
           },
         ]
       }
+      crm_commission_rules: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          max_contracts: number | null
+          min_contracts: number
+          updated_at: string | null
+          value_per_contract: number
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          max_contracts?: number | null
+          min_contracts: number
+          updated_at?: string | null
+          value_per_contract: number
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          max_contracts?: number | null
+          min_contracts?: number
+          updated_at?: string | null
+          value_per_contract?: number
+        }
+        Relationships: []
+      }
       crm_contact_tags: {
         Row: {
           contact_id: string | null

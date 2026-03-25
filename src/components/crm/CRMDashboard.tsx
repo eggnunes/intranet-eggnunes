@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, Calendar, Settings, LayoutDashboard, BarChart3, Bell, Star, Clock, CheckCircle2, Zap, ClipboardList, Trophy, FileSignature } from 'lucide-react';
+import { Loader2, RefreshCw, Users, Target, Activity, TrendingUp, Calendar, Settings, LayoutDashboard, BarChart3, Bell, Star, Clock, CheckCircle2, Zap, ClipboardList, Trophy, FileSignature, Wallet } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CRMContactsList } from './CRMContactsList';
@@ -22,6 +22,7 @@ import { CRMDailyLog } from './CRMDailyLog';
 
 import { CRMRanking } from './CRMRanking';
 import { CRMZapSignContracts } from './CRMZapSignContracts';
+import { CRMCommissions } from './CRMCommissions';
 import { useUserRole } from '@/hooks/useUserRole';
 
 interface CRMStats {
@@ -332,6 +333,10 @@ export const CRMDashboard = () => {
             <FileSignature className="h-3.5 w-3.5" />
             ZapSign
           </TabsTrigger>
+          <TabsTrigger value="commissions" className="flex items-center gap-1">
+            <Wallet className="h-3.5 w-3.5" />
+            Comissões
+          </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="settings" className="flex items-center gap-1">
               <Settings className="h-3.5 w-3.5" />
@@ -499,6 +504,10 @@ export const CRMDashboard = () => {
 
         <TabsContent value="zapsign" className="mt-6">
           <CRMZapSignContracts />
+        </TabsContent>
+
+        <TabsContent value="commissions" className="mt-6">
+          <CRMCommissions />
         </TabsContent>
         
         {isAdmin && (
