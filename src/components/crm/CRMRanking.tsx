@@ -5,11 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Loader2, Phone, CalendarCheck, Trophy, Percent, FileCheck, ChevronDown } from 'lucide-react';
+import { Loader2, Phone, CalendarCheck, Trophy, Percent, FileCheck, ChevronDown, BarChart3 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 
 type Criteria = 'calls' | 'meetings' | 'closings' | 'conversion';
 
@@ -29,6 +30,7 @@ interface DealDetail {
   value: number | null;
   closedAt: string | null;
   contactName: string | null;
+  productName: string | null;
 }
 
 const CRITERIA_CONFIG: Record<Criteria, { label: string; icon: typeof Phone; suffix: string }> = {
@@ -44,6 +46,19 @@ const MEDAL_BORDERS = [
   'border-gray-400 shadow-gray-400/20',
   'border-amber-600 shadow-amber-600/20',
 ];
+
+const CHART_COLORS = [
+  'hsl(var(--primary))',
+  'hsl(142, 71%, 45%)',
+  'hsl(38, 92%, 50%)',
+  'hsl(262, 83%, 58%)',
+  'hsl(0, 84%, 60%)',
+  'hsl(199, 89%, 48%)',
+  'hsl(330, 81%, 60%)',
+  'hsl(160, 60%, 45%)',
+];
+
+const PIE_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 
 const EXCLUDED_NAMES = ['rafael egg'];
 
@@ -80,6 +95,7 @@ const PERIOD_OPTIONS = [
 export const CRMRanking = () => {
   const [sellers, setSellers] = useState<SellerStats[]>([]);
   const [dealsByOwner, setDealsByOwner] = useState<Map<string, DealDetail[]>>(new Map());
+  const [allWonDeals, setAllWonDeals] = useState<(DealDetail & { ownerName: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [criteria, setCriteria] = useState<Criteria>('closings');
   const [selectedOffset, setSelectedOffset] = useState(0);
@@ -123,6 +139,7 @@ export const CRMRanking = () => {
 
       const statsMap = new Map<string, SellerStats>();
       const dealsMap = new Map<string, DealDetail[]>();
+      const wonDealsAll: (DealDetail & { ownerName: string })[] = [];
 
       ownerIds.forEach(id => {
         statsMap.set(id, {
@@ -140,16 +157,16 @@ export const CRMRanking = () => {
         s.totalDeals++;
         if (d.won === true) {
           s.closings++;
-          const arr = dealsMap.get(d.owner_id);
-          if (arr) {
-            arr.push({
-              id: d.id,
-              name: d.product_name || d.name,
-              value: d.value,
-              closedAt: d.closed_at,
-              contactName: d.contact_id ? (contactMap.get(d.contact_id) || null) : null,
-            });
-          }
+          const detail: DealDetail = {
+            id: d.id,
+            name: d.name,
+            value: d.value,
+            closedAt: d.closed_at,
+            contactName: d.contact_id ? (contactMap.get(d.contact_id) || null) : null,
+            productName: d.product_name || d.name,
+          };
+          dealsMap.get(d.owner_id)?.push(detail);
+          wonDealsAll.push({ ...detail, ownerName: s.name });
         }
       });
 
@@ -167,6 +184,7 @@ export const CRMRanking = () => {
 
       setSellers(Array.from(statsMap.values()));
       setDealsByOwner(dealsMap);
+      setAllWonDeals(wonDealsAll);
     } catch (err) {
       console.error('Error fetching ranking data:', err);
     } finally {
@@ -183,6 +201,30 @@ export const CRMRanking = () => {
   }, [sellers, criteria]);
 
   const totalClosings = useMemo(() => sellers.reduce((acc, s) => acc + s.closings, 0), [sellers]);
+
+  // Chart data: closings per seller
+  const sellerChartData = useMemo(() => {
+    return [...sellers]
+      .filter(s => s.closings > 0)
+      .sort((a, b) => b.closings - a.closings)
+      .map(s => ({
+        name: s.name.split(' ')[0],
+        fullName: s.name,
+        contratos: s.closings,
+      }));
+  }, [sellers]);
+
+  // Chart data: closings by product/action type
+  const productChartData = useMemo(() => {
+    const productCounts = new Map<string, number>();
+    allWonDeals.forEach(d => {
+      const product = d.productName || 'Sem produto';
+      productCounts.set(product, (productCounts.get(product) || 0) + 1);
+    });
+    return Array.from(productCounts.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [allWonDeals]);
 
   const periodLabel = `${format(period.startDate, 'dd/MM/yyyy', { locale: ptBR })} a ${format(period.endDate, 'dd/MM/yyyy', { locale: ptBR })}`;
 
@@ -287,14 +329,14 @@ export const CRMRanking = () => {
                             <div className="mt-1 ml-14 mr-2 mb-2 rounded-lg border bg-muted/20 overflow-hidden">
                               <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-x-4 px-4 py-2 text-xs font-medium text-muted-foreground border-b">
                                 <span>Cliente</span>
-                                <span>Produto</span>
+                                <span>Produto / Ação</span>
                                 <span className="text-right">Valor</span>
                                 <span className="text-right">Fechamento</span>
                               </div>
                               {sellerDeals.map(deal => (
                                 <div key={deal.id} className="grid grid-cols-[1fr_1fr_auto_auto] gap-x-4 px-4 py-2.5 text-sm border-b last:border-b-0 hover:bg-muted/30">
                                   <span className="truncate font-medium">{deal.contactName || 'Sem contato'}</span>
-                                  <span className="truncate text-muted-foreground">{deal.name}</span>
+                                  <span className="truncate text-muted-foreground">{deal.productName}</span>
                                   <span className="text-right whitespace-nowrap font-medium">{formatCurrency(deal.value)}</span>
                                   <span className="text-right whitespace-nowrap text-muted-foreground">
                                     {deal.closedAt ? format(new Date(deal.closedAt), 'dd/MM/yyyy', { locale: ptBR }) : '—'}
@@ -313,6 +355,81 @@ export const CRMRanking = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Charts */}
+      {totalClosings > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Bar chart - closings per seller */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Fechamentos por Vendedor
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={sellerChartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="name" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <YAxis allowDecimals={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
+                    labelStyle={{ color: 'hsl(var(--foreground))' }}
+                    formatter={(value: number) => [`${value} contrato${value !== 1 ? 's' : ''}`, 'Fechamentos']}
+                    labelFormatter={(label: string) => {
+                      const item = sellerChartData.find(s => s.name === label);
+                      return item?.fullName || label;
+                    }}
+                  />
+                  <Bar dataKey="contratos" radius={[4, 4, 0, 0]}>
+                    {sellerChartData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Pie chart - closings by product type */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-yellow-500" />
+                Fechamentos por Tipo de Ação
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={productChartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={3}
+                    dataKey="value"
+                    nameKey="name"
+                    label={({ name, value }) => `${name} (${value})`}
+                    labelLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+                  >
+                    {productChartData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
+                    formatter={(value: number) => [`${value} contrato${value !== 1 ? 's' : ''}`, 'Quantidade']}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
