@@ -909,16 +909,15 @@ async function syncDeals(rdToken: string, supabase: any) {
   return { deals: dealsCreated, stage_transitions: historyInserts.length };
 }
 
-// Sync activities/tasks from RD Station
+// Sync tasks from RD Station (using /tasks endpoint instead of /activities)
 async function syncActivities(rdToken: string, supabase: any) {
-  console.log('Syncing activities from RD Station...');
+  console.log('Syncing tasks from RD Station...');
   
-  // Only fetch activities for recent deals (last 90 days) - use created_at and closed_at
-  // NOTE: updated_at is unreliable because upsert refreshes it for ALL deals
+  // Get deals for mapping
+  const MAX_DEALS_FOR_ACTIVITIES = 200;
   const ninetyDaysAgo = new Date();
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
   const cutoffDate = ninetyDaysAgo.toISOString();
-  const MAX_DEALS_FOR_ACTIVITIES = 200;
   
   const { data: recentDeals } = await supabase
     .from('crm_deals')
@@ -928,11 +927,9 @@ async function syncActivities(rdToken: string, supabase: any) {
     .limit(MAX_DEALS_FOR_ACTIVITIES);
   
   const allDeals = recentDeals || [];
-  console.log(`Found ${allDeals.length} recent deals (max ${MAX_DEALS_FOR_ACTIVITIES}) to fetch activities from`);
+  console.log(`Found ${allDeals.length} recent deals for task mapping`);
 
-  // Create maps for lookups
   const dealMapByRdId = new Map(allDeals.map((d: any) => [d.rd_station_id, { id: d.id, contact_id: d.contact_id, name: d.name }]));
-  const dealMapByName = new Map(allDeals.map((d: any) => [d.name?.toLowerCase()?.trim(), { id: d.id, contact_id: d.contact_id }]));
   
   // Get contacts
   let allContacts: any[] = [];
@@ -958,111 +955,62 @@ async function syncActivities(rdToken: string, supabase: any) {
     profiles?.map((p: any) => [p.email?.toLowerCase(), p.id]) || []
   );
 
-  let allActivities: any[] = [];
+  let allTasks: any[] = [];
   
-  // Fetch activities from each recent deal with delay to avoid rate limiting
-  console.log('Fetching activities from recent deals...');
-  let processedDeals = 0;
-  for (const deal of allDeals) {
-    if (!deal.rd_station_id) continue;
+  // Fetch tasks using the /tasks endpoint (two passes: pending + completed)
+  for (const doneFilter of [false, true]) {
+    let page = 1;
+    const limit = 200;
     
-    try {
-      const response = await fetch(
-        `${RD_STATION_API_URL}/deals/${deal.rd_station_id}/activities?token=${rdToken}&limit=100`
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        const dealActivities = data.activities || [];
-        if (dealActivities.length > 0) {
-          dealActivities.forEach((a: any) => {
-            a._mapped_deal_id = deal.id;
-            a._mapped_contact_id = deal.contact_id;
-            a._deal_rd_id = deal.rd_station_id;
-          });
-          allActivities = [...allActivities, ...dealActivities];
+    while (page <= 30) {
+      try {
+        const url = `${RD_STATION_API_URL}/tasks?token=${rdToken}&page=${page}&limit=${limit}&done=${doneFilter}`;
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          console.error(`Tasks API returned ${response.status} for done=${doneFilter}, page=${page}`);
+          break;
         }
+
+        const data = await response.json();
+        const items = data.tasks || [];
+        
+        if (items.length === 0) break;
+        
+        allTasks = [...allTasks, ...items];
+        console.log(`Fetched tasks page ${page} (done=${doneFilter}), got ${items.length}, total: ${allTasks.length}`);
+        
+        // Check if there are more pages
+        if (data.has_more === false || items.length < limit) break;
+        page++;
+      } catch (error) {
+        console.error(`Error fetching tasks page ${page} (done=${doneFilter}):`, error);
+        break;
       }
-    } catch (error) {
-      // Continue with other deals
-    }
-    
-    processedDeals++;
-    if (processedDeals % 50 === 0) {
-      console.log(`Processed ${processedDeals}/${allDeals.length} deals, found ${allActivities.length} activities`);
-    }
-    
-    // Add delay to avoid rate limiting (100ms × 200 deals = ~20s max)
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-
-  // Also try the general activities endpoint
-  console.log('Also fetching from general activities endpoint...');
-  let page = 1;
-  const limit = 200;
-  
-  while (page <= 20) {
-    try {
-      const response = await fetch(
-        `${RD_STATION_API_URL}/activities?token=${rdToken}&page=${page}&limit=${limit}`
-      );
-      
-      if (!response.ok) break;
-
-      const data = await response.json();
-      const items = data.activities || [];
-      
-      if (items.length === 0) break;
-      
-      allActivities = [...allActivities, ...items];
-      console.log(`Fetched activities page ${page}, total: ${allActivities.length}`);
-      
-      if (items.length < limit) break;
-      page++;
-    } catch (error) {
-      break;
     }
   }
 
-  console.log(`Total activities to sync: ${allActivities.length}`);
+  console.log(`Total tasks to sync: ${allTasks.length}`);
 
-  if (allActivities.length === 0) {
+  if (allTasks.length === 0) {
     return { activities: 0 };
   }
 
-  // Transform and dedupe activities
+  // Transform and dedupe tasks
   const seenIds = new Set<string>();
-  const activitiesData = allActivities
-    .filter(activity => {
-      if (!activity._id || seenIds.has(activity._id)) return false;
-      seenIds.add(activity._id);
+  const activitiesData = allTasks
+    .filter(task => {
+      if (!task._id || seenIds.has(task._id)) return false;
+      seenIds.add(task._id);
       return true;
     })
-    .map(activity => {
-      // Use pre-mapped IDs if available (from deal-specific fetch)
-      let dealId = activity._mapped_deal_id || null;
-      let contactId = activity._mapped_contact_id || null;
+    .map(task => {
+      // Map deal
+      let dealId = null;
+      let contactId = null;
       
-      // If not pre-mapped, try to find by rd_station_id
-      if (!dealId && activity.deal?._id) {
-        const dealInfo = dealMapByRdId.get(activity.deal._id);
-        if (dealInfo) {
-          dealId = dealInfo.id;
-          contactId = dealInfo.contact_id;
-        }
-      }
-      
-      if (!dealId && activity._deal_rd_id) {
-        const dealInfo = dealMapByRdId.get(activity._deal_rd_id);
-        if (dealInfo) {
-          dealId = dealInfo.id;
-          contactId = dealInfo.contact_id;
-        }
-      }
-      
-      // Try by deal name
-      if (!dealId && activity.deal?.name) {
-        const dealInfo = dealMapByName.get(activity.deal.name?.toLowerCase()?.trim());
+      if (task.deal?._id) {
+        const dealInfo = dealMapByRdId.get(task.deal._id);
         if (dealInfo) {
           dealId = dealInfo.id;
           contactId = dealInfo.contact_id;
@@ -1070,56 +1018,53 @@ async function syncActivities(rdToken: string, supabase: any) {
       }
       
       // Try contact directly
-      if (!contactId && activity.contact?._id) {
-        contactId = contactMapByRdId.get(activity.contact._id);
+      if (!contactId && task.contact?._id) {
+        contactId = contactMapByRdId.get(task.contact._id);
+      }
+      if (!contactId && task.contact?.name) {
+        contactId = contactMapByName.get(task.contact.name?.toLowerCase()?.trim());
       }
       
-      if (!contactId && activity.contact?.name) {
-        contactId = contactMapByName.get(activity.contact.name?.toLowerCase()?.trim());
-      }
-      
+      // Map owner from users array
       let ownerId = null;
-      if (activity.user?.email) {
-        ownerId = emailToProfileMap.get(activity.user.email.toLowerCase()) || null;
-      }
-      let createdBy = null;
-      if (activity.created_by?.email) {
-        createdBy = emailToProfileMap.get(activity.created_by.email.toLowerCase()) || null;
+      if (task.users && task.users.length > 0 && task.users[0].email) {
+        ownerId = emailToProfileMap.get(task.users[0].email.toLowerCase()) || null;
+      } else if (task.user?.email) {
+        ownerId = emailToProfileMap.get(task.user.email.toLowerCase()) || null;
       }
 
-      // Map activity type
+      // Map task type directly from RD Station task types
       let type = 'task';
-      const activityType = activity.type?.toString() || '';
-      const subject = (activity.subject || activity.name || activity.title || '').toLowerCase();
-      
-      if (activityType === '0' || activityType === 'note') type = 'note';
-      else if (activityType === '1' || activityType === 'call' || subject.includes('ligação') || subject.includes('call')) type = 'call';
-      else if (activityType === '2' || activityType === 'email' || subject.includes('email') || subject.includes('e-mail')) type = 'email';
-      else if (activityType === '3' || activityType === 'meeting' || subject.includes('reunião') || subject.includes('meeting')) type = 'meeting';
-      else if (subject.includes('whatsapp')) type = 'whatsapp';
+      const taskType = (task.type || '').toLowerCase();
+      if (taskType === 'call' || taskType === 'ligação') type = 'call';
+      else if (taskType === 'email' || taskType === 'e-mail') type = 'email';
+      else if (taskType === 'meeting' || taskType === 'reunião') type = 'meeting';
+      else if (taskType === 'visit' || taskType === 'visita') type = 'visit';
+      else if (taskType === 'lunch' || taskType === 'almoço') type = 'lunch';
+      else if (taskType === 'whatsapp') type = 'whatsapp';
+      else if (taskType === 'task' || taskType === 'tarefa') type = 'task';
 
       return {
-        rd_station_id: activity._id,
+        rd_station_id: task._id,
         deal_id: dealId,
         contact_id: contactId,
         owner_id: ownerId,
-        created_by: createdBy,
         type: type,
-        title: activity.subject || activity.name || activity.title || 'Atividade',
-        description: activity.text || activity.notes || activity.description || null,
-        due_date: activity.date || activity.due_date || null,
-        completed: activity.done || activity.completed || false,
-        completed_at: activity.done_at || activity.completed_at || null,
-        created_at: activity.created_at || new Date().toISOString()
+        title: task.subject || task.name || 'Tarefa sem título',
+        description: task.notes || task.description || null,
+        due_date: task.date || task.due_date || null,
+        completed: task.done === true,
+        completed_at: task.done_date || null,
+        created_at: task.created_at || new Date().toISOString()
       };
     });
 
-  console.log(`Filtered unique activities: ${activitiesData.length}`);
+  console.log(`Filtered unique tasks: ${activitiesData.length}`);
   
-  // Count how many have mappings
   const withDeal = activitiesData.filter(a => a.deal_id).length;
   const withContact = activitiesData.filter(a => a.contact_id).length;
-  console.log(`Activities with deal_id: ${withDeal}, with contact_id: ${withContact}`);
+  const completedCount = activitiesData.filter(a => a.completed).length;
+  console.log(`Tasks with deal_id: ${withDeal}, with contact_id: ${withContact}, completed: ${completedCount}`);
 
   // Batch upsert
   const BATCH_SIZE = 500;
@@ -1132,10 +1077,10 @@ async function syncActivities(rdToken: string, supabase: any) {
       .upsert(batch, { onConflict: 'rd_station_id' });
 
     if (error) {
-      console.error('Error upserting activities batch:', error);
+      console.error('Error upserting tasks batch:', error);
     } else {
       activitiesCreated += batch.length;
-      console.log(`Upserted activities batch, total: ${activitiesCreated}`);
+      console.log(`Upserted tasks batch, total: ${activitiesCreated}`);
     }
   }
 
@@ -1146,12 +1091,12 @@ async function syncActivities(rdToken: string, supabase: any) {
     status: 'success'
   });
 
-  return { activities: activitiesCreated, with_deal: withDeal, with_contact: withContact };
+  return { activities: activitiesCreated, with_deal: withDeal, with_contact: withContact, completed: completedCount };
 }
 
-// Fetch activities from RD Station for a specific contact/deal in real-time
+// Fetch tasks from RD Station for a specific contact/deal in real-time
 async function fetchContactActivitiesFromRdStation(rdToken: string, supabase: any, data: any) {
-  console.log('Fetching activities for contact from RD Station...', data);
+  console.log('Fetching tasks for contact from RD Station...', data);
   
   const { contact_id, rd_station_id, deal_rd_station_ids } = data;
   
@@ -1166,103 +1111,81 @@ async function fetchContactActivitiesFromRdStation(rdToken: string, supabase: an
   const emailToProfileMap = new Map<string, { id: string; full_name: string }>(
     profiles?.map((p: any) => [p.email?.toLowerCase(), { id: p.id, full_name: p.full_name }]) || []
   );
-  const profileIdToName = new Map<string, string>(
-    profiles?.map((p: any) => [p.id, p.full_name]) || []
-  );
   
-  let allActivities: any[] = [];
+  let allTasks: any[] = [];
   
-  // Fetch activities for each deal's RD Station ID
+  // Fetch tasks for each deal using /tasks?deal_id=
   if (deal_rd_station_ids && deal_rd_station_ids.length > 0) {
     for (const dealRdId of deal_rd_station_ids) {
       if (!dealRdId) continue;
       
       try {
         const response = await fetch(
-          `${RD_STATION_API_URL}/deals/${dealRdId}/activities?token=${rdToken}&limit=100`
+          `${RD_STATION_API_URL}/tasks?token=${rdToken}&deal_id=${dealRdId}&limit=200`
         );
         
         if (response.ok) {
           const data = await response.json();
-          const dealActivities = data.activities || [];
-          console.log(`Fetched ${dealActivities.length} activities from deal ${dealRdId}`);
-          allActivities = [...allActivities, ...dealActivities];
+          const dealTasks = data.tasks || [];
+          console.log(`Fetched ${dealTasks.length} tasks from deal ${dealRdId}`);
+          allTasks = [...allTasks, ...dealTasks];
         }
       } catch (error) {
-        console.error(`Error fetching activities from deal ${dealRdId}:`, error);
+        console.error(`Error fetching tasks from deal ${dealRdId}:`, error);
       }
-    }
-  }
-  
-  // Also try fetching from contact's RD Station ID if provided
-  if (rd_station_id) {
-    try {
-      const response = await fetch(
-        `${RD_STATION_API_URL}/contacts/${rd_station_id}/activities?token=${rdToken}&limit=100`
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        const contactActivities = data.activities || [];
-        console.log(`Fetched ${contactActivities.length} activities from contact ${rd_station_id}`);
-        allActivities = [...allActivities, ...contactActivities];
-      }
-    } catch (error) {
-      console.error(`Error fetching activities from contact ${rd_station_id}:`, error);
     }
   }
   
   // Deduplicate by _id
   const seenIds = new Set<string>();
-  const uniqueActivities = allActivities.filter(a => {
-    if (!a._id || seenIds.has(a._id)) return false;
-    seenIds.add(a._id);
+  const uniqueTasks = allTasks.filter(t => {
+    if (!t._id || seenIds.has(t._id)) return false;
+    seenIds.add(t._id);
     return true;
   });
   
-  console.log(`Total unique activities found: ${uniqueActivities.length}`);
+  console.log(`Total unique tasks found: ${uniqueTasks.length}`);
   
-  // Transform activities for frontend consumption
-  const transformedActivities = uniqueActivities.map(activity => {
-    // Map activity type
+  // Transform tasks
+  const transformedActivities = uniqueTasks.map(task => {
     let type = 'task';
-    const activityType = activity.type?.toString() || '';
-    const subject = (activity.subject || activity.name || activity.title || '').toLowerCase();
+    const taskType = (task.type || '').toLowerCase();
+    if (taskType === 'call' || taskType === 'ligação') type = 'call';
+    else if (taskType === 'email' || taskType === 'e-mail') type = 'email';
+    else if (taskType === 'meeting' || taskType === 'reunião') type = 'meeting';
+    else if (taskType === 'whatsapp') type = 'whatsapp';
     
-    if (activityType === '0' || activityType === 'note') type = 'note';
-    else if (activityType === '1' || activityType === 'call' || subject.includes('ligação') || subject.includes('call')) type = 'call';
-    else if (activityType === '2' || activityType === 'email' || subject.includes('email') || subject.includes('e-mail')) type = 'email';
-    else if (activityType === '3' || activityType === 'meeting' || subject.includes('reunião') || subject.includes('meeting')) type = 'meeting';
-    else if (subject.includes('whatsapp')) type = 'whatsapp';
-    
-    // Get owner name
     let ownerName = null;
-    if (activity.user?.email) {
-      const profile = emailToProfileMap.get(activity.user.email.toLowerCase());
-      ownerName = profile?.full_name || activity.user.name || activity.user.email;
-    } else if (activity.user?.name) {
-      ownerName = activity.user.name;
+    if (task.users && task.users.length > 0) {
+      const userEmail = task.users[0].email?.toLowerCase();
+      if (userEmail) {
+        const profile = emailToProfileMap.get(userEmail);
+        ownerName = profile?.full_name || task.users[0].name || userEmail;
+      }
+    } else if (task.user?.email) {
+      const profile = emailToProfileMap.get(task.user.email.toLowerCase());
+      ownerName = profile?.full_name || task.user.name || task.user.email;
     }
     
     return {
-      id: activity._id,
-      rd_station_id: activity._id,
+      id: task._id,
+      rd_station_id: task._id,
       type: type,
-      title: activity.subject || activity.name || activity.title || 'Atividade',
-      description: activity.text || activity.notes || activity.description || null,
-      due_date: activity.date || activity.due_date || null,
-      completed: activity.done || activity.completed || false,
-      completed_at: activity.done_at || activity.completed_at || null,
-      created_at: activity.created_at || new Date().toISOString(),
+      title: task.subject || task.name || 'Tarefa sem título',
+      description: task.notes || task.description || null,
+      due_date: task.date || task.due_date || null,
+      completed: task.done === true,
+      completed_at: task.done_date || null,
+      created_at: task.created_at || new Date().toISOString(),
       owner_name: ownerName,
-      deal_name: activity.deal?.name || null
+      deal_name: task.deal?.name || null
     };
   });
   
   // Sort by created_at descending
   transformedActivities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   
-  // Also save/update these activities in the database for future use
+  // Save to database
   if (transformedActivities.length > 0 && contact_id) {
     for (const activity of transformedActivities) {
       let ownerId = null;
@@ -1290,7 +1213,7 @@ async function fetchContactActivitiesFromRdStation(rdToken: string, supabase: an
           owner_id: ownerId
         }, { onConflict: 'rd_station_id' });
     }
-    console.log(`Saved ${transformedActivities.length} activities to database for contact ${contact_id}`);
+    console.log(`Saved ${transformedActivities.length} tasks to database for contact ${contact_id}`);
   }
   
   return { activities: transformedActivities };
