@@ -10,7 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Search, Eye, Mail, Phone, Building, MapPin, Globe, Linkedin, Twitter, Facebook, Calendar, Tag, FileText, Edit2, Save, X, History, UserCircle, CheckCircle, Circle, Video, MessageSquare, Package, Award, Target, Briefcase, Upload } from 'lucide-react';
+import { Loader2, Search, Eye, Mail, Phone, Building, MapPin, Globe, Linkedin, Twitter, Facebook, Calendar, Tag, FileText, Edit2, Save, X, History, UserCircle, CheckCircle, Circle, Video, MessageSquare, Package, Award, Target, Briefcase, Upload, UserPlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CRMContactsImport } from './CRMContactsImport';
@@ -94,6 +94,9 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
   const [contactDealsMap, setContactDealsMap] = useState<Record<string, { owner_id: string | null; product_name: string | null; campaign_name: string | null }>>({});
   const [profissoesDisponiveis, setProfissoesDisponiveis] = useState<string[]>([]);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [newLeadDialogOpen, setNewLeadDialogOpen] = useState(false);
+  const [newLeadForm, setNewLeadForm] = useState({ name: '', email: '', phone: '', company: '', job_title: '', city: '', state: '', website: '', linkedin: '', notes: '' });
+  const [creatingLead, setCreatingLead] = useState(false);
 
   useEffect(() => {
     fetchContacts();
@@ -456,6 +459,50 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
     }
   };
 
+  const handleCreateLead = async () => {
+    if (!newLeadForm.name.trim()) {
+      toast.error('Nome é obrigatório');
+      return;
+    }
+    setCreatingLead(true);
+    try {
+      if (syncEnabled) {
+        const { data: result, error } = await supabase.functions.invoke('crm-sync', {
+          body: { action: 'create_contact', data: newLeadForm }
+        });
+        if (error) throw error;
+        if (result?.synced_to_rd) {
+          toast.success('Lead criado e sincronizado com RD Station');
+        } else {
+          toast.success('Lead criado localmente (erro ao sincronizar com RD Station)');
+        }
+      } else {
+        const { error } = await supabase.from('crm_contacts').insert({
+          name: newLeadForm.name.trim(),
+          email: newLeadForm.email?.trim() || null,
+          phone: newLeadForm.phone?.trim() || null,
+          company: newLeadForm.company?.trim() || null,
+          job_title: newLeadForm.job_title?.trim() || null,
+          city: newLeadForm.city?.trim() || null,
+          state: newLeadForm.state?.trim() || null,
+          website: newLeadForm.website?.trim() || null,
+          linkedin: newLeadForm.linkedin?.trim() || null,
+          notes: newLeadForm.notes?.trim() || null,
+        });
+        if (error) throw error;
+        toast.success('Lead criado com sucesso');
+      }
+      setNewLeadForm({ name: '', email: '', phone: '', company: '', job_title: '', city: '', state: '', website: '', linkedin: '', notes: '' });
+      setNewLeadDialogOpen(false);
+      fetchContacts();
+    } catch (error) {
+      console.error('Error creating lead:', error);
+      toast.error('Erro ao criar lead');
+    } finally {
+      setCreatingLead(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -500,6 +547,11 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
         </div>
         
         <Badge variant="secondary">{filteredContacts.length} contatos</Badge>
+
+        <Button variant="default" size="sm" onClick={() => setNewLeadDialogOpen(true)}>
+          <UserPlus className="h-4 w-4 mr-2" />
+          Novo Lead
+        </Button>
 
         <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
           <Upload className="h-4 w-4 mr-2" />
@@ -1165,6 +1217,65 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+      {/* Dialog Novo Lead */}
+      <Dialog open={newLeadDialogOpen} onOpenChange={setNewLeadDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Novo Lead</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+            <div>
+              <Label>Nome *</Label>
+              <Input value={newLeadForm.name} onChange={e => setNewLeadForm(p => ({ ...p, name: e.target.value }))} placeholder="Nome completo" />
+            </div>
+            <div>
+              <Label>Email</Label>
+              <Input type="email" value={newLeadForm.email} onChange={e => setNewLeadForm(p => ({ ...p, email: e.target.value }))} placeholder="email@exemplo.com" />
+            </div>
+            <div>
+              <Label>Telefone</Label>
+              <Input value={newLeadForm.phone} onChange={e => setNewLeadForm(p => ({ ...p, phone: e.target.value }))} placeholder="(00) 00000-0000" />
+            </div>
+            <div>
+              <Label>Empresa</Label>
+              <Input value={newLeadForm.company} onChange={e => setNewLeadForm(p => ({ ...p, company: e.target.value }))} placeholder="Nome da empresa" />
+            </div>
+            <div>
+              <Label>Cargo</Label>
+              <Input value={newLeadForm.job_title} onChange={e => setNewLeadForm(p => ({ ...p, job_title: e.target.value }))} placeholder="Cargo / Profissão" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Cidade</Label>
+                <Input value={newLeadForm.city} onChange={e => setNewLeadForm(p => ({ ...p, city: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Estado</Label>
+                <Input value={newLeadForm.state} onChange={e => setNewLeadForm(p => ({ ...p, state: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <Label>Website</Label>
+              <Input value={newLeadForm.website} onChange={e => setNewLeadForm(p => ({ ...p, website: e.target.value }))} placeholder="https://" />
+            </div>
+            <div>
+              <Label>LinkedIn</Label>
+              <Input value={newLeadForm.linkedin} onChange={e => setNewLeadForm(p => ({ ...p, linkedin: e.target.value }))} placeholder="URL do LinkedIn" />
+            </div>
+            <div>
+              <Label>Observações</Label>
+              <Textarea value={newLeadForm.notes} onChange={e => setNewLeadForm(p => ({ ...p, notes: e.target.value }))} placeholder="Anotações sobre o lead..." rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewLeadDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreateLead} disabled={creatingLead}>
+              {creatingLead ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />}
+              Criar Lead
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

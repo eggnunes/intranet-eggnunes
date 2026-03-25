@@ -86,6 +86,9 @@ serve(async (req) => {
       case 'fetch_contact_activities':
         result = await fetchContactActivitiesFromRdStation(rdToken, supabase, data);
         break;
+      case 'create_contact':
+        result = await createContactInRdStation(rdToken, supabase, data);
+        break;
         
       default:
         return new Response(
@@ -1226,7 +1229,86 @@ async function fetchContactActivitiesFromRdStation(rdToken: string, supabase: an
         }, { onConflict: 'rd_station_id' });
     }
     console.log(`Saved ${transformedActivities.length} tasks to database for contact ${contact_id}`);
+}
+
+async function createContactInRdStation(rdToken: string, supabase: any, data: any) {
+  const { name, email, phone, company, job_title, city, state, website, linkedin, notes } = data;
+
+  if (!name || name.trim() === '') {
+    throw new Error('Nome é obrigatório');
   }
+
+  // Build RD Station contact payload
+  const rdPayload: any = { name: name.trim() };
+  
+  if (email) rdPayload.emails = [{ email: email.trim() }];
+  if (phone) rdPayload.phones = [{ phone: phone.trim() }];
+  if (company) rdPayload.organization = company.trim();
+  if (job_title) rdPayload.title = job_title.trim();
+  if (website) rdPayload.website = website.trim();
+  if (linkedin) rdPayload.linkedin = linkedin.trim();
+  if (notes) rdPayload.notes = notes.trim();
+
+  console.log('[create_contact] Creating contact in RD Station:', rdPayload.name);
+
+  // Create in RD Station
+  const rdResponse = await fetch(`${RD_STATION_API_URL}/contacts?token=${rdToken}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(rdPayload)
+  });
+
+  let rdContact: any = null;
+  let rdStationId: string | null = null;
+
+  if (rdResponse.ok) {
+    rdContact = await rdResponse.json();
+    rdStationId = rdContact._id || rdContact.id;
+    console.log('[create_contact] Created in RD Station with ID:', rdStationId);
+  } else {
+    const errorText = await rdResponse.text();
+    console.error('[create_contact] RD Station error:', rdResponse.status, errorText);
+    // Continue to save locally even if RD Station fails
+  }
+
+  // Upsert in local database
+  const contactData: any = {
+    name: name.trim(),
+    email: email?.trim() || null,
+    phone: phone?.trim() || null,
+    company: company?.trim() || null,
+    job_title: job_title?.trim() || null,
+    city: city?.trim() || null,
+    state: state?.trim() || null,
+    website: website?.trim() || null,
+    linkedin: linkedin?.trim() || null,
+    notes: notes?.trim() || null,
+    updated_at: new Date().toISOString()
+  };
+
+  if (rdStationId) {
+    contactData.rd_station_id = rdStationId;
+  }
+
+  const { data: insertedContact, error: dbError } = await supabase
+    .from('crm_contacts')
+    .insert(contactData)
+    .select()
+    .single();
+
+  if (dbError) {
+    console.error('[create_contact] DB error:', dbError);
+    throw new Error('Erro ao salvar contato no banco: ' + dbError.message);
+  }
+
+  console.log('[create_contact] Contact saved locally:', insertedContact.id);
+
+  return { 
+    contact: insertedContact, 
+    synced_to_rd: !!rdStationId,
+    rd_station_id: rdStationId
+  };
+}
   
   return { activities: transformedActivities };
 }
