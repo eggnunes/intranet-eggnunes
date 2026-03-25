@@ -1,31 +1,19 @@
 
 
-## Expandir detalhes de contratos fechados por vendedor no Ranking CRM
+## Remover gráfico de pizza "Fechamentos por Tipo de Ação" do Ranking CRM
 
 ### O que será feito
-Ao clicar no card de cada vendedor no ranking, ele expande e mostra a lista de todos os contratos fechados por aquele vendedor no período selecionado, com detalhes como nome do cliente, produto, valor e data de fechamento.
+Remover o gráfico de pizza (Pie Chart) que mostra "Fechamentos por Tipo de Ação", mantendo apenas o gráfico de barras "Fechamentos por Vendedor".
 
 ### Implementação
 
 **Arquivo: `src/components/crm/CRMRanking.tsx`**
 
-1. **Buscar dados completos dos deals won**: Alterar a query de deals para incluir `id, name, value, closed_at, contact_id` (além de `owner_id, won`). Também buscar `crm_contacts` (id, name) para mapear o nome do cliente.
+1. **Remover o bloco do Pie Chart** (linhas 395-430) — o Card inteiro com o PieChart
+2. **Remover o grid de 2 colunas** — mudar `grid-cols-1 lg:grid-cols-2` para apenas o card do bar chart sem grid wrapper (já que sobra só um gráfico)
+3. **Limpar imports não usados**: remover `PieChart, Pie, Legend` do import do recharts
+4. **Remover `PIE_COLORS`** (linha 61) e o `productChartData` useMemo (linhas 218-230 aprox.)
 
-2. **Armazenar deals por vendedor**: Criar um `Map<string, Deal[]>` agrupando os deals won por `owner_id`, para acesso rápido ao expandir.
-
-3. **Estado de expansão**: Adicionar `expandedSellerId` state. Ao clicar no card do vendedor, toggle entre expandido/colapsado.
-
-4. **UI expandida**: Usar `Collapsible` do Radix (já existe em `ui/collapsible.tsx`). Dentro do card expandido, renderizar uma tabela/lista com:
-   - Nome do cliente (do contato vinculado)
-   - Nome do deal / Produto
-   - Valor (R$)
-   - Data de fechamento
-   - Ícone `ChevronDown`/`ChevronUp` no card para indicar que é clicável
-
-5. **Imports adicionais**: `Collapsible, CollapsibleContent, CollapsibleTrigger` de `@/components/ui/collapsible`, `ChevronDown` de `lucide-react`.
-
-### Resultado esperado
-- Clicar no card de um vendedor expande uma seção abaixo mostrando todos os contratos fechados com detalhes
-- Clicar novamente fecha a seção
-- Indicador visual (chevron) mostra que o card é clicável/expansível
+### Resultado
+Apenas o gráfico de barras dos vendedores permanece, limpo e legível.
 
