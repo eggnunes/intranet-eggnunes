@@ -353,6 +353,47 @@ export const ContractGenerator = ({
       
       if (data) {
         setRascunhoExistente(data.id);
+        // Auto-load: carregar rascunho automaticamente
+        setCarregandoRascunho(true);
+        try {
+          const { data: draftData, error: draftError } = await supabase
+            .from('contract_drafts')
+            .select('*')
+            .eq('id', data.id)
+            .single();
+          
+          if (!draftError && draftData) {
+            setContraPartida(draftData.contra_partida || "");
+            setObjetoContrato(draftData.objeto_contrato || "");
+            setClausulaPrimeiraGerada(draftData.clausula_primeira_gerada || "");
+            if (initialFeeOptions.length > 0) {
+              const firstOption = initialFeeOptions[0];
+              atualizarOpcaoInicial(firstOption.id, 'tipoHonorarios', (draftData.tipo_honorarios as "avista" | "parcelado") || "avista");
+              atualizarOpcaoInicial(firstOption.id, 'valorTotal', draftData.valor_total || "");
+              atualizarOpcaoInicial(firstOption.id, 'numeroParcelas', draftData.numero_parcelas || "");
+              atualizarOpcaoInicial(firstOption.id, 'valorParcela', draftData.valor_parcela || "");
+              atualizarOpcaoInicial(firstOption.id, 'temEntrada', draftData.tem_entrada || false);
+              atualizarOpcaoInicial(firstOption.id, 'valorEntrada', draftData.valor_entrada || "");
+              atualizarOpcaoInicial(firstOption.id, 'formasPagamento', draftData.forma_pagamento ? draftData.forma_pagamento.split(',') : ["pix"]);
+              atualizarOpcaoInicial(firstOption.id, 'dataVencimento', draftData.data_vencimento || "");
+            }
+            setTemHonorariosExito(draftData.tem_honorarios_exito || false);
+            if (draftData.descricao_honorarios_exito || draftData.clausula_exito_gerada) {
+              setExitoOptions([{
+                id: crypto.randomUUID(),
+                descricao: draftData.descricao_honorarios_exito || "",
+                clausulaGerada: draftData.clausula_exito_gerada || "",
+                gerando: false
+              }]);
+            }
+            setContractPreviewText(draftData.contract_preview_text || "");
+            toast.info("Rascunho anterior restaurado automaticamente");
+          }
+        } catch (error) {
+          console.error('Erro ao auto-carregar rascunho:', error);
+        } finally {
+          setCarregandoRascunho(false);
+        }
       } else {
         setRascunhoExistente(null);
       }
@@ -1994,7 +2035,51 @@ Retorne APENAS o texto da cláusula reescrita, sem explicações adicionais e se
 
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={async (isOpen) => {
+      if (!isOpen && client && user) {
+        // Auto-save draft silently on close if there's data
+        const hasData = contraPartida.trim() || objetoContrato.trim() || clausulaPrimeiraGerada.trim() || 
+          initialFeeOptions.some(o => o.valorTotal.trim()) || exitoOptions.some(o => o.descricao.trim());
+        if (hasData) {
+          try {
+            const firstOption = initialFeeOptions[0];
+            const draftData = {
+              user_id: user.id,
+              client_id: client.id,
+              client_name: client.nomeCompleto,
+              product_name: productName,
+              qualification: qualification,
+              contra_partida: contraPartida,
+              objeto_contrato: objetoContrato,
+              clausula_primeira_gerada: clausulaPrimeiraGerada,
+              tipo_honorarios: firstOption?.tipoHonorarios || "avista",
+              valor_total: firstOption?.valorTotal || "",
+              numero_parcelas: firstOption?.numeroParcelas || "",
+              valor_parcela: firstOption?.valorParcela || "",
+              tem_entrada: firstOption?.temEntrada || false,
+              valor_entrada: firstOption?.valorEntrada || "",
+              forma_pagamento: firstOption?.formasPagamento.join(',') || "pix",
+              data_vencimento: firstOption?.dataVencimento || "",
+              tem_honorarios_exito: temHonorariosExito,
+              descricao_honorarios_exito: exitoOptions.map(o => o.descricao).join(' | '),
+              clausula_exito_gerada: exitoOptions.map(o => o.clausulaGerada).join('\n\n'),
+              contract_preview_text: contractPreviewText,
+            };
+
+            if (rascunhoExistente) {
+              await supabase.from('contract_drafts').update(draftData).eq('id', rascunhoExistente);
+            } else {
+              const { data } = await supabase.from('contract_drafts').insert(draftData).select('id').single();
+              if (data) setRascunhoExistente(data.id);
+            }
+            console.log('Rascunho de contrato salvo automaticamente');
+          } catch (error) {
+            console.error('Erro ao auto-salvar rascunho:', error);
+          }
+        }
+      }
+      onOpenChange(isOpen);
+    }}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh]">
         <DialogHeader>
           <div className="flex items-center justify-between">

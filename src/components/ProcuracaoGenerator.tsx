@@ -688,7 +688,41 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
 
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={async (isOpen) => {
+      if (!isOpen && client && user) {
+        // Auto-save draft silently on close if there's data
+        const hasData = localQualification.trim() || poderesEspeciais.trim();
+        if (hasData) {
+          try {
+            const draftData = {
+              user_id: user.id,
+              client_id: client.id,
+              client_name: client.nomeCompleto,
+              qualification: localQualification,
+              tem_poderes_especiais: temPoderesEspeciais,
+              poderes_especiais: poderesEspeciais,
+            };
+
+            const { data: existing } = await supabase
+              .from('procuracao_drafts' as any)
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('client_id', client.id)
+              .maybeSingle();
+
+            if (existing) {
+              await supabase.from('procuracao_drafts' as any).update(draftData).eq('id', (existing as any).id);
+            } else {
+              await supabase.from('procuracao_drafts' as any).insert(draftData);
+            }
+            console.log('Rascunho de procuração salvo automaticamente');
+          } catch (error) {
+            console.error('Erro ao auto-salvar rascunho de procuração:', error);
+          }
+        }
+      }
+      onOpenChange(isOpen);
+    }}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
