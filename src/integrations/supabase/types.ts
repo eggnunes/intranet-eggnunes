@@ -1353,6 +1353,129 @@ export type Database = {
           },
         ]
       }
+      client_form_overrides: {
+        Row: {
+          aposentado: string | null
+          bairro: string | null
+          cep: string | null
+          cidade: string | null
+          client_row_id: number
+          como_conheceu: string | null
+          complemento: string | null
+          conhece_alguem_mesma_situacao: string | null
+          conhece_alguem_situacao: string | null
+          cpf: string | null
+          created_at: string | null
+          data_nascimento: string | null
+          data_vencimento: string | null
+          documento_identidade: string | null
+          doenca_grave: string | null
+          doenca_negativa: string | null
+          email: string | null
+          estado: string | null
+          estado_civil: string | null
+          id: string
+          negativa_plano: string | null
+          nome_completo: string | null
+          nome_mae: string | null
+          nome_pai: string | null
+          numero: string | null
+          opcao_pagamento: string | null
+          plano_saude: string | null
+          possui_emprestimo: string | null
+          previsao_aposentadoria: string | null
+          profissao: string | null
+          qual_plano_saude: string | null
+          quantidade_parcelas: string | null
+          rua: string | null
+          telefone: string | null
+          telefone_alternativo: string | null
+          tem_whatsapp: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          aposentado?: string | null
+          bairro?: string | null
+          cep?: string | null
+          cidade?: string | null
+          client_row_id: number
+          como_conheceu?: string | null
+          complemento?: string | null
+          conhece_alguem_mesma_situacao?: string | null
+          conhece_alguem_situacao?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          data_nascimento?: string | null
+          data_vencimento?: string | null
+          documento_identidade?: string | null
+          doenca_grave?: string | null
+          doenca_negativa?: string | null
+          email?: string | null
+          estado?: string | null
+          estado_civil?: string | null
+          id?: string
+          negativa_plano?: string | null
+          nome_completo?: string | null
+          nome_mae?: string | null
+          nome_pai?: string | null
+          numero?: string | null
+          opcao_pagamento?: string | null
+          plano_saude?: string | null
+          possui_emprestimo?: string | null
+          previsao_aposentadoria?: string | null
+          profissao?: string | null
+          qual_plano_saude?: string | null
+          quantidade_parcelas?: string | null
+          rua?: string | null
+          telefone?: string | null
+          telefone_alternativo?: string | null
+          tem_whatsapp?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          aposentado?: string | null
+          bairro?: string | null
+          cep?: string | null
+          cidade?: string | null
+          client_row_id?: number
+          como_conheceu?: string | null
+          complemento?: string | null
+          conhece_alguem_mesma_situacao?: string | null
+          conhece_alguem_situacao?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          data_nascimento?: string | null
+          data_vencimento?: string | null
+          documento_identidade?: string | null
+          doenca_grave?: string | null
+          doenca_negativa?: string | null
+          email?: string | null
+          estado?: string | null
+          estado_civil?: string | null
+          id?: string
+          negativa_plano?: string | null
+          nome_completo?: string | null
+          nome_mae?: string | null
+          nome_pai?: string | null
+          numero?: string | null
+          opcao_pagamento?: string | null
+          plano_saude?: string | null
+          possui_emprestimo?: string | null
+          previsao_aposentadoria?: string | null
+          profissao?: string | null
+          qual_plano_saude?: string | null
+          quantidade_parcelas?: string | null
+          rua?: string | null
+          telefone?: string | null
+          telefone_alternativo?: string | null
+          tem_whatsapp?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       collection_rules: {
         Row: {
           created_at: string | null
