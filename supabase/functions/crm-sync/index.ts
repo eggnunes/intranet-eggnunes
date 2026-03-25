@@ -744,8 +744,16 @@ async function syncDeals(rdToken: string, supabase: any) {
   );
 
   // Transform deals data - including owner_id and contact_id with multiple lookup strategies
+  let debugCount = 0;
   const dealsData = allDeals.map(deal => {
     const stageInfo = stageMap.get(deal.deal_stage?._id);
+    const stageIsWon = stageInfo && wonStageIds.has(stageInfo.id);
+
+    // Debug: log date fields for first 5 deals in won stages
+    if (stageIsWon && debugCount < 5) {
+      console.log(`[DEBUG WON DEAL] name="${deal.name}", closed_at=${deal.closed_at}, last_activity_at=${deal.last_activity_at}, created_at=${deal.created_at}, updated_at=${deal.updated_at}, win=${deal.win}, win_date=${deal.win_date}`);
+      debugCount++;
+    }
     
     // Try multiple strategies to find contact_id
     let contactId = null;
