@@ -131,6 +131,34 @@ export const ProcuracaoGenerator = ({
     setLocalQualification(qualification);
   }, [qualification]);
 
+  // Auto-load procuração draft when dialog opens
+  useEffect(() => {
+    const loadProcuracaoDraft = async () => {
+      if (!open || !user || !client) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('procuracao_drafts' as any)
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('client_id', client.id)
+          .maybeSingle();
+        
+        if (!error && data) {
+          const draft = data as any;
+          if (draft.qualification) setLocalQualification(draft.qualification);
+          if (draft.tem_poderes_especiais) setTemPoderesEspeciais(draft.tem_poderes_especiais);
+          if (draft.poderes_especiais) setPoderesEspeciais(draft.poderes_especiais);
+          toast.info("Rascunho de procuração restaurado automaticamente");
+        }
+      } catch (error) {
+        console.error('Erro ao carregar rascunho de procuração:', error);
+      }
+    };
+
+    loadProcuracaoDraft();
+  }, [user, open, client]);
+
   // Carregar rascunho de contrato existente para detectar objeto do contrato
   useEffect(() => {
     const loadContractDraft = async () => {
@@ -688,7 +716,41 @@ todos com escritório na ${ENDERECO_ESCRITORIO}, ${TEXTO_PODERES}`;
 
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={async (isOpen) => {
+      if (!isOpen && client && user) {
+        // Auto-save draft silently on close if there's data
+        const hasData = localQualification.trim() || poderesEspeciais.trim();
+        if (hasData) {
+          try {
+            const draftData = {
+              user_id: user.id,
+              client_id: client.id,
+              client_name: client.nomeCompleto,
+              qualification: localQualification,
+              tem_poderes_especiais: temPoderesEspeciais,
+              poderes_especiais: poderesEspeciais,
+            };
+
+            const { data: existing } = await supabase
+              .from('procuracao_drafts' as any)
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('client_id', client.id)
+              .maybeSingle();
+
+            if (existing) {
+              await supabase.from('procuracao_drafts' as any).update(draftData).eq('id', (existing as any).id);
+            } else {
+              await supabase.from('procuracao_drafts' as any).insert(draftData);
+            }
+            console.log('Rascunho de procuração salvo automaticamente');
+          } catch (error) {
+            console.error('Erro ao auto-salvar rascunho de procuração:', error);
+          }
+        }
+      }
+      onOpenChange(isOpen);
+    }}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
