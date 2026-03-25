@@ -241,6 +241,7 @@ export default function ViabilidadeNovo() {
 
       setParecer(data.parecer);
       setRecomendacao(data.recomendacao);
+      if (data.titulo) setTituloGerado(data.titulo);
       toast.success('Análise concluída!');
     } catch (err: any) {
       clearInterval(progressInterval);

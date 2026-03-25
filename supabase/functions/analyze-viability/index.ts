@@ -136,10 +136,52 @@ async function callOpenAI(userPrompt: string): Promise<string> {
   return data.choices?.[0]?.message?.content || "Não foi possível gerar o parecer.";
 }
 
+async function generateTitle(tipoAcao: string, descricaoCaso: string): Promise<string> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) {
+    console.warn("LOVABLE_API_KEY not available for title generation, using tipo_acao as fallback");
+    return tipoAcao || "Análise Jurídica";
+  }
+
+  try {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [
+          {
+            role: "system",
+            content: "Você gera títulos curtos para casos jurídicos. Responda APENAS com o título, sem aspas, sem pontuação final. Máximo 8 palavras.",
+          },
+          {
+            role: "user",
+            content: `Tipo de ação: ${tipoAcao}\nDescrição: ${descricaoCaso.substring(0, 500)}`,
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("Title generation error:", response.status);
+      return tipoAcao || "Análise Jurídica";
+    }
+
+    const data = await response.json();
+    const titulo = data.choices?.[0]?.message?.content?.trim();
+    return titulo || tipoAcao || "Análise Jurídica";
+  } catch (err) {
+    console.error("Title generation failed:", err);
+    return tipoAcao || "Análise Jurídica";
+  }
+}
+
 function extractRecomendacao(parecer: string): string {
   const upper = parecer.toUpperCase();
   if (upper.includes("**RECOMENDAÇÃO:** VIÁVEL") || upper.includes("RECOMENDAÇÃO:** VIÁVEL")) {
-    // Make sure it's not "INVIÁVEL"
     const idx = upper.indexOf("RECOMENDAÇÃO:**");
     if (idx !== -1) {
       const after = upper.substring(idx, idx + 40);
@@ -196,8 +238,12 @@ serve(async (req) => {
 
     const recomendacao = extractRecomendacao(parecer);
 
+    // Generate short title via Lovable AI
+    const titulo = await generateTitle(tipo_acao, descricao_caso);
+    console.log(`Generated title: ${titulo}`);
+
     return new Response(
-      JSON.stringify({ parecer, recomendacao, modelo_usado: selectedModel }),
+      JSON.stringify({ parecer, recomendacao, titulo, modelo_usado: selectedModel }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
