@@ -129,6 +129,115 @@ serve(async (req) => {
 
     const body = await req.json();
 
+    // ===== ACTION: sync_all =====
+    if (body.action === 'sync_all') {
+      console.log('Sincronizando todos os documentos da conta ZapSign...');
+      let page = 1;
+      let totalSynced = 0;
+      let totalFetched = 0;
+
+      while (true) {
+        const listResp = await fetch(`${ZAPSIGN_API_URL}/docs/?page=${page}`, {
+          headers: { 'Authorization': `Bearer ${ZAPSIGN_API_TOKEN}` },
+        });
+
+        if (!listResp.ok) {
+          const errText = await listResp.text();
+          console.error(`Erro ao listar docs página ${page}:`, listResp.status, errText);
+          break;
+        }
+
+        const listData = await listResp.json();
+        const results = listData.results || listData;
+        if (!Array.isArray(results) || results.length === 0) break;
+
+        totalFetched += results.length;
+        console.log(`Página ${page}: ${results.length} documentos`);
+
+        for (const doc of results) {
+          try {
+            const signers = doc.signers || [];
+            const mapStatus = (s: string) => {
+              if (s === 'signed' || s === 'Assinado') return 'signed';
+              if (s === 'refused' || s === 'Recusado') return 'refused';
+              return 'pending';
+            };
+
+            const overallSigned = doc.status === 'signed' || signers.every((s: any) => s.status === 'signed');
+            const isContractDoc = signers.length >= 3;
+
+            const record: Record<string, any> = {
+              document_token: doc.token,
+              document_name: doc.name || 'Sem nome',
+              status: overallSigned ? 'signed' : mapStatus(doc.status || 'pending'),
+              original_file_url: doc.original_file || null,
+              signed_file_url: doc.signed_file || null,
+              updated_at: new Date().toISOString(),
+            };
+
+            // Try to identify client name from signers
+            if (isContractDoc) {
+              record.document_type = 'contrato';
+              // Convention: 0=Marcos, 1=Rafael, 2=Client, 3+=Witnesses
+              record.marcos_signer_status = mapStatus(signers[0]?.status);
+              record.office_signer_status = mapStatus(signers[0]?.status);
+              record.rafael_signer_status = mapStatus(signers[1]?.status);
+              record.client_signer_status = mapStatus(signers[2]?.status);
+              record.client_name = signers[2]?.name || doc.name || 'Cliente';
+              record.sign_url = signers[2]?.sign_url || null;
+              record.client_signer_token = signers[2]?.token || null;
+              record.marcos_signer_token = signers[0]?.token || null;
+              record.rafael_signer_token = signers[1]?.token || null;
+              record.office_signer_token = signers[0]?.token || null;
+
+              if (signers[3]) {
+                record.witness1_name = signers[3]?.name || 'Testemunha 1';
+                record.witness1_signer_status = mapStatus(signers[3]?.status);
+                record.witness1_signer_token = signers[3]?.token || null;
+              }
+              if (signers[4]) {
+                record.witness2_name = signers[4]?.name || 'Testemunha 2';
+                record.witness2_signer_status = mapStatus(signers[4]?.status);
+                record.witness2_signer_token = signers[4]?.token || null;
+              }
+            } else {
+              record.document_type = signers.length === 1 ? 'procuracao' : 'contrato';
+              record.client_name = signers[0]?.name || doc.name || 'Cliente';
+              record.client_signer_status = signers[0] ? mapStatus(signers[0]?.status) : null;
+              record.client_signer_token = signers[0]?.token || null;
+              record.sign_url = signers[0]?.sign_url || null;
+            }
+
+            if (overallSigned) {
+              record.signed_at = doc.signed_date || new Date().toISOString();
+              record.completed_at = doc.signed_date || new Date().toISOString();
+            }
+
+            const { error: upsertError } = await supabase
+              .from('zapsign_documents')
+              .upsert(record, { onConflict: 'document_token' });
+
+            if (upsertError) {
+              console.error(`Erro upsert doc ${doc.token}:`, upsertError.message);
+            } else {
+              totalSynced++;
+            }
+          } catch (docErr) {
+            console.error(`Erro processando doc:`, docErr);
+          }
+        }
+
+        if (!listData.next) break;
+        page++;
+      }
+
+      console.log(`Sync concluído: ${totalSynced}/${totalFetched} documentos sincronizados`);
+      return new Response(
+        JSON.stringify({ success: true, totalFetched, totalSynced }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // ===== ACTION: check_status =====
     if (body.action === 'check_status' && body.documentToken) {
       console.log('Verificando status do documento:', body.documentToken);

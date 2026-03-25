@@ -5,9 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, RefreshCw, FileSignature, CheckCircle2, Clock, XCircle, ExternalLink, Search, FileText } from 'lucide-react';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
+import { Loader2, RefreshCw, FileSignature, CheckCircle2, Clock, XCircle, ExternalLink, Search, FileText, CloudUpload, Download } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useTeamsUpload } from '@/hooks/useTeamsUpload';
 
 interface ZapSignDocument {
   id: string;
@@ -36,6 +38,8 @@ interface ZapSignDocument {
 type StatusFilter = 'all' | 'pending' | 'signed' | 'refused';
 type TypeFilter = 'all' | 'contrato' | 'procuracao';
 
+const ITEMS_PER_PAGE = 20;
+
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof CheckCircle2 }> = {
   signed: { label: 'Assinado', variant: 'default', icon: CheckCircle2 },
   pending: { label: 'Pendente', variant: 'secondary', icon: Clock },
@@ -58,18 +62,21 @@ export const CRMZapSignContracts = () => {
   const [documents, setDocuments] = useState<ZapSignDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [savingDocId, setSavingDocId] = useState<string | null>(null);
+
+  const { sites, drives, loadSites, loadDrives, findOrCreateClientFolder, uploadFile } = useTeamsUpload();
 
   const fetchDocuments = async () => {
     try {
-      let query = supabase
+      const { data, error } = await supabase
         .from('zapsign_documents')
         .select('*')
         .order('created_at', { ascending: false });
-
-      const { data, error } = await query;
       if (error) throw error;
       setDocuments((data as ZapSignDocument[]) || []);
     } catch (error) {
@@ -82,14 +89,12 @@ export const CRMZapSignContracts = () => {
 
   useEffect(() => {
     fetchDocuments();
-
     const channel = supabase
       .channel('zapsign-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'zapsign_documents' }, () => {
         fetchDocuments();
       })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, []);
 
@@ -97,7 +102,6 @@ export const CRMZapSignContracts = () => {
     setRefreshing(true);
     const pendingDocs = documents.filter(d => d.status === 'pending');
     let updated = 0;
-
     for (const doc of pendingDocs) {
       try {
         const { data, error } = await supabase.functions.invoke('zapsign-integration', {
@@ -108,10 +112,99 @@ export const CRMZapSignContracts = () => {
         console.error(`Erro ao atualizar status do doc ${doc.document_token}:`, err);
       }
     }
-
     toast.success(`${updated} documento(s) atualizado(s) de ${pendingDocs.length} pendente(s)`);
     await fetchDocuments();
     setRefreshing(false);
+  };
+
+  const handleSyncAll = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('zapsign-integration', {
+        body: { action: 'sync_all' },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast.success(`${data.totalSynced} documento(s) sincronizado(s) de ${data.totalFetched} encontrado(s)`);
+        await fetchDocuments();
+      } else {
+        toast.error('Erro ao sincronizar documentos');
+      }
+    } catch (err) {
+      console.error('Erro sync_all:', err);
+      toast.error('Erro ao sincronizar com ZapSign');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleSaveToTeams = async (doc: ZapSignDocument) => {
+    const fileUrl = doc.signed_file_url || doc.original_file_url;
+    if (!fileUrl) {
+      toast.error('Nenhum arquivo disponível para salvar');
+      return;
+    }
+
+    setSavingDocId(doc.id);
+    try {
+      // Load sites if needed
+      let sitesList = sites;
+      if (sitesList.length === 0) {
+        sitesList = await loadSites();
+      }
+
+      const juridico = sitesList.find((s: any) => s.displayName?.toLowerCase().includes('jurídico') || s.displayName?.toLowerCase().includes('juridico'));
+      if (!juridico) {
+        toast.error('Site "Jurídico" não encontrado no Teams');
+        return;
+      }
+
+      let drivesList = drives;
+      if (drivesList.length === 0 || drives[0]) {
+        drivesList = await loadDrives(juridico.id);
+      }
+
+      const docsDrive = drivesList.find((d: any) => d.name === 'Documentos' || d.name === 'Documents') || drivesList[0];
+      if (!docsDrive) {
+        toast.error('Drive não encontrado');
+        return;
+      }
+
+      // Find or create client folder
+      const clientFolder = await findOrCreateClientFolder(docsDrive.id, doc.client_name);
+      if (!clientFolder.success || !clientFolder.folderId) {
+        toast.error(clientFolder.error || 'Erro ao criar pasta do cliente');
+        return;
+      }
+
+      // Fetch the PDF file
+      toast.info('Baixando documento...');
+      const pdfResp = await fetch(fileUrl);
+      if (!pdfResp.ok) throw new Error('Erro ao baixar o arquivo');
+      const pdfBlob = await pdfResp.arrayBuffer();
+      const uint8 = new Uint8Array(pdfBlob);
+      let binary = '';
+      for (let i = 0; i < uint8.length; i++) {
+        binary += String.fromCharCode(uint8[i]);
+      }
+      const base64 = btoa(binary);
+
+      // Upload
+      const fileName = `${doc.document_name}.pdf`;
+      toast.info('Enviando para o Teams...');
+      const result = await uploadFile(docsDrive.id, fileName, base64, clientFolder.folderId);
+
+      if (result.success) {
+        toast.success(`Documento salvo na pasta de ${doc.client_name} no Teams!`);
+      } else {
+        toast.error(result.error || 'Erro ao salvar no Teams');
+      }
+    } catch (err: any) {
+      console.error('Erro ao salvar no Teams:', err);
+      toast.error(err.message || 'Erro ao salvar no Teams');
+    } finally {
+      setSavingDocId(null);
+    }
   };
 
   const filtered = documents.filter(doc => {
@@ -123,6 +216,13 @@ export const CRMZapSignContracts = () => {
     }
     return true;
   });
+
+  // Pagination
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginatedDocs = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // Reset page when filters change
+  useEffect(() => { setCurrentPage(1); }, [statusFilter, typeFilter, search]);
 
   const totals = {
     total: documents.length,
@@ -213,6 +313,10 @@ export const CRMZapSignContracts = () => {
             <SelectItem value="procuracao">Procurações</SelectItem>
           </SelectContent>
         </Select>
+        <Button onClick={handleSyncAll} disabled={syncing} variant="outline" className="gap-2">
+          {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          Sincronizar ZapSign
+        </Button>
         <Button onClick={handleRefreshStatus} disabled={refreshing} variant="outline" className="gap-2">
           {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           Atualizar Status
@@ -231,86 +335,141 @@ export const CRMZapSignContracts = () => {
           {filtered.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">Nenhum documento encontrado</p>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Documento</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Status Geral</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Marcos</TableHead>
-                    <TableHead>Rafael</TableHead>
-                    <TableHead>Testemunhas</TableHead>
-                    <TableHead>Criado em</TableHead>
-                    <TableHead>Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map(doc => (
-                    <TableRow key={doc.id}>
-                      <TableCell className="font-medium max-w-[200px] truncate" title={doc.document_name}>
-                        {doc.document_name}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {doc.document_type === 'contrato' ? 'Contrato' : 'Procuração'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{doc.client_name}</TableCell>
-                      <TableCell>{getStatusBadge(doc.status)}</TableCell>
-                      <TableCell>{getStatusBadge(doc.client_signer_status)}</TableCell>
-                      <TableCell>
-                        {doc.document_type === 'contrato' ? getStatusBadge(doc.marcos_signer_status) : <span className="text-muted-foreground text-xs">—</span>}
-                      </TableCell>
-                      <TableCell>
-                        {doc.document_type === 'contrato' ? getStatusBadge(doc.rafael_signer_status) : <span className="text-muted-foreground text-xs">—</span>}
-                      </TableCell>
-                      <TableCell>
-                        {doc.witness1_name ? (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1 text-xs">
-                              <span>{doc.witness1_name}:</span>
-                              {getStatusBadge(doc.witness1_signer_status)}
-                            </div>
-                            {doc.witness2_name && (
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Documento</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Status Geral</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Marcos</TableHead>
+                      <TableHead>Rafael</TableHead>
+                      <TableHead>Testemunhas</TableHead>
+                      <TableHead>Criado em</TableHead>
+                      <TableHead>Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedDocs.map(doc => (
+                      <TableRow key={doc.id}>
+                        <TableCell className="font-medium max-w-[200px] truncate" title={doc.document_name}>
+                          {doc.document_name}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {doc.document_type === 'contrato' ? 'Contrato' : 'Procuração'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{doc.client_name}</TableCell>
+                        <TableCell>{getStatusBadge(doc.status)}</TableCell>
+                        <TableCell>{getStatusBadge(doc.client_signer_status)}</TableCell>
+                        <TableCell>
+                          {doc.document_type === 'contrato' ? getStatusBadge(doc.marcos_signer_status) : <span className="text-muted-foreground text-xs">—</span>}
+                        </TableCell>
+                        <TableCell>
+                          {doc.document_type === 'contrato' ? getStatusBadge(doc.rafael_signer_status) : <span className="text-muted-foreground text-xs">—</span>}
+                        </TableCell>
+                        <TableCell>
+                          {doc.witness1_name ? (
+                            <div className="space-y-1">
                               <div className="flex items-center gap-1 text-xs">
-                                <span>{doc.witness2_name}:</span>
-                                {getStatusBadge(doc.witness2_signer_status)}
+                                <span>{doc.witness1_name}:</span>
+                                {getStatusBadge(doc.witness1_signer_status)}
                               </div>
+                              {doc.witness2_name && (
+                                <div className="flex items-center gap-1 text-xs">
+                                  <span>{doc.witness2_name}:</span>
+                                  {getStatusBadge(doc.witness2_signer_status)}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                          {new Date(doc.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            {doc.sign_url && doc.client_signer_status === 'pending' && (
+                              <Button variant="ghost" size="icon" asChild title="Link de assinatura do cliente">
+                                <a href={doc.sign_url} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-4 w-4" />
+                                </a>
+                              </Button>
+                            )}
+                            {doc.signed_file_url && (
+                              <Button variant="ghost" size="icon" asChild title="Documento assinado">
+                                <a href={doc.signed_file_url} target="_blank" rel="noopener noreferrer">
+                                  <FileText className="h-4 w-4 text-green-600" />
+                                </a>
+                              </Button>
+                            )}
+                            {(doc.signed_file_url || doc.original_file_url) && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Salvar na pasta do cliente no Teams"
+                                disabled={savingDocId === doc.id}
+                                onClick={() => handleSaveToTeams(doc)}
+                              >
+                                {savingDocId === doc.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <CloudUpload className="h-4 w-4 text-blue-600" />
+                                )}
+                              </Button>
                             )}
                           </div>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                        {new Date(doc.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          {doc.sign_url && doc.client_signer_status === 'pending' && (
-                            <Button variant="ghost" size="icon" asChild title="Link de assinatura do cliente">
-                              <a href={doc.sign_url} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
-                            </Button>
-                          )}
-                          {doc.signed_file_url && (
-                            <Button variant="ghost" size="icon" asChild title="Documento assinado">
-                              <a href={doc.signed_file_url} target="_blank" rel="noopener noreferrer">
-                                <FileText className="h-4 w-4 text-green-600" />
-                              </a>
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="mt-4">
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        />
+                      </PaginationItem>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                        .map((p, idx, arr) => (
+                          <PaginationItem key={p}>
+                            {idx > 0 && arr[idx - 1] !== p - 1 && (
+                              <span className="px-2 text-muted-foreground">…</span>
+                            )}
+                            <PaginationLink
+                              isActive={p === currentPage}
+                              onClick={() => setCurrentPage(p)}
+                              className="cursor-pointer"
+                            >
+                              {p}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ))}
+                      <PaginationItem>
+                        <PaginationNext
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
