@@ -131,6 +131,34 @@ export const ProcuracaoGenerator = ({
     setLocalQualification(qualification);
   }, [qualification]);
 
+  // Auto-load procuração draft when dialog opens
+  useEffect(() => {
+    const loadProcuracaoDraft = async () => {
+      if (!open || !user || !client) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('procuracao_drafts' as any)
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('client_id', client.id)
+          .maybeSingle();
+        
+        if (!error && data) {
+          const draft = data as any;
+          if (draft.qualification) setLocalQualification(draft.qualification);
+          if (draft.tem_poderes_especiais) setTemPoderesEspeciais(draft.tem_poderes_especiais);
+          if (draft.poderes_especiais) setPoderesEspeciais(draft.poderes_especiais);
+          toast.info("Rascunho de procuração restaurado automaticamente");
+        }
+      } catch (error) {
+        console.error('Erro ao carregar rascunho de procuração:', error);
+      }
+    };
+
+    loadProcuracaoDraft();
+  }, [user, open, client]);
+
   // Carregar rascunho de contrato existente para detectar objeto do contrato
   useEffect(() => {
     const loadContractDraft = async () => {
