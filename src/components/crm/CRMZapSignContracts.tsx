@@ -232,9 +232,12 @@ export const CRMZapSignContracts = () => {
       const tipoDoc = doc.document_type === 'contrato' ? 'contrato' : 
                        doc.document_type === 'procuracao' ? 'procuração' : 'documento';
 
+      const linkAssinatura = doc.sign_url || 'O link foi enviado anteriormente por e-mail.';
+
       const message = template.content
         .replace(/{nome}/g, firstName)
-        .replace(/{tipo_documento}/g, tipoDoc);
+        .replace(/{tipo_documento}/g, tipoDoc)
+        .replace(/{link_assinatura}/g, linkAssinatura);
 
       const { error } = await supabase.functions.invoke('zapi-send-message', {
         body: { action: 'send-message', phone: doc.client_phone, message, skipFooter: true },
