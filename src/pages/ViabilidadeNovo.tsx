@@ -293,6 +293,7 @@ export default function ViabilidadeNovo() {
         documentos: docPaths,
         parecer_viabilidade: parecer || null,
         analise_realizada_em: parecer ? new Date().toISOString() : null,
+        titulo: tituloGerado || tipoAcao || null,
         status,
         created_by: user.id,
       } as any);
