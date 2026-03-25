@@ -1,30 +1,31 @@
 
 
-## Correção: Erro "Failed to fetch" nos Agentes de IA
+## Expandir detalhes de contratos fechados por vendedor no Ranking CRM
 
-### Problema identificado
-
-A edge function `chat-with-agent` está crashando no boot por causa da biblioteca `pdf-parse` importada via `esm.sh`. Esta biblioteca tenta ler um arquivo de teste (`test/data/05-versions-space.pdf`) ao ser carregada, e esse arquivo não existe no ambiente de edge functions. O erro nos logs:
-
-```
-path not found: .../chat-with-agent/test/data/05-versions-space.pdf
-```
-
-Isso faz a função falhar completamente, resultando em "Failed to fetch" para o usuário.
-
-### Solução
-
-Substituir a importação do `pdf-parse` via `esm.sh` por uma abordagem que não dependa desse arquivo de teste. A solução é usar `npm:pdf-parse` (importação via npm specifier do Deno) que não tem esse problema, ou usar a biblioteca `pdf-lib` / `pdfjs-dist` como alternativa.
-
-A forma mais confiável é usar o specifier `npm:pdf-parse` em vez de `https://esm.sh/pdf-parse@1.1.1`, pois o Deno resolve dependências npm sem os problemas de path do esm.sh.
+### O que será feito
+Ao clicar no card de cada vendedor no ranking, ele expande e mostra a lista de todos os contratos fechados por aquele vendedor no período selecionado, com detalhes como nome do cliente, produto, valor e data de fechamento.
 
 ### Implementação
 
-**Arquivo: `supabase/functions/chat-with-agent/index.ts`**
+**Arquivo: `src/components/crm/CRMRanking.tsx`**
 
-- Linha 3: Trocar `import pdf from "https://esm.sh/pdf-parse@1.1.1"` por uma implementação manual de extração de PDF usando `https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.mjs` (pdfjs-dist funciona no Deno sem arquivos de teste), **ou** usar a abordagem de importar via `npm:` specifier
-- A solução mais simples e testada: trocar para `npm:pdf-parse@1.1.1` que funciona no Deno edge runtime sem o problema do arquivo de teste
+1. **Buscar dados completos dos deals won**: Alterar a query de deals para incluir `id, name, value, closed_at, contact_id` (além de `owner_id, won`). Também buscar `crm_contacts` (id, name) para mapear o nome do cliente.
 
-### Arquivo modificado
-- **`supabase/functions/chat-with-agent/index.ts`** — trocar import do pdf-parse
+2. **Armazenar deals por vendedor**: Criar um `Map<string, Deal[]>` agrupando os deals won por `owner_id`, para acesso rápido ao expandir.
+
+3. **Estado de expansão**: Adicionar `expandedSellerId` state. Ao clicar no card do vendedor, toggle entre expandido/colapsado.
+
+4. **UI expandida**: Usar `Collapsible` do Radix (já existe em `ui/collapsible.tsx`). Dentro do card expandido, renderizar uma tabela/lista com:
+   - Nome do cliente (do contato vinculado)
+   - Nome do deal / Produto
+   - Valor (R$)
+   - Data de fechamento
+   - Ícone `ChevronDown`/`ChevronUp` no card para indicar que é clicável
+
+5. **Imports adicionais**: `Collapsible, CollapsibleContent, CollapsibleTrigger` de `@/components/ui/collapsible`, `ChevronDown` de `lucide-react`.
+
+### Resultado esperado
+- Clicar no card de um vendedor expande uma seção abaixo mostrando todos os contratos fechados com detalhes
+- Clicar novamente fecha a seção
+- Indicador visual (chevron) mostra que o card é clicável/expansível
 
