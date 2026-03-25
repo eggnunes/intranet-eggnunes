@@ -339,6 +339,52 @@ export default function MarketingHub() {
     return { impressions: 0, clicks: 0, conversions: 0, spend: 0, ctr: '0', cpc: '0' };
   }, [googleCampaignTotals]);
 
+  // Consolidated campaigns for "Campanhas" tab (Google + Meta)
+  const consolidatedCampaigns = useMemo(() => {
+    const metaInsightsMap: Record<string, any> = {};
+    for (const i of metaInsights) {
+      if (i.campaign_id) metaInsightsMap[i.campaign_id] = i;
+    }
+    const metaNormalized = metaCampaigns.map((c: any) => {
+      const insight = metaInsightsMap[c.id] || {};
+      return {
+        id: c.id,
+        name: c.name || 'Sem nome',
+        platform: 'Meta' as const,
+        status: c.status || 'UNKNOWN',
+        impressions: parseInt(insight.impressions || '0'),
+        clicks: parseInt(insight.clicks || '0'),
+        ctr: parseFloat(insight.ctr || '0'),
+        cpc: parseFloat(insight.cpc || '0'),
+        spend: parseFloat(insight.spend || '0'),
+      };
+    });
+    const googleNormalized = googleCampaigns.map((c: any) => ({
+      id: c.id,
+      name: c.name || 'Sem nome',
+      platform: 'Google' as const,
+      status: c.status || 'UNKNOWN',
+      impressions: parseInt(c.impressions || '0'),
+      clicks: parseInt(c.clicks || '0'),
+      ctr: parseFloat(c.ctr || '0'),
+      cpc: parseFloat(c.cpc || '0'),
+      spend: parseFloat(c.cost || '0'),
+    }));
+    return [...metaNormalized, ...googleNormalized].sort((a, b) => b.spend - a.spend);
+  }, [metaCampaigns, metaInsights, googleCampaigns]);
+
+  const consolidatedTotals = useMemo(() => {
+    const t = { impressions: 0, clicks: 0, spend: 0, metaSpend: 0, googleSpend: 0 };
+    for (const c of consolidatedCampaigns) {
+      t.impressions += c.impressions;
+      t.clicks += c.clicks;
+      t.spend += c.spend;
+      if (c.platform === 'Meta') t.metaSpend += c.spend;
+      else t.googleSpend += c.spend;
+    }
+    return { ...t, ctr: t.impressions > 0 ? ((t.clicks / t.impressions) * 100) : 0, cpc: t.clicks > 0 ? t.spend / t.clicks : 0 };
+  }, [consolidatedCampaigns]);
+
   // Funnel data - ALL deals, not filtered by date
   const funnelData = useMemo(() => {
     const stages = dealStages.map((stage: any) => {
