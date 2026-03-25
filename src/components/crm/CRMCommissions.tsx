@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Wallet, Users, TrendingUp, Settings, Save } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Loader2, Wallet, Users, TrendingUp, Settings, Save, ChevronDown, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -20,11 +21,21 @@ interface CommissionRule {
   value_per_contract: number;
 }
 
+interface DealDetail {
+  id: string;
+  name: string;
+  value: number | null;
+  closedAt: string | null;
+  contactName: string | null;
+  productName: string | null;
+}
+
 interface SellerCommission {
   ownerId: string;
   name: string;
   contracts: number;
   commission: number;
+  deals: DealDetail[];
 }
 
 const EXCLUDED_NAMES = ['rafael egg'];
@@ -61,8 +72,10 @@ function getNextRule(rules: CommissionRule[], totalContracts: number): Commissio
   return sorted.find(r => r.min_contracts > totalContracts) || null;
 }
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+const formatCurrency = (value: number | null) => {
+  if (value == null) return '—';
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+};
 
 const PERIOD_OPTIONS = [
   { value: '0', label: 'Período Atual' },
@@ -82,16 +95,19 @@ export const CRMCommissions = () => {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedOffset, setSelectedOffset] = useState(0);
+  const [expandedSellerId, setExpandedSellerId] = useState<string | null>(null);
 
   const period = useMemo(() => getBusinessCyclePeriodWithOffset(selectedOffset), [selectedOffset]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setExpandedSellerId(null);
     try {
-      const [rulesRes, dealsRes, profilesRes] = await Promise.all([
+      const [rulesRes, dealsRes, profilesRes, contactsRes] = await Promise.all([
         supabase.from('crm_commission_rules').select('*').order('min_contracts'),
-        supabase.from('crm_deals').select('owner_id, won, closed_at').eq('won', true).gte('closed_at', period.start).lte('closed_at', period.end),
+        supabase.from('crm_deals').select('id, name, value, owner_id, won, closed_at, contact_id, product_name').eq('won', true).gte('closed_at', period.start).lte('closed_at', period.end),
         supabase.from('profiles').select('id, full_name'),
+        supabase.from('crm_contacts').select('id, name'),
       ]);
 
       const fetchedRules = (rulesRes.data || []) as CommissionRule[];
@@ -99,25 +115,38 @@ export const CRMCommissions = () => {
       setEditRules(fetchedRules.map(r => ({ ...r })));
 
       const profiles = new Map((profilesRes.data || []).map(p => [p.id, p.full_name]));
-      const ownerMap = new Map<string, number>();
+      const contactMap = new Map((contactsRes.data || []).map(c => [c.id, c.name]));
+      const ownerDeals = new Map<string, DealDetail[]>();
 
       for (const deal of dealsRes.data || []) {
         if (!deal.owner_id) continue;
         const name = profiles.get(deal.owner_id) || '';
         if (EXCLUDED_NAMES.includes(name.toLowerCase())) continue;
-        ownerMap.set(deal.owner_id, (ownerMap.get(deal.owner_id) || 0) + 1);
+        
+        if (!ownerDeals.has(deal.owner_id)) {
+          ownerDeals.set(deal.owner_id, []);
+        }
+        ownerDeals.get(deal.owner_id)!.push({
+          id: deal.id,
+          name: deal.name,
+          value: deal.value,
+          closedAt: deal.closed_at,
+          contactName: deal.contact_id ? (contactMap.get(deal.contact_id) || null) : null,
+          productName: deal.product_name || deal.name,
+        });
       }
 
-      const totalContracts = Array.from(ownerMap.values()).reduce((s, v) => s + v, 0);
+      const totalContracts = Array.from(ownerDeals.values()).reduce((s, v) => s + v.length, 0);
       const activeRule = getActiveRule(fetchedRules, totalContracts);
       const valuePerContract = activeRule?.value_per_contract || 0;
 
-      const sellerList: SellerCommission[] = Array.from(ownerMap.entries())
-        .map(([ownerId, contracts]) => ({
+      const sellerList: SellerCommission[] = Array.from(ownerDeals.entries())
+        .map(([ownerId, deals]) => ({
           ownerId,
           name: profiles.get(ownerId) || 'Desconhecido',
-          contracts,
-          commission: contracts * valuePerContract,
+          contracts: deals.length,
+          commission: deals.length * valuePerContract,
+          deals,
         }))
         .sort((a, b) => b.contracts - a.contracts);
 
@@ -242,11 +271,11 @@ export const CRMCommissions = () => {
         </Card>
       </div>
 
-      {/* Seller table */}
+      {/* Seller table with expandable deals */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Comissão por Vendedor</CardTitle>
-          <CardDescription>Baseado em {totalContracts} contratos da equipe</CardDescription>
+          <CardDescription>Baseado em {totalContracts} contratos da equipe — clique no vendedor para ver detalhes</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -256,30 +285,73 @@ export const CRMCommissions = () => {
                 <TableHead className="text-center">Contratos</TableHead>
                 <TableHead className="text-center">Valor/Contrato</TableHead>
                 <TableHead className="text-right">Comissão Total</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {sellers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     Nenhum contrato fechado no período
                   </TableCell>
                 </TableRow>
               ) : (
-                sellers.map((s) => (
-                  <TableRow key={s.ownerId}>
-                    <TableCell className="font-medium">{s.name}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant="secondary">{s.contracts}</Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {formatCurrency(activeRule?.value_per_contract || 0)}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold text-green-600">
-                      {formatCurrency(s.commission)}
-                    </TableCell>
-                  </TableRow>
-                ))
+                sellers.map((s) => {
+                  const isExpanded = expandedSellerId === s.ownerId;
+                  return (
+                    <Collapsible key={s.ownerId} open={isExpanded} onOpenChange={() => setExpandedSellerId(isExpanded ? null : s.ownerId)} asChild>
+                      <>
+                        <CollapsibleTrigger asChild>
+                          <TableRow className="cursor-pointer hover:bg-muted/50">
+                            <TableCell className="font-medium">{s.name}</TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant="secondary">{s.contracts}</Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {formatCurrency(activeRule?.value_per_contract || 0)}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold text-green-600">
+                              {formatCurrency(s.commission)}
+                            </TableCell>
+                            <TableCell>
+                              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                            </TableCell>
+                          </TableRow>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent asChild>
+                          <tr>
+                            <td colSpan={5} className="p-0">
+                              <div className="bg-muted/20 border-t border-b px-6 py-3">
+                                <p className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                                  <FileText className="h-3.5 w-3.5" />
+                                  Contratos fechados por {s.name}
+                                </p>
+                                <div className="rounded-md border bg-card overflow-hidden">
+                                  <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-x-4 px-4 py-2 text-xs font-medium text-muted-foreground border-b bg-muted/30">
+                                    <span>Cliente</span>
+                                    <span>Produto / Ação</span>
+                                    <span className="text-right">Valor</span>
+                                    <span className="text-right">Fechamento</span>
+                                  </div>
+                                  {s.deals.map(deal => (
+                                    <div key={deal.id} className="grid grid-cols-[1fr_1fr_auto_auto] gap-x-4 px-4 py-2.5 text-sm border-b last:border-b-0">
+                                      <span className="truncate font-medium">{deal.contactName || 'Sem contato'}</span>
+                                      <span className="truncate text-muted-foreground">{deal.productName}</span>
+                                      <span className="text-right whitespace-nowrap font-medium">{formatCurrency(deal.value)}</span>
+                                      <span className="text-right whitespace-nowrap text-muted-foreground">
+                                        {deal.closedAt ? format(new Date(deal.closedAt), 'dd/MM/yyyy', { locale: ptBR }) : '—'}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        </CollapsibleContent>
+                      </>
+                    </Collapsible>
+                  );
+                })
               )}
               {sellers.length > 0 && (
                 <TableRow className="bg-muted/50 font-bold">
@@ -289,6 +361,7 @@ export const CRMCommissions = () => {
                   <TableCell className="text-right text-green-600">
                     {formatCurrency(sellers.reduce((s, v) => s + v.commission, 0))}
                   </TableCell>
+                  <TableCell />
                 </TableRow>
               )}
             </TableBody>
