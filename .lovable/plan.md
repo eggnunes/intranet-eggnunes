@@ -1,54 +1,48 @@
 
 
-## Nova sub-aba "Comissão dos Vendedores" no CRM
+## Incluir link de assinatura na mensagem de lembrete ZapSign
 
 ### O que será feito
-1. Criar tabela `crm_commission_rules` para armazenar as faixas de comissionamento (editável por admins)
-2. Criar componente `CRMCommissions.tsx` com dashboard de comissões e painel de configuração de regras
-3. Adicionar sub-aba "Comissões" no CRM Dashboard
+Atualizar o template de lembrete e a lógica de envio para incluir o link de assinatura (`sign_url`) do documento pendente na mensagem enviada ao cliente via WhatsApp.
 
-### 1. Migração SQL — Tabela de regras de comissão
+### Implementação
 
-```sql
-CREATE TABLE crm_commission_rules (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  min_contracts INTEGER NOT NULL,
-  max_contracts INTEGER, -- NULL = sem limite (faixa aberta)
-  value_per_contract NUMERIC(10,2) NOT NULL,
-  created_by UUID REFERENCES auth.users(id),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
+**1. Atualizar template na tabela `whatsapp_templates`**
+
+Substituir o trecho "basta acessar o link que lhe foi enviado anteriormente" pelo placeholder `{link_assinatura}`:
+
+```
+Olá, {nome}! Tudo bem? 😊
+
+Passando para lembrar que o seu {tipo_documento} ainda está pendente de assinatura. 
+
+Para assinar, basta acessar o link abaixo. É rápido e seguro!
+
+🔗 {link_assinatura}
+
+⚠️ *Este número é exclusivo para envio de avisos e informativos do escritório Egg Nunes Advogados Associados.*
+Para entrar em contato conosco, utilize nosso canal oficial:
+📞 WhatsApp Oficial: https://wa.me/553132268742
+
+_Não responda esta mensagem._
 ```
 
-Inserir as 3 faixas padrão (1-29 = R$75, 30-44 = R$100, 45+ = R$125). RLS: leitura para autenticados aprovados, escrita apenas para admins/sócios.
+**2. Componente `CRMZapSignContracts.tsx`**
 
-### 2. Componente `CRMCommissions.tsx`
+Na função `handleSendReminder`, adicionar replace de `{link_assinatura}` com `doc.sign_url`. Se `sign_url` estiver vazio, substituir por texto informativo ("link enviado por e-mail"):
 
-- Reutiliza a lógica de `getBusinessCyclePeriod()` (ciclo 25-24) e `EXCLUDED_NAMES` do Ranking
-- Busca deals `won=true` no período com `closed_at` filtrado, agrupando por `owner_id`
-- Busca as regras de comissão da tabela `crm_commission_rules`
-- Calcula:
-  - **Total de contratos da equipe** (soma de todos os vendedores)
-  - **Faixa vigente** com base no total da equipe
-  - **Comissão individual** = contratos do vendedor × valor da faixa vigente
+```typescript
+const linkAssinatura = doc.sign_url || 'O link foi enviado anteriormente por e-mail.';
 
-**Interface:**
-- Card superior com: total de contratos da equipe, faixa atual, valor por contrato
-- Tabela/lista de vendedores com: nome, contratos fechados, valor da comissão (R$)
-- Barra de progresso mostrando proximidade da próxima faixa
-- Seção "Configurar Regras" (visível apenas para admins) com formulário para editar as 3 faixas
+const message = template.content
+  .replace(/{nome}/g, firstName)
+  .replace(/{tipo_documento}/g, tipoDoc)
+  .replace(/{link_assinatura}/g, linkAssinatura);
+```
 
-### 3. Integração no `CRMDashboard.tsx`
-
-- Importar `CRMCommissions`
-- Adicionar `TabsTrigger` com ícone `Wallet` e label "Comissões"
-- Adicionar `TabsContent` correspondente
-- Atualizar export em `index.ts`
+Também validar: se não há `sign_url` nem `client_phone`, exibir toast de erro antes de enviar.
 
 ### Arquivos modificados
-- **Migração SQL** — tabela `crm_commission_rules` + seed das 3 faixas
-- **`src/components/crm/CRMCommissions.tsx`** — novo componente
-- **`src/components/crm/CRMDashboard.tsx`** — nova aba
-- **`src/components/crm/index.ts`** — export
+- **Dados (update)** — template `/lembrete-assinatura` atualizado com `{link_assinatura}`
+- **`src/components/crm/CRMZapSignContracts.tsx`** — adicionar replace do link na mensagem
 
