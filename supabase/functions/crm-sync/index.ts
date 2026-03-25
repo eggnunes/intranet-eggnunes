@@ -429,7 +429,7 @@ async function syncPipelines(rdToken: string, supabase: any) {
       rd_station_id: stage._id,
       name: stage.name,
       order_index: stage.order || 0,
-      is_won: stage.name?.toLowerCase().includes('ganho') || stage.name?.toLowerCase().includes('won'),
+      is_won: stage.name?.toLowerCase().includes('ganho') || stage.name?.toLowerCase().includes('won') || stage.name?.toLowerCase().includes('fechamento'),
       is_lost: stage.name?.toLowerCase().includes('perdido') || stage.name?.toLowerCase().includes('lost')
     });
   }
@@ -766,6 +766,10 @@ async function syncDeals(rdToken: string, supabase: any) {
       ownerId = emailToProfileMap.get(deal.user.email.toLowerCase()) || null;
     }
 
+    // Check if deal is in a won stage
+    const stageIsWon = stageInfo && wonStageIds.has(stageInfo.id);
+    const dealIsWon = deal.win === true || deal.win === 'won' || deal.win === 1 || stageIsWon;
+
     return {
       rd_station_id: deal._id,
       contact_id: contactId || null,
@@ -775,8 +779,8 @@ async function syncDeals(rdToken: string, supabase: any) {
       name: deal.name || 'Deal sem nome',
       value: deal.amount_total || 0,
       expected_close_date: deal.prediction_date || null,
-      closed_at: deal.closed_at || null,
-      won: deal.win === true || deal.win === 'won' || deal.win === 1,
+      closed_at: deal.closed_at || (dealIsWon ? (deal.last_activity_at || deal.created_at || new Date().toISOString()) : null),
+      won: dealIsWon,
       loss_reason: deal.loss_reason || null,
       product_name: deal.deal_products?.[0]?.name || null,
       campaign_name: deal.campaign?.name || null,
