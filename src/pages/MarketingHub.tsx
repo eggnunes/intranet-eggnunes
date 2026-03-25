@@ -122,6 +122,19 @@ export default function MarketingHub() {
   const metaDateFrom = format(dateRange.from, 'yyyy-MM-dd');
   const metaDateTo = format(dateRange.to, 'yyyy-MM-dd');
 
+  // Meta campaigns for consolidated tab
+  const { data: metaCampaigns = [] } = useQuery({
+    queryKey: ['marketing-meta-campaigns', metaDateFrom, metaDateTo],
+    queryFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) return [];
+      const resp = await supabase.functions.invoke('meta-ads', {
+        body: { action: 'campaigns' },
+      });
+      return resp.data?.campaigns || [];
+    },
+  });
+
   const { data: metaInsights = [] } = useQuery({
     queryKey: ['marketing-roi-insights', metaDateFrom, metaDateTo],
     queryFn: async () => {
