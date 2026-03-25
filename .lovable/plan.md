@@ -1,19 +1,35 @@
 
 
-## Remover gráfico de pizza "Fechamentos por Tipo de Ação" do Ranking CRM
+## 1. Gerenciar membros de grupo nas Mensagens Internas + Filtrar desligados na Distribuição de Tarefas
 
-### O que será feito
-Remover o gráfico de pizza (Pie Chart) que mostra "Fechamentos por Tipo de Ação", mantendo apenas o gráfico de barras "Fechamentos por Vendedor".
+### Problema 1: Sem opção de adicionar/remover membros em grupos de conversa
+O header do chat de grupo mostra apenas o nome e quantidade de participantes, mas não oferece nenhuma ação para gerenciar membros. O hook `useMessaging` também não possui funções para adicionar ou remover participantes.
+
+### Problema 2: Colaboradores desligados aparecem na Distribuição de Tarefas
+A lista de exclusão em `DistribuicaoTarefas.tsx` é hardcoded com nomes específicos de gestores. Colaboradores desligados (como Tatiane) não são filtrados — o sistema deveria cruzar com a tabela `profiles` para excluir quem tem `is_active = false`.
+
+---
 
 ### Implementação
 
-**Arquivo: `src/components/crm/CRMRanking.tsx`**
+**Arquivo: `src/hooks/useMessaging.tsx`**
+- Adicionar função `addParticipants(conversationId, userIds[])` — insere na tabela `conversation_participants` e recarrega conversas
+- Adicionar função `removeParticipant(conversationId, userId)` — deleta da tabela `conversation_participants` e recarrega conversas
+- Exportar ambas funções no return
 
-1. **Remover o bloco do Pie Chart** (linhas 395-430) — o Card inteiro com o PieChart
-2. **Remover o grid de 2 colunas** — mudar `grid-cols-1 lg:grid-cols-2` para apenas o card do bar chart sem grid wrapper (já que sobra só um gráfico)
-3. **Limpar imports não usados**: remover `PieChart, Pie, Legend` do import do recharts
-4. **Remover `PIE_COLORS`** (linha 61) e o `productChartData` useMemo (linhas 218-230 aprox.)
+**Arquivo: `src/pages/Mensagens.tsx`**
+- No header do chat quando `activeConversation.is_group === true`, adicionar um botão de engrenagem/configuração (ícone `Settings` ou `UserPlus`)
+- Ao clicar, abrir um Dialog "Gerenciar Grupo" com:
+  - Lista dos participantes atuais com botão de remover (ícone X) ao lado de cada um (exceto o próprio usuário)
+  - Seção para adicionar novos membros: lista de colaboradores ativos com busca, checkbox para selecionar, botão "Adicionar"
+  - A lista de colaboradores disponíveis busca `profiles` onde `is_active = true` e `is_suspended = false` e `approval_status = 'approved'`, excluindo quem já é participante
+
+**Arquivo: `src/pages/DistribuicaoTarefas.tsx`**
+- Buscar da tabela `profiles` todos os colaboradores com `is_active = true` e `is_suspended = false` (campos `full_name`)
+- No `collaboratorStats` useMemo, além da lista hardcoded de exclusão, também excluir qualquer nome que **não** esteja na lista de colaboradores ativos
+- Isso garante que Tatiane (desligada) e qualquer futuro desligamento sejam automaticamente filtrados
 
 ### Resultado
-Apenas o gráfico de barras dos vendedores permanece, limpo e legível.
+- Grupos de conversa terão botão para gerenciar membros (adicionar e remover)
+- Colaboradores desligados não aparecerão mais na distribuição de tarefas
 
