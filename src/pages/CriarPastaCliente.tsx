@@ -101,10 +101,15 @@ export default function CriarPastaCliente() {
 
   return (
     <div className="container mx-auto p-6 max-w-2xl">
-      <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
-        <FolderPlus className="h-6 w-6 text-primary" />
-        Criar Pasta de Cliente
-      </h1>
+      <div className="flex items-center gap-4 mb-6">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <FolderPlus className="h-6 w-6 text-primary" />
+          Criar Pasta de Cliente
+        </h1>
+      </div>
 
       <Card>
         <CardHeader>
