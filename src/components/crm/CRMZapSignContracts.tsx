@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
-import { Loader2, RefreshCw, FileSignature, CheckCircle2, Clock, XCircle, ExternalLink, Search, FileText, CloudUpload, Download } from 'lucide-react';
+import { Loader2, RefreshCw, FileSignature, CheckCircle2, Clock, XCircle, ExternalLink, Search, FileText, CloudUpload, Download, MessageCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useTeamsUpload } from '@/hooks/useTeamsUpload';
@@ -68,6 +68,7 @@ export const CRMZapSignContracts = () => {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [savingDocId, setSavingDocId] = useState<string | null>(null);
+  const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
 
   const { sites, drives, loadSites, loadDrives, findOrCreateClientFolder, uploadFile } = useTeamsUpload();
 
@@ -204,6 +205,49 @@ export const CRMZapSignContracts = () => {
       toast.error(err.message || 'Erro ao salvar no Teams');
     } finally {
       setSavingDocId(null);
+    }
+  };
+
+  const handleSendReminder = async (doc: ZapSignDocument) => {
+    if (!doc.client_phone) {
+      toast.error('Telefone do cliente não cadastrado');
+      return;
+    }
+
+    setSendingReminderId(doc.id);
+    try {
+      // Buscar template
+      const { data: template } = await supabase
+        .from('whatsapp_templates')
+        .select('content')
+        .eq('shortcut', '/lembrete-assinatura')
+        .eq('is_active', true)
+        .single();
+
+      if (!template) {
+        toast.error('Template de lembrete não encontrado');
+        return;
+      }
+
+      const firstName = doc.client_name.split(' ')[0];
+      const tipoDoc = doc.document_type === 'contrato' ? 'contrato' : 
+                       doc.document_type === 'procuracao' ? 'procuração' : 'documento';
+
+      const message = template.content
+        .replace(/{nome}/g, firstName)
+        .replace(/{tipo_documento}/g, tipoDoc);
+
+      const { error } = await supabase.functions.invoke('zapi-send-message', {
+        body: { action: 'send-message', phone: doc.client_phone, message, skipFooter: true },
+      });
+
+      if (error) throw error;
+      toast.success(`Lembrete enviado para ${firstName}!`);
+    } catch (err: any) {
+      console.error('Erro ao enviar lembrete:', err);
+      toast.error('Erro ao enviar lembrete: ' + (err.message || 'Erro desconhecido'));
+    } finally {
+      setSendingReminderId(null);
     }
   };
 
@@ -395,6 +439,21 @@ export const CRMZapSignContracts = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
+                            {doc.client_signer_status === 'pending' && doc.client_phone && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Enviar lembrete de assinatura via WhatsApp"
+                                disabled={sendingReminderId === doc.id}
+                                onClick={() => handleSendReminder(doc)}
+                              >
+                                {sendingReminderId === doc.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <MessageCircle className="h-4 w-4 text-green-600" />
+                                )}
+                              </Button>
+                            )}
                             {doc.sign_url && doc.client_signer_status === 'pending' && (
                               <Button variant="ghost" size="icon" asChild title="Link de assinatura do cliente">
                                 <a href={doc.sign_url} target="_blank" rel="noopener noreferrer">
