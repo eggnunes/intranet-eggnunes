@@ -697,13 +697,18 @@ async function syncDeals(rdToken: string, supabase: any) {
 
   console.log(`Total deals to sync: ${allDeals.length}`);
 
-  // Get stage mappings
+  // Get stage mappings (including is_won flag)
   const { data: stages } = await supabase
     .from('crm_deal_stages')
-    .select('id, rd_station_id, pipeline_id');
+    .select('id, rd_station_id, pipeline_id, is_won');
   
   const stageMap = new Map<string, { id: string; pipeline_id: string; rd_station_id: string }>(
     stages?.map((s: any) => [s.rd_station_id, s]) || []
+  );
+
+  // Build set of won stage IDs for quick lookup
+  const wonStageIds = new Set<string>(
+    stages?.filter((s: any) => s.is_won).map((s: any) => s.id) || []
   );
 
   // Get contact mappings - fetch all without limit
