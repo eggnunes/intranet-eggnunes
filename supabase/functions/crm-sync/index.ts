@@ -779,8 +779,7 @@ async function syncDeals(rdToken: string, supabase: any) {
       ownerId = emailToProfileMap.get(deal.user.email.toLowerCase()) || null;
     }
 
-    // Check if deal is in a won stage
-    const stageIsWon = stageInfo && wonStageIds.has(stageInfo.id);
+    // Check if deal is in a won stage (stageIsWon already computed above for debug)
     const dealIsWon = deal.win === true || deal.win === 'won' || deal.win === 1 || stageIsWon;
 
     return {
