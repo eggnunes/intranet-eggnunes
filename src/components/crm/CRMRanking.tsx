@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Phone, CalendarCheck, Trophy, Percent, FileCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -35,41 +36,48 @@ const MEDAL_BORDERS = [
   'border-amber-600 shadow-amber-600/20',
 ];
 
-function getBusinessCyclePeriod(): { start: string; end: string; startDate: Date; endDate: Date } {
+const EXCLUDED_NAMES = ['rafael egg'];
+
+function getBusinessCyclePeriodWithOffset(offset: number): { start: string; end: string; startDate: Date; endDate: Date } {
   const now = new Date();
   const day = now.getDate();
   const year = now.getFullYear();
   const month = now.getMonth();
 
-  let startDate: Date;
-  let endDate: Date;
-
+  let baseMonth: number;
   if (day >= 25) {
-    startDate = new Date(year, month, 25);
-    endDate = new Date(year, month + 1, 24, 23, 59, 59);
+    baseMonth = month;
   } else {
-    startDate = new Date(year, month - 1, 25);
-    endDate = new Date(year, month, 24, 23, 59, 59);
+    baseMonth = month - 1;
   }
+
+  const adjustedMonth = baseMonth + offset;
+  const startDate = new Date(year, adjustedMonth, 25);
+  const endDate = new Date(year, adjustedMonth + 1, 24, 23, 59, 59);
 
   const toISO = (d: Date) => d.toISOString().split('T')[0];
   return { start: toISO(startDate), end: toISO(endDate), startDate, endDate };
 }
 
-const EXCLUDED_NAMES = ['rafael egg'];
+const PERIOD_OPTIONS = [
+  { value: '0', label: 'Período Atual' },
+  { value: '-1', label: 'Período Anterior' },
+  { value: '-2', label: '2 períodos atrás' },
+  { value: '-3', label: '3 períodos atrás' },
+  { value: '-4', label: '4 períodos atrás' },
+  { value: '-5', label: '5 períodos atrás' },
+];
 
 export const CRMRanking = () => {
   const [sellers, setSellers] = useState<SellerStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [criteria, setCriteria] = useState<Criteria>('closings');
+  const [selectedOffset, setSelectedOffset] = useState(0);
 
-  const period = useMemo(() => getBusinessCyclePeriod(), []);
+  const period = useMemo(() => getBusinessCyclePeriodWithOffset(selectedOffset), [selectedOffset]);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
       const [dealsRes, activitiesRes, profilesRes] = await Promise.all([
         supabase
@@ -133,7 +141,11 @@ export const CRMRanking = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [period]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const sorted = useMemo(() => {
     return [...sellers].sort((a, b) => b[criteria] - a[criteria]).slice(0, 10);
@@ -163,10 +175,22 @@ export const CRMRanking = () => {
               </CardTitle>
               <CardDescription className="mt-1">Período: {periodLabel}</CardDescription>
             </div>
-            <Badge variant="secondary" className="flex items-center gap-1.5 text-sm px-3 py-1.5">
-              <FileCheck className="h-4 w-4" />
-              {totalClosings} contrato{totalClosings !== 1 ? 's' : ''} fechado{totalClosings !== 1 ? 's' : ''} no período
-            </Badge>
+            <div className="flex items-center gap-3">
+              <Select value={String(selectedOffset)} onValueChange={(v) => setSelectedOffset(Number(v))}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PERIOD_OPTIONS.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Badge variant="secondary" className="flex items-center gap-1.5 text-sm px-3 py-1.5 whitespace-nowrap">
+                <FileCheck className="h-4 w-4" />
+                {totalClosings} contrato{totalClosings !== 1 ? 's' : ''} fechado{totalClosings !== 1 ? 's' : ''}
+              </Badge>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
