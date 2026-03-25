@@ -744,8 +744,16 @@ async function syncDeals(rdToken: string, supabase: any) {
   );
 
   // Transform deals data - including owner_id and contact_id with multiple lookup strategies
+  let debugCount = 0;
   const dealsData = allDeals.map(deal => {
     const stageInfo = stageMap.get(deal.deal_stage?._id);
+    const stageIsWon = stageInfo && wonStageIds.has(stageInfo.id);
+
+    // Debug: log date fields for first 5 deals in won stages
+    if (stageIsWon && debugCount < 5) {
+      console.log(`[DEBUG WON DEAL] name="${deal.name}", closed_at=${deal.closed_at}, last_activity_at=${deal.last_activity_at}, created_at=${deal.created_at}, updated_at=${deal.updated_at}, win=${deal.win}, win_date=${deal.win_date}`);
+      debugCount++;
+    }
     
     // Try multiple strategies to find contact_id
     let contactId = null;
@@ -771,8 +779,7 @@ async function syncDeals(rdToken: string, supabase: any) {
       ownerId = emailToProfileMap.get(deal.user.email.toLowerCase()) || null;
     }
 
-    // Check if deal is in a won stage
-    const stageIsWon = stageInfo && wonStageIds.has(stageInfo.id);
+    // Check if deal is in a won stage (stageIsWon already computed above for debug)
     const dealIsWon = deal.win === true || deal.win === 'won' || deal.win === 1 || stageIsWon;
 
     return {
@@ -784,7 +791,7 @@ async function syncDeals(rdToken: string, supabase: any) {
       name: deal.name || 'Deal sem nome',
       value: deal.amount_total || 0,
       expected_close_date: deal.prediction_date || null,
-      closed_at: deal.closed_at || (dealIsWon ? (deal.last_activity_at || deal.created_at || new Date().toISOString()) : null),
+      closed_at: deal.closed_at || (dealIsWon ? (deal.last_activity_at || null) : null),
       won: dealIsWon,
       loss_reason: deal.loss_reason || null,
       product_name: deal.deal_products?.[0]?.name || null,
@@ -855,10 +862,15 @@ async function syncDeals(rdToken: string, supabase: any) {
     else console.log(`Recorded ${historyInserts.length} stage transitions in crm_deal_history`);
   }
 
-  // Update stage_changed_at for deals that changed stage
+  // Update stage_changed_at for deals that changed stage (and closed_at + won for won stages)
   for (const upd of stageChangedUpdates) {
+    const updateData: any = { stage_changed_at: new Date().toISOString() };
+    if (wonStageIds.has(upd.stage_id)) {
+      updateData.closed_at = new Date().toISOString();
+      updateData.won = true;
+    }
     await supabase.from('crm_deals')
-      .update({ stage_changed_at: new Date().toISOString() })
+      .update(updateData)
       .eq('id', upd.id);
   }
 
@@ -876,7 +888,7 @@ async function syncDeals(rdToken: string, supabase: any) {
       for (const d of missingWonDeals) {
         await supabase.from('crm_deals').update({
           won: true,
-          closed_at: d.stage_changed_at || d.updated_at || d.created_at || new Date().toISOString()
+          closed_at: d.stage_changed_at || d.updated_at || new Date().toISOString()
         }).eq('id', d.id);
       }
     }
@@ -893,7 +905,7 @@ async function syncDeals(rdToken: string, supabase: any) {
       console.log(`Fixing ${missingClosedAt.length} won deals missing closed_at`);
       for (const d of missingClosedAt) {
         await supabase.from('crm_deals').update({
-          closed_at: d.stage_changed_at || d.updated_at || d.created_at || new Date().toISOString()
+          closed_at: d.stage_changed_at || d.updated_at || new Date().toISOString()
         }).eq('id', d.id);
       }
     }
