@@ -1,38 +1,30 @@
 
 
-## Correções nas Mensagens Internas
+## Correção: Erro "Failed to fetch" nos Agentes de IA
 
-### Problemas identificados
+### Problema identificado
 
-1. **Mensagens cortadas**: O balão de mensagem tem `max-w-[85%]` mas na tela a mensagem está sendo cortada na lateral direita. O container pai precisa permitir overflow adequado.
+A edge function `chat-with-agent` está crashando no boot por causa da biblioteca `pdf-parse` importada via `esm.sh`. Esta biblioteca tenta ler um arquivo de teste (`test/data/05-versions-space.pdf`) ao ser carregada, e esse arquivo não existe no ambiente de edge functions. O erro nos logs:
 
-2. **Janela de edição muito pequena**: O Textarea de edição tem `min-h-[60px]` — insuficiente para mensagens longas. Precisa ser maior e redimensionável.
+```
+path not found: .../chat-with-agent/test/data/05-versions-space.pdf
+```
 
-3. **Formatação perdida ao colar**: O campo de digitação usa `<Input>` (linha única), que elimina quebras de linha. Ao colar texto com parágrafos, tudo vira uma linha só. Precisa ser substituído por `<Textarea>` para preservar a formatação.
+Isso faz a função falhar completamente, resultando em "Failed to fetch" para o usuário.
 
----
+### Solução
 
-### Mudanças
+Substituir a importação do `pdf-parse` via `esm.sh` por uma abordagem que não dependa desse arquivo de teste. A solução é usar `npm:pdf-parse` (importação via npm specifier do Deno) que não tem esse problema, ou usar a biblioteca `pdf-lib` / `pdfjs-dist` como alternativa.
 
-**Arquivo: `src/pages/Mensagens.tsx`**
+A forma mais confiável é usar o specifier `npm:pdf-parse` em vez de `https://esm.sh/pdf-parse@1.1.1`, pois o Deno resolve dependências npm sem os problemas de path do esm.sh.
 
-**1. Substituir Input por Textarea no campo de digitação (linha ~1735)**
-- Trocar `<Input>` por `<Textarea>` para suportar múltiplas linhas e preservar quebras de parágrafo ao colar
-- Ajustar altura mínima e permitir crescimento automático
-- Manter envio com Enter (shift+Enter para nova linha)
-- Manter as mesmas props (placeholder, value, onChange, disabled)
+### Implementação
 
-**2. Ampliar a Textarea de edição de mensagem (linha ~1341-1346)**
-- Aumentar `min-h-[60px]` para `min-h-[120px]` 
-- Adicionar `max-h-[300px]` com overflow auto para mensagens muito longas
-- Aumentar a largura do balão durante edição removendo o `max-w-[85%]` ou expandindo para `max-w-[95%]`
+**Arquivo: `supabase/functions/chat-with-agent/index.ts`**
 
-**3. Corrigir mensagens cortadas no balão (linha ~1310-1316)**
-- Aumentar `max-w-[85%]` para `max-w-[90%]` no balão
-- Garantir que o container do chat tenha padding adequado para não cortar nas bordas
-- Verificar que `break-words` está funcionando corretamente no `renderMessageContent`
+- Linha 3: Trocar `import pdf from "https://esm.sh/pdf-parse@1.1.1"` por uma implementação manual de extração de PDF usando `https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.mjs` (pdfjs-dist funciona no Deno sem arquivos de teste), **ou** usar a abordagem de importar via `npm:` specifier
+- A solução mais simples e testada: trocar para `npm:pdf-parse@1.1.1` que funciona no Deno edge runtime sem o problema do arquivo de teste
 
-**4. Ajuste no envio com Textarea**
-- Interceptar `onKeyDown`: Enter sozinho envia a mensagem, Shift+Enter insere nova linha
-- Converter o `<form onSubmit>` para funcionar com o novo comportamento
+### Arquivo modificado
+- **`supabase/functions/chat-with-agent/index.ts`** — trocar import do pdf-parse
 
