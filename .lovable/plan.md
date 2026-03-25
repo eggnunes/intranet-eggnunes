@@ -1,33 +1,58 @@
 
 
-## Diferenciar aba "Campanhas" (geral) da aba "Meta Ads" (só Meta)
+## Correção: Poucos contratos fechados no Ranking
 
-### Problema
-As abas "Campanhas" e "Meta Ads" renderizam o mesmo componente `<MetaAdsTab>`, mostrando dados idênticos. "Campanhas" deveria ser uma visão consolidada (Google + Meta).
+### Problema raiz identificado
+
+Investigação no banco de dados revelou:
+
+1. **O estágio "Fechamento" tem `is_won = false`** — A sincronização com RD Station define `is_won` baseado no nome do estágio, procurando "ganho" ou "won" (linha 432 do crm-sync). Mas o estágio real chama-se **"Fechamento"**, que não contém nenhuma dessas palavras. Resultado: `is_won` nunca é setado como `true`.
+
+2. **Impacto**: Quando um deal muda para o estágio "Fechamento" durante a sincronização, o código (linhas 210-213) verifica `stage.is_won` para definir `won = true` e `closed_at`. Como `is_won` é `false`, isso nunca acontece. Os únicos deals marcados como `won` são aqueles onde o RD Station já retorna `deal.win = true` no JSON da API — que só acontece para deals explicitamente marcados como ganhos no RD Station (poucos).
+
+3. **Dados atuais**: 264 deals em "Fechamento" com `won = true`, mas apenas 4 com `closed_at` no período atual (25/02 - 24/03). No RD Station há muito mais.
 
 ### Solução
 
-**Arquivo: `src/pages/MarketingHub.tsx`**
+**1. Corrigir detecção de `is_won` no sync de pipelines** (crm-sync/index.ts, linha 432)
 
-Substituir o conteúdo da `TabsContent value="campanhas"` (linha 485-487) por uma visão consolidada que:
+Adicionar "fechamento" à lista de nomes que identificam estágio de vitória:
+```
+is_won: stage.name?.toLowerCase().includes('ganho') 
+    || stage.name?.toLowerCase().includes('won') 
+    || stage.name?.toLowerCase().includes('fechamento')
+```
 
-1. **Cards de resumo geral** — Somar métricas de Meta + Google:
-   - Impressões totais, Cliques totais, Gasto total, Conversões totais, CPL médio
-   - Badge indicando a plataforma de origem em cada métrica
+**2. Migração SQL — Corrigir estágio "Fechamento" imediatamente**
 
-2. **Tabela consolidada de campanhas** — Unir campanhas do Meta (já disponíveis via query `meta-ads` action `campaigns`) e Google (já disponíveis em `googleCampaigns`) numa única tabela:
-   - Coluna "Plataforma" com badge colorido (Meta/Google)
-   - Colunas: Nome, Plataforma, Status, Impressões, Cliques, CTR, CPC, Gasto
-   - Ordenação padrão por gasto (decrescente)
+```sql
+UPDATE crm_deal_stages SET is_won = true WHERE name = 'Fechamento';
+```
 
-3. **Gráfico de distribuição por plataforma** — Reutilizar o `PieChart` de distribuição já calculado em `platformDistribution`
+**3. Corrigir deals existentes em "Fechamento" sem `won = true` ou sem `closed_at` recente**
 
-4. **Buscar campanhas Meta** — Adicionar nova query usando `meta-ads` action `campaigns` (já existe para insights, mas precisa trazer campanhas para a aba geral). Os dados de campanhas Meta já são carregados pelo `MetaAdsTab`, mas para a aba consolidada serão buscados diretamente no `MarketingHub`.
+Na lógica de `syncDeals`, após o upsert, adicionar verificação: se o deal está no estágio com `is_won = true` e não tem `won = true`, atualizar `won` e `closed_at`.
 
-### Detalhes técnicos
+Também adicionar uma query pós-sync para corrigir deals que já estão em "Fechamento" mas não foram marcados como `won`:
+```sql
+UPDATE crm_deals 
+SET won = true, 
+    closed_at = COALESCE(closed_at, stage_changed_at, updated_at, NOW())
+WHERE stage_id IN (SELECT id FROM crm_deal_stages WHERE is_won = true)
+  AND won = false;
+```
 
-- Nova query `marketing-meta-campaigns` chamando edge function `meta-ads` com `action: 'campaigns'`
-- Normalizar formato: Meta campaigns vêm com `{id, name, status, ...}` e Google campaigns com `{id, name, status, impressions, clicks, ...}`
-- Para Meta, cruzar com `metaInsights` para obter métricas (impressões, cliques, gasto) por campaign_id
-- Manter a aba "Meta Ads" inalterada (continua com `<MetaAdsTab>`)
+**4. Melhorar o upsert de deals** (crm-sync/index.ts, ~linha 769-787)
+
+Na transformação dos dados do deal, além de verificar `deal.win`, também verificar se o estágio atual é um estágio de vitória:
+```typescript
+const stageIsWon = stageInfo && wonStageIds.has(stageInfo.id);
+won: deal.win === true || deal.win === 'won' || deal.win === 1 || stageIsWon,
+closed_at: deal.closed_at || (stageIsWon ? (deal.last_activity_at || deal.created_at) : null),
+```
+
+### Resultado esperado
+- Os 30+ contratos fechados no período aparecerão corretamente no Ranking
+- Futuros deals movidos para "Fechamento" serão automaticamente marcados como `won`
+- TV Mode também será corrigido automaticamente (usa a mesma tabela)
 
