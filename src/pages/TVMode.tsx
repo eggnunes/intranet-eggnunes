@@ -49,18 +49,43 @@ const TVMode = () => {
     return () => clearInterval(t);
   }, []);
 
-  // Leads no período
-  const { data: leadsCount = 0, refetch: r1 } = useQuery({
-    queryKey: ['tv-leads', period.start],
+  // Stages para classificação
+  const { data: stages = [], refetch: r1 } = useQuery({
+    queryKey: ['tv-stages'],
     queryFn: async () => {
-      const { count } = await supabase
-        .from('crm_contacts')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', period.start)
-        .lte('created_at', period.end);
-      return count ?? 0;
+      const { data } = await supabase
+        .from('crm_deal_stages')
+        .select('id, name, order_index');
+      return data ?? [];
     },
   });
+
+  // Deals no período para classificação por qualificação
+  const { data: periodDeals = [], refetch: r1b } = useQuery({
+    queryKey: ['tv-period-deals', period.start],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('crm_deals')
+        .select('id, stage_id')
+        .gte('created_at', period.start)
+        .lte('created_at', period.end);
+      return data ?? [];
+    },
+  });
+
+  // Classificação por qualificação
+  const qualification = useMemo(() => {
+    const stageMap = new Map(stages.map(s => [s.id, s.order_index]));
+    let qualificados = 0, indefinidos = 0, desqualificados = 0;
+    periodDeals.forEach(d => {
+      const idx = stageMap.get(d.stage_id);
+      if (idx === undefined) { indefinidos++; return; }
+      if (idx >= 3 && idx <= 8) qualificados++;
+      else if (idx <= 2) indefinidos++;
+      else desqualificados++;
+    });
+    return { qualificados, indefinidos, desqualificados };
+  }, [periodDeals, stages]);
 
   // Deals won no período
   const { data: wonDeals = [], refetch: r2 } = useQuery({
