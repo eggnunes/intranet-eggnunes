@@ -49,7 +49,9 @@ import {
   Save,
   Settings,
   BarChart3,
-  Upload
+  Upload,
+  Pencil,
+  AlertCircle
 } from "lucide-react";
 import { format, parse, isAfter, isBefore, isEqual, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -90,6 +92,45 @@ interface Client {
   conheceAlguemSituacao: string;
   conheceAlguemMesmaSituacao: string;
   telefoneAlternativo: string;
+  _hasOverride?: boolean;
+}
+
+interface ClientFormOverride {
+  id: string;
+  client_row_id: number;
+  nome_completo: string | null;
+  cpf: string | null;
+  documento_identidade: string | null;
+  como_conheceu: string | null;
+  data_nascimento: string | null;
+  estado_civil: string | null;
+  profissao: string | null;
+  telefone: string | null;
+  tem_whatsapp: string | null;
+  email: string | null;
+  cep: string | null;
+  cidade: string | null;
+  rua: string | null;
+  numero: string | null;
+  complemento: string | null;
+  bairro: string | null;
+  estado: string | null;
+  nome_pai: string | null;
+  nome_mae: string | null;
+  opcao_pagamento: string | null;
+  quantidade_parcelas: string | null;
+  data_vencimento: string | null;
+  aposentado: string | null;
+  previsao_aposentadoria: string | null;
+  possui_emprestimo: string | null;
+  doenca_grave: string | null;
+  plano_saude: string | null;
+  qual_plano_saude: string | null;
+  negativa_plano: string | null;
+  doenca_negativa: string | null;
+  conhece_alguem_situacao: string | null;
+  conhece_alguem_mesma_situacao: string | null;
+  telefone_alternativo: string | null;
 }
 
 interface RDStationProduct {
@@ -100,12 +141,69 @@ interface RDStationProduct {
   recurrence?: string;
 }
 
+// Field mapping: Client key -> DB column
+const fieldMapping: Record<string, string> = {
+  nomeCompleto: 'nome_completo',
+  cpf: 'cpf',
+  documentoIdentidade: 'documento_identidade',
+  comoConheceu: 'como_conheceu',
+  dataNascimento: 'data_nascimento',
+  estadoCivil: 'estado_civil',
+  profissao: 'profissao',
+  telefone: 'telefone',
+  temWhatsapp: 'tem_whatsapp',
+  email: 'email',
+  cep: 'cep',
+  cidade: 'cidade',
+  rua: 'rua',
+  numero: 'numero',
+  complemento: 'complemento',
+  bairro: 'bairro',
+  estado: 'estado',
+  nomePai: 'nome_pai',
+  nomeMae: 'nome_mae',
+  opcaoPagamento: 'opcao_pagamento',
+  quantidadeParcelas: 'quantidade_parcelas',
+  dataVencimento: 'data_vencimento',
+  aposentado: 'aposentado',
+  previsaoAposentadoria: 'previsao_aposentadoria',
+  possuiEmprestimo: 'possui_emprestimo',
+  doencaGrave: 'doenca_grave',
+  planoSaude: 'plano_saude',
+  qualPlanoSaude: 'qual_plano_saude',
+  negativaPlano: 'negativa_plano',
+  doencaNegativa: 'doenca_negativa',
+  conheceAlguemSituacao: 'conhece_alguem_situacao',
+  conheceAlguemMesmaSituacao: 'conhece_alguem_mesma_situacao',
+  telefoneAlternativo: 'telefone_alternativo',
+};
+
+// Reverse mapping: DB column -> Client key
+const reverseFieldMapping: Record<string, string> = Object.fromEntries(
+  Object.entries(fieldMapping).map(([k, v]) => [v, k])
+);
+
+const applyOverrides = (clients: Client[], overrides: ClientFormOverride[]): Client[] => {
+  const overrideMap = new Map(overrides.map(o => [o.client_row_id, o]));
+  return clients.map(client => {
+    const override = overrideMap.get(client.id);
+    if (!override) return client;
+    const merged = { ...client, _hasOverride: true };
+    for (const [dbCol, clientKey] of Object.entries(reverseFieldMapping)) {
+      const val = (override as any)[dbCol];
+      if (val !== null && val !== undefined) {
+        (merged as any)[clientKey] = val;
+      }
+    }
+    return merged;
+  });
+};
+
 // Função para formatar CPF no padrão XXX.XXX.XXX-XX
 const formatCPF = (cpf: string): string => {
   if (!cpf) return '[CPF]';
-  // Remove tudo que não é número
   const cleanCPF = cpf.replace(/\D/g, '');
-  if (cleanCPF.length !== 11) return cpf; // Retorna original se não tiver 11 dígitos
+  if (cleanCPF.length !== 11) return cpf;
   return cleanCPF.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
 };
 
@@ -129,16 +227,52 @@ const generateClientQualification = (client: Client): string => {
     `e-mail: ${client.email || '[E-MAIL]'}`,
     `telefone: ${client.telefone || '[TELEFONE]'}`
   ];
-
-  // Remove valores nulos e junta com vírgula, terminando com ponto e vírgula
   return parts.filter(Boolean).join(', ') + ';';
 };
+
+// Editable fields config
+const editableFields: { key: string; label: string; section: string }[] = [
+  { key: 'nomeCompleto', label: 'Nome Completo', section: 'pessoal' },
+  { key: 'cpf', label: 'CPF', section: 'pessoal' },
+  { key: 'documentoIdentidade', label: 'RG', section: 'pessoal' },
+  { key: 'dataNascimento', label: 'Data de Nascimento', section: 'pessoal' },
+  { key: 'estadoCivil', label: 'Estado Civil', section: 'pessoal' },
+  { key: 'profissao', label: 'Profissão', section: 'pessoal' },
+  { key: 'nomePai', label: 'Nome do Pai', section: 'pessoal' },
+  { key: 'nomeMae', label: 'Nome da Mãe', section: 'pessoal' },
+  { key: 'telefone', label: 'Telefone', section: 'contato' },
+  { key: 'temWhatsapp', label: 'WhatsApp', section: 'contato' },
+  { key: 'email', label: 'Email', section: 'contato' },
+  { key: 'telefoneAlternativo', label: 'Telefone Alternativo', section: 'contato' },
+  { key: 'cep', label: 'CEP', section: 'endereco' },
+  { key: 'estado', label: 'Estado', section: 'endereco' },
+  { key: 'cidade', label: 'Cidade', section: 'endereco' },
+  { key: 'bairro', label: 'Bairro', section: 'endereco' },
+  { key: 'rua', label: 'Rua', section: 'endereco' },
+  { key: 'numero', label: 'Número', section: 'endereco' },
+  { key: 'complemento', label: 'Complemento', section: 'endereco' },
+  { key: 'opcaoPagamento', label: 'Opção de Pagamento', section: 'pagamento' },
+  { key: 'quantidadeParcelas', label: 'Parcelas', section: 'pagamento' },
+  { key: 'dataVencimento', label: 'Vencimento', section: 'pagamento' },
+  { key: 'aposentado', label: 'Aposentado', section: 'adicional' },
+  { key: 'previsaoAposentadoria', label: 'Previsão Aposentadoria', section: 'adicional' },
+  { key: 'possuiEmprestimo', label: 'Empréstimo Consignado', section: 'adicional' },
+  { key: 'doencaGrave', label: 'Doença Grave', section: 'adicional' },
+  { key: 'planoSaude', label: 'Plano de Saúde', section: 'adicional' },
+  { key: 'qualPlanoSaude', label: 'Qual Plano', section: 'adicional' },
+  { key: 'negativaPlano', label: 'Negativa do Plano', section: 'adicional' },
+  { key: 'doencaNegativa', label: 'Doença da Negativa', section: 'adicional' },
+  { key: 'comoConheceu', label: 'Como Conheceu', section: 'adicional' },
+  { key: 'conheceAlguemSituacao', label: 'Conhece Alguém na Situação', section: 'adicional' },
+  { key: 'conheceAlguemMesmaSituacao', label: 'Conhece Alguém Mesma Situação', section: 'adicional' },
+];
 
 const SetorComercial = () => {
   const navigate = useNavigate();
   const { hasPermission, loading: permissionsLoading } = useAdminPermissions();
   const { isAdmin } = useUserRole();
   const [clients, setClients] = useState<Client[]>([]);
+  const [overrides, setOverrides] = useState<ClientFormOverride[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -147,6 +281,12 @@ const SetorComercial = () => {
   const [showAll, setShowAll] = useState(false);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [profissaoFilter, setProfissaoFilter] = useState<string>("all");
+  
+  // Edit mode
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState<Record<string, string>>({});
+  const [savingEdit, setSavingEdit] = useState(false);
   
   // RD Station products
   const [products, setProducts] = useState<RDStationProduct[]>([]);
@@ -177,13 +317,23 @@ const SetorComercial = () => {
   // ADVBox sync
   const [syncingAdvbox, setSyncingAdvbox] = useState(false);
 
+  const fetchOverrides = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('client_form_overrides')
+        .select('*');
+      if (error) throw error;
+      setOverrides((data || []) as unknown as ClientFormOverride[]);
+    } catch (err) {
+      console.error('Error fetching overrides:', err);
+    }
+  };
+
   const fetchProducts = async () => {
     try {
       setProductsLoading(true);
       const { data, error } = await supabase.functions.invoke('rd-station-products');
-      
       if (error) throw error;
-      
       if (data.products) {
         setProducts(data.products);
       }
@@ -199,11 +349,8 @@ const SetorComercial = () => {
   const fetchClients = async (showToast = false) => {
     try {
       if (showToast) setRefreshing(true);
-      
       const { data, error } = await supabase.functions.invoke('google-sheets-integration');
-      
       if (error) throw error;
-      
       if (data.clients) {
         setClients(data.clients);
         if (showToast) {
@@ -224,11 +371,8 @@ const SetorComercial = () => {
     try {
       setSyncingAdvbox(true);
       toast.info('Sincronizando clientes com ADVBox...');
-
       const { data, error } = await supabase.functions.invoke('sync-sheets-to-advbox');
-
       if (error) throw error;
-
       if (data.success) {
         const { this_run, pending } = data;
         if (this_run.synced > 0 || this_run.existing > 0) {
@@ -257,20 +401,20 @@ const SetorComercial = () => {
   useEffect(() => {
     fetchClients();
     fetchProducts();
+    fetchOverrides();
   }, []);
 
-  // Parse timestamp from Google Sheets format (DD/MM/YYYY HH:MM:SS)
+  // Merge clients with overrides
+  const mergedClients = applyOverrides(clients, overrides);
+
+  // Parse timestamp from Google Sheets format
   const parseTimestamp = (timestamp: string): Date | null => {
     if (!timestamp) return null;
     try {
-      // Try parsing DD/MM/YYYY HH:MM:SS format
       const parsed = parse(timestamp, 'dd/MM/yyyy HH:mm:ss', new Date());
       if (!isNaN(parsed.getTime())) return parsed;
-      
-      // Try parsing DD/MM/YYYY format
       const parsedDate = parse(timestamp, 'dd/MM/yyyy', new Date());
       if (!isNaN(parsedDate.getTime())) return parsedDate;
-      
       return null;
     } catch {
       return null;
@@ -278,40 +422,51 @@ const SetorComercial = () => {
   };
 
   // Reverse order to show most recent first
-  const reversedClients = [...clients].reverse();
+  const reversedClients = [...mergedClients].reverse();
   
   // Apply date filter
   const dateFilteredClients = reversedClients.filter(client => {
     if (!startDate && !endDate) return true;
-    
     const clientDate = parseTimestamp(client.timestamp);
     if (!clientDate) return true;
-    
     const clientDay = startOfDay(clientDate);
-    
     if (startDate && endDate) {
       return (isAfter(clientDay, startOfDay(startDate)) || isEqual(clientDay, startOfDay(startDate))) &&
              (isBefore(clientDay, endOfDay(endDate)) || isEqual(clientDay, startOfDay(endDate)));
     }
-    
     if (startDate) {
       return isAfter(clientDay, startOfDay(startDate)) || isEqual(clientDay, startOfDay(startDate));
     }
-    
     if (endDate) {
       return isBefore(clientDay, endOfDay(endDate)) || isEqual(clientDay, startOfDay(endDate));
     }
-    
     return true;
   });
+
+  // Apply profession filter
+  const professionFilteredClients = profissaoFilter === "all" 
+    ? dateFilteredClients 
+    : dateFilteredClients.filter(c => c.profissao?.toLowerCase() === profissaoFilter.toLowerCase());
+
+  // Multi-term search (comma separated, OR logic)
+  const searchTerms = searchTerm.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
   
-  const filteredClients = dateFilteredClients.filter(client => 
-    client.nomeCompleto?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.cpf?.includes(searchTerm) ||
-    client.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.telefone?.includes(searchTerm)
-  );
+  const filteredClients = professionFilteredClients.filter(client => {
+    if (searchTerms.length === 0) return true;
+    return searchTerms.some(term =>
+      client.nomeCompleto?.toLowerCase().includes(term) ||
+      client.cpf?.includes(term) ||
+      client.email?.toLowerCase().includes(term) ||
+      client.telefone?.includes(term) ||
+      client.profissao?.toLowerCase().includes(term)
+    );
+  });
   
+  // Unique professions for filter
+  const uniqueProfessions = Array.from(
+    new Set(mergedClients.map(c => c.profissao).filter(Boolean))
+  ).sort();
+
   // Limit to 30 unless showAll is true
   const displayedClients = showAll ? filteredClients : filteredClients.slice(0, 30);
   const hasMoreClients = filteredClients.length > 30;
@@ -325,7 +480,70 @@ const SetorComercial = () => {
     setSelectedClient(client);
     setEditedQualification(generateClientQualification(client));
     setQualificationSaved(false);
+    setIsEditing(false);
+    setEditData({});
     setDetailsOpen(true);
+  };
+
+  const startEditing = () => {
+    if (!selectedClient) return;
+    const data: Record<string, string> = {};
+    editableFields.forEach(f => {
+      data[f.key] = (selectedClient as any)[f.key] || '';
+    });
+    setEditData(data);
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setEditData({});
+  };
+
+  const saveEdits = async () => {
+    if (!selectedClient) return;
+    try {
+      setSavingEdit(true);
+      const dbData: Record<string, any> = { client_row_id: selectedClient.id };
+      for (const [clientKey, dbCol] of Object.entries(fieldMapping)) {
+        const val = editData[clientKey];
+        if (val !== undefined && val !== '') {
+          dbData[dbCol] = val;
+        }
+      }
+
+      const { data: user } = await supabase.auth.getUser();
+      if (user?.user?.id) {
+        dbData.updated_by = user.user.id;
+      }
+      dbData.updated_at = new Date().toISOString();
+
+      const { error } = await supabase
+        .from('client_form_overrides')
+        .upsert(dbData as any, { onConflict: 'client_row_id' });
+
+      if (error) throw error;
+
+      // Update local state
+      await fetchOverrides();
+      
+      // Update selectedClient in place
+      const updatedClient = { ...selectedClient };
+      for (const [key, val] of Object.entries(editData)) {
+        if (val) (updatedClient as any)[key] = val;
+      }
+      updatedClient._hasOverride = true;
+      setSelectedClient(updatedClient);
+      setEditedQualification(generateClientQualification(updatedClient));
+
+      setIsEditing(false);
+      toast.success('Dados do cliente atualizados com sucesso!');
+    } catch (err: any) {
+      console.error('Error saving overrides:', err);
+      toast.error(err.message || 'Erro ao salvar edições');
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const openProductDialog = (client: Client) => {
@@ -339,12 +557,10 @@ const SetorComercial = () => {
       toast.error('Selecione um produto');
       return;
     }
-
     if (!clientForDocument) {
       toast.error('Cliente não selecionado');
       return;
     }
-
     setProductDialogOpen(false);
     setContractGeneratorOpen(true);
   };
@@ -394,6 +610,28 @@ const SetorComercial = () => {
       </Layout>
     );
   }
+
+  // Render field: editable or static
+  const renderField = (key: string, label: string, value: string) => {
+    if (isEditing) {
+      return (
+        <div key={key}>
+          <Label className="text-xs text-muted-foreground">{label}</Label>
+          <Input
+            value={editData[key] || ''}
+            onChange={(e) => setEditData(prev => ({ ...prev, [key]: e.target.value }))}
+            className="mt-1 h-8 text-sm"
+          />
+        </div>
+      );
+    }
+    return (
+      <div key={key}>
+        <p className="text-muted-foreground">{label}</p>
+        <p className="font-medium">{value || '-'}</p>
+      </div>
+    );
+  };
 
   return (
     <Layout>
@@ -490,7 +728,7 @@ const SetorComercial = () => {
           <CardHeader>
             <CardTitle>Clientes do Formulário</CardTitle>
             <CardDescription>
-              Dados recebidos via Google Forms para geração de documentos
+              Dados recebidos via Google Forms para geração de documentos. Busque por múltiplos termos separados por vírgula.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -498,12 +736,25 @@ const SetorComercial = () => {
               <div className="relative flex-1 w-full sm:w-auto">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar por nome, CPF, email ou telefone..."
+                  placeholder="Buscar por nome, CPF, email, telefone ou profissão (separe por vírgula)..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
                 />
               </div>
+              
+              {/* Profession filter */}
+              <Select value={profissaoFilter} onValueChange={setProfissaoFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Profissão" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas profissões</SelectItem>
+                  {uniqueProfessions.map(p => (
+                    <SelectItem key={p} value={p!.toLowerCase()}>{p}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               
               {/* Date filters */}
               <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -557,12 +808,12 @@ const SetorComercial = () => {
                   </PopoverContent>
                 </Popover>
                 
-                {(startDate || endDate) && (
+                {(startDate || endDate || profissaoFilter !== "all") && (
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={clearDateFilters}
-                    title="Limpar filtros de data"
+                    onClick={() => { clearDateFilters(); setProfissaoFilter("all"); }}
+                    title="Limpar filtros"
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -571,16 +822,23 @@ const SetorComercial = () => {
             </div>
             
             {/* Active filters badge */}
-            {(startDate || endDate) && (
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-xs">
-                  {startDate && endDate 
-                    ? `${format(startDate, "dd/MM/yyyy")} - ${format(endDate, "dd/MM/yyyy")}`
-                    : startDate 
-                      ? `A partir de ${format(startDate, "dd/MM/yyyy")}`
-                      : `Até ${format(endDate!, "dd/MM/yyyy")}`
-                  }
-                </Badge>
+            {(startDate || endDate || profissaoFilter !== "all") && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {(startDate || endDate) && (
+                  <Badge variant="secondary" className="text-xs">
+                    {startDate && endDate 
+                      ? `${format(startDate, "dd/MM/yyyy")} - ${format(endDate, "dd/MM/yyyy")}`
+                      : startDate 
+                        ? `A partir de ${format(startDate, "dd/MM/yyyy")}`
+                        : `Até ${format(endDate!, "dd/MM/yyyy")}`
+                    }
+                  </Badge>
+                )}
+                {profissaoFilter !== "all" && (
+                  <Badge variant="secondary" className="text-xs">
+                    Profissão: {profissaoFilter}
+                  </Badge>
+                )}
                 <span className="text-xs text-muted-foreground">
                   {filteredClients.length} resultado(s)
                 </span>
@@ -610,6 +868,7 @@ const SetorComercial = () => {
                       <TableHead>CPF</TableHead>
                       <TableHead className="hidden md:table-cell">Telefone</TableHead>
                       <TableHead className="hidden lg:table-cell">Email</TableHead>
+                      <TableHead className="hidden lg:table-cell">Profissão</TableHead>
                       <TableHead className="hidden xl:table-cell">Pagamento</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -618,16 +877,25 @@ const SetorComercial = () => {
                     {displayedClients.map((client) => (
                       <TableRow key={client.id}>
                         <TableCell className="font-medium">
-                          <div>
-                            <p className="font-medium">{client.nomeCompleto}</p>
-                            <p className="text-xs text-muted-foreground md:hidden">
-                              {client.telefone}
-                            </p>
+                          <div className="flex items-center gap-2">
+                            <div>
+                              <p className="font-medium">{client.nomeCompleto}</p>
+                              <p className="text-xs text-muted-foreground md:hidden">
+                                {client.telefone}
+                              </p>
+                            </div>
+                            {client._hasOverride && (
+                              <Badge variant="outline" className="text-xs px-1.5 py-0">
+                                <Pencil className="h-2.5 w-2.5 mr-0.5" />
+                                Editado
+                              </Badge>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>{client.cpf}</TableCell>
                         <TableCell className="hidden md:table-cell">{client.telefone}</TableCell>
                         <TableCell className="hidden lg:table-cell">{client.email}</TableCell>
+                        <TableCell className="hidden lg:table-cell">{client.profissao || '-'}</TableCell>
                         <TableCell className="hidden xl:table-cell">
                           <Badge variant="outline">
                             {client.opcaoPagamento || 'Não informado'}
@@ -695,13 +963,40 @@ const SetorComercial = () => {
         
 
       {/* Client Details Dialog */}
-      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+      <Dialog open={detailsOpen} onOpenChange={(open) => { setDetailsOpen(open); if (!open) setIsEditing(false); }}>
         <DialogContent className="max-w-2xl max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>Detalhes do Cliente</DialogTitle>
-            <DialogDescription>
-              Informações completas do formulário
-            </DialogDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>Detalhes do Cliente</DialogTitle>
+                <DialogDescription>
+                  Informações completas do formulário
+                  {selectedClient?._hasOverride && (
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      <Pencil className="h-2.5 w-2.5 mr-1" />
+                      Editado localmente
+                    </Badge>
+                  )}
+                </DialogDescription>
+              </div>
+              {!isEditing ? (
+                <Button variant="outline" size="sm" onClick={startEditing}>
+                  <Pencil className="h-3.5 w-3.5 mr-1" />
+                  Editar
+                </Button>
+              ) : (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={cancelEditing} disabled={savingEdit}>
+                    <X className="h-3.5 w-3.5 mr-1" />
+                    Cancelar
+                  </Button>
+                  <Button size="sm" onClick={saveEdits} disabled={savingEdit}>
+                    {savingEdit ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-1" />}
+                    Salvar
+                  </Button>
+                </div>
+              )}
+            </div>
           </DialogHeader>
           {selectedClient && (
             <ScrollArea className="max-h-[70vh] pr-4">
@@ -713,38 +1008,14 @@ const SetorComercial = () => {
                     Dados Pessoais
                   </h3>
                   <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Nome Completo</p>
-                      <p className="font-medium">{selectedClient.nomeCompleto}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">CPF</p>
-                      <p className="font-medium">{selectedClient.cpf}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">RG</p>
-                      <p className="font-medium">{selectedClient.documentoIdentidade}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Data de Nascimento</p>
-                      <p className="font-medium">{selectedClient.dataNascimento}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Estado Civil</p>
-                      <p className="font-medium">{selectedClient.estadoCivil}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Profissão</p>
-                      <p className="font-medium">{selectedClient.profissao}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Nome do Pai</p>
-                      <p className="font-medium">{selectedClient.nomePai || '-'}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Nome da Mãe</p>
-                      <p className="font-medium">{selectedClient.nomeMae || '-'}</p>
-                    </div>
+                    {renderField('nomeCompleto', 'Nome Completo', selectedClient.nomeCompleto)}
+                    {renderField('cpf', 'CPF', selectedClient.cpf)}
+                    {renderField('documentoIdentidade', 'RG', selectedClient.documentoIdentidade)}
+                    {renderField('dataNascimento', 'Data de Nascimento', selectedClient.dataNascimento)}
+                    {renderField('estadoCivil', 'Estado Civil', selectedClient.estadoCivil)}
+                    {renderField('profissao', 'Profissão', selectedClient.profissao)}
+                    {renderField('nomePai', 'Nome do Pai', selectedClient.nomePai)}
+                    {renderField('nomeMae', 'Nome da Mãe', selectedClient.nomeMae)}
                   </div>
                 </div>
 
@@ -757,22 +1028,10 @@ const SetorComercial = () => {
                     Contato
                   </h3>
                   <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Telefone</p>
-                      <p className="font-medium">{selectedClient.telefone}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">WhatsApp</p>
-                      <p className="font-medium">{selectedClient.temWhatsapp}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Email</p>
-                      <p className="font-medium">{selectedClient.email}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Telefone Alternativo</p>
-                      <p className="font-medium">{selectedClient.telefoneAlternativo || '-'}</p>
-                    </div>
+                    {renderField('telefone', 'Telefone', selectedClient.telefone)}
+                    {renderField('temWhatsapp', 'WhatsApp', selectedClient.temWhatsapp)}
+                    {renderField('email', 'Email', selectedClient.email)}
+                    {renderField('telefoneAlternativo', 'Telefone Alternativo', selectedClient.telefoneAlternativo)}
                   </div>
                 </div>
 
@@ -785,29 +1044,13 @@ const SetorComercial = () => {
                     Endereço
                   </h3>
                   <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">CEP</p>
-                      <p className="font-medium">{selectedClient.cep}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Estado</p>
-                      <p className="font-medium">{selectedClient.estado}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Cidade</p>
-                      <p className="font-medium">{selectedClient.cidade}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Bairro</p>
-                      <p className="font-medium">{selectedClient.bairro}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <p className="text-muted-foreground">Endereço</p>
-                      <p className="font-medium">
-                        {selectedClient.rua}, {selectedClient.numero}
-                        {selectedClient.complemento && ` - ${selectedClient.complemento}`}
-                      </p>
-                    </div>
+                    {renderField('cep', 'CEP', selectedClient.cep)}
+                    {renderField('estado', 'Estado', selectedClient.estado)}
+                    {renderField('cidade', 'Cidade', selectedClient.cidade)}
+                    {renderField('bairro', 'Bairro', selectedClient.bairro)}
+                    {renderField('rua', 'Rua', selectedClient.rua)}
+                    {renderField('numero', 'Número', selectedClient.numero)}
+                    {renderField('complemento', 'Complemento', selectedClient.complemento)}
                   </div>
                 </div>
 
@@ -820,18 +1063,9 @@ const SetorComercial = () => {
                     Pagamento
                   </h3>
                   <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Opção de Pagamento</p>
-                      <p className="font-medium">{selectedClient.opcaoPagamento || '-'}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Parcelas</p>
-                      <p className="font-medium">{selectedClient.quantidadeParcelas || '-'}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Vencimento</p>
-                      <p className="font-medium">{selectedClient.dataVencimento || '-'}</p>
-                    </div>
+                    {renderField('opcaoPagamento', 'Opção de Pagamento', selectedClient.opcaoPagamento)}
+                    {renderField('quantidadeParcelas', 'Parcelas', selectedClient.quantidadeParcelas)}
+                    {renderField('dataVencimento', 'Vencimento', selectedClient.dataVencimento)}
                   </div>
                 </div>
 
@@ -844,34 +1078,17 @@ const SetorComercial = () => {
                     Informações Adicionais
                   </h3>
                   <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Aposentado</p>
-                      <p className="font-medium">{selectedClient.aposentado}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Previsão Aposentadoria</p>
-                      <p className="font-medium">{selectedClient.previsaoAposentadoria || '-'}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Empréstimo Consignado</p>
-                      <p className="font-medium">{selectedClient.possuiEmprestimo}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Doença Grave</p>
-                      <p className="font-medium">{selectedClient.doencaGrave}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Plano de Saúde</p>
-                      <p className="font-medium">{selectedClient.planoSaude}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Qual Plano</p>
-                      <p className="font-medium">{selectedClient.qualPlanoSaude || '-'}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Como Conheceu</p>
-                      <p className="font-medium">{selectedClient.comoConheceu}</p>
-                    </div>
+                    {renderField('aposentado', 'Aposentado', selectedClient.aposentado)}
+                    {renderField('previsaoAposentadoria', 'Previsão Aposentadoria', selectedClient.previsaoAposentadoria)}
+                    {renderField('possuiEmprestimo', 'Empréstimo Consignado', selectedClient.possuiEmprestimo)}
+                    {renderField('doencaGrave', 'Doença Grave', selectedClient.doencaGrave)}
+                    {renderField('planoSaude', 'Plano de Saúde', selectedClient.planoSaude)}
+                    {renderField('qualPlanoSaude', 'Qual Plano', selectedClient.qualPlanoSaude)}
+                    {renderField('negativaPlano', 'Negativa do Plano', selectedClient.negativaPlano)}
+                    {renderField('doencaNegativa', 'Doença da Negativa', selectedClient.doencaNegativa)}
+                    {renderField('comoConheceu', 'Como Conheceu', selectedClient.comoConheceu)}
+                    {renderField('conheceAlguemSituacao', 'Conhece Alguém na Situação', selectedClient.conheceAlguemSituacao)}
+                    {renderField('conheceAlguemMesmaSituacao', 'Conhece Alguém Mesma Situação', selectedClient.conheceAlguemMesmaSituacao)}
                     <div>
                       <p className="text-muted-foreground">Data do Registro</p>
                       <p className="font-medium">{selectedClient.timestamp}</p>
@@ -879,77 +1096,81 @@ const SetorComercial = () => {
                   </div>
                 </div>
 
-                <Separator />
+                {!isEditing && (
+                  <>
+                    <Separator />
 
-                {/* Qualification Preview - Editable */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold flex items-center gap-2">
-                      <FileSignature className="h-4 w-4" />
-                      Qualificação do Cliente
-                    </h3>
-                    {qualificationSaved && (
-                      <Badge variant="secondary" className="text-xs">
-                        <Check className="h-3 w-3 mr-1" />
-                        Salvo
-                      </Badge>
-                    )}
-                  </div>
-                  <Textarea
-                    value={editedQualification}
-                    onChange={(e) => {
-                      setEditedQualification(e.target.value);
-                      setQualificationSaved(false);
-                    }}
-                    className="min-h-[120px] text-sm leading-relaxed"
-                    placeholder="Qualificação do cliente..."
-                  />
-                  <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs text-muted-foreground">
-                      Edite conforme necessário. A versão salva será usada nos documentos.
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setEditedQualification(generateClientQualification(selectedClient));
+                    {/* Qualification Preview - Editable */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-semibold flex items-center gap-2">
+                          <FileSignature className="h-4 w-4" />
+                          Qualificação do Cliente
+                        </h3>
+                        {qualificationSaved && (
+                          <Badge variant="secondary" className="text-xs">
+                            <Check className="h-3 w-3 mr-1" />
+                            Salvo
+                          </Badge>
+                        )}
+                      </div>
+                      <Textarea
+                        value={editedQualification}
+                        onChange={(e) => {
+                          setEditedQualification(e.target.value);
                           setQualificationSaved(false);
                         }}
-                      >
-                        <RotateCcw className="h-3 w-3 mr-1" />
-                        Restaurar
+                        className="min-h-[120px] text-sm leading-relaxed"
+                        placeholder="Qualificação do cliente..."
+                      />
+                      <div className="flex items-center justify-between mt-2">
+                        <p className="text-xs text-muted-foreground">
+                          Edite conforme necessário. A versão salva será usada nos documentos.
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditedQualification(generateClientQualification(selectedClient));
+                              setQualificationSaved(false);
+                            }}
+                          >
+                            <RotateCcw className="h-3 w-3 mr-1" />
+                            Restaurar
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setQualificationSaved(true);
+                              toast.success("Qualificação salva com sucesso!");
+                            }}
+                            disabled={qualificationSaved}
+                          >
+                            <Save className="h-3 w-3 mr-1" />
+                            Salvar
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap gap-2 pt-4">
+                      <Button onClick={() => handleGenerateContract(selectedClient)}>
+                        <FileSignature className="h-4 w-4 mr-2" />
+                        Gerar Contrato
                       </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setQualificationSaved(true);
-                          toast.success("Qualificação salva com sucesso!");
-                        }}
-                        disabled={qualificationSaved}
-                      >
-                        <Save className="h-3 w-3 mr-1" />
-                        Salvar
+                      <Button variant="outline" onClick={() => handleGenerateProcuracao(selectedClient)}>
+                        <Scale className="h-4 w-4 mr-2" />
+                        Gerar Procuração
+                      </Button>
+                      <Button variant="outline" onClick={() => handleGenerateDeclaracao(selectedClient)}>
+                        <FileCheck className="h-4 w-4 mr-2" />
+                        Gerar Declaração
                       </Button>
                     </div>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex flex-wrap gap-2 pt-4">
-                  <Button onClick={() => handleGenerateContract(selectedClient)}>
-                    <FileSignature className="h-4 w-4 mr-2" />
-                    Gerar Contrato
-                  </Button>
-                  <Button variant="outline" onClick={() => handleGenerateProcuracao(selectedClient)}>
-                    <Scale className="h-4 w-4 mr-2" />
-                    Gerar Procuração
-                  </Button>
-                  <Button variant="outline" onClick={() => handleGenerateDeclaracao(selectedClient)}>
-                    <FileCheck className="h-4 w-4 mr-2" />
-                    Gerar Declaração
-                  </Button>
-                </div>
+                  </>
+                )}
               </div>
             </ScrollArea>
           )}
