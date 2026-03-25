@@ -157,6 +157,52 @@ function buildDigestHtml(userName: string, data: UserDigestData, baseUrl: string
 
   // Overdue tasks
   if (data.overdueTasks.length > 0) {
+    sections += `
+      <div class="section">
+        <div class="section-title">🚨 Tarefas Atrasadas (${data.overdueTasks.length})</div>
+        ${data.overdueTasks.slice(0, 10).map(t => `
+          <div class="item">
+            <div class="item-title">${escapeHtml(t.title)}</div>
+            <div class="item-meta">Venceu em: ${t.due_date ? formatDate(t.due_date) : 'Sem data'} · <span class="badge badge-red">Atrasada</span></div>
+          </div>
+        `).join("")}
+        ${data.overdueTasks.length > 10 ? `<p class="item-meta">...e mais ${data.overdueTasks.length - 10} tarefas atrasadas</p>` : ""}
+      </div>
+    `;
+  }
+
+  // Due soon tasks
+  if (data.dueSoonTasks.length > 0) {
+    sections += `
+      <div class="section">
+        <div class="section-title">⏰ Tarefas com Prazo Próximo (${data.dueSoonTasks.length})</div>
+        ${data.dueSoonTasks.slice(0, 10).map(t => `
+          <div class="item">
+            <div class="item-title">${escapeHtml(t.title)}</div>
+            <div class="item-meta">Vence em: ${t.due_date ? formatDate(t.due_date) : 'Sem data'} · <span class="badge badge-yellow">Próxima</span></div>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  // Pending tasks
+  if (data.tasks.length > 0) {
+    sections += `
+      <div class="section">
+        <div class="section-title">📋 Tarefas Pendentes (${data.tasks.length})</div>
+        ${data.tasks.slice(0, 8).map(t => `
+          <div class="item">
+            <div class="item-title">${escapeHtml(t.title)}</div>
+            <div class="item-meta">${t.due_date ? `Prazo: ${formatDate(t.due_date)}` : 'Sem prazo'} · ${t.process_number ? `Processo: ${t.process_number}` : ''}</div>
+          </div>
+        `).join("")}
+        ${data.tasks.length > 8 ? `<p class="item-meta">...e mais ${data.tasks.length - 8} tarefas</p>` : ""}
+      </div>
+    `;
+  }
+
+  // Messages
   if (data.messages.length > 0) {
     sections += `
       <div class="section">
