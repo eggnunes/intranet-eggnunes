@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Tooltip, LabelList } from 'recharts';
-import { Users, Trophy, DollarSign, TrendingUp, RefreshCw } from 'lucide-react';
+import { UserCheck, UserMinus, UserX, Trophy, DollarSign, TrendingUp, RefreshCw } from 'lucide-react';
 
 const FUNNEL_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e'];
 
@@ -49,18 +49,43 @@ const TVMode = () => {
     return () => clearInterval(t);
   }, []);
 
-  // Leads no período
-  const { data: leadsCount = 0, refetch: r1 } = useQuery({
-    queryKey: ['tv-leads', period.start],
+  // Stages para classificação
+  const { data: stages = [], refetch: r1 } = useQuery({
+    queryKey: ['tv-stages'],
     queryFn: async () => {
-      const { count } = await supabase
-        .from('crm_contacts')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', period.start)
-        .lte('created_at', period.end);
-      return count ?? 0;
+      const { data } = await supabase
+        .from('crm_deal_stages')
+        .select('id, name, order_index');
+      return data ?? [];
     },
   });
+
+  // Deals no período para classificação por qualificação
+  const { data: periodDeals = [], refetch: r1b } = useQuery({
+    queryKey: ['tv-period-deals', period.start],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('crm_deals')
+        .select('id, stage_id')
+        .gte('created_at', period.start)
+        .lte('created_at', period.end);
+      return data ?? [];
+    },
+  });
+
+  // Classificação por qualificação
+  const qualification = useMemo(() => {
+    const stageMap = new Map(stages.map(s => [s.id, s.order_index]));
+    let qualificados = 0, indefinidos = 0, desqualificados = 0;
+    periodDeals.forEach(d => {
+      const idx = stageMap.get(d.stage_id);
+      if (idx === undefined) { indefinidos++; return; }
+      if (idx >= 3 && idx <= 8) qualificados++;
+      else if (idx <= 2) indefinidos++;
+      else desqualificados++;
+    });
+    return { qualificados, indefinidos, desqualificados };
+  }, [periodDeals, stages]);
 
   // Deals won no período
   const { data: wonDeals = [], refetch: r2 } = useQuery({
@@ -148,19 +173,33 @@ const TVMode = () => {
   useEffect(() => {
     const t = setInterval(async () => {
       setRefreshing(true);
-      await Promise.all([r1(), r2(), r3(), r4(), r5()]);
+    await Promise.all([r1(), r1b(), r2(), r3(), r4(), r5()]);
       setTimeout(() => setRefreshing(false), 800);
     }, 30000);
     return () => clearInterval(t);
-  }, [r1, r2, r3, r4, r5]);
+  }, [r1, r1b, r2, r3, r4, r5]);
 
   const kpis = [
     {
-      label: 'Leads no Período',
-      value: leadsCount.toLocaleString('pt-BR'),
-      icon: Users,
-      color: 'text-blue-400',
-      bg: 'bg-blue-500/10',
+      label: 'Qualificados',
+      value: qualification.qualificados.toLocaleString('pt-BR'),
+      icon: UserCheck,
+      color: 'text-emerald-400',
+      bg: 'bg-emerald-500/10',
+    },
+    {
+      label: 'Indefinidos',
+      value: qualification.indefinidos.toLocaleString('pt-BR'),
+      icon: UserMinus,
+      color: 'text-amber-400',
+      bg: 'bg-amber-500/10',
+    },
+    {
+      label: 'Desqualificados',
+      value: qualification.desqualificados.toLocaleString('pt-BR'),
+      icon: UserX,
+      color: 'text-red-400',
+      bg: 'bg-red-500/10',
     },
     {
       label: 'Contratos Fechados',
@@ -212,7 +251,7 @@ const TVMode = () => {
       {/* Body */}
       <div className="flex-1 flex flex-col gap-5 p-6 overflow-hidden">
         {/* KPI Cards */}
-        <div className="grid grid-cols-4 gap-5">
+        <div className="grid grid-cols-6 gap-4">
           {kpis.map(kpi => (
             <div key={kpi.label} className="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex items-center gap-4">
               <div className={`p-3.5 rounded-xl ${kpi.bg}`}>
