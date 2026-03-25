@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTeamsUpload } from '@/hooks/useTeamsUpload';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,10 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { FolderPlus, CheckCircle, AlertCircle, Loader2, ExternalLink } from 'lucide-react';
+import { FolderPlus, CheckCircle, AlertCircle, Loader2, ExternalLink, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function CriarPastaCliente() {
+  const navigate = useNavigate();
   const { sites, drives, loadingSites, loadingDrives, loadSites, loadDrives, findFolderByPath, createFolderByPath } = useTeamsUpload();
 
   const [selectedSiteId, setSelectedSiteId] = useState('');
@@ -99,10 +101,15 @@ export default function CriarPastaCliente() {
 
   return (
     <div className="container mx-auto p-6 max-w-2xl">
-      <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
-        <FolderPlus className="h-6 w-6 text-primary" />
-        Criar Pasta de Cliente
-      </h1>
+      <div className="flex items-center gap-4 mb-6">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <FolderPlus className="h-6 w-6 text-primary" />
+          Criar Pasta de Cliente
+        </h1>
+      </div>
 
       <Card>
         <CardHeader>
