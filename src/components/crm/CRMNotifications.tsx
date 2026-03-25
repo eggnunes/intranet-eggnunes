@@ -111,7 +111,7 @@ export const CRMNotifications = () => {
       if (settingsData.enable_stale_alerts) {
         const staleDays = settingsData.stale_deal_days || 7;
         deals.forEach(deal => {
-          const lastUpdate = new Date(deal.updated_at);
+          const lastUpdate = new Date(deal.stage_changed_at || deal.created_at);
           const daysSinceUpdate = Math.ceil((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
           
           if (daysSinceUpdate >= staleDays && !deal.stage?.is_won && !deal.stage?.is_lost) {
