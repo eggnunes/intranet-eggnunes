@@ -1,58 +1,79 @@
 
 
-## Correção: Poucos contratos fechados no Ranking
+## Expandir lista de contratos ZapSign + botão "Salvar na pasta do cliente"
 
-### Problema raiz identificado
+### Problema 1: Poucos contratos na lista
+A tabela `zapsign_documents` tem apenas 13 registros porque só são inseridos documentos criados pela intranet. Contratos criados diretamente no ZapSign ou antes da integração não aparecem.
 
-Investigação no banco de dados revelou:
+### Problema 2: Falta botão para salvar na pasta do cliente no Teams
+Não existe ação para salvar o documento assinado diretamente na pasta do cliente no SharePoint/Teams.
 
-1. **O estágio "Fechamento" tem `is_won = false`** — A sincronização com RD Station define `is_won` baseado no nome do estágio, procurando "ganho" ou "won" (linha 432 do crm-sync). Mas o estágio real chama-se **"Fechamento"**, que não contém nenhuma dessas palavras. Resultado: `is_won` nunca é setado como `true`.
-
-2. **Impacto**: Quando um deal muda para o estágio "Fechamento" durante a sincronização, o código (linhas 210-213) verifica `stage.is_won` para definir `won = true` e `closed_at`. Como `is_won` é `false`, isso nunca acontece. Os únicos deals marcados como `won` são aqueles onde o RD Station já retorna `deal.win = true` no JSON da API — que só acontece para deals explicitamente marcados como ganhos no RD Station (poucos).
-
-3. **Dados atuais**: 264 deals em "Fechamento" com `won = true`, mas apenas 4 com `closed_at` no período atual (25/02 - 24/03). No RD Station há muito mais.
+---
 
 ### Solução
 
-**1. Corrigir detecção de `is_won` no sync de pipelines** (crm-sync/index.ts, linha 432)
+**1. Adicionar ação `sync_all` na edge function `zapsign-integration/index.ts`**
 
-Adicionar "fechamento" à lista de nomes que identificam estágio de vitória:
-```
-is_won: stage.name?.toLowerCase().includes('ganho') 
-    || stage.name?.toLowerCase().includes('won') 
-    || stage.name?.toLowerCase().includes('fechamento')
-```
+Nova ação que busca todos os documentos da conta ZapSign via API (`GET /docs/`) com paginação, e faz upsert na tabela `zapsign_documents`:
 
-**2. Migração SQL — Corrigir estágio "Fechamento" imediatamente**
+- Endpoint: `GET https://api.zapsign.com.br/api/v1/docs/?page=1`
+- Paginar até não ter mais resultados
+- Para cada documento, extrair: token, nome, status, signatários, URLs
+- Upsert por `document_token` (evita duplicatas)
+- Mapear nomes de signatários para identificar cliente, Marcos, Rafael e testemunhas
+- Retornar contagem de documentos sincronizados
 
-```sql
-UPDATE crm_deal_stages SET is_won = true WHERE name = 'Fechamento';
-```
+**2. Adicionar botão "Sincronizar ZapSign" no componente `CRMZapSignContracts.tsx`**
 
-**3. Corrigir deals existentes em "Fechamento" sem `won = true` ou sem `closed_at` recente**
+- Novo botão ao lado de "Atualizar Status" que chama `action: 'sync_all'`
+- Ao clicar, busca todos os documentos da API e popula a tabela
+- Exibe toast com quantidade sincronizada
 
-Na lógica de `syncDeals`, após o upsert, adicionar verificação: se o deal está no estágio com `is_won = true` e não tem `won = true`, atualizar `won` e `closed_at`.
+**3. Adicionar botão "Salvar no Teams" em cada linha da tabela**
 
-Também adicionar uma query pós-sync para corrigir deals que já estão em "Fechamento" mas não foram marcados como `won`:
-```sql
-UPDATE crm_deals 
-SET won = true, 
-    closed_at = COALESCE(closed_at, stage_changed_at, updated_at, NOW())
-WHERE stage_id IN (SELECT id FROM crm_deal_stages WHERE is_won = true)
-  AND won = false;
-```
+Para cada documento que tem `signed_file_url` (assinado) ou `original_file_url`:
 
-**4. Melhorar o upsert de deals** (crm-sync/index.ts, ~linha 769-787)
+- Novo botão com ícone de nuvem/upload na coluna Ações
+- Ao clicar:
+  - Faz fetch do PDF via URL (`signed_file_url` ou `original_file_url`)
+  - Converte para base64
+  - Abre o fluxo de salvar no Teams, buscando automaticamente o site "Jurídico"
+  - Caminho: drive "Documentos" → `Operacional - Clientes/{nome_do_cliente}`
+  - Se a pasta não existir, cria automaticamente usando `findOrCreateClientFolder`
+  - Nome do arquivo: nome do documento original do ZapSign
 
-Na transformação dos dados do deal, além de verificar `deal.win`, também verificar se o estágio atual é um estágio de vitória:
+**4. Adicionar paginação à tabela**
+
+- Exibir 20 documentos por página com controles de paginação
+- Manter filtros e busca funcionando com paginação
+
+### Detalhes técnicos
+
+**Edge function — nova ação `sync_all`:**
 ```typescript
-const stageIsWon = stageInfo && wonStageIds.has(stageInfo.id);
-won: deal.win === true || deal.win === 'won' || deal.win === 1 || stageIsWon,
-closed_at: deal.closed_at || (stageIsWon ? (deal.last_activity_at || deal.created_at) : null),
+if (body.action === 'sync_all') {
+  let page = 1;
+  let allDocs = [];
+  while (true) {
+    const resp = await fetch(`${ZAPSIGN_API_URL}/docs/?page=${page}`, {
+      headers: { 'Authorization': `Bearer ${ZAPSIGN_API_TOKEN}` }
+    });
+    const data = await resp.json();
+    if (!data.results?.length) break;
+    allDocs.push(...data.results);
+    if (!data.next) break;
+    page++;
+  }
+  // Upsert each document...
+}
 ```
 
-### Resultado esperado
-- Os 30+ contratos fechados no período aparecerão corretamente no Ranking
-- Futuros deals movidos para "Fechamento" serão automaticamente marcados como `won`
-- TV Mode também será corrigido automaticamente (usa a mesma tabela)
+**Componente — botão salvar no Teams:**
+- Importar `useTeamsUpload` e `SaveToTeamsDialog`
+- Novo estado `savingDoc` para controlar qual documento está sendo salvo
+- Ao clicar no botão, busca o PDF, converte para base64, abre dialog pré-configurado com site Jurídico e pasta do cliente
+
+**Arquivos modificados:**
+- `supabase/functions/zapsign-integration/index.ts` — nova ação `sync_all`
+- `src/components/crm/CRMZapSignContracts.tsx` — botão sync, botão salvar Teams, paginação
 
