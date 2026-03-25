@@ -9,3 +9,4 @@ export { CRMDailyLog } from './CRMDailyLog';
 export { CRMCampaigns } from './CRMCampaigns';
 export { CRMRanking } from './CRMRanking';
 export { CRMZapSignContracts } from './CRMZapSignContracts';
+export { CRMCommissions } from './CRMCommissions';
