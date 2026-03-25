@@ -1,37 +1,63 @@
 
 
-## Correção: Alertas "Deal Parado" mostrando sempre 26 ou 7 dias
+## Correção: Atividades do CRM com zero concluídas e erro ao sincronizar
 
 ### Problema raiz
 
-Na linha 114 de `CRMNotifications.tsx`, o cálculo de dias parado usa `deal.updated_at`:
-```typescript
-const lastUpdate = new Date(deal.updated_at);
-```
+A sincronização está buscando dados do endpoint errado da API do RD Station:
+- **Endpoint atual**: `GET /activities` — Este é o endpoint de **anotações/notas**, que não tem status de conclusão
+- **Endpoint correto**: `GET /tasks` — Este é o endpoint de **tarefas**, que contém `done` (boolean), `done_date`, `subject`, `type`
 
-O campo `updated_at` é sobrescrito pela sincronização automática com RD Station (a cada 3 horas). Todos os deals recebem o mesmo `updated_at` no momento do sync, resultando em todos mostrando exatamente o mesmo numero de dias (26 ou 7, dependendo de quando o alerta foi gerado).
+Resultado: todas as 344 "atividades" têm título "Atividade" (fallback), tipo "task" e `completed = false`, porque o endpoint de anotações não retorna esses campos.
+
+Além disso, o endpoint `/deals/{id}/activities` (por deal) também busca anotações, não tarefas. O endpoint correto para tarefas por deal é `/tasks?deal_id={id}`.
 
 ### Solução
 
-**Arquivo: `src/components/crm/CRMNotifications.tsx`** — Linha 114
+**Arquivo: `supabase/functions/crm-sync/index.ts`** — Função `syncActivities`
 
-Trocar `updated_at` por `stage_changed_at`, que reflete a data real da última movimentação do deal:
+1. **Substituir endpoints de anotações por tarefas**:
+   - Trocar `GET /activities?token=...` por `GET /tasks?token=...&limit=200`
+   - Trocar `GET /deals/{id}/activities` por `GET /tasks?deal_id={id}&token=...&limit=100`
 
-```typescript
-// Antes:
-const lastUpdate = new Date(deal.updated_at);
+2. **Corrigir mapeamento dos campos** conforme a API de tarefas retorna:
+   - `_id` → `rd_station_id`
+   - `subject` → `title`
+   - `done` (boolean) → `completed`
+   - `done_date` → `completed_at`
+   - `date` → `due_date`
+   - `type` → `type` (valores: call, email, meeting, task, lunch, visit, whatsapp)
+   - `notes` → `description`
+   - `deal._id` → mapeamento para deal local
+   - `users[0].email` → mapeamento para owner
 
-// Depois:
-const lastUpdate = new Date(deal.stage_changed_at || deal.created_at);
+3. **Buscar tarefas concluídas e pendentes**: Adicionar parâmetro `done=true` numa segunda passagem para garantir que tarefas concluídas também são importadas (a API permite filtro por `done`)
+
+4. **Paginar corretamente**: A API de tasks usa `has_more` (boolean) em vez de verificar se `items.length < limit`
+
+**Arquivo: `src/components/crm/CRMActivities.tsx`**
+
+5. **Adicionar contadores no topo**: Exibir badges com contagem (ex: "Todas (344)", "Pendentes (280)", "Concluídas (64)") para feedback visual imediato
+
+### Mapeamento detalhado (RD Station Tasks → crm_activities)
+
+```text
+RD Station Tasks API          →   crm_activities
+─────────────────────          ─   ──────────────
+_id                            →   rd_station_id
+subject                        →   title
+type (call/email/meeting/...)  →   type
+notes                          →   description
+date                           →   due_date
+done (boolean)                 →   completed
+done_date                      →   completed_at
+deal._id                       →   deal_id (via lookup)
+users[0].email                 →   owner_id (via profile lookup)
 ```
 
-Isso faz com que cada deal mostre corretamente quantos dias está sem movimentação real de estágio, em vez de usar o timestamp do último sync.
-
-### Limpeza complementar
-
-Deletar as notificações antigas geradas com valores incorretos para que sejam recriadas com os valores corretos:
-
-- Executar via migração: `DELETE FROM crm_notifications WHERE type = 'stale_deal';`
-
-Ao reabrir a aba de Alertas, as notificações serão regeneradas automaticamente com os dias corretos (função `generateAlerts` roda no `useEffect`).
+### Resultado esperado
+- Atividades concluídas aparecerão corretamente com a contagem real
+- Títulos reais das tarefas (subject) em vez de "Atividade"
+- Tipos corretos (ligação, reunião, email, etc.)
+- Sincronização sem erro
 
