@@ -94,6 +94,9 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
   const [contactDealsMap, setContactDealsMap] = useState<Record<string, { owner_id: string | null; product_name: string | null; campaign_name: string | null }>>({});
   const [profissoesDisponiveis, setProfissoesDisponiveis] = useState<string[]>([]);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [newLeadDialogOpen, setNewLeadDialogOpen] = useState(false);
+  const [newLeadForm, setNewLeadForm] = useState({ name: '', email: '', phone: '', company: '', job_title: '', city: '', state: '', website: '', linkedin: '', notes: '' });
+  const [creatingLead, setCreatingLead] = useState(false);
 
   useEffect(() => {
     fetchContacts();
