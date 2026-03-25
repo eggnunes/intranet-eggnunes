@@ -125,27 +125,27 @@ export const CRMActivities = ({ syncEnabled }: CRMActivitiesProps) => {
           />
         </div>
         
-        <div className="flex gap-2">
+      <div className="flex gap-2">
           <Badge
             variant={filter === 'all' ? 'default' : 'outline'}
             className="cursor-pointer"
             onClick={() => setFilter('all')}
           >
-            Todas
+            Todas ({activities.length})
           </Badge>
           <Badge
             variant={filter === 'pending' ? 'default' : 'outline'}
             className="cursor-pointer"
             onClick={() => setFilter('pending')}
           >
-            Pendentes
+            Pendentes ({activities.filter(a => !a.completed).length})
           </Badge>
           <Badge
             variant={filter === 'completed' ? 'default' : 'outline'}
             className="cursor-pointer"
             onClick={() => setFilter('completed')}
           >
-            Concluídas
+            Concluídas ({activities.filter(a => a.completed).length})
           </Badge>
         </div>
       </div>
