@@ -548,6 +548,11 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
         
         <Badge variant="secondary">{filteredContacts.length} contatos</Badge>
 
+        <Button variant="default" size="sm" onClick={() => setNewLeadDialogOpen(true)}>
+          <UserPlus className="h-4 w-4 mr-2" />
+          Novo Lead
+        </Button>
+
         <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
           <Upload className="h-4 w-4 mr-2" />
           Importar CSV
@@ -1212,6 +1217,65 @@ export const CRMContactsList = ({ syncEnabled }: CRMContactsListProps) => {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+      {/* Dialog Novo Lead */}
+      <Dialog open={newLeadDialogOpen} onOpenChange={setNewLeadDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Novo Lead</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+            <div>
+              <Label>Nome *</Label>
+              <Input value={newLeadForm.name} onChange={e => setNewLeadForm(p => ({ ...p, name: e.target.value }))} placeholder="Nome completo" />
+            </div>
+            <div>
+              <Label>Email</Label>
+              <Input type="email" value={newLeadForm.email} onChange={e => setNewLeadForm(p => ({ ...p, email: e.target.value }))} placeholder="email@exemplo.com" />
+            </div>
+            <div>
+              <Label>Telefone</Label>
+              <Input value={newLeadForm.phone} onChange={e => setNewLeadForm(p => ({ ...p, phone: e.target.value }))} placeholder="(00) 00000-0000" />
+            </div>
+            <div>
+              <Label>Empresa</Label>
+              <Input value={newLeadForm.company} onChange={e => setNewLeadForm(p => ({ ...p, company: e.target.value }))} placeholder="Nome da empresa" />
+            </div>
+            <div>
+              <Label>Cargo</Label>
+              <Input value={newLeadForm.job_title} onChange={e => setNewLeadForm(p => ({ ...p, job_title: e.target.value }))} placeholder="Cargo / Profissão" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>Cidade</Label>
+                <Input value={newLeadForm.city} onChange={e => setNewLeadForm(p => ({ ...p, city: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Estado</Label>
+                <Input value={newLeadForm.state} onChange={e => setNewLeadForm(p => ({ ...p, state: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <Label>Website</Label>
+              <Input value={newLeadForm.website} onChange={e => setNewLeadForm(p => ({ ...p, website: e.target.value }))} placeholder="https://" />
+            </div>
+            <div>
+              <Label>LinkedIn</Label>
+              <Input value={newLeadForm.linkedin} onChange={e => setNewLeadForm(p => ({ ...p, linkedin: e.target.value }))} placeholder="URL do LinkedIn" />
+            </div>
+            <div>
+              <Label>Observações</Label>
+              <Textarea value={newLeadForm.notes} onChange={e => setNewLeadForm(p => ({ ...p, notes: e.target.value }))} placeholder="Anotações sobre o lead..." rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewLeadDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreateLead} disabled={creatingLead}>
+              {creatingLead ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />}
+              Criar Lead
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
