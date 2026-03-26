@@ -131,7 +131,7 @@ export const CRMCommissions = () => {
           name: deal.name,
           value: deal.value,
           closedAt: deal.closed_at,
-          contactName: (deal.contact_id ? contactMap.get(deal.contact_id) : null) || deal.name || null,
+          contactName: deal.name || (deal.contact_id ? contactMap.get(deal.contact_id) : null) || null,
           productName: deal.product_name || deal.name,
         });
       }
