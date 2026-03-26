@@ -162,7 +162,7 @@ export const CRMRanking = () => {
             name: d.name,
             value: d.value,
             closedAt: d.closed_at,
-            contactName: d.contact_id ? (contactMap.get(d.contact_id) || null) : null,
+            contactName: (d.contact_id ? contactMap.get(d.contact_id) : null) || d.name || null,
             productName: d.product_name || d.name,
           };
           dealsMap.get(d.owner_id)?.push(detail);

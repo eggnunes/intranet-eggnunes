@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Tooltip, LabelList } from 'recharts';
-import { UserCheck, UserMinus, UserX, Trophy, DollarSign, TrendingUp, RefreshCw } from 'lucide-react';
+import { UserCheck, UserMinus, UserX, Trophy, DollarSign, TrendingUp, RefreshCw, ArrowLeft } from 'lucide-react';
 
 const FUNNEL_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e'];
 
@@ -39,6 +40,7 @@ function getCommercialPeriod(now: Date) {
 }
 
 const TVMode = () => {
+  const navigate = useNavigate();
   const [now, setNow] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
 
@@ -228,7 +230,16 @@ const TVMode = () => {
     <div className="fixed inset-0 bg-gray-950 text-gray-100 flex flex-col overflow-hidden">
       {/* Header */}
       <header className="flex items-center justify-between px-8 py-3 border-b border-gray-800">
-        <img src="/logo-eggnunes.png" alt="Logo" className="h-10 object-contain" />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="p-2 rounded-lg text-gray-500 hover:text-gray-100 hover:bg-gray-800 opacity-30 hover:opacity-100 transition-all duration-300"
+            title="Voltar para a Intranet"
+          >
+            <ArrowLeft className="h-6 w-6" />
+          </button>
+          <img src="/logo-eggnunes.png" alt="Logo" className="h-10 object-contain" />
+        </div>
         <div className="text-center">
           <div className="text-5xl font-mono font-bold tracking-widest tabular-nums">
             {format(now, 'HH:mm:ss')}
