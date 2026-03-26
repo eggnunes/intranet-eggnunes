@@ -255,7 +255,7 @@ const Mensagens = () => {
     });
   };
 
-  const uploadFile = async (file: File): Promise<string | null> => {
+  const uploadFile = async (file: File, retryCount = 0): Promise<string | null> => {
     try {
       const fileName = `${Date.now()}_${file.name}`;
       const filePath = `${user?.id}/${fileName}`;
@@ -276,8 +276,14 @@ const Mensagens = () => {
       }
 
       return signedUrlData.signedUrl;
-    } catch (error) {
-      console.error('Error uploading file:', error);
+    } catch (error: any) {
+      console.error(`Error uploading file "${file.name}":`, error);
+      // Retry once on transient failures
+      if (retryCount < 1) {
+        console.log(`Retrying upload for "${file.name}"...`);
+        return uploadFile(file, retryCount + 1);
+      }
+      toast.error(`Falha ao enviar arquivo: ${file.name}`);
       return null;
     }
   };
@@ -378,18 +384,34 @@ const Mensagens = () => {
 
       // Upload attached files
       if (attachedFiles.length > 0) {
+        toast.info(`Enviando ${attachedFiles.length} arquivo(s)...`);
         const fileUrls: string[] = [];
+        const failedFiles: string[] = [];
+        
         for (const attachment of attachedFiles) {
           const url = await uploadFile(attachment.file);
           if (url) {
             const isImage = attachment.file.type.startsWith('image/');
             fileUrls.push(`${isImage ? '🖼️' : '📎'} ${attachment.file.name}: ${url}`);
+          } else {
+            failedFiles.push(attachment.file.name);
           }
         }
+
         if (fileUrls.length > 0) {
           messageContent = messageContent 
             ? `${messageContent}\n\n${fileUrls.join('\n')}`
             : fileUrls.join('\n');
+        }
+
+        // If all uploads failed and no text, don't send and keep files
+        if (fileUrls.length === 0 && !messageContent) {
+          toast.error(`Nenhum arquivo foi enviado. Tente novamente.`);
+          return;
+        }
+
+        if (failedFiles.length > 0 && fileUrls.length > 0) {
+          toast.warning(`${failedFiles.length} arquivo(s) não enviado(s): ${failedFiles.join(', ')}`);
         }
       }
 
