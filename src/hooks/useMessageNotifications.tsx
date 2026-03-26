@@ -108,8 +108,7 @@ export const useMessageNotifications = () => {
           body,
           icon: '/favicon.ico',
           tag: `msg-${conversationId}`,
-          renotify: true,
-        });
+        } as NotificationOptions);
         notification.onclick = () => {
           window.focus();
           navigate('/mensagens', { state: { openConversation: conversationId } });
