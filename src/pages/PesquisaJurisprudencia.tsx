@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Search, History, Bookmark, Loader2, Trash2, Download, Save, Filter, X } from 'lucide-react';
+import { Search, History, Bookmark, Loader2, Trash2, Download, Save, Filter, X, Copy, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -51,11 +51,18 @@ interface JurisprudenciaItem {
   tese_firmada?: string;
   palavras_chave?: string[];
   sumulas_relacionadas?: string;
+  link_fonte?: string;
 }
 
 interface ParsedResult {
   jurisprudencias: JurisprudenciaItem[];
   observacoes_gerais?: string;
+}
+
+interface SearchResultData {
+  result: string;
+  parsed: ParsedResult | null;
+  citations?: string[];
 }
 
 export default function PesquisaJurisprudencia() {
@@ -65,6 +72,7 @@ export default function PesquisaJurisprudencia() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<string | null>(null);
   const [parsedResult, setParsedResult] = useState<ParsedResult | null>(null);
+  const [citations, setCitations] = useState<string[]>([]);
   const [searchHistory, setSearchHistory] = useState<SearchHistory[]>([]);
   const [savedJurisprudence, setSavedJurisprudence] = useState<SavedJurisprudence[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -150,6 +158,7 @@ export default function PesquisaJurisprudencia() {
     setIsSearching(true);
     setSearchResult(null);
     setParsedResult(null);
+    setCitations([]);
 
     try {
       const { data, error } = await supabase.functions.invoke('search-jurisprudence', {
@@ -164,9 +173,11 @@ export default function PesquisaJurisprudencia() {
 
       const result = data.result;
       const parsed = data.parsed as ParsedResult | null;
+      const resultCitations = data.citations as string[] || [];
       
       setSearchResult(result);
       setParsedResult(parsed);
+      setCitations(resultCitations);
 
       // Salvar no histórico
       const { data: savedSearch, error: saveError } = await supabase
