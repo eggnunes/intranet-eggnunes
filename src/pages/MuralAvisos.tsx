@@ -12,7 +12,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { useAuth } from '@/hooks/useAuth';
 import { useEmailNotification } from '@/hooks/useEmailNotification';
-import { Megaphone, Plus, Trash2, Pin, Calendar, Trophy, Upload, Link2, X, Download, ExternalLink, FileText, Image, Video, File, BookmarkPlus, Copy } from 'lucide-react';
+import { Megaphone, Plus, Trash2, Pin, Calendar, Trophy, Upload, Link2, X, Download, ExternalLink, FileText, Image, Video, File, BookmarkPlus, Copy, Pencil } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
@@ -46,16 +46,30 @@ const MuralAvisos = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
+  const [editPendingFiles, setEditPendingFiles] = useState<File[]>([]);
+  const [editLinkInput, setEditLinkInput] = useState('');
+  const [editPendingLinks, setEditPendingLinks] = useState<string[]>([]);
+  const [editExistingAttachments, setEditExistingAttachments] = useState<Attachment[]>([]);
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
   const { isAdmin } = useUserRole();
   const { canEdit, isSocioOrRafael } = useAdminPermissions();
   const { toast } = useToast();
   const { user } = useAuth();
   const { sendAnnouncementEmail } = useEmailNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   const canManageAnnouncements = isSocioOrRafael || canEdit('announcements');
 
   const [formData, setFormData] = useState({
+    title: '',
+    content: '',
+    type: 'comunicado' as 'comunicado' | 'evento' | 'conquista',
+    is_pinned: false
+  });
+  const [editFormData, setEditFormData] = useState({
     title: '',
     content: '',
     type: 'comunicado' as 'comunicado' | 'evento' | 'conquista',
@@ -301,6 +315,117 @@ const MuralAvisos = () => {
     }
   };
 
+  const handleEdit = (announcement: Announcement) => {
+    setEditingAnnouncement(announcement);
+    setEditFormData({
+      title: announcement.title,
+      content: announcement.content,
+      type: announcement.type,
+      is_pinned: announcement.is_pinned
+    });
+    setEditExistingAttachments(attachmentsMap[announcement.id] || []);
+    setRemovedAttachmentIds([]);
+    setEditPendingFiles([]);
+    setEditPendingLinks([]);
+    setEditLinkInput('');
+    setEditDialogOpen(true);
+  };
+
+  const handleAddEditLink = () => {
+    const trimmed = editLinkInput.trim();
+    if (!trimmed) return;
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      toast({ title: 'Link inválido', description: 'O link deve começar com http:// ou https://', variant: 'destructive' });
+      return;
+    }
+    setEditPendingLinks(prev => [...prev, trimmed]);
+    setEditLinkInput('');
+  };
+
+  const handleUpdate = async () => {
+    if (!editingAnnouncement || !editFormData.title || !editFormData.content) {
+      toast({ title: 'Erro', description: 'Preencha todos os campos obrigatórios.', variant: 'destructive' });
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error('Usuário não autenticado');
+
+      const { error } = await supabase
+        .from('announcements')
+        .update({
+          title: editFormData.title,
+          content: editFormData.content,
+          type: editFormData.type,
+          is_pinned: editFormData.is_pinned
+        })
+        .eq('id', editingAnnouncement.id);
+
+      if (error) throw error;
+
+      // Remove deleted attachments
+      for (const attId of removedAttachmentIds) {
+        const att = editExistingAttachments.find(a => a.id === attId);
+        if (att && !att.is_link) {
+          const urlParts = att.file_url.split('/announcement-attachments/');
+          if (urlParts[1]) {
+            await supabase.storage.from('announcement-attachments').remove([decodeURIComponent(urlParts[1])]);
+          }
+        }
+        await supabase.from('announcement_attachments').delete().eq('id', attId);
+      }
+
+      // Upload new files
+      for (const file of editPendingFiles) {
+        const path = `${editingAnnouncement.id}/${Date.now()}_${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from('announcement-attachments')
+          .upload(path, file);
+
+        if (uploadError) { console.error('Upload error:', uploadError); continue; }
+
+        const { data: urlData } = supabase.storage
+          .from('announcement-attachments')
+          .getPublicUrl(path);
+
+        await supabase.from('announcement_attachments').insert({
+          announcement_id: editingAnnouncement.id,
+          file_name: file.name,
+          file_url: urlData.publicUrl,
+          file_type: file.type,
+          file_size: file.size,
+          is_link: false,
+          uploaded_by: userData.user.id
+        });
+      }
+
+      // Save new links
+      for (const link of editPendingLinks) {
+        const linkName = new URL(link).hostname;
+        await supabase.from('announcement_attachments').insert({
+          announcement_id: editingAnnouncement.id,
+          file_name: linkName,
+          file_url: link,
+          file_type: 'link',
+          file_size: null,
+          is_link: true,
+          uploaded_by: userData.user.id
+        });
+      }
+
+      toast({ title: 'Sucesso', description: 'Aviso atualizado com sucesso!' });
+      setEditDialogOpen(false);
+      setEditingAnnouncement(null);
+      fetchAnnouncements();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'comunicado': return <Megaphone className="h-5 w-5" />;
@@ -531,7 +656,10 @@ const MuralAvisos = () => {
                         </div>
                       </div>
                       {canManageAnnouncements && (
-                        <div className="flex gap-2">
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => handleEdit(announcement)} title="Editar aviso">
+                            <Pencil className="h-4 w-4 text-muted-foreground" />
+                          </Button>
                           <Button size="sm" variant="ghost" onClick={() => handleTogglePin(announcement.id, !announcement.is_pinned)}
                             title={announcement.is_pinned ? "Desafixar" : "Fixar no topo"}>
                             <Pin className={`h-4 w-4 ${announcement.is_pinned ? 'text-primary fill-primary' : 'text-muted-foreground'}`} />
@@ -613,6 +741,145 @@ const MuralAvisos = () => {
             })}
           </div>
         )}
+
+        {/* Edit Dialog */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Editar Aviso</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-title">Título *</Label>
+                <Input
+                  id="edit-title"
+                  value={editFormData.title}
+                  onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                  placeholder="Título do aviso"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-type">Tipo *</Label>
+                <Select
+                  value={editFormData.type}
+                  onValueChange={(value: any) => setEditFormData({ ...editFormData, type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="comunicado">Comunicado</SelectItem>
+                    <SelectItem value="evento">Evento</SelectItem>
+                    <SelectItem value="conquista">Conquista</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-content">Conteúdo *</Label>
+                <Textarea
+                  id="edit-content"
+                  value={editFormData.content}
+                  onChange={(e) => setEditFormData({ ...editFormData, content: e.target.value })}
+                  placeholder="Conteúdo do aviso"
+                  rows={5}
+                />
+              </div>
+
+              {/* Existing attachments */}
+              {editExistingAttachments.filter(a => !removedAttachmentIds.includes(a.id)).length > 0 && (
+                <div className="space-y-2">
+                  <Label>Anexos existentes</Label>
+                  {editExistingAttachments.filter(a => !removedAttachmentIds.includes(a.id)).map(att => (
+                    <div key={att.id} className="flex items-center justify-between bg-muted/50 rounded px-3 py-1.5 text-sm">
+                      <span className="truncate flex items-center gap-2">
+                        {getFileIcon(att.file_type, att.is_link)}
+                        {att.file_name}
+                      </span>
+                      <Button size="sm" variant="ghost" onClick={() => setRemovedAttachmentIds(prev => [...prev, att.id])}>
+                        <X className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* New file upload */}
+              <div className="space-y-3">
+                <Label>Adicionar novos anexos</Label>
+                <div
+                  className="border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                  onClick={() => editFileInputRef.current?.click()}
+                >
+                  <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">Clique para selecionar arquivos</p>
+                  <input
+                    ref={editFileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
+                    onChange={(e) => {
+                      if (e.target.files) {
+                        setEditPendingFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+                      }
+                    }}
+                  />
+                </div>
+
+                {editPendingFiles.length > 0 && (
+                  <div className="space-y-1">
+                    {editPendingFiles.map((file, i) => (
+                      <div key={i} className="flex items-center justify-between bg-muted/50 rounded px-3 py-1.5 text-sm">
+                        <span className="truncate">{file.name} ({formatFileSize(file.size)})</span>
+                        <Button size="sm" variant="ghost" onClick={() => setEditPendingFiles(prev => prev.filter((_, idx) => idx !== i))}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Input
+                    value={editLinkInput}
+                    onChange={(e) => setEditLinkInput(e.target.value)}
+                    placeholder="https://exemplo.com/documento"
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddEditLink())}
+                  />
+                  <Button type="button" variant="outline" onClick={handleAddEditLink}>
+                    <Link2 className="h-4 w-4 mr-1" />
+                    Adicionar
+                  </Button>
+                </div>
+
+                {editPendingLinks.length > 0 && (
+                  <div className="space-y-1">
+                    {editPendingLinks.map((link, i) => (
+                      <div key={i} className="flex items-center justify-between bg-muted/50 rounded px-3 py-1.5 text-sm">
+                        <span className="truncate flex items-center gap-1"><Link2 className="h-3 w-3" />{link}</span>
+                        <Button size="sm" variant="ghost" onClick={() => setEditPendingLinks(prev => prev.filter((_, idx) => idx !== i))}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="edit-pinned"
+                  checked={editFormData.is_pinned}
+                  onCheckedChange={(checked) => setEditFormData({ ...editFormData, is_pinned: checked })}
+                />
+                <Label htmlFor="edit-pinned">Fixar no topo</Label>
+              </div>
+              <Button onClick={handleUpdate} disabled={uploading} className="w-full">
+                {uploading ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
