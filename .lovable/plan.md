@@ -1,45 +1,47 @@
 
 
-## Corrigir badge de mensagens não lidas mostrando contagem incorreta
+## Buscar todos os andamentos + Normalizar títulos genéricos
 
-### Problema
-O banco de dados mostra **0 mensagens não lidas** para o seu usuário, mas o badge exibe "5". Causas identificadas:
+### Problemas identificados
 
-1. **Hook duplicado** — `useMessageNotifications` é chamado em `Layout.tsx` E em `AppSidebar.tsx`, criando duas instâncias independentes com subscriptions separadas
-2. **Contagem não atualiza** — quando você abre uma conversa, o `useMessaging` marca as mensagens como lidas (atualiza `last_read_at`), mas o `useMessageNotifications` não sabe disso e mantém a contagem antiga
-3. **Sem sincronização entre hooks** — não há mecanismo para o hook de notificação reagir quando o banco é atualizado por outro hook
+1. **Poucos andamentos (56)**: A página de Tradução lê apenas do `localStorage` (`advbox-movements-full-cache`). Se o cache estiver incompleto ou desatualizado, mostra poucos itens. Precisa buscar diretamente da API do ADVBox quando o cache não tem dados suficientes.
 
-### Correção
+2. **Títulos com detalhes específicos**: Andamentos como "Audiência de conciliação designada para 15/03/2026 às 14h" devem ser normalizados para apenas "Audiência de conciliação designada" — removendo datas, horários, nomes de partes, valores, etc.
 
-#### 1. Centralizar o hook em um único lugar
-**Arquivo:** `src/components/Layout.tsx`
-- Manter o hook aqui e passar `unreadMessagesCount` e `refetchUnreadCount` como props ou via contexto para o `AppSidebar`
+### Alterações
 
-**Arquivo:** `src/components/AppSidebar.tsx`
-- Remover a chamada duplicada de `useMessageNotifications()`
-- Receber `unreadMessagesCount` como prop
+#### 1. `src/pages/TraducaoAndamentos.tsx`
 
-#### 2. Adicionar listener de `last_read_at` no hook
-**Arquivo:** `src/hooks/useMessageNotifications.tsx`
-- Adicionar subscription Realtime para mudanças na tabela `conversation_participants` (evento UPDATE, filtrado pelo user_id)
-- Quando `last_read_at` for atualizado (pelo `useMessaging`), re-executar `fetchUnreadCount` automaticamente
-- Remover o `setTimeout` de 1 segundo que é frágil
+**Buscar dados diretamente da API (não apenas cache)**:
+- Ao carregar, primeiro tenta o localStorage
+- Se tiver poucos resultados (< 100), chama `supabase.functions.invoke('advbox-integration/movements-full')` para buscar todos
+- Atualiza o cache local após buscar
 
-#### 3. Garantir que a contagem é zerada corretamente
-- Ao entrar na página `/mensagens`, forçar re-fetch imediato
-- Ao abrir uma conversa no `useMessaging`, disparar um evento customizado (`window.dispatchEvent`) que o hook de notificação escuta para re-buscar
+**Normalizar títulos** — função `normalizeTitle(title)`:
+- Remove datas (`15/03/2026`, `15.03.2026`, `março de 2026`)
+- Remove horários (`às 14h`, `14:00`, `14h30`)
+- Remove números de processo (`0000000-00.0000.0.00.0000`)
+- Remove valores monetários (`R$ 1.000,00`)
+- Remove nomes próprios após preposições (`para o(a) Sr(a). João da Silva`)
+- Remove textos entre parênteses que contenham datas/nomes específicos
+- Faz trim e remove espaços/pontuação duplicados no final
+- Exemplo: `"Audiência de conciliação designada para o dia 15/03/2026"` → `"Audiência de conciliação designada"`
 
-### Abordagem técnica
-Usar `window.dispatchEvent(new Event('messages-read'))` no `useMessaging` quando marca como lido, e `window.addEventListener('messages-read', fetchUnreadCount)` no `useMessageNotifications` para manter sincronizado sem acoplar os hooks.
+**Deduplicar após normalização**: Agrupar títulos normalizados com `new Set()`, gerando a lista final sem repetições
+
+#### 2. `supabase/functions/translate-movement/index.ts`
+
+**Atualizar prompt da IA** para instruir:
+- "Não inclua datas, nomes de partes, valores ou qualquer informação específica de um caso na tradução"
+- "A tradução deve ser genérica e servir para qualquer cliente/processo"
+- Exemplo no prompt: "Audiência de conciliação designada" → tradução genérica
 
 ### Arquivos modificados
-- `src/hooks/useMessageNotifications.tsx` — listener de evento + subscription Realtime para `conversation_participants`
-- `src/hooks/useMessaging.tsx` — disparar evento `messages-read` ao marcar como lido
-- `src/components/AppSidebar.tsx` — receber `unreadMessagesCount` como prop em vez de chamar o hook
-- `src/components/Layout.tsx` — passar prop para AppSidebar
+- `src/pages/TraducaoAndamentos.tsx` — busca via API + normalização de títulos
+- `supabase/functions/translate-movement/index.ts` — prompt atualizado
 
 ### Resultado
-- Badge reflete exatamente a quantidade real de mensagens não lidas
-- Ao abrir uma conversa, o badge atualiza instantaneamente
-- Sem duplicação de hooks ou subscriptions
+- Todos os andamentos do ADVBox são buscados (não depende de cache local incompleto)
+- Títulos normalizados sem datas, nomes, valores — genéricos para qualquer cliente
+- IA gera traduções genéricas que servem para todos os processos
 
