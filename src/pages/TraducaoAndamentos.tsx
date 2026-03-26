@@ -582,15 +582,47 @@ export default function TraducaoAndamentos() {
                       return (
                         <TableRow key={title}>
                           <TableCell className="align-top">
-                            <div className="flex items-start gap-2">
-                              <span className="text-sm font-medium">{title}</span>
-                              {existing?.suggested_by_ai && (
-                                <Badge variant="secondary" className="text-xs shrink-0">
-                                  <Sparkles className="h-3 w-3 mr-1" />
-                                  IA
-                                </Badge>
-                              )}
-                            </div>
+                            {editingOriginal === title ? (
+                              <div className="space-y-1.5">
+                                <Textarea
+                                  value={editOriginalValues.get(title) ?? title}
+                                  onChange={(e) => setEditOriginalValues(prev => new Map(prev).set(title, e.target.value))}
+                                  className="min-h-[60px] text-sm"
+                                  rows={2}
+                                  autoFocus
+                                />
+                                <div className="flex gap-1">
+                                  <Button size="sm" className="gap-1 text-xs" onClick={() => handleRenameOriginal(title)} disabled={isSaving}>
+                                    {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                                    Salvar
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="text-xs" onClick={() => setEditingOriginal(null)}>
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-start gap-1.5 group">
+                                <span className="text-sm font-medium flex-1">{title}</span>
+                                <div className="flex gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {existing?.suggested_by_ai && (
+                                    <Badge variant="secondary" className="text-xs shrink-0">
+                                      <Sparkles className="h-3 w-3 mr-1" />
+                                      IA
+                                    </Badge>
+                                  )}
+                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => {
+                                    setEditOriginalValues(prev => new Map(prev).set(title, title));
+                                    setEditingOriginal(title);
+                                  }}>
+                                    <Pencil className="h-3 w-3 text-muted-foreground" />
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => handleDeleteOriginal(title)}>
+                                    <Trash2 className="h-3 w-3 text-destructive" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className="align-top">
                             <Textarea
