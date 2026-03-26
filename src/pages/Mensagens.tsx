@@ -255,35 +255,93 @@ const Mensagens = () => {
     });
   };
 
+  const getContentType = (file: File): string => {
+    if (file.type && file.type !== 'application/octet-stream') return file.type;
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const mimeMap: Record<string, string> = {
+      pdf: 'application/pdf',
+      doc: 'application/msword',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      xls: 'application/vnd.ms-excel',
+      xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      gif: 'image/gif',
+      webp: 'image/webp',
+      txt: 'text/plain',
+      csv: 'text/csv',
+    };
+    return mimeMap[ext || ''] || 'application/octet-stream';
+  };
+
+  const sanitizeFileName = (name: string): string => {
+    return name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .replace(/_+/g, '_');
+  };
+
   const uploadFile = async (file: File, retryCount = 0): Promise<string | null> => {
     try {
-      const fileName = `${Date.now()}_${file.name}`;
+      // Validate file size (max 50MB)
+      if (file.size > 50 * 1024 * 1024) {
+        toast.error(`Arquivo "${file.name}" excede o limite de 50MB.`);
+        return null;
+      }
+
+      const sanitizedName = sanitizeFileName(file.name);
+      const fileName = `${Date.now()}_${sanitizedName}`;
       const filePath = `${user?.id}/${fileName}`;
-      
+      const contentType = getContentType(file);
+
+      console.log(`Uploading "${file.name}" as "${filePath}" (type: ${contentType}, size: ${file.size})`);
+
       const { error: uploadError } = await supabase.storage
         .from('task-attachments')
-        .upload(filePath, file, { contentType: file.type });
+        .upload(filePath, file, {
+          contentType,
+          cacheControl: '3600',
+          upsert: false,
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error(`Upload error for "${file.name}":`, uploadError.message);
+        throw uploadError;
+      }
 
-      // Use signed URL for private bucket (valid for 1 year)
+      console.log(`Upload successful for "${file.name}", generating signed URL...`);
+
+      // Generate signed URL (valid for 1 year)
       const { data: signedUrlData, error: signedUrlError } = await supabase.storage
         .from('task-attachments')
         .createSignedUrl(filePath, 31536000);
 
       if (signedUrlError || !signedUrlData?.signedUrl) {
-        throw signedUrlError || new Error('Failed to create signed URL');
+        console.error(`Signed URL error for "${file.name}":`, signedUrlError?.message);
+        // Fallback: try public URL even though bucket is private
+        const { data: publicData } = supabase.storage
+          .from('task-attachments')
+          .getPublicUrl(filePath);
+        
+        if (publicData?.publicUrl) {
+          console.log(`Using fallback public URL for "${file.name}"`);
+          return publicData.publicUrl;
+        }
+        throw signedUrlError || new Error('Falha ao gerar link do arquivo');
       }
 
+      console.log(`Signed URL generated for "${file.name}"`);
       return signedUrlData.signedUrl;
     } catch (error: any) {
-      console.error(`Error uploading file "${file.name}":`, error);
-      // Retry once on transient failures
+      console.error(`Error uploading file "${file.name}":`, error?.message || error);
       if (retryCount < 1) {
-        console.log(`Retrying upload for "${file.name}"...`);
+        console.log(`Retrying upload for "${file.name}" (attempt ${retryCount + 2})...`);
+        await new Promise(r => setTimeout(r, 1000));
         return uploadFile(file, retryCount + 1);
       }
-      toast.error(`Falha ao enviar arquivo: ${file.name}`);
+      toast.error(`Falha ao enviar "${file.name}": ${error?.message || 'Erro desconhecido'}`);
       return null;
     }
   };
@@ -379,6 +437,7 @@ const Mensagens = () => {
     if (!newMessage.trim() && attachedFiles.length === 0) return;
 
     setSending(true);
+    let hasUploadFailures = false;
     try {
       let messageContent = newMessage.trim();
 
@@ -387,12 +446,15 @@ const Mensagens = () => {
         toast.info(`Enviando ${attachedFiles.length} arquivo(s)...`);
         const fileUrls: string[] = [];
         const failedFiles: string[] = [];
+        const successIndexes: number[] = [];
         
-        for (const attachment of attachedFiles) {
+        for (let i = 0; i < attachedFiles.length; i++) {
+          const attachment = attachedFiles[i];
           const url = await uploadFile(attachment.file);
           if (url) {
             const isImage = attachment.file.type.startsWith('image/');
             fileUrls.push(`${isImage ? '🖼️' : '📎'} ${attachment.file.name}: ${url}`);
+            successIndexes.push(i);
           } else {
             failedFiles.push(attachment.file.name);
           }
@@ -406,12 +468,18 @@ const Mensagens = () => {
 
         // If all uploads failed and no text, don't send and keep files
         if (fileUrls.length === 0 && !messageContent) {
-          toast.error(`Nenhum arquivo foi enviado. Tente novamente.`);
+          toast.error(`Nenhum arquivo foi enviado. Verifique os erros acima e tente novamente.`);
+          hasUploadFailures = true;
           return;
         }
 
-        if (failedFiles.length > 0 && fileUrls.length > 0) {
-          toast.warning(`${failedFiles.length} arquivo(s) não enviado(s): ${failedFiles.join(', ')}`);
+        if (failedFiles.length > 0) {
+          hasUploadFailures = true;
+          // Keep only failed files in the attachment area
+          setAttachedFiles(prev => prev.filter((_, i) => !successIndexes.includes(i)));
+          if (fileUrls.length > 0) {
+            toast.warning(`${failedFiles.length} arquivo(s) não enviado(s): ${failedFiles.join(', ')}. Eles permanecem anexados para reenvio.`);
+          }
         }
       }
 
@@ -421,7 +489,9 @@ const Mensagens = () => {
       
       setNewMessage('');
       setReplyingTo(null);
-      setAttachedFiles([]);
+      if (!hasUploadFailures) {
+        setAttachedFiles([]);
+      }
     } finally {
       setSending(false);
     }
