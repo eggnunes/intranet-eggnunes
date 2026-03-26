@@ -1,49 +1,48 @@
 
 
-## Incluir Microsoft Teams como fonte de dados dos Agentes de IA
+## Corrigir dados incorretos de tarefas pendentes e ranking de colaboradores
 
-### O que será feito
+### Problema raiz
 
-Adicionar "Documentos do Teams" como nova opção de acesso a dados na configuração dos agentes. Quando habilitado, o agente terá acesso à lista de arquivos das pastas de clientes no SharePoint/Teams (site Jurídico, caminho "Operacional - Clientes"), podendo informar quais documentos existem para cada cliente.
+1. **Sync sobrescreve status local**: A edge function `sync-advbox-tasks` sempre define `status: hasCompleted ? 'completed' : 'pending'` baseado no campo `users[].completed` da API do ADVBox. Porém, muitas tarefas que foram concluídas no ADVBox NÃO têm esse campo preenchido — a API simplesmente não marca `completed` nos usuários. Resultado: ~8.400 tarefas aparecem como "pending" quando muitas já foram concluídas.
 
-### Alterações
+2. **Sync reverte conclusões locais**: Tarefas marcadas como "completed" manualmente na intranet são revertidas para "pending" no próximo sync, pois o upsert sobrescreve o status.
 
-**1. Nova opção no formulário de criação de agentes**
-**Arquivo:** `src/components/agents/CreateAgentDialog.tsx`
+3. **Contagem inflada na Distribuição**: Em `DistribuicaoTarefas.tsx` (linha 199), qualquer tarefa com status que não seja explicitamente "pending" ou "in_progress" é contada como pendente — inflando o ranking.
 
-- Adicionar ao array `DATA_ACCESS_OPTIONS`:
-  ```
-  { value: 'teams_documents', label: 'Documentos Teams', description: 'Pastas e documentos de clientes no SharePoint/Teams' }
-  ```
+### Plano de correção
 
-**2. Injetar dados do Teams no prompt do agente**
-**Arquivo:** `supabase/functions/chat-with-agent/index.ts`
+#### 1. Preservar status local no sync
+**Arquivo:** `supabase/functions/sync-advbox-tasks/index.ts`
 
-- Adicionar bloco `hasAccess('teams_documents')` na seção de data access (junto aos existentes como leads, financeiro, etc.)
-- Dentro desse bloco:
-  1. Obter token Microsoft Graph usando as credenciais já configuradas (`MICROSOFT_CLIENT_ID`, `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_SECRET`)
-  2. Buscar o site "Jurídico" via `/sites?search=Jurídico`
-  3. Listar os drives do site e pegar o drive "Documentos"
-  4. Listar a pasta "Operacional - Clientes" e suas subpastas (nomes dos clientes)
-  5. Para cada pasta de cliente (limitado a 50), listar os arquivos (nome, tamanho, data de modificação)
-  6. Montar bloco de dados: `### Documentos do Teams (Pastas de Clientes)` com a estrutura de pastas/arquivos
-  7. Injetar no `systemPrompt` junto aos outros blocos de dados
+- Antes de upsertar, buscar do banco os `advbox_id` que já têm `status = 'completed'` (concluídos localmente)
+- No mapeamento do batch, se o `advbox_id` já está como "completed" no banco E a API não traz `users[].completed`, manter o status "completed" em vez de resetar para "pending"
+- Isso preserva as conclusões feitas manualmente na intranet
 
-- O agente poderá responder perguntas como "quais documentos o cliente X tem?" ou "o contrato do cliente Y já está na pasta?"
+#### 2. Melhorar detecção de conclusão no sync
+**Arquivo:** `supabase/functions/sync-advbox-tasks/index.ts`
 
-**3. Exibir tag "Documentos Teams" no card do agente**
-**Arquivo:** `src/components/agents/IntranetAgentsTab.tsx`
+- Além de checar `users[].completed`, verificar também se TODOS os usuários atribuídos têm `completed` preenchido (tarefa 100% concluída) vs apenas alguns
+- Considerar tarefas com `due_date` muito antigo (>90 dias no passado) e sem atividade como potencialmente concluídas — marcar com status especial `'stale'` em vez de "pending"
 
-- Já funciona automaticamente pois o card renderiza os itens de `data_access` — basta garantir que o label aparece corretamente mapeando `teams_documents` → `Documentos Teams`
+#### 3. Corrigir contagem na Distribuição de Tarefas
+**Arquivo:** `src/pages/DistribuicaoTarefas.tsx`
 
-### Detalhes técnicos
+- Remover a linha 199 que conta tudo como "pending" por default
+- Filtrar apenas tarefas que realmente tenham status `'pending'` ou `'in_progress'`
+- Excluir tarefas com status `'stale'` ou `'completed'` da contagem
+- Adicionar "TATIANE" à lista de exclusão de colaboradores não-operacionais (conforme memória do projeto)
 
-- As credenciais Microsoft já estão configuradas como secrets (`MICROSOFT_CLIENT_ID`, `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_SECRET`)
-- A lógica de autenticação Graph API já existe na edge function `microsoft-teams` — será replicada parcialmente em `chat-with-agent`
-- Para não sobrecarregar o prompt, limitar a 50 pastas de clientes e 20 arquivos por pasta, mostrando apenas nome e data
-- Se o token Microsoft falhar, o bloco é omitido silenciosamente (não bloqueia o agente)
+#### 4. Filtrar tarefas "stale" na página de Tarefas
+**Arquivo:** `src/pages/TarefasAdvbox.tsx`
+
+- Adicionar filtro de status "Obsoletas" para tarefas marcadas como stale
+- Por padrão, ocultar tarefas stale da listagem principal
+- Adicionar contadores corretos no resumo (pendentes vs concluídas vs obsoletas)
 
 ### Resultado
-- Ao criar/editar um agente, haverá a opção "Documentos Teams" no acesso a dados
-- O agente com essa permissão saberá listar e informar sobre documentos nas pastas de clientes do SharePoint
+- Tarefas concluídas manualmente na intranet não serão revertidas pelo sync
+- Tarefas antigas sem atividade serão classificadas como "obsoletas" em vez de pendentes
+- O ranking de distribuição por colaborador refletirá apenas tarefas verdadeiramente pendentes
+- Contadores e badges ficarão corretos
 
