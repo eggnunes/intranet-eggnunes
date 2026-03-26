@@ -437,6 +437,7 @@ const Mensagens = () => {
     if (!newMessage.trim() && attachedFiles.length === 0) return;
 
     setSending(true);
+    let hasUploadFailures = false;
     try {
       let messageContent = newMessage.trim();
 
@@ -445,12 +446,15 @@ const Mensagens = () => {
         toast.info(`Enviando ${attachedFiles.length} arquivo(s)...`);
         const fileUrls: string[] = [];
         const failedFiles: string[] = [];
+        const successIndexes: number[] = [];
         
-        for (const attachment of attachedFiles) {
+        for (let i = 0; i < attachedFiles.length; i++) {
+          const attachment = attachedFiles[i];
           const url = await uploadFile(attachment.file);
           if (url) {
             const isImage = attachment.file.type.startsWith('image/');
             fileUrls.push(`${isImage ? '🖼️' : '📎'} ${attachment.file.name}: ${url}`);
+            successIndexes.push(i);
           } else {
             failedFiles.push(attachment.file.name);
           }
@@ -464,12 +468,18 @@ const Mensagens = () => {
 
         // If all uploads failed and no text, don't send and keep files
         if (fileUrls.length === 0 && !messageContent) {
-          toast.error(`Nenhum arquivo foi enviado. Tente novamente.`);
+          toast.error(`Nenhum arquivo foi enviado. Verifique os erros acima e tente novamente.`);
+          hasUploadFailures = true;
           return;
         }
 
-        if (failedFiles.length > 0 && fileUrls.length > 0) {
-          toast.warning(`${failedFiles.length} arquivo(s) não enviado(s): ${failedFiles.join(', ')}`);
+        if (failedFiles.length > 0) {
+          hasUploadFailures = true;
+          // Keep only failed files in the attachment area
+          setAttachedFiles(prev => prev.filter((_, i) => !successIndexes.includes(i)));
+          if (fileUrls.length > 0) {
+            toast.warning(`${failedFiles.length} arquivo(s) não enviado(s): ${failedFiles.join(', ')}. Eles permanecem anexados para reenvio.`);
+          }
         }
       }
 
@@ -479,7 +489,9 @@ const Mensagens = () => {
       
       setNewMessage('');
       setReplyingTo(null);
-      setAttachedFiles([]);
+      if (!hasUploadFailures) {
+        setAttachedFiles([]);
+      }
     } finally {
       setSending(false);
     }
