@@ -753,6 +753,50 @@ export type Database = {
         }
         Relationships: []
       }
+      announcement_attachments: {
+        Row: {
+          announcement_id: string
+          created_at: string | null
+          file_name: string
+          file_size: number | null
+          file_type: string | null
+          file_url: string
+          id: string
+          is_link: boolean | null
+          uploaded_by: string | null
+        }
+        Insert: {
+          announcement_id: string
+          created_at?: string | null
+          file_name: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url: string
+          id?: string
+          is_link?: boolean | null
+          uploaded_by?: string | null
+        }
+        Update: {
+          announcement_id?: string
+          created_at?: string | null
+          file_name?: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string
+          id?: string
+          is_link?: boolean | null
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_attachments_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       announcement_reads: {
         Row: {
           announcement_id: string
