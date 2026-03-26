@@ -259,7 +259,7 @@ export default function TarefasAdvbox() {
       while (hasMore) {
         const { data: batch, error: batchError } = await supabase
           .from('advbox_tasks')
-          .select('advbox_id, title, description, due_date, completed_at, status, assigned_users, process_number, task_type, points, synced_at')
+          .select('advbox_id, title, description, due_date, completed_at, status, assigned_users, process_number, task_type, task_type_id, lawsuit_id, points, synced_at, created_at, raw_data')
           .order('due_date', { ascending: false })
           .range(offset, offset + batchSize - 1);
 
@@ -284,6 +284,20 @@ export default function TarefasAdvbox() {
 
       const tasksData: Task[] = (dbTasks || []).map((t: any) => {
         const priorityData = priorities?.find((p) => p.task_id === String(t.advbox_id));
+        // Extract client name from raw_data
+        let clientName = '';
+        try {
+          const raw = t.raw_data;
+          if (raw?.lawsuit?.customers) {
+            const customers = raw.lawsuit.customers;
+            if (Array.isArray(customers) && customers.length > 0) {
+              clientName = customers[0]?.name || '';
+            } else if (typeof customers === 'object' && customers?.name) {
+              clientName = customers.name;
+            }
+          }
+        } catch (e) { /* ignore parse errors */ }
+        
         return {
           id: String(t.advbox_id),
           title: t.title || 'Sem título',
@@ -294,6 +308,11 @@ export default function TarefasAdvbox() {
           process_number: t.process_number || '',
           category: '',
           priority: priorityData?.priority as 'alta' | 'media' | 'baixa' | undefined,
+          task_type: t.task_type || '',
+          lawsuit_id: t.lawsuit_id,
+          completed_at: t.completed_at,
+          created_at: t.created_at,
+          client_name: clientName,
         };
       });
 
