@@ -968,6 +968,50 @@ const Mensagens = () => {
     });
   };
 
+  // Group management functions
+  const openGroupManagement = async () => {
+    if (!activeConversation?.is_group) return;
+    setShowGroupManagement(true);
+    setGroupSearchTerm('');
+    setSelectedNewMembers([]);
+    setLoadingGroupUsers(true);
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, position')
+        .eq('approval_status', 'approved')
+        .eq('is_active', true)
+        .eq('is_suspended', false)
+        .neq('id', user?.id || '');
+      setGroupAvailableUsers(data || []);
+    } catch {
+      setGroupAvailableUsers([]);
+    } finally {
+      setLoadingGroupUsers(false);
+    }
+  };
+
+  const handleAddGroupMembers = async () => {
+    if (!activeConversation || selectedNewMembers.length === 0) return;
+    await addParticipants(activeConversation.id, selectedNewMembers);
+    setSelectedNewMembers([]);
+    setShowGroupManagement(false);
+    // Refresh to get updated participants
+    await fetchConversations();
+  };
+
+  const handleRemoveGroupMember = async (userId: string) => {
+    if (!activeConversation) return;
+    await removeParticipant(activeConversation.id, userId);
+    setShowGroupManagement(false);
+    await fetchConversations();
+  };
+
+  const currentParticipantIds = activeConversation?.participants?.map(p => p.user_id) || [];
+  const filteredGroupUsers = groupAvailableUsers
+    .filter(u => !currentParticipantIds.includes(u.id))
+    .filter(u => u.full_name.toLowerCase().includes(groupSearchTerm.toLowerCase()));
+
   const filteredUsers = availableUsers.filter(u =>
     u.full_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
