@@ -1115,7 +1115,7 @@ const Mensagens = () => {
 
   return (
     <Layout>
-      <div className="-m-4 md:-m-6 lg:-m-8 flex flex-col" style={{ height: 'calc(100dvh - 3.5rem)' }}>
+      <div className="-m-4 md:-m-6 lg:-m-8 flex flex-col h-[calc(100dvh-3.5rem)] overflow-hidden">
         <div className="flex items-center justify-between px-4 pt-4 pb-2 md:px-6 md:pt-6 lg:px-8 lg:pt-8 flex-shrink-0">
           <div className="flex items-center gap-3">
             <MessageSquare className="h-6 w-6 text-primary" />
