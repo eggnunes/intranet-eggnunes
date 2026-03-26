@@ -73,6 +73,7 @@ Sem aspas, sem explicações adicionais.`;
               content: prompt,
             },
           ],
+          system: systemInstruction,
         }),
       });
 
