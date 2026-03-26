@@ -48,6 +48,7 @@ import {
   SpellCheck,
   Link2,
   LinkIcon,
+  Languages,
 } from 'lucide-react';
 
 export interface MenuItemDef {

@@ -334,6 +334,14 @@ const App = () => (
               }
             />
             <Route
+              path="/traducao-andamentos"
+              element={
+                <ProtectedRoute>
+                  <TraducaoAndamentos />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/relatorios-produtividade-tarefas"
               element={
                 <ProtectedRoute>
