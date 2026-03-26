@@ -1,79 +1,77 @@
 
 
-## Melhorias no sistema de Viabilidade Jurídica
+## Anexos no Mural de Avisos + Integração com Documentos Úteis
 
-### 1. Salvar análise na pasta do cliente no Teams
-**Status atual**: Já existe `SaveToTeamsDialog` que auto-navega para pasta do cliente em "Operacional - Clientes/{nome}" no site Jurídico, criando a pasta se não existir. A funcionalidade já está implementada corretamente — o botão "Teams" aparece quando há parecer. Nenhuma alteração necessária neste item.
+### O que será feito
 
-### 2. Adicionar campos obrigatórios do ADVBox ao formulário de viabilidade
-**Arquivo:** `src/pages/ViabilidadeNovo.tsx`
+1. **Criar tabela `announcement_attachments`** para armazenar múltiplos anexos por aviso (qualquer tipo: imagem, PDF, vídeo, Word, link)
+2. **Atualizar formulário de criação** para permitir upload de múltiplos arquivos + campo de link externo
+3. **Exibir anexos nos avisos** com preview inline (imagens/vídeos) e botões de download
+4. **Botão "Salvar em Documentos Úteis"** em cada anexo, que copia o arquivo para a tabela `useful_documents`
 
-Campos obrigatórios da API ADVBox para criar cliente (baseado no `createCustomerInAdvbox`):
-- `name` (nome) — já existe
-- `cpf` — já existe  
-- `phone` (telefone) — já existe
-- `email` — já existe
-- `type` (pessoa física/jurídica) — **ADICIONAR**
-- `city` (cidade) — já existe via AddressFields
-- `state` (estado) — já existe via AddressFields
-- `street` (rua + número) — já existe via AddressFields
-- `neighborhood` (bairro) — já existe via AddressFields
-- `customers_origins_id` (origem/como conheceu) — **ADICIONAR** campo "Como Conheceu?" com opções comuns
+### Alterações
 
-Adicionar ao formulário:
-- Campo "Tipo de Pessoa" (Física/Jurídica) — Select
-- Campo "RG" — Input  
-- Campo "Profissão" — Input
-- Campo "Estado Civil" — Select
-- Campo "Como Conheceu?" (origem) — Select com opções comuns
-- Nenhum desses será obrigatório no formulário (conforme solicitado)
-
-Adicionar esses campos como colunas na tabela `viabilidade_clientes` via migration:
-- `rg`, `profissao`, `estado_civil`, `tipo_pessoa`, `como_conheceu`
-
-### 3. Botão "Cadastrar no ADVBox" no formulário/dashboard
-**Arquivo:** `src/pages/Viabilidade.tsx` e `src/pages/ViabilidadeNovo.tsx`
-
-- Criar nova edge function `register-viability-client-advbox` que:
-  - Recebe `viabilidade_id`
-  - Busca dados do cliente na tabela `viabilidade_clientes`
-  - Verifica se já existe no ADVBox por CPF/nome
-  - Se não existir, cria usando os campos disponíveis (preenchendo "Não informado" nos ausentes)
-  - Retorna sucesso com `advbox_customer_id`
-- Adicionar coluna `advbox_customer_id` na tabela `viabilidade_clientes` via migration
-- No dashboard (dialog de visualização) e na tabela, adicionar botão "Cadastrar no ADVBox":
-  - Se `advbox_customer_id` já existir → mostrar badge "Cadastrado no ADVBox"
-  - Se não → botão que chama a edge function
-
-### 4. Clicar no cliente para ver histórico de viabilidades
-**Arquivo:** `src/pages/Viabilidade.tsx`
-
-- Ao clicar no nome do cliente na tabela, em vez de abrir apenas a análise individual, abrir um dialog que:
-  - Busca todas as viabilidades com o mesmo `nome` ou `cpf`
-  - Lista todas as análises daquele cliente em ordem cronológica
-  - Cada item mostra: título, tipo de ação, status, data, resumo do parecer
-  - Clicar em um item expande os detalhes completos
-
-### Migration SQL
+#### 1. Migration SQL
 ```sql
-ALTER TABLE viabilidade_clientes 
-  ADD COLUMN IF NOT EXISTS rg TEXT,
-  ADD COLUMN IF NOT EXISTS profissao TEXT,
-  ADD COLUMN IF NOT EXISTS estado_civil TEXT,
-  ADD COLUMN IF NOT EXISTS tipo_pessoa TEXT DEFAULT 'fisica',
-  ADD COLUMN IF NOT EXISTS como_conheceu TEXT,
-  ADD COLUMN IF NOT EXISTS advbox_customer_id TEXT;
+CREATE TABLE public.announcement_attachments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  announcement_id UUID REFERENCES announcements(id) ON DELETE CASCADE NOT NULL,
+  file_name TEXT NOT NULL,
+  file_url TEXT NOT NULL,
+  file_type TEXT, -- mime type
+  file_size BIGINT,
+  is_link BOOLEAN DEFAULT false, -- true = URL externa, false = upload
+  uploaded_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE announcement_attachments ENABLE ROW LEVEL SECURITY;
+
+-- Todos aprovados podem ver
+CREATE POLICY "Approved users can view attachments"
+  ON announcement_attachments FOR SELECT TO authenticated
+  USING (is_approved(auth.uid()));
+
+-- Admins/sócios podem inserir e deletar
+CREATE POLICY "Admins can insert attachments"
+  ON announcement_attachments FOR INSERT TO authenticated
+  WITH CHECK (is_admin_or_socio(auth.uid()));
+
+CREATE POLICY "Admins can delete attachments"
+  ON announcement_attachments FOR DELETE TO authenticated
+  USING (is_admin_or_socio(auth.uid()));
 ```
 
+Bucket `announcement-attachments` já existe (listado nos buckets). Criar políticas de storage RLS para ele.
+
+#### 2. Formulário de criação (`src/pages/MuralAvisos.tsx`)
+- Adicionar estado para lista de arquivos pendentes (`File[]`) e lista de links (`string[]`)
+- Área de upload drag-and-drop com `accept` amplo (imagens, vídeos, PDFs, docs, etc.)
+- Campo de input para adicionar links externos (YouTube, Google Drive, etc.)
+- No `handleCreate`: após inserir o aviso, fazer upload dos arquivos para o bucket `announcement-attachments` e inserir registros na tabela `announcement_attachments`
+
+#### 3. Exibição dos anexos nos cards de aviso
+- Buscar anexos junto com avisos (query separada ou join)
+- Para imagens: thumbnail inline
+- Para vídeos: player ou link
+- Para links: botão com ícone de link externo
+- Para PDFs/docs: ícone do tipo + botão download
+- Cada anexo terá botão "Salvar em Documentos Úteis" (visível para admins)
+
+#### 4. Botão "Salvar em Documentos Úteis"
+- Ao clicar, insere registro na tabela `useful_documents` com:
+  - `title`: nome do arquivo
+  - `file_url`: mesmo path do storage (reutiliza o arquivo, sem duplicar)
+  - `uploaded_by`: usuário atual
+- Se for link externo, salva o link como `file_url`
+- Toast de confirmação
+
 ### Arquivos modificados
-- `src/pages/ViabilidadeNovo.tsx` — novos campos do ADVBox no formulário + salvar campos extras
-- `src/pages/Viabilidade.tsx` — histórico por cliente ao clicar + botão cadastrar ADVBox + dialog atualizado
-- `supabase/functions/register-viability-client-advbox/index.ts` — nova edge function
-- Migration para adicionar colunas
+- `src/pages/MuralAvisos.tsx` — formulário, exibição de anexos, botão documentos úteis
+- Migration SQL — tabela + RLS + storage policies
 
 ### Resultado
-- Formulário de viabilidade terá todos os campos necessários para cadastro no ADVBox (sem obrigatoriedade)
-- Botão para cadastrar cliente diretamente no ADVBox a partir da viabilidade
-- Clicar no nome do cliente mostra histórico de todas as viabilidades dele
-- Salvar no Teams já funciona corretamente (auto-cria pasta do cliente)
+- Avisos podem ter múltiplos anexos de qualquer tipo
+- Anexos são exibidos inline nos cards
+- Qualquer anexo pode ser salvo nos Documentos Úteis com um clique
 
