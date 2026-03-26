@@ -1,25 +1,28 @@
 
 
-## Corrigir erro na Tradução de Andamentos — Modelo Anthropic obsoleto
+## Atualizar modelo Claude descontinuado
 
-### Problema
-A edge function `translate-movement` usa o modelo `claude-3-5-sonnet-20241022` que foi descontinuado pela Anthropic (retorna 404). O erro aparece como "Failed to send a request to the Edge Function" no frontend porque o status 500 é tratado genericamente.
+### Resultado da verificação
+Verifiquei **todas as 9 Edge Functions** que utilizam a API da Anthropic. Apenas **1 arquivo** ainda usa o modelo descontinuado:
+
+| Arquivo | Modelo atual | Status |
+|---|---|---|
+| `translate-movement/index.ts` | `claude-3-5-sonnet-20241022` | Descontinuado |
+| `meta-ads-ai-analysis/index.ts` | `claude-sonnet-4-20250514` | OK |
+| `check-portuguese/index.ts` | `claude-sonnet-4-20250514` | OK |
+| `suggest-task/index.ts` | `claude-sonnet-4-20250514` | OK |
+| `ai-assistant/index.ts` | `claude-sonnet-4-20250514` | OK |
+| `chat-with-agent/index.ts` | `claude-sonnet-4-20250514` | OK |
+| `analyze-viability/index.ts` | `claude-sonnet-4-20250514` | OK |
+| `suggest-petition/index.ts` | `claude-sonnet-4-20250514` | OK |
+| `suggest-agent-instructions/index.ts` | `claude-sonnet-4-20250514` | OK |
 
 ### Correção
 
 **Arquivo:** `supabase/functions/translate-movement/index.ts` (linha 68)
 
-Trocar:
-```typescript
-model: 'claude-3-5-sonnet-20241022',
-```
-Por:
-```typescript
-model: 'claude-sonnet-4-20250514',
-```
-
-Este é o mesmo modelo já utilizado na função `suggest-task`.
+Trocar `claude-3-5-sonnet-20241022` por `claude-sonnet-4-20250514`.
 
 ### Resultado
-A sugestão de tradução com IA voltará a funcionar normalmente.
+Todas as funções passarão a usar o modelo Claude Sonnet 4 atualizado.
 
