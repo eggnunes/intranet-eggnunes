@@ -133,6 +133,7 @@ export function getMenuGroups(
         { icon: ClipboardList, path: '/controle-prazos', label: 'Controle de Prazos', searchDescription: 'Monitorar prazos processuais', condition: isSocio || isAdmin },
         { icon: Briefcase, path: '/processos-ativos', label: 'Processos Ativos', searchDescription: 'Lista de processos em andamento' },
         { icon: AlertCircle, path: '/movimentacoes-advbox', label: 'Movimentações Advbox', searchDescription: 'Movimentações processuais' },
+        { icon: Languages, path: '/traducao-andamentos', label: 'Tradução de Andamentos', searchDescription: 'Traduzir andamentos para linguagem simples' },
         { icon: Bell, path: '/publicacoes', label: 'Publicações ADVBox', searchDescription: 'Feed de publicações do Advbox' },
         { icon: Cake, path: '/aniversarios-clientes', label: 'Aniversários Clientes', searchDescription: 'Clientes aniversariantes' },
         { icon: SearchIcon, path: '/pesquisa-jurisprudencia', label: 'Pesquisa Jurisprudência', searchDescription: 'Busca em jurisprudência' },
