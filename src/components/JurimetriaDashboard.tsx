@@ -58,6 +58,7 @@ interface JurimetriaDashboardProps {
 export function JurimetriaDashboard({ decisions }: JurimetriaDashboardProps) {
   const [filterMateria, setFilterMateria] = useState('all');
   const [filterRegiao, setFilterRegiao] = useState('all');
+  const [filterProduct, setFilterProduct] = useState('all');
   const [filterDateStart, setFilterDateStart] = useState('');
   const [filterDateEnd, setFilterDateEnd] = useState('');
 
@@ -65,11 +66,12 @@ export function JurimetriaDashboard({ decisions }: JurimetriaDashboardProps) {
     return decisions.filter(d => {
       if (filterMateria !== 'all' && d.materia !== filterMateria) return false;
       if (filterRegiao !== 'all' && d.regiao !== filterRegiao) return false;
+      if (filterProduct !== 'all' && d.product_name !== filterProduct) return false;
       if (filterDateStart && d.decision_date < filterDateStart) return false;
       if (filterDateEnd && d.decision_date > filterDateEnd) return false;
       return true;
     });
-  }, [decisions, filterMateria, filterRegiao, filterDateStart, filterDateEnd]);
+  }, [decisions, filterMateria, filterRegiao, filterProduct, filterDateStart, filterDateEnd]);
 
   const uniqueRegioes = useMemo(() => {
     return [...new Set(decisions.map(d => d.regiao).filter(Boolean))] as string[];
@@ -77,6 +79,10 @@ export function JurimetriaDashboard({ decisions }: JurimetriaDashboardProps) {
 
   const uniqueMaterias = useMemo(() => {
     return [...new Set(decisions.map(d => d.materia).filter(Boolean))] as string[];
+  }, [decisions]);
+
+  const uniqueProducts = useMemo(() => {
+    return [...new Set(decisions.map(d => d.product_name).filter(Boolean))] as string[];
   }, [decisions]);
 
   // KPIs
@@ -164,7 +170,7 @@ export function JurimetriaDashboard({ decisions }: JurimetriaDashboardProps) {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <Label className="text-sm">Matéria</Label>
               <Select value={filterMateria} onValueChange={setFilterMateria}>
@@ -189,6 +195,20 @@ export function JurimetriaDashboard({ decisions }: JurimetriaDashboardProps) {
                   <SelectItem value="all">Todas</SelectItem>
                   {uniqueRegioes.map(r => (
                     <SelectItem key={r} value={r}>{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-sm">Tipo de Ação/Produto</Label>
+              <Select value={filterProduct} onValueChange={setFilterProduct}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {uniqueProducts.map(p => (
+                    <SelectItem key={p} value={p}>{p}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

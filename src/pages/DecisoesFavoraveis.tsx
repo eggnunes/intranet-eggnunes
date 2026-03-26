@@ -145,6 +145,22 @@ export default function DecisoesFavoraveis() {
   const { isSocioOrRafael } = useAdminPermissions();
   const queryClient = useQueryClient();
 
+  const quickEditMutation = useMutation({
+    mutationFn: async ({ id, resultado, decision_link }: { id: string; resultado: string; decision_link: string }) => {
+      const { error } = await supabase
+        .from('favorable_decisions')
+        .update({ resultado, decision_link })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['favorable-decisions'] });
+      toast.success('Decisão atualizada');
+      setQuickEditDecision(null);
+    },
+    onError: () => toast.error('Erro ao atualizar'),
+  });
+
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ id, field, value }: { id: string; field: 'was_posted' | 'evaluation_requested' | 'was_evaluated'; value: boolean }) => {
       const { error } = await supabase
@@ -186,6 +202,9 @@ export default function DecisoesFavoraveis() {
   }>>([]);
   const [isLoadingMissingLinks, setIsLoadingMissingLinks] = useState(false);
   const [activeTab, setActiveTab] = useState('decisoes');
+  const [quickEditDecision, setQuickEditDecision] = useState<FavorableDecision | null>(null);
+  const [quickEditResultado, setQuickEditResultado] = useState('');
+  const [quickEditLink, setQuickEditLink] = useState('');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -1010,7 +1029,11 @@ export default function DecisoesFavoraveis() {
                       </TableHeader>
                       <TableBody>
                         {filteredDecisions.map((decision) => (
-                          <TableRow key={decision.id}>
+                          <TableRow key={decision.id} className="cursor-pointer hover:bg-muted/50" onClick={() => {
+                            setQuickEditDecision(decision);
+                            setQuickEditResultado(decision.resultado || '');
+                            setQuickEditLink(decision.decision_link || '');
+                          }}>
                             <TableCell className="py-2 px-2">
                               <Badge className={`text-[10px] whitespace-nowrap ${getDecisionTypeBadgeColor(decision.decision_type)}`}>
                                 {getDecisionTypeLabel(decision.decision_type)}
@@ -1056,7 +1079,7 @@ export default function DecisoesFavoraveis() {
                             <TableCell className="text-xs text-muted-foreground py-2">
                               {format(new Date(decision.created_at), 'dd/MM/yyyy', { locale: ptBR })}
                             </TableCell>
-                            <TableCell className="py-2">
+                            <TableCell className="py-2" onClick={e => e.stopPropagation()}>
                               <div className="flex justify-center gap-1">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -1096,7 +1119,7 @@ export default function DecisoesFavoraveis() {
                                 </Tooltip>
                               </div>
                             </TableCell>
-                            <TableCell className="text-right py-2">
+                            <TableCell className="text-right py-2" onClick={e => e.stopPropagation()}>
                               <div className="flex justify-end gap-0.5">
                                 {decision.decision_link && decision.decision_link.startsWith('http') && (
                                   <Tooltip>
@@ -1144,6 +1167,56 @@ export default function DecisoesFavoraveis() {
             <JurimetriaDashboard decisions={decisions} />
           </TabsContent>
         </Tabs>
+
+        {/* Quick Edit Dialog */}
+        <Dialog open={!!quickEditDecision} onOpenChange={(open) => !open && setQuickEditDecision(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Detalhes da Decisão</DialogTitle>
+            </DialogHeader>
+            {quickEditDecision && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><span className="text-muted-foreground">Tipo:</span> <span className="font-medium">{getDecisionTypeLabel(quickEditDecision.decision_type)}</span></div>
+                  <div><span className="text-muted-foreground">Produto:</span> <span className="font-medium">{quickEditDecision.product_name}</span></div>
+                  <div><span className="text-muted-foreground">Cliente:</span> <span className="font-medium">{quickEditDecision.client_name}</span></div>
+                  <div><span className="text-muted-foreground">Réu:</span> <span className="font-medium">{quickEditDecision.reu || '-'}</span></div>
+                  <div><span className="text-muted-foreground">Tribunal:</span> <span className="font-medium">{quickEditDecision.regiao || quickEditDecision.court || '-'}</span></div>
+                  <div><span className="text-muted-foreground">Matéria:</span> <span className="font-medium">{quickEditDecision.materia ? getMateriaLabel(quickEditDecision.materia) : '-'}</span></div>
+                  <div><span className="text-muted-foreground">Data Decisão:</span> <span className="font-medium">{format(new Date(quickEditDecision.decision_date), 'dd/MM/yyyy', { locale: ptBR })}</span></div>
+                  <div><span className="text-muted-foreground">Nº Processo:</span> <span className="font-medium">{quickEditDecision.process_number || '-'}</span></div>
+                </div>
+                {quickEditDecision.observation && (
+                  <div className="text-sm"><span className="text-muted-foreground">Observação:</span> <p className="mt-1">{quickEditDecision.observation}</p></div>
+                )}
+                <div className="border-t pt-4 space-y-3">
+                  <h4 className="text-sm font-medium">Editar</h4>
+                  <div>
+                    <Label className="text-sm">Resultado</Label>
+                    <Select value={quickEditResultado} onValueChange={setQuickEditResultado}>
+                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none_selected">Não definido</SelectItem>
+                        {RESULTADOS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-sm">Link da Decisão</Label>
+                    <Input value={quickEditLink} onChange={e => setQuickEditLink(e.target.value)} placeholder="https://..." />
+                  </div>
+                  <Button className="w-full" onClick={() => quickEditMutation.mutate({
+                    id: quickEditDecision.id,
+                    resultado: quickEditResultado === 'none_selected' ? '' : quickEditResultado,
+                    decision_link: quickEditLink,
+                  })} disabled={quickEditMutation.isPending}>
+                    {quickEditMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Missing Links Dialog */}
         <Dialog open={showMissingLinksDialog} onOpenChange={setShowMissingLinksDialog}>
