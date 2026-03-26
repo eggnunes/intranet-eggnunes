@@ -49,6 +49,12 @@ export default function ViabilidadeNovo() {
   const [loadingTipos, setLoadingTipos] = useState(true);
   const [descricaoCaso, setDescricaoCaso] = useState('');
   const [modeloIA, setModeloIA] = useState<'claude' | 'chatgpt'>('claude');
+  // ADVBox fields
+  const [tipoPessoa, setTipoPessoa] = useState('fisica');
+  const [rg, setRg] = useState('');
+  const [profissao, setProfissao] = useState('');
+  const [estadoCivil, setEstadoCivil] = useState('');
+  const [comoConheceu, setComoConheceu] = useState('');
   const [arquivos, setArquivos] = useState<File[]>([]);
 
   // Fetch dynamic action types
