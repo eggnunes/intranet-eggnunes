@@ -35,7 +35,7 @@ const menuItems: MenuItem[] = [
     label: 'Visão Geral',
     icon: BarChart3,
     items: [
-      { id: 'dashboard', label: 'Dashboard RH' },
+      { id: 'dashboard', label: 'Pagamento Colaboradores' },
       { id: 'colaborador-dashboard', label: 'Dashboard Colaborador' },
     ]
   },
