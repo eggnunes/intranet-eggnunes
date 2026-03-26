@@ -37,12 +37,29 @@ export default function DistribuicaoTarefas() {
   const [advboxUsers, setAdvboxUsers] = useState<Array<{ id: number; name: string }>>([]);
   const [loadingTaskTypes, setLoadingTaskTypes] = useState(false);
   const [loadingAdvboxUsers, setLoadingAdvboxUsers] = useState(false);
+  const [activeProfileNames, setActiveProfileNames] = useState<string[]>([]);
   const { toast } = useToast();
   const { isAdmin, profile } = useUserRole();
 
   useEffect(() => {
     fetchTasks();
+    fetchActiveProfiles();
   }, []);
+
+  const fetchActiveProfiles = async () => {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('is_active', true)
+        .eq('is_suspended', false)
+        .eq('approval_status', 'approved');
+      
+      setActiveProfileNames((data || []).map(p => p.full_name?.toLowerCase()).filter(Boolean) as string[]);
+    } catch (error) {
+      console.error('Error fetching active profiles:', error);
+    }
+  };
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -169,8 +186,11 @@ export default function DistribuicaoTarefas() {
       const isInProgress = ['in_progress', 'em andamento'].includes(task.status?.toLowerCase());
 
       names.forEach((name: string) => {
-        // Excluir colaboradores não-operacionais
-        if (excludedCollaborators.includes(name.toLowerCase())) return;
+        const nameLower = name.toLowerCase();
+        // Excluir colaboradores não-operacionais (hardcoded)
+        if (excludedCollaborators.includes(nameLower)) return;
+        // Excluir colaboradores inativos/desligados (dinâmico)
+        if (activeProfileNames.length > 0 && !activeProfileNames.some(ap => ap.includes(nameLower) || nameLower.includes(ap))) return;
 
         const current = map.get(name) || { pending: 0, inProgress: 0 };
         if (isPending) current.pending++;
@@ -189,7 +209,7 @@ export default function DistribuicaoTarefas() {
         total: stats.pending + stats.inProgress,
       }))
       .sort((a, b) => a.total - b.total);
-  }, [filteredTasks, excludedCollaborators]);
+  }, [filteredTasks, excludedCollaborators, activeProfileNames]);
 
   const totalTasks = collaboratorStats.reduce((sum, c) => sum + c.total, 0);
   const avgTasks = collaboratorStats.length > 0 ? Math.round(totalTasks / collaboratorStats.length) : 0;

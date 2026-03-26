@@ -393,6 +393,57 @@ export const useMessaging = () => {
     }
   };
 
+  // Add participants to a group conversation
+  const addParticipants = async (conversationId: string, userIds: string[]) => {
+    if (!user || userIds.length === 0) return;
+
+    try {
+      const { error } = await supabase
+        .from('conversation_participants')
+        .insert(
+          userIds.map(uid => ({
+            conversation_id: conversationId,
+            user_id: uid
+          }))
+        );
+
+      if (error) throw error;
+
+      toast.success('Participante(s) adicionado(s)');
+      await fetchConversations();
+      
+      // Refresh active conversation
+      if (activeConversation?.id === conversationId) {
+        const updated = conversations.find(c => c.id === conversationId);
+        if (updated) setActiveConversation(updated);
+      }
+    } catch (error) {
+      console.error('Error adding participants:', error);
+      toast.error('Erro ao adicionar participantes');
+    }
+  };
+
+  // Remove a participant from a group conversation
+  const removeParticipant = async (conversationId: string, userId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('conversation_participants')
+        .delete()
+        .eq('conversation_id', conversationId)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      toast.success('Participante removido');
+      await fetchConversations();
+    } catch (error) {
+      console.error('Error removing participant:', error);
+      toast.error('Erro ao remover participante');
+    }
+  };
+
   // Delete a message (for admins/sócios)
   const deleteMessage = async (messageId: string) => {
     if (!user) return false;
@@ -487,6 +538,8 @@ export const useMessaging = () => {
     fetchMessages,
     deleteConversation,
     editMessage,
-    deleteMessage
+    deleteMessage,
+    addParticipants,
+    removeParticipant
   };
 };

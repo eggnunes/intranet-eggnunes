@@ -63,7 +63,10 @@ import {
   BookmarkPlus,
   BookMarked,
   File,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Settings,
+  UserPlus,
+  UserMinus
 } from 'lucide-react';
 import { format, isToday, isYesterday, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -103,7 +106,10 @@ const Mensagens = () => {
     createConversation,
     deleteConversation,
     editMessage,
-    deleteMessage
+    deleteMessage,
+    addParticipants,
+    removeParticipant,
+    fetchConversations
   } = useMessaging();
 
   // Handle opening conversation from notification
@@ -157,6 +163,13 @@ const Mensagens = () => {
   const [editTemplateTitle, setEditTemplateTitle] = useState('');
   const [editTemplateContent, setEditTemplateContent] = useState('');
   
+  // Group management
+  const [showGroupManagement, setShowGroupManagement] = useState(false);
+  const [groupSearchTerm, setGroupSearchTerm] = useState('');
+  const [groupAvailableUsers, setGroupAvailableUsers] = useState<UserProfile[]>([]);
+  const [selectedNewMembers, setSelectedNewMembers] = useState<string[]>([]);
+  const [loadingGroupUsers, setLoadingGroupUsers] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -955,6 +968,50 @@ const Mensagens = () => {
     });
   };
 
+  // Group management functions
+  const openGroupManagement = async () => {
+    if (!activeConversation?.is_group) return;
+    setShowGroupManagement(true);
+    setGroupSearchTerm('');
+    setSelectedNewMembers([]);
+    setLoadingGroupUsers(true);
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, position')
+        .eq('approval_status', 'approved')
+        .eq('is_active', true)
+        .eq('is_suspended', false)
+        .neq('id', user?.id || '');
+      setGroupAvailableUsers(data || []);
+    } catch {
+      setGroupAvailableUsers([]);
+    } finally {
+      setLoadingGroupUsers(false);
+    }
+  };
+
+  const handleAddGroupMembers = async () => {
+    if (!activeConversation || selectedNewMembers.length === 0) return;
+    await addParticipants(activeConversation.id, selectedNewMembers);
+    setSelectedNewMembers([]);
+    setShowGroupManagement(false);
+    // Refresh to get updated participants
+    await fetchConversations();
+  };
+
+  const handleRemoveGroupMember = async (userId: string) => {
+    if (!activeConversation) return;
+    await removeParticipant(activeConversation.id, userId);
+    setShowGroupManagement(false);
+    await fetchConversations();
+  };
+
+  const currentParticipantIds = activeConversation?.participants?.map(p => p.user_id) || [];
+  const filteredGroupUsers = groupAvailableUsers
+    .filter(u => !currentParticipantIds.includes(u.id))
+    .filter(u => u.full_name.toLowerCase().includes(groupSearchTerm.toLowerCase()));
+
   const filteredUsers = availableUsers.filter(u =>
     u.full_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -1212,24 +1269,36 @@ const Mensagens = () => {
                     </div>
                   </div>
                   
-                  {isSocio && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreVertical className="h-5 w-5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => setDeleteConversationId(activeConversation.id)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir Conversa
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {activeConversation.is_group && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={openGroupManagement}
+                        title="Gerenciar grupo"
+                      >
+                        <Settings className="h-5 w-5" />
+                      </Button>
+                    )}
+                    {isSocio && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-5 w-5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => setDeleteConversationId(activeConversation.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Excluir Conversa
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
                 </div>
 
                 {/* Messages */}
@@ -1882,6 +1951,124 @@ const Mensagens = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Group Management Dialog */}
+      <Dialog open={showGroupManagement} onOpenChange={setShowGroupManagement}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Gerenciar Grupo
+            </DialogTitle>
+            <DialogDescription>
+              Adicione ou remova membros do grupo "{activeConversation?.name}"
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Current participants */}
+            <div>
+              <Label className="text-sm font-medium">Membros atuais ({activeConversation?.participants?.length})</Label>
+              <div className="mt-2 space-y-2 max-h-[200px] overflow-y-auto">
+                {activeConversation?.participants?.map(p => (
+                  <div key={p.user_id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-7 w-7">
+                        <AvatarImage src={p.profile?.avatar_url || ''} />
+                        <AvatarFallback className="text-xs">
+                          {p.profile?.full_name?.[0] || '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm font-medium">
+                          {p.profile?.full_name || 'Usuário'}
+                          {p.user_id === user?.id && <span className="text-xs text-muted-foreground ml-1">(você)</span>}
+                        </p>
+                        {p.profile?.position && (
+                          <p className="text-xs text-muted-foreground">{p.profile.position}</p>
+                        )}
+                      </div>
+                    </div>
+                    {p.user_id !== user?.id && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        onClick={() => handleRemoveGroupMember(p.user_id)}
+                      >
+                        <UserMinus className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Add new members */}
+            <div>
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <UserPlus className="h-4 w-4" />
+                Adicionar membros
+              </Label>
+              <div className="relative mt-2">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar colaboradores..."
+                  className="pl-9"
+                  value={groupSearchTerm}
+                  onChange={(e) => setGroupSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="mt-2 space-y-1 max-h-[200px] overflow-y-auto">
+                {loadingGroupUsers ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : filteredGroupUsers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    {groupSearchTerm ? 'Nenhum colaborador encontrado' : 'Todos os colaboradores já fazem parte do grupo'}
+                  </p>
+                ) : (
+                  filteredGroupUsers.map(u => (
+                    <label
+                      key={u.id}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={selectedNewMembers.includes(u.id)}
+                        onCheckedChange={(checked) => {
+                          setSelectedNewMembers(prev =>
+                            checked
+                              ? [...prev, u.id]
+                              : prev.filter(id => id !== u.id)
+                          );
+                        }}
+                      />
+                      <Avatar className="h-7 w-7">
+                        <AvatarImage src={u.avatar_url || ''} />
+                        <AvatarFallback className="text-xs">{u.full_name[0]}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm font-medium">{u.full_name}</p>
+                        {u.position && <p className="text-xs text-muted-foreground">{u.position}</p>}
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+              {selectedNewMembers.length > 0 && (
+                <Button
+                  className="w-full mt-3"
+                  onClick={handleAddGroupMembers}
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Adicionar {selectedNewMembers.length} membro(s)
+                </Button>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };
