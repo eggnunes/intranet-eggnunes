@@ -63,7 +63,10 @@ import {
   BookmarkPlus,
   BookMarked,
   File,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Settings,
+  UserPlus,
+  UserMinus
 } from 'lucide-react';
 import { format, isToday, isYesterday, differenceInMinutes } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -103,7 +106,10 @@ const Mensagens = () => {
     createConversation,
     deleteConversation,
     editMessage,
-    deleteMessage
+    deleteMessage,
+    addParticipants,
+    removeParticipant,
+    fetchConversations
   } = useMessaging();
 
   // Handle opening conversation from notification
