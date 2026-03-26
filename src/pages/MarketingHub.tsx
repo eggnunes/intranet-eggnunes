@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import MetaAdsTab from '@/components/marketing/MetaAdsTab';
 import AdPerformanceReport from '@/components/marketing/AdPerformanceReport';
+import InstagramTab from '@/components/marketing/InstagramTab';
 import { TutorialOverlay } from '@/components/TutorialOverlay';
 import { tutorialsByPage } from '@/components/tutorialData';
 
@@ -530,10 +531,16 @@ export default function MarketingHub() {
             <TabsTrigger value="meta-ads" className="flex-1 min-w-[100px]"><Facebook className="h-4 w-4 mr-1" />Meta Ads</TabsTrigger>
             <TabsTrigger value="google-ads" className="flex-1 min-w-[100px]"><Search className="h-4 w-4 mr-1" />Google Ads</TabsTrigger>
             <TabsTrigger value="calendario" className="flex-1 min-w-[100px]"><CalendarIcon className="h-4 w-4 mr-1" />Calendário</TabsTrigger>
+            <TabsTrigger value="instagram" className="flex-1 min-w-[100px]"><Heart className="h-4 w-4 mr-1" />Instagram</TabsTrigger>
             <TabsTrigger value="leads-anuncios" className="flex-1 min-w-[100px]"><FileBarChart className="h-4 w-4 mr-1" />Leads por Anúncio</TabsTrigger>
             <TabsTrigger value="roi" className="flex-1 min-w-[100px]"><BarChart3 className="h-4 w-4 mr-1" />Relatórios ROI</TabsTrigger>
             <TabsTrigger value="funil" className="flex-1 min-w-[100px]"><Filter className="h-4 w-4 mr-1" />Funil</TabsTrigger>
           </TabsList>
+
+          {/* Tab: Instagram */}
+          <TabsContent value="instagram">
+            <InstagramTab dateRange={dateRange} />
+          </TabsContent>
 
           {/* Tab: Leads por Anúncio */}
           <TabsContent value="leads-anuncios">
