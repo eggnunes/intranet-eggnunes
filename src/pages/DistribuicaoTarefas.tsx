@@ -186,8 +186,11 @@ export default function DistribuicaoTarefas() {
       const isInProgress = ['in_progress', 'em andamento'].includes(task.status?.toLowerCase());
 
       names.forEach((name: string) => {
-        // Excluir colaboradores não-operacionais
-        if (excludedCollaborators.includes(name.toLowerCase())) return;
+        const nameLower = name.toLowerCase();
+        // Excluir colaboradores não-operacionais (hardcoded)
+        if (excludedCollaborators.includes(nameLower)) return;
+        // Excluir colaboradores inativos/desligados (dinâmico)
+        if (activeProfileNames.length > 0 && !activeProfileNames.some(ap => ap.includes(nameLower) || nameLower.includes(ap))) return;
 
         const current = map.get(name) || { pending: 0, inProgress: 0 };
         if (isPending) current.pending++;
@@ -206,7 +209,7 @@ export default function DistribuicaoTarefas() {
         total: stats.pending + stats.inProgress,
       }))
       .sort((a, b) => a.total - b.total);
-  }, [filteredTasks, excludedCollaborators]);
+  }, [filteredTasks, excludedCollaborators, activeProfileNames]);
 
   const totalTasks = collaboratorStats.reduce((sum, c) => sum + c.total, 0);
   const avgTasks = collaboratorStats.length > 0 ? Math.round(totalTasks / collaboratorStats.length) : 0;
