@@ -1,29 +1,27 @@
 
 
-## Correção: Anexos de arquivos não são enviados nas mensagens internas
+## Correção: Conversas 1-1 duplicadas nas Mensagens Internas
 
 ### Problema identificado
 
-A função `uploadFile` em `src/pages/Mensagens.tsx` (linha 258-283) captura erros silenciosamente — apenas faz `console.error` e retorna `null`. Quando o upload falha, o array `fileUrls` fica vazio e a mensagem é enviada sem os anexos (ou nem é enviada se não houver texto). O usuário não recebe nenhum feedback visual do erro.
-
-### Causa provável do upload falhar
-
-O bucket `task-attachments` é **privado** e as signed URLs expiram. Porém a política de INSERT existe ("Usuários aprovados podem fazer upload de anexos"). O problema pode estar no fato de que o upload é feito sequencialmente sem feedback, e qualquer erro (rede, timeout, tamanho) é engolido.
+A função `createConversation` em `useMessaging.tsx` verifica duplicatas usando apenas o estado local (`conversations` em memória). Se as conversas ainda não foram totalmente carregadas, ou se os dados de participantes estão incompletos, a verificação falha e uma nova conversa duplicada é criada. Já `useStartConversation.tsx` faz a verificação corretamente no banco de dados.
 
 ### Implementação
 
+**Arquivo: `src/hooks/useMessaging.tsx`**
+
+1. **Corrigir detecção de duplicatas no `createConversation`** — substituir a busca em memória por uma consulta ao banco de dados:
+   - Buscar todas as conversas 1-1 (`is_group = false`) do usuário atual
+   - Para cada uma, verificar se o usuário alvo também é participante
+   - Se encontrar, retornar a conversa existente em vez de criar nova
+
+2. **Deduplicar conversas na listagem (`fetchConversations`)** — adicionar lógica para agrupar conversas 1-1 duplicadas com o mesmo par de usuários, mostrando apenas a mais recente (com `updated_at` mais recente)
+
 **Arquivo: `src/pages/Mensagens.tsx`**
 
-1. **Adicionar feedback de erro no `uploadFile`** — mostrar `toast.error` com o nome do arquivo que falhou, para o usuário saber exatamente o que aconteceu
+3. **Após criar/encontrar conversa existente, setar como ativa corretamente** — garantir que ao retornar uma conversa existente, o `activeConversation` seja preenchido com os dados completos (participantes, etc.)
 
-2. **Adicionar feedback de progresso** — mostrar indicador visual ("Enviando arquivos...") durante o upload dos anexos
-
-3. **Impedir envio sem anexos quando só há arquivos** — se todos os uploads falharem e não há texto, mostrar toast de erro e NÃO limpar os `attachedFiles`, permitindo nova tentativa
-
-4. **Aumentar resiliência do upload** — adicionar retry simples (1 tentativa extra) para uploads que falham por motivos transitórios
-
-### Resultado esperado
-- Se um upload falhar, o usuário verá uma mensagem de erro indicando qual arquivo não foi enviado
-- Os arquivos anexados não serão limpos em caso de falha, permitindo reenvio
-- Feedback visual durante o processo de upload
+### Resultado
+- Ao iniciar conversa com alguém que já tem chat existente, o sistema redireciona para o chat existente
+- Conversas duplicadas já existentes serão consolidadas na visualização
 
