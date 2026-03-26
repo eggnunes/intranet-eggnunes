@@ -1079,7 +1079,7 @@ export default function DecisoesFavoraveis() {
                             <TableCell className="text-xs text-muted-foreground py-2">
                               {format(new Date(decision.created_at), 'dd/MM/yyyy', { locale: ptBR })}
                             </TableCell>
-                            <TableCell className="py-2">
+                            <TableCell className="py-2" onClick={e => e.stopPropagation()}>
                               <div className="flex justify-center gap-1">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
