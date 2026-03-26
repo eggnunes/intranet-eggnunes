@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Sparkles, Save, Check, Loader2, Languages } from 'lucide-react';
+import { Search, Sparkles, Save, Check, Loader2, Languages, Plus } from 'lucide-react';
 
 const MOVEMENTS_CACHE_KEY = 'advbox-movements-full-cache';
 
@@ -80,6 +81,8 @@ export default function TraducaoAndamentos() {
   const [suggestingAll, setSuggestingAll] = useState(false);
   const [editValues, setEditValues] = useState<Map<string, string>>(new Map());
   const [filterStatus, setFilterStatus] = useState<'all' | 'translated' | 'pending'>('all');
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -248,6 +251,37 @@ export default function TraducaoAndamentos() {
     }
   };
 
+  const handleAddManual = async () => {
+    const raw = newTitle.trim();
+    if (!raw) return;
+
+    const normalized = normalizeTitle(raw);
+    if (normalized.length < 3) {
+      toast({ title: 'Título muito curto', variant: 'destructive' });
+      return;
+    }
+
+    if (uniqueTitles.includes(normalized)) {
+      toast({ title: 'Andamento já existe na lista', variant: 'destructive' });
+      setShowAddDialog(false);
+      setNewTitle('');
+      return;
+    }
+
+    setUniqueTitles(prev => [normalized, ...prev]);
+    setEditValues(prev => {
+      const next = new Map(prev);
+      next.set(normalized, '');
+      return next;
+    });
+
+    setShowAddDialog(false);
+    setNewTitle('');
+    toast({ title: 'Andamento cadastrado! Sugerindo tradução com IA...' });
+
+    await handleSuggestAI(normalized);
+  };
+
   const handleSuggestAll = async () => {
     const pending = filteredTitles.filter(t => !translations.get(t)?.translated_text);
     if (pending.length === 0) {
@@ -349,14 +383,24 @@ export default function TraducaoAndamentos() {
               Traduza andamentos processuais para linguagem simples
             </p>
           </div>
-          <Button 
-            onClick={handleSuggestAll} 
-            disabled={suggestingAll || pendingCount === 0}
-            className="gap-2"
-          >
-            {suggestingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            Sugerir todas com IA ({pendingCount} pendentes)
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowAddDialog(true)}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Cadastrar Andamento
+            </Button>
+            <Button 
+              onClick={handleSuggestAll} 
+              disabled={suggestingAll || pendingCount === 0}
+              className="gap-2"
+            >
+              {suggestingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              Sugerir todas com IA ({pendingCount} pendentes)
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">
@@ -491,6 +535,41 @@ export default function TraducaoAndamentos() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              Cadastrar Andamento Manual
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">
+                Título do andamento
+              </label>
+              <Textarea
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="Ex: Audiência de conciliação designada"
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Informações específicas (datas, nomes, valores) serão removidas automaticamente.
+              </p>
+            </div>
+            <Button
+              onClick={handleAddManual}
+              disabled={!newTitle.trim()}
+              className="w-full gap-2"
+            >
+              <Sparkles className="h-4 w-4" />
+              Cadastrar e Sugerir Tradução
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }
