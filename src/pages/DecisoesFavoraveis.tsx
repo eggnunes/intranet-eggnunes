@@ -1119,7 +1119,7 @@ export default function DecisoesFavoraveis() {
                                 </Tooltip>
                               </div>
                             </TableCell>
-                            <TableCell className="text-right py-2">
+                            <TableCell className="text-right py-2" onClick={e => e.stopPropagation()}>
                               <div className="flex justify-end gap-0.5">
                                 {decision.decision_link && decision.decision_link.startsWith('http') && (
                                   <Tooltip>
