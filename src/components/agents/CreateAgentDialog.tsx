@@ -39,6 +39,7 @@ const DATA_ACCESS_OPTIONS = [
   { value: 'campanhas', label: 'Campanhas', description: 'Campanhas de marketing do CRM' },
   { value: 'tarefas', label: 'Tarefas', description: 'Tarefas pendentes e em andamento' },
   { value: 'processos', label: 'Processos', description: 'Dados de processos do Advbox' },
+  { value: 'teams_documents', label: 'Documentos Teams', description: 'Pastas e documentos de clientes no SharePoint/Teams' },
 ];
 
 export function CreateAgentDialog({ open, onOpenChange, onSuccess, editingAgent }: CreateAgentDialogProps) {
