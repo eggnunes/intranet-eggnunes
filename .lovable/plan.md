@@ -1,33 +1,58 @@
 
 
-## Corrigir nomes "Sem contato" no Ranking e Comissões
+## Adicionar aba Instagram ao Marketing Hub
 
-### Causa raiz
-A tabela `crm_contacts` tem **1.896 registros**, mas o Supabase retorna no máximo **1.000 linhas** por consulta padrão. Isso significa que metade dos contatos não entra no `contactMap`, e quando o `contact_id` do deal aponta para um contato que ficou de fora, o lookup retorna `undefined`.
+### Visão geral
+Criar uma nova aba "Instagram" no Marketing Hub com métricas do perfil, gráficos de engajamento/crescimento de seguidores, e os 10 posts mais engajados. Os dados virão da Instagram Graph API (parte do ecossistema Meta), usando o mesmo token já configurado no Meta Ads.
 
-Embora o fallback `|| d.name` esteja no código, o problema é que contatos importantes ficam fora do mapa. E para deals onde `deal.name` também possa ser inconsistente, o resultado é "Sem contato".
-
-### Solução
-Em ambos os arquivos, **buscar apenas os contatos necessários** (os que estão referenciados nos deals do período) em vez de buscar todos os 1.896. Isso elimina o limite de 1.000 e garante que todos os contatos relevantes estejam no mapa.
-
-**Alternativa mais simples**: Não depender da tabela `crm_contacts` para o nome do cliente. Usar `deal.name` como fonte principal (que sempre contém o nome do cliente vindo do RD Station) e o contato como fallback.
+### Como funciona
+A Instagram Graph API permite acessar métricas de contas Business/Creator conectadas a uma Facebook Page. O token do Meta Ads já configurado pode ser reutilizado — basta descobrir o Instagram Business Account ID vinculado.
 
 ### Alterações
 
-**Arquivo 1:** `src/components/crm/CRMRanking.tsx`
-- Inverter a prioridade: usar `deal.name` como nome principal do cliente
-- Manter contato como fallback secundário
-- Linha 165: `contactName: d.name || (d.contact_id ? contactMap.get(d.contact_id) : null) || null`
+**1. Nova edge function: `supabase/functions/instagram-insights/index.ts`**
 
-**Arquivo 2:** `src/components/crm/CRMCommissions.tsx`
-- Mesma correção na linha 134
-- `contactName: deal.name || (deal.contact_id ? contactMap.get(deal.contact_id) : null) || null`
+Ações suportadas:
+- `account_info`: Busca o Instagram Business Account ID via Pages do Facebook, retorna bio, seguidores, seguindo, total de posts, foto de perfil, nome e username
+- `media`: Busca os últimos posts com métricas (likes, comments, shares, saves, reach, impressions)
+- `top_engaged`: Retorna os 10 posts com maior engajamento (likes + comments)
+- `audience_insights`: Métricas de audiência (crescimento, demographics) via account insights endpoint
+- `daily_insights`: Métricas diárias (impressions, reach, follower_count, profile_views) para gráficos
 
-### Por que inverter a prioridade
-- `deal.name` está **sempre presente** (vem direto do RD Station com o nome do cliente)
-- `crm_contacts` tem o limite de 1.000 linhas e muitos deals não têm `contact_id` vinculado
-- O nome no deal é a mesma informação do contato na grande maioria dos casos
+Fluxo para descobrir o IG Account ID:
+1. `GET /me/accounts` com o token → lista Pages
+2. Para cada Page: `GET /{page_id}?fields=instagram_business_account`
+3. Armazena o IG account ID na tabela `meta_ads_config` (nova coluna `instagram_account_id`)
+
+**2. Migração de banco: adicionar coluna**
+```sql
+ALTER TABLE meta_ads_config ADD COLUMN IF NOT EXISTS instagram_account_id TEXT;
+```
+
+**3. Novo componente: `src/components/marketing/InstagramTab.tsx`**
+
+Seções da aba:
+- **Perfil**: foto, nome, username, bio, seguidores, seguindo, total de posts
+- **Cards de métricas**: seguidores, alcance, impressões, visitas ao perfil (período selecionado)
+- **Gráfico de crescimento**: linha temporal de seguidores ao longo do período
+- **Gráfico de engajamento**: barras com likes/comments por dia
+- **Top 10 posts**: grid de cards com thumbnail, caption (resumida), likes, comments, data — ordenados por engajamento total
+
+**4. Atualização: `src/pages/MarketingHub.tsx`**
+- Importar `InstagramTab`
+- Adicionar tab trigger "Instagram" com ícone do Instagram (usar ícone existente ou similar)
+- Passar `dateRange` como prop
+
+### Detalhes técnicos
+- A Instagram Graph API v25.0 será usada (mesma versão do Meta Ads)
+- Métricas de mídia: `like_count`, `comments_count`, `timestamp`, `media_type`, `thumbnail_url`, `permalink`, `caption`
+- Insights da conta: `impressions`, `reach`, `follower_count`, `profile_views` com `period=day`
+- O token precisa das permissões `instagram_basic`, `instagram_manage_insights`, `pages_show_list` — se não tiver, o sistema mostrará mensagem orientando a reconfigurar o token
 
 ### Resultado
-Todos os contratos expandidos mostrarão o nome do cliente corretamente, tanto no Ranking quanto nas Comissões, sem depender do limite de linhas da tabela de contatos.
+- Nova aba "Instagram" no Marketing Hub
+- Métricas do perfil em tempo real
+- Gráficos de crescimento de seguidores e engajamento
+- Top 10 posts mais engajados com thumbnails
+- Tudo usando o mesmo token já configurado no Meta Ads
 
