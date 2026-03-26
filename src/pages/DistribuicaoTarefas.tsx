@@ -37,6 +37,7 @@ export default function DistribuicaoTarefas() {
   const [advboxUsers, setAdvboxUsers] = useState<Array<{ id: number; name: string }>>([]);
   const [loadingTaskTypes, setLoadingTaskTypes] = useState(false);
   const [loadingAdvboxUsers, setLoadingAdvboxUsers] = useState(false);
+  const [activeProfileNames, setActiveProfileNames] = useState<string[]>([]);
   const { toast } = useToast();
   const { isAdmin, profile } = useUserRole();
 
