@@ -1029,7 +1029,11 @@ export default function DecisoesFavoraveis() {
                       </TableHeader>
                       <TableBody>
                         {filteredDecisions.map((decision) => (
-                          <TableRow key={decision.id}>
+                          <TableRow key={decision.id} className="cursor-pointer hover:bg-muted/50" onClick={() => {
+                            setQuickEditDecision(decision);
+                            setQuickEditResultado(decision.resultado || '');
+                            setQuickEditLink(decision.decision_link || '');
+                          }}>
                             <TableCell className="py-2 px-2">
                               <Badge className={`text-[10px] whitespace-nowrap ${getDecisionTypeBadgeColor(decision.decision_type)}`}>
                                 {getDecisionTypeLabel(decision.decision_type)}
