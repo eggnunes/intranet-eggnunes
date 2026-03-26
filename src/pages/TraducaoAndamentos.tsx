@@ -83,6 +83,8 @@ export default function TraducaoAndamentos() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'translated' | 'pending'>('all');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  const [editingOriginal, setEditingOriginal] = useState<string | null>(null);
+  const [editOriginalValues, setEditOriginalValues] = useState<Map<string, string>>(new Map());
   const { toast } = useToast();
 
   useEffect(() => {
