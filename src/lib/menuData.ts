@@ -162,7 +162,7 @@ export function getMenuGroups(
       emoji: '👥',
       icon: Users,
       items: [
-        { icon: BarChart3, path: '/rh', label: 'Dashboard RH', searchDescription: 'Painel de recursos humanos', condition: isSocio || isAdmin },
+        { icon: BarChart3, path: '/rh', label: 'Pagamento Colaboradores', searchDescription: 'Pagamento de colaboradores recursos humanos', condition: isSocio || isAdmin },
         { icon: Users, path: '/equipe', label: 'Equipe', searchDescription: 'Membros da equipe' },
         { icon: Cake, path: '/aniversarios', label: 'Aniversários', searchDescription: 'Aniversários da equipe' },
         { icon: SmilePlus, path: '/pesquisa-humor', label: 'Pesquisa de Humor', searchDescription: 'Clima organizacional' },

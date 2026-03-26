@@ -138,7 +138,7 @@ export default function RH() {
               className="w-full p-2 border rounded-md bg-background"
             >
               <optgroup label="Visão Geral">
-                <option value="dashboard">Dashboard RH</option>
+                <option value="dashboard">Pagamento Colaboradores</option>
                 <option value="colaborador-dashboard">Dashboard Colaborador</option>
               </optgroup>
               <optgroup label="Folha de Pagamento">
