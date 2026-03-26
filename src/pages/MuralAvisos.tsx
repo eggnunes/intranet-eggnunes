@@ -656,7 +656,10 @@ const MuralAvisos = () => {
                         </div>
                       </div>
                       {canManageAnnouncements && (
-                        <div className="flex gap-2">
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => handleEdit(announcement)} title="Editar aviso">
+                            <Pencil className="h-4 w-4 text-muted-foreground" />
+                          </Button>
                           <Button size="sm" variant="ghost" onClick={() => handleTogglePin(announcement.id, !announcement.is_pinned)}
                             title={announcement.is_pinned ? "Desafixar" : "Fixar no topo"}>
                             <Pin className={`h-4 w-4 ${announcement.is_pinned ? 'text-primary fill-primary' : 'text-muted-foreground'}`} />
