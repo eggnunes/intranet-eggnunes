@@ -247,8 +247,8 @@ export const Layout = ({ children }: LayoutProps) => {
                 >
                   <MessageCircle className="w-4 h-4" />
                   {unreadMessagesCount > 0 && (
-                    <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px]">
-                      {unreadMessagesCount}
+                    <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 flex items-center justify-center text-[10px] animate-pulse">
+                      {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
                     </Badge>
                   )}
                 </Button>
@@ -294,6 +294,22 @@ export const Layout = ({ children }: LayoutProps) => {
               </div>
             </div>
           </header>
+
+          {/* Unread Messages Banner */}
+          {unreadMessagesCount > 0 && location.pathname !== '/mensagens' && (
+            <div 
+              className="bg-primary/10 border-b border-primary/20 px-4 py-2 flex items-center justify-between cursor-pointer hover:bg-primary/15 transition-colors"
+              onClick={() => navigate('/mensagens')}
+            >
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-4 h-4 text-primary animate-bounce" />
+                <span className="text-sm font-medium text-primary">
+                  Você tem {unreadMessagesCount} mensagem{unreadMessagesCount !== 1 ? 'ns' : ''} não lida{unreadMessagesCount !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <span className="text-xs text-primary/70 hidden sm:inline">Clique para ver →</span>
+            </div>
+          )}
 
           {/* Main Content */}
           <main className="flex-1 flex flex-col overflow-hidden min-h-0">

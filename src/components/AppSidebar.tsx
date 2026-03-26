@@ -18,6 +18,7 @@ import {
 import { ChevronDown } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { getMenuGroups } from '@/lib/menuData';
+import { useMessageNotifications } from '@/hooks/useMessageNotifications';
 
 // localStorage key
 const STORAGE_KEY = 'sidebar-open-groups';
@@ -51,6 +52,7 @@ export function AppSidebar() {
 
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
   const [criticalTasksCount, setCriticalTasksCount] = useState(0);
+  const { unreadCount: unreadMessagesCount } = useMessageNotifications();
 
   useEffect(() => {
     if (isAdmin) fetchPendingCount();
@@ -102,8 +104,8 @@ export function AppSidebar() {
 
   // ─── Menu Groups from shared source ───────────────────────
   const menuGroups = useMemo(
-    () => getMenuGroups(isAdmin, isSocio, { criticalTasksCount, pendingUsersCount }),
-    [isAdmin, isSocio, criticalTasksCount, pendingUsersCount]
+    () => getMenuGroups(isAdmin, isSocio, { criticalTasksCount, pendingUsersCount, unreadMessagesCount }),
+    [isAdmin, isSocio, criticalTasksCount, pendingUsersCount, unreadMessagesCount]
   );
 
   // Filter out items whose condition is false

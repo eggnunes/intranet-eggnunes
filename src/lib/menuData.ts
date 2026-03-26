@@ -70,6 +70,7 @@ export interface MenuGroupDef {
 interface MenuCounts {
   criticalTasksCount?: number;
   pendingUsersCount?: number;
+  unreadMessagesCount?: number;
 }
 
 export function getMenuGroups(
@@ -77,7 +78,7 @@ export function getMenuGroups(
   isSocio: boolean,
   counts: MenuCounts = {}
 ): MenuGroupDef[] {
-  const { criticalTasksCount = 0, pendingUsersCount = 0 } = counts;
+  const { criticalTasksCount = 0, pendingUsersCount = 0, unreadMessagesCount = 0 } = counts;
 
   return [
     {
@@ -214,7 +215,7 @@ export function getMenuGroups(
         { icon: FolderOpen, path: '/documentos-uteis', label: 'Documentos Úteis', searchDescription: 'Documentos internos' },
         { icon: Bell, path: '/notificacoes', label: 'Notificações', searchDescription: 'Central de notificações' },
         { icon: MessageSquare, path: '/forum', label: 'Fórum', searchDescription: 'Discussões da equipe' },
-        { icon: MessageCircle, path: '/mensagens', label: 'Mensagens', searchDescription: 'Chat com a equipe' },
+        { icon: MessageCircle, path: '/mensagens', label: 'Mensagens', searchDescription: 'Chat com a equipe', badgeCount: unreadMessagesCount },
         { icon: Lightbulb, path: '/sugestoes', label: 'Sugestões', searchDescription: 'Envie suas ideias' },
         { icon: BarChart3, path: '/dashboard-sugestoes', label: 'Dashboard Sugestões', searchDescription: 'Estatísticas de sugestões' },
         { icon: HeartHandshake, path: '/caixinha-desabafo', label: 'Caixinha de Desabafo', searchDescription: 'Canal anônimo' },
