@@ -1269,24 +1269,36 @@ const Mensagens = () => {
                     </div>
                   </div>
                   
-                  {isSocio && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreVertical className="h-5 w-5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => setDeleteConversationId(activeConversation.id)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir Conversa
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {activeConversation.is_group && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={openGroupManagement}
+                        title="Gerenciar grupo"
+                      >
+                        <Settings className="h-5 w-5" />
+                      </Button>
+                    )}
+                    {isSocio && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-5 w-5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => setDeleteConversationId(activeConversation.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Excluir Conversa
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
                 </div>
 
                 {/* Messages */}
