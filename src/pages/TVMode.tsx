@@ -40,6 +40,7 @@ function getCommercialPeriod(now: Date) {
 }
 
 const TVMode = () => {
+  const navigate = useNavigate();
   const [now, setNow] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
 
