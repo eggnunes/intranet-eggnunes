@@ -1,35 +1,29 @@
 
 
-## 1. Gerenciar membros de grupo nas Mensagens Internas + Filtrar desligados na Distribuição de Tarefas
+## Correção: Anexos de arquivos não são enviados nas mensagens internas
 
-### Problema 1: Sem opção de adicionar/remover membros em grupos de conversa
-O header do chat de grupo mostra apenas o nome e quantidade de participantes, mas não oferece nenhuma ação para gerenciar membros. O hook `useMessaging` também não possui funções para adicionar ou remover participantes.
+### Problema identificado
 
-### Problema 2: Colaboradores desligados aparecem na Distribuição de Tarefas
-A lista de exclusão em `DistribuicaoTarefas.tsx` é hardcoded com nomes específicos de gestores. Colaboradores desligados (como Tatiane) não são filtrados — o sistema deveria cruzar com a tabela `profiles` para excluir quem tem `is_active = false`.
+A função `uploadFile` em `src/pages/Mensagens.tsx` (linha 258-283) captura erros silenciosamente — apenas faz `console.error` e retorna `null`. Quando o upload falha, o array `fileUrls` fica vazio e a mensagem é enviada sem os anexos (ou nem é enviada se não houver texto). O usuário não recebe nenhum feedback visual do erro.
 
----
+### Causa provável do upload falhar
+
+O bucket `task-attachments` é **privado** e as signed URLs expiram. Porém a política de INSERT existe ("Usuários aprovados podem fazer upload de anexos"). O problema pode estar no fato de que o upload é feito sequencialmente sem feedback, e qualquer erro (rede, timeout, tamanho) é engolido.
 
 ### Implementação
 
-**Arquivo: `src/hooks/useMessaging.tsx`**
-- Adicionar função `addParticipants(conversationId, userIds[])` — insere na tabela `conversation_participants` e recarrega conversas
-- Adicionar função `removeParticipant(conversationId, userId)` — deleta da tabela `conversation_participants` e recarrega conversas
-- Exportar ambas funções no return
-
 **Arquivo: `src/pages/Mensagens.tsx`**
-- No header do chat quando `activeConversation.is_group === true`, adicionar um botão de engrenagem/configuração (ícone `Settings` ou `UserPlus`)
-- Ao clicar, abrir um Dialog "Gerenciar Grupo" com:
-  - Lista dos participantes atuais com botão de remover (ícone X) ao lado de cada um (exceto o próprio usuário)
-  - Seção para adicionar novos membros: lista de colaboradores ativos com busca, checkbox para selecionar, botão "Adicionar"
-  - A lista de colaboradores disponíveis busca `profiles` onde `is_active = true` e `is_suspended = false` e `approval_status = 'approved'`, excluindo quem já é participante
 
-**Arquivo: `src/pages/DistribuicaoTarefas.tsx`**
-- Buscar da tabela `profiles` todos os colaboradores com `is_active = true` e `is_suspended = false` (campos `full_name`)
-- No `collaboratorStats` useMemo, além da lista hardcoded de exclusão, também excluir qualquer nome que **não** esteja na lista de colaboradores ativos
-- Isso garante que Tatiane (desligada) e qualquer futuro desligamento sejam automaticamente filtrados
+1. **Adicionar feedback de erro no `uploadFile`** — mostrar `toast.error` com o nome do arquivo que falhou, para o usuário saber exatamente o que aconteceu
 
-### Resultado
-- Grupos de conversa terão botão para gerenciar membros (adicionar e remover)
-- Colaboradores desligados não aparecerão mais na distribuição de tarefas
+2. **Adicionar feedback de progresso** — mostrar indicador visual ("Enviando arquivos...") durante o upload dos anexos
+
+3. **Impedir envio sem anexos quando só há arquivos** — se todos os uploads falharem e não há texto, mostrar toast de erro e NÃO limpar os `attachedFiles`, permitindo nova tentativa
+
+4. **Aumentar resiliência do upload** — adicionar retry simples (1 tentativa extra) para uploads que falham por motivos transitórios
+
+### Resultado esperado
+- Se um upload falhar, o usuário verá uma mensagem de erro indicando qual arquivo não foi enviado
+- Os arquivos anexados não serão limpos em caso de falha, permitindo reenvio
+- Feedback visual durante o processo de upload
 
