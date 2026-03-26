@@ -73,7 +73,7 @@ export default function DistribuicaoTarefas() {
         const { data: batch, error } = await supabase
           .from('advbox_tasks')
           .select('advbox_id, title, due_date, status, assigned_users')
-          .not('status', 'eq', 'completed')
+          .not('status', 'in', '("completed","stale")')
           .range(offset, offset + batchSize - 1);
 
         if (error) throw error;
@@ -172,6 +172,7 @@ export default function DistribuicaoTarefas() {
     'LUCAS MENDES DE PAULA',
     'DANIEL MARTINS SILVA',
     'LETÍCIA CAROLINA PESSOA',
+    'TATIANE',
   ].map(n => n.toLowerCase()), []);
 
   // Group by collaborator
@@ -195,8 +196,6 @@ export default function DistribuicaoTarefas() {
         const current = map.get(name) || { pending: 0, inProgress: 0 };
         if (isPending) current.pending++;
         if (isInProgress) current.inProgress++;
-        // Count any non-completed as one of the two
-        if (!isPending && !isInProgress) current.pending++;
         map.set(name, current);
       });
     });
