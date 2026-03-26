@@ -1,34 +1,32 @@
 
 
-## Corrigir busca de código JusBrasil — emails novos não aparecem
+## Duas correções: Botão de voltar no TV Mode + Nomes dos clientes no Ranking
 
-### Problema
-A função usa `$search="jusbrasil"` na Microsoft Graph API. O parâmetro `$search` depende do **índice de busca do Microsoft 365**, que tem um atraso de indexação (pode levar minutos a horas). Emails recém-chegados não aparecem nos resultados de busca, fazendo a função retornar sempre o mesmo código antigo.
+### 1. Botão de voltar no TV Mode
 
-### Solução
-Trocar `$search` por `$filter` com data recente + `$orderby=receivedDateTime desc`. Isso consulta os emails diretamente (sem depender do índice de busca), garantindo que emails novos apareçam imediatamente.
+**Arquivo:** `src/pages/TVMode.tsx`
 
-### Alterações
+Adicionar um botão discreto no canto superior esquerdo (ou próximo ao relógio) com ícone de seta para voltar, que navega para a intranet (`/dashboard` ou a rota anterior). O botão terá opacidade reduzida para não atrapalhar a exibição na TV, ficando mais visível ao passar o mouse.
 
-**Arquivo:** `supabase/functions/fetch-jusbrasil-code/index.ts`
+### 2. Nomes dos clientes no Ranking de Vendedores
 
-1. **Remover `$search`** e usar `$filter` com janela de 24 horas + `$orderby=receivedDateTime desc`
-2. **Buscar mais emails** (`$top=50`) para compensar a filtragem que será feita em código (já que não podemos filtrar por remetente no `$filter`)
-3. **Remover o sort manual** em JS (já vem ordenado pela API)
-4. **Remover header `ConsistencyLevel: eventual`** (necessário apenas para `$search`)
+**Arquivo:** `src/components/crm/CRMRanking.tsx`
 
-Lógica da query:
+**Problema:** Na linha 165, o `contactName` é buscado apenas do `crm_contacts` via `contact_id`. Muitos deals não têm `contact_id` vinculado (a sincronização nem sempre encontra o contato correspondente). O campo `name` do deal no RD Station geralmente contém o nome do cliente.
+
+**Correção:** Usar o nome do contato quando disponível, mas fazer fallback para o `name` do deal (que vem do RD Station com o nome do cliente):
+
+```typescript
+// Antes (linha 165):
+contactName: d.contact_id ? (contactMap.get(d.contact_id) || null) : null,
+
+// Depois:
+contactName: (d.contact_id ? contactMap.get(d.contact_id) : null) || d.name || null,
 ```
-$filter=receivedDateTime ge {24h atrás}
-$orderby=receivedDateTime desc
-$top=50
-$select=subject,body,receivedDateTime,from
-```
 
-A filtragem por remetente "jusbrasil" continua sendo feita no `extractCodes()` (já implementada).
+Isso garante que, mesmo sem `contact_id` vinculado, o nome do deal (que no RD Station é o nome do cliente) será exibido na coluna "Cliente".
 
 ### Resultado
-- Emails recém-chegados aparecem imediatamente na busca
-- O código mais recente do JusBrasil será retornado corretamente
-- Sem dependência do índice de busca do Microsoft 365
+- TV Mode terá botão de saída para voltar à intranet
+- Ranking mostrará o nome do cliente usando o nome do deal como fallback quando o contato não está vinculado
 
