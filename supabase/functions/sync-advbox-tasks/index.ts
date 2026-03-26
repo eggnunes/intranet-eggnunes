@@ -47,6 +47,34 @@ async function makeAdvboxRequest(endpoint: string, retryCount = 0): Promise<any>
   return JSON.parse(responseText);
 }
 
+// Determine task status based on API data and local state
+function determineStatus(task: any, localCompletedIds: Set<number>): { status: string; completedAt: string | null } {
+  const hasCompleted = task.users?.some((u: any) => u.completed !== null);
+  const completedUser = task.users?.find((u: any) => u.completed !== null);
+
+  // If API says completed, trust it
+  if (hasCompleted) {
+    return { status: 'completed', completedAt: completedUser?.completed || new Date().toISOString() };
+  }
+
+  // If locally marked as completed, preserve it
+  if (localCompletedIds.has(task.id)) {
+    return { status: 'completed', completedAt: null }; // keep existing completed_at from DB
+  }
+
+  // Check if task is stale (due_date > 90 days in the past)
+  if (task.date_deadline || task.date) {
+    const dueDate = new Date(task.date_deadline || task.date);
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    if (dueDate < ninetyDaysAgo) {
+      return { status: 'stale', completedAt: null };
+    }
+  }
+
+  return { status: 'pending', completedAt: null };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -55,7 +83,6 @@ Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
-    // Parse body if exists
     let syncType = 'full';
     try {
       const body = await req.json();
@@ -81,6 +108,21 @@ Deno.serve(async (req) => {
 
     const syncId = syncRecord?.id;
 
+    // Fetch locally completed task IDs to preserve them
+    const localCompletedIds = new Set<number>();
+    try {
+      const { data: completedTasks } = await supabase
+        .from('advbox_tasks')
+        .select('advbox_id')
+        .eq('status', 'completed');
+      if (completedTasks) {
+        completedTasks.forEach(t => localCompletedIds.add(t.advbox_id));
+      }
+      console.log(`Found ${localCompletedIds.size} locally completed tasks to preserve`);
+    } catch (e) {
+      console.error('Error fetching local completed tasks:', e);
+    }
+
     let allTasks: any[] = [];
     let offset = 0;
     const limit = 100;
@@ -96,7 +138,6 @@ Deno.serve(async (req) => {
           await sleep(DELAY_BETWEEN_REQUESTS);
         }
 
-        // Update progress
         if (syncId) {
           await supabase
             .from('advbox_tasks_sync_status')
@@ -136,16 +177,15 @@ Deno.serve(async (req) => {
         const batch = allTasks.slice(i, i + batchSize).map((task: any) => {
           const assignedUsers = task.users?.map((u: any) => u.name).filter(Boolean) || [];
           const assignedUserIds = task.users?.map((u: any) => ({ id: u.id, name: u.name, completed: u.completed })) || [];
-          const hasCompleted = task.users?.some((u: any) => u.completed !== null);
-          const completedUser = task.users?.find((u: any) => u.completed !== null);
 
-          return {
+          const { status, completedAt } = determineStatus(task, localCompletedIds);
+
+          const record: any = {
             advbox_id: task.id,
             title: task.task || 'Sem título',
             description: task.notes || null,
             due_date: task.date_deadline || task.date || null,
-            completed_at: completedUser?.completed || null,
-            status: hasCompleted ? 'completed' : 'pending',
+            status,
             assigned_users: assignedUsers.join(', ') || null,
             assigned_user_ids: assignedUserIds,
             process_number: task.lawsuit?.process_number || null,
@@ -156,6 +196,17 @@ Deno.serve(async (req) => {
             raw_data: task,
             synced_at: new Date().toISOString(),
           };
+
+          // Only set completed_at if API provides it (don't overwrite local value)
+          if (completedAt) {
+            record.completed_at = completedAt;
+          } else if (status === 'completed' && localCompletedIds.has(task.id)) {
+            // Don't include completed_at in upsert to preserve existing value
+          } else {
+            record.completed_at = null;
+          }
+
+          return record;
         });
 
         const { error: upsertError } = await supabase
