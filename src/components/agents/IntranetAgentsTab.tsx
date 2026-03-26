@@ -58,6 +58,7 @@ const dataAccessLabels: Record<string, string> = {
   campanhas: 'Campanhas',
   tarefas: 'Tarefas',
   processos: 'Processos',
+  teams_documents: 'Documentos Teams',
   all: 'Acesso Total',
 };
 

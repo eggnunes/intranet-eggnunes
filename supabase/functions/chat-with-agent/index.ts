@@ -118,7 +118,91 @@ ${agent.instructions}`;
         }
       }
 
-      if (dataBlocks.length > 0) {
+      if (hasAccess('teams_documents')) {
+        try {
+          const clientId = Deno.env.get("MICROSOFT_CLIENT_ID");
+          const tenantId = Deno.env.get("MICROSOFT_TENANT_ID");
+          const clientSecret = Deno.env.get("MICROSOFT_CLIENT_SECRET");
+
+          if (clientId && tenantId && clientSecret) {
+            // Get Microsoft Graph token
+            const tokenRes = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({
+                client_id: clientId,
+                client_secret: clientSecret,
+                scope: "https://graph.microsoft.com/.default",
+                grant_type: "client_credentials",
+              }),
+            });
+            const tokenData = await tokenRes.json();
+            const accessToken = tokenData.access_token;
+
+            if (accessToken) {
+              const graphHeaders = { Authorization: `Bearer ${accessToken}` };
+
+              // Find "Jurídico" site
+              const sitesRes = await fetch("https://graph.microsoft.com/v1.0/sites?search=Jurídico", { headers: graphHeaders });
+              const sitesData = await sitesRes.json();
+              const juridico = sitesData.value?.find((s: any) => s.displayName?.toLowerCase().includes("jurídico"));
+
+              if (juridico) {
+                // Get drives
+                const drivesRes = await fetch(`https://graph.microsoft.com/v1.0/sites/${juridico.id}/drives`, { headers: graphHeaders });
+                const drivesData = await drivesRes.json();
+                const docsDrive = drivesData.value?.find((d: any) => d.name === "Documentos" || d.name === "Documents") || drivesData.value?.[0];
+
+                if (docsDrive) {
+                  // List "Operacional - Clientes" folder
+                  const folderRes = await fetch(
+                    `https://graph.microsoft.com/v1.0/drives/${docsDrive.id}/root:/Operacional - Clientes:/children?$top=50&$select=name,folder,lastModifiedDateTime`,
+                    { headers: graphHeaders }
+                  );
+                  const folderData = await folderRes.json();
+                  const clientFolders = folderData.value?.filter((item: any) => item.folder) || [];
+
+                  if (clientFolders.length > 0) {
+                    let teamsBlock = `### Documentos do Teams (Pastas de Clientes)\n**Total de pastas:** ${clientFolders.length}\n\n`;
+
+                    // For each client folder, list files (limit to first 30 folders for prompt size)
+                    const foldersToList = clientFolders.slice(0, 30);
+                    for (const folder of foldersToList) {
+                      try {
+                        const filesRes = await fetch(
+                          `https://graph.microsoft.com/v1.0/drives/${docsDrive.id}/root:/Operacional - Clientes/${encodeURIComponent(folder.name)}:/children?$top=20&$select=name,size,lastModifiedDateTime,file`,
+                          { headers: graphHeaders }
+                        );
+                        const filesData = await filesRes.json();
+                        const files = filesData.value || [];
+                        const fileItems = files.filter((f: any) => f.file);
+
+                        teamsBlock += `**📁 ${folder.name}** (${fileItems.length} arquivo${fileItems.length !== 1 ? 's' : ''})\n`;
+                        for (const file of fileItems) {
+                          const date = file.lastModifiedDateTime ? new Date(file.lastModifiedDateTime).toLocaleDateString('pt-BR') : 'N/A';
+                          const sizeKB = file.size ? Math.round(file.size / 1024) : 0;
+                          teamsBlock += `  - ${file.name} | ${date} | ${sizeKB}KB\n`;
+                        }
+                        teamsBlock += '\n';
+                      } catch { /* skip individual folder errors */ }
+                    }
+
+                    if (clientFolders.length > 30) {
+                      teamsBlock += `\n... e mais ${clientFolders.length - 30} pastas de clientes.\n`;
+                    }
+
+                    dataBlocks.push(teamsBlock);
+                  }
+                }
+              }
+            }
+          }
+        } catch (teamsErr) {
+          console.error("Error fetching Teams documents for agent:", teamsErr);
+          // Silently skip - don't block the agent
+        }
+      }
+
         systemPrompt += `\n\n## Dados do Sistema (consulta em tempo real)\nAbaixo estão dados atualizados do sistema que você pode usar para responder perguntas:\n\n${dataBlocks.join('\n\n')}`;
       }
     }
