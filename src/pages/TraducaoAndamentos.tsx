@@ -81,6 +81,8 @@ export default function TraducaoAndamentos() {
   const [suggestingAll, setSuggestingAll] = useState(false);
   const [editValues, setEditValues] = useState<Map<string, string>>(new Map());
   const [filterStatus, setFilterStatus] = useState<'all' | 'translated' | 'pending'>('all');
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
