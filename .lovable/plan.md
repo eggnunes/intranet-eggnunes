@@ -1,41 +1,34 @@
 
 
-## Melhorar exibição de jurisprudências: links de fonte, ementa copiável e metadados
+## Correções na Jurisprudência Interna (Decisões Favoráveis)
 
-### Alterações
+### 1. Bug: clicar no resultado não abre a decisão
+**Problema**: A tabela de decisões não tem nenhum comportamento de clique na linha. Clicar em "Resultado" (ou qualquer célula) não faz nada — não há dialog de detalhes nem link.
 
-#### 1. Edge function: capturar citations do Perplexity
-**Arquivo:** `supabase/functions/search-jurisprudence/index.ts`
+**Correção em `src/pages/DecisoesFavoraveis.tsx`**:
+- Adicionar `onClick` na `TableRow` para abrir o dialog de edição (ou um dialog de visualização)
+- Como o pedido é que todos possam editar resultado e link (item 2), a solução ideal é: clicar na linha abre um dialog de detalhes/edição rápida com campos de resultado e link editáveis por qualquer colaborador
+- Usar `cursor-pointer` e `hover:bg-muted/50` na linha
 
-- Extrair `data.citations` da resposta da API Perplexity (campo retornado automaticamente pelo sonar-pro)
-- Incluir no retorno JSON como `citations: string[]`
+### 2. Todos podem editar resultado e link
+**Problema**: Atualmente, editar e excluir só aparecem para `isSocioOrRafael` (linhas 1111-1129). Colaboradores comuns não podem editar resultado nem link.
 
-#### 2. Adicionar link de fonte em cada jurisprudência no prompt
-**Arquivo:** `supabase/functions/search-jurisprudence/index.ts`
+**Correção em `src/pages/DecisoesFavoraveis.tsx`**:
+- Criar uma mutation `quickEditMutation` que permite qualquer usuário autenticado atualizar apenas `resultado` e `decision_link` na tabela `favorable_decisions`
+- Ao clicar na linha da tabela, abrir um dialog simples de "Detalhes da Decisão" mostrando todas as info e com campos editáveis para `resultado` (Select) e `decision_link` (Input), com botão salvar
+- O botão de edição completa (Edit) e exclusão (Trash) continuam restritos a sócios
 
-- No prompt do sistema, pedir que cada jurisprudência inclua campo `"link_fonte"` com a URL da fonte original (quando disponível)
+### 3. Filtro por tipo de ação/produto na Jurimetria
+**Problema**: O `JurimetriaDashboard` tem filtros de matéria, região e data, mas NÃO tem filtro por `product_name` (tipo de ação/produto).
 
-#### 3. Frontend: ementa com metadados + botão copiar + link fonte
-**Arquivo:** `src/pages/PesquisaJurisprudencia.tsx`
+**Correção em `src/components/JurimetriaDashboard.tsx`**:
+- Adicionar `product_name` à interface `Decision` (já existe nos dados passados)
+- Adicionar estado `filterProduct` com valor `'all'`
+- Calcular `uniqueProducts` a partir dos `decisions`
+- Adicionar Select de "Tipo de Ação/Produto" nos filtros (ao lado dos existentes)
+- Incluir filtro no `useMemo` de `filtered`
 
-- Atualizar interface `JurisprudenciaItem` para incluir `link_fonte?: string`
-- Atualizar interface `ParsedResult` para incluir `citations?: string[]`
-- Na seção da ementa de cada card (linhas 558-564):
-  - Incluir entre parênteses antes da ementa: número do processo, data de julgamento, relator, órgão julgador
-  - Adicionar botão "Copiar Ementa" que copia a ementa completa COM os metadados entre parênteses
-- Adicionar botão/link "Ver Fonte" quando `link_fonte` estiver disponível (abre em nova aba)
-- Exibir seção "Fontes" no final dos resultados com as citations do Perplexity (links clicáveis)
-- Importar `Copy`, `ExternalLink` do lucide-react
-
-#### Formato da ementa copiada
-```
-(Processo nº [numero_processo], Rel. [relator], [orgao_julgador], julgado em [data_julgamento])
-[ementa completa]
-```
-
-### Resultado
-- Cada jurisprudência terá link clicável para a fonte original
-- A ementa exibirá metadados entre parênteses (processo, relator, órgão, data)
-- Botão de copiar copia ementa + metadados com um clique
-- Fontes do Perplexity aparecem no final como links
+### Arquivos modificados
+- `src/pages/DecisoesFavoraveis.tsx` — dialog de detalhes ao clicar, edição rápida de resultado/link por todos
+- `src/components/JurimetriaDashboard.tsx` — filtro por produto/ação
 
