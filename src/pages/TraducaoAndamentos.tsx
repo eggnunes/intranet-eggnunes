@@ -251,7 +251,37 @@ export default function TraducaoAndamentos() {
     }
   };
 
-  const handleSuggestAll = async () => {
+  const handleAddManual = async () => {
+    const raw = newTitle.trim();
+    if (!raw) return;
+
+    const normalized = normalizeTitle(raw);
+    if (normalized.length < 3) {
+      toast({ title: 'Título muito curto', variant: 'destructive' });
+      return;
+    }
+
+    if (uniqueTitles.includes(normalized)) {
+      toast({ title: 'Andamento já existe na lista', variant: 'destructive' });
+      setShowAddDialog(false);
+      setNewTitle('');
+      return;
+    }
+
+    setUniqueTitles(prev => [normalized, ...prev]);
+    setEditValues(prev => {
+      const next = new Map(prev);
+      next.set(normalized, '');
+      return next;
+    });
+
+    setShowAddDialog(false);
+    setNewTitle('');
+    toast({ title: 'Andamento cadastrado! Sugerindo tradução com IA...' });
+
+    await handleSuggestAI(normalized);
+  };
+
     const pending = filteredTitles.filter(t => !translations.get(t)?.translated_text);
     if (pending.length === 0) {
       toast({ title: 'Todos já possuem tradução' });
