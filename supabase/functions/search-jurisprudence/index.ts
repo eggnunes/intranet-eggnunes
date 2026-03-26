@@ -81,7 +81,8 @@ Para cada decisão encontrada, retorne um JSON estruturado:
       "area_direito": "civil|trabalhista|penal|tributario|administrativo|constitucional|previdenciario|consumidor|ambiental|empresarial|familia|outro",
       "assunto": "Tema principal da decisão (ex: Dano moral, Rescisão contratual, Indenização por acidente)",
       "tese_firmada": "Tese jurídica principal firmada na decisão",
-      "palavras_chave": ["palavra1", "palavra2", "palavra3"]
+      "palavras_chave": ["palavra1", "palavra2", "palavra3"],
+      "link_fonte": "URL da fonte original da decisão (site do tribunal, JusBrasil, etc.) quando disponível, ou null se não encontrada"
     }
   ],
   "observacoes_gerais": "Observações sobre os resultados encontrados"
@@ -93,7 +94,8 @@ REGRAS IMPORTANTES:
 3. Retorne APENAS o JSON, sem texto adicional
 4. Seja preciso nas citações e números de processos
 5. Inclua o órgão julgador (Turma, Câmara, Seção) quando disponível
-6. Identifique corretamente a área do direito e o assunto principal`
+6. Identifique corretamente a área do direito e o assunto principal
+7. Para cada jurisprudência, inclua o link_fonte com a URL original quando disponível`
           },
           {
             role: 'user',
