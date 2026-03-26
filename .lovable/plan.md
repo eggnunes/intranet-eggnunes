@@ -1,49 +1,49 @@
 
 
-## Melhorar sistema de notificações de mensagens internas
+## Incluir Microsoft Teams como fonte de dados dos Agentes de IA
 
-### O que existe hoje
-- Hook `useMessageNotifications` que faz contagem de mensagens não lidas e mostra toast
-- Ícone de mensagens no header com badge de contagem (já funciona)
-- Na lista de conversas, cada chat mostra `unread_count` via badge
-- Sidebar (`AppSidebar`) **não** mostra badge de mensagens no item "Mensagens"
+### O que será feito
 
-### O que será implementado
+Adicionar "Documentos do Teams" como nova opção de acesso a dados na configuração dos agentes. Quando habilitado, o agente terá acesso à lista de arquivos das pastas de clientes no SharePoint/Teams (site Jurídico, caminho "Operacional - Clientes"), podendo informar quais documentos existem para cada cliente.
 
-#### 1. Badge de mensagens não lidas na Sidebar
-**Arquivos:** `src/lib/menuData.ts`, `src/components/AppSidebar.tsx`
+### Alterações
 
-- Adicionar `unreadMessagesCount` ao `MenuCounts` interface
-- Passar esse count para o item `/mensagens` como `badgeCount`
-- No `AppSidebar`, chamar `useMessageNotifications` para obter a contagem e passá-la ao `getMenuGroups`
-- Resultado: um círculo vermelho com o número de mensagens não lidas aparece ao lado de "Mensagens" na sidebar
+**1. Nova opção no formulário de criação de agentes**
+**Arquivo:** `src/components/agents/CreateAgentDialog.tsx`
 
-#### 2. Card chamativo no cabeçalho quando houver mensagens não lidas
-**Arquivo:** `src/components/Layout.tsx`
+- Adicionar ao array `DATA_ACCESS_OPTIONS`:
+  ```
+  { value: 'teams_documents', label: 'Documentos Teams', description: 'Pastas e documentos de clientes no SharePoint/Teams' }
+  ```
 
-- Quando `unreadMessagesCount > 0`, exibir um banner/card animado abaixo do header (ou destacar mais o ícone existente) com:
-  - Ícone pulsante de mensagem
-  - Texto "Você tem X mensagem(ns) não lida(s)"
-  - Botão "Ver mensagens" que navega para `/mensagens`
-  - Animação de pulse no badge do ícone de mensagens para chamar atenção
-- O badge atual no header será aprimorado com animação `animate-pulse` quando houver mensagens
+**2. Injetar dados do Teams no prompt do agente**
+**Arquivo:** `supabase/functions/chat-with-agent/index.ts`
 
-#### 3. Garantir contagem por conversa na lista de chats
-**Arquivo:** `src/hooks/useMessaging.tsx`
+- Adicionar bloco `hasAccess('teams_documents')` na seção de data access (junto aos existentes como leads, financeiro, etc.)
+- Dentro desse bloco:
+  1. Obter token Microsoft Graph usando as credenciais já configuradas (`MICROSOFT_CLIENT_ID`, `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_SECRET`)
+  2. Buscar o site "Jurídico" via `/sites?search=Jurídico`
+  3. Listar os drives do site e pegar o drive "Documentos"
+  4. Listar a pasta "Operacional - Clientes" e suas subpastas (nomes dos clientes)
+  5. Para cada pasta de cliente (limitado a 50), listar os arquivos (nome, tamanho, data de modificação)
+  6. Montar bloco de dados: `### Documentos do Teams (Pastas de Clientes)` com a estrutura de pastas/arquivos
+  7. Injetar no `systemPrompt` junto aos outros blocos de dados
 
-- Verificar que o `unread_count` por conversa está sendo calculado corretamente
-- Já existe no código — apenas confirmar que está funcional
+- O agente poderá responder perguntas como "quais documentos o cliente X tem?" ou "o contrato do cliente Y já está na pasta?"
 
-#### 4. Melhorar o toast de notificação em tempo real
-**Arquivo:** `src/hooks/useMessageNotifications.tsx`
+**3. Exibir tag "Documentos Teams" no card do agente**
+**Arquivo:** `src/components/agents/IntranetAgentsTab.tsx`
 
-- Garantir que o toast aparece com som e animação mesmo fora da página de mensagens
-- Adicionar tentativa de usar `Notification API` do navegador (notificação nativa do sistema) como complemento ao toast, para chamar atenção mesmo quando a aba não está em foco
-- Pedir permissão para notificações nativas na primeira vez
+- Já funciona automaticamente pois o card renderiza os itens de `data_access` — basta garantir que o label aparece corretamente mapeando `teams_documents` → `Documentos Teams`
+
+### Detalhes técnicos
+
+- As credenciais Microsoft já estão configuradas como secrets (`MICROSOFT_CLIENT_ID`, `MICROSOFT_TENANT_ID`, `MICROSOFT_CLIENT_SECRET`)
+- A lógica de autenticação Graph API já existe na edge function `microsoft-teams` — será replicada parcialmente em `chat-with-agent`
+- Para não sobrecarregar o prompt, limitar a 50 pastas de clientes e 20 arquivos por pasta, mostrando apenas nome e data
+- Se o token Microsoft falhar, o bloco é omitido silenciosamente (não bloqueia o agente)
 
 ### Resultado
-- Sidebar mostra badge vermelho com contagem no item "Mensagens"
-- Header tem badge pulsante e card chamativo quando há mensagens não lidas
-- Toast rico + notificação nativa do navegador ao receber mensagem nova
-- Cada conversa continua mostrando sua contagem individual
+- Ao criar/editar um agente, haverá a opção "Documentos Teams" no acesso a dados
+- O agente com essa permissão saberá listar e informar sobre documentos nas pastas de clientes do SharePoint
 
