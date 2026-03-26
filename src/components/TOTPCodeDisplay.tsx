@@ -46,8 +46,8 @@ export function TOTPCodeDisplay({ accounts, onEdit, onDelete }: TOTPCodeDisplayP
   const [isLoading, setIsLoading] = useState(false);
   const { isAdmin } = useUserRole();
 
-  // Fetch TOTP codes from server-side edge function
-  const fetchCodesFromServer = useCallback(async () => {
+  // Fetch TOTP codes from server-side edge function with automatic session refresh on auth errors
+  const fetchCodesFromServer = useCallback(async (isRetry = false) => {
     try {
       setIsLoading(true);
       const { data, error } = await supabase.functions.invoke<ServerTOTPResponse>('totp-generate', {
@@ -55,8 +55,21 @@ export function TOTPCodeDisplay({ accounts, onEdit, onDelete }: TOTPCodeDisplayP
       });
 
       if (error) {
+        const errorMsg = typeof error === 'object' && 'message' in error ? (error as any).message : String(error);
+        const isAuthError = /401|403|jwt|token|expired|expirad/i.test(errorMsg);
+
+        if (isAuthError && !isRetry) {
+          console.log('TOTP: Auth error detected, refreshing session...');
+          const { error: refreshError } = await supabase.auth.refreshSession();
+          if (!refreshError) {
+            return fetchCodesFromServer(true);
+          }
+          console.warn('TOTP: Session refresh failed', refreshError?.message);
+        }
+
         console.error('Error fetching TOTP codes:', error);
-        toast.error('Erro ao buscar códigos TOTP');
+        if (!isRetry) return; // silent fail on first attempt
+        toast.error('Erro ao buscar códigos TOTP. Tente fazer login novamente.');
         return;
       }
 
