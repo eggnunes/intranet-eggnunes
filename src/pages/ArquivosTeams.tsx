@@ -1088,6 +1088,17 @@ export default function ArquivosTeams() {
                             <ExternalLink className="h-4 w-4" />
                           </Button>
                         )}
+                        {!item.folder && canConvertToPdf(item) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => { e.stopPropagation(); handleConvertToPdf(item); }}
+                            disabled={converting === item.id}
+                            title="Converter para PDF"
+                          >
+                            <FileOutput className={`h-4 w-4 ${converting === item.id ? 'animate-spin' : ''}`} />
+                          </Button>
+                        )}
                         {!item.folder && (
                           <Button
                             variant="ghost"
@@ -1138,6 +1149,16 @@ export default function ArquivosTeams() {
                 )}
               </div>
               <div className="flex justify-center gap-2 mt-4">
+                {canConvertToPdf(previewItem) && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => handleConvertToPdf(previewItem)}
+                    disabled={converting === previewItem.id}
+                  >
+                    <FileOutput className={`h-4 w-4 mr-2 ${converting === previewItem.id ? 'animate-spin' : ''}`} />
+                    {converting === previewItem.id ? 'Convertendo...' : 'Converter para PDF'}
+                  </Button>
+                )}
                 <Button variant="outline" onClick={() => handleOpenInSharePoint(previewItem)}>
                   <ExternalLink className="h-4 w-4 mr-2" />
                   Abrir no SharePoint
