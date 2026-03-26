@@ -145,6 +145,22 @@ export default function DecisoesFavoraveis() {
   const { isSocioOrRafael } = useAdminPermissions();
   const queryClient = useQueryClient();
 
+  const quickEditMutation = useMutation({
+    mutationFn: async ({ id, resultado, decision_link }: { id: string; resultado: string; decision_link: string }) => {
+      const { error } = await supabase
+        .from('favorable_decisions')
+        .update({ resultado, decision_link })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['favorable-decisions'] });
+      toast.success('Decisão atualizada');
+      setQuickEditDecision(null);
+    },
+    onError: () => toast.error('Erro ao atualizar'),
+  });
+
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ id, field, value }: { id: string; field: 'was_posted' | 'evaluation_requested' | 'was_evaluated'; value: boolean }) => {
       const { error } = await supabase

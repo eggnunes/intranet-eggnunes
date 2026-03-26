@@ -66,11 +66,12 @@ export function JurimetriaDashboard({ decisions }: JurimetriaDashboardProps) {
     return decisions.filter(d => {
       if (filterMateria !== 'all' && d.materia !== filterMateria) return false;
       if (filterRegiao !== 'all' && d.regiao !== filterRegiao) return false;
+      if (filterProduct !== 'all' && d.product_name !== filterProduct) return false;
       if (filterDateStart && d.decision_date < filterDateStart) return false;
       if (filterDateEnd && d.decision_date > filterDateEnd) return false;
       return true;
     });
-  }, [decisions, filterMateria, filterRegiao, filterDateStart, filterDateEnd]);
+  }, [decisions, filterMateria, filterRegiao, filterProduct, filterDateStart, filterDateEnd]);
 
   const uniqueRegioes = useMemo(() => {
     return [...new Set(decisions.map(d => d.regiao).filter(Boolean))] as string[];
