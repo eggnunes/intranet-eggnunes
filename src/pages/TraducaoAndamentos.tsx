@@ -305,7 +305,90 @@ export default function TraducaoAndamentos() {
     await handleSuggestAI(normalized);
   };
 
-  const handleSuggestAll = async () => {
+  const handleRenameOriginal = async (oldTitle: string) => {
+    const newTitleText = (editOriginalValues.get(oldTitle) || oldTitle).trim();
+    if (!newTitleText || newTitleText === oldTitle) {
+      setEditingOriginal(null);
+      return;
+    }
+
+    if (uniqueTitles.includes(newTitleText)) {
+      toast({ title: 'Já existe um andamento com esse título', variant: 'destructive' });
+      return;
+    }
+
+    setSavingTitle(oldTitle);
+    try {
+      // Update DB record if exists
+      const existing = translations.get(oldTitle);
+      if (existing?.id) {
+        const { error } = await supabase
+          .from('movement_translations')
+          .update({ original_title: newTitleText, updated_at: new Date().toISOString() })
+          .eq('id', existing.id);
+        if (error) throw error;
+      }
+
+      // Update local state
+      setUniqueTitles(prev => prev.map(t => t === oldTitle ? newTitleText : t));
+      setTranslations(prev => {
+        const next = new Map(prev);
+        const entry = next.get(oldTitle);
+        if (entry) {
+          next.delete(oldTitle);
+          next.set(newTitleText, { ...entry, original_title: newTitleText });
+        }
+        return next;
+      });
+      setEditValues(prev => {
+        const next = new Map(prev);
+        const val = next.get(oldTitle) || '';
+        next.delete(oldTitle);
+        next.set(newTitleText, val);
+        return next;
+      });
+      setEditOriginalValues(prev => {
+        const next = new Map(prev);
+        next.delete(oldTitle);
+        return next;
+      });
+
+      setEditingOriginal(null);
+      toast({ title: 'Andamento atualizado' });
+    } catch (error: any) {
+      toast({ title: 'Erro ao renomear', description: error.message, variant: 'destructive' });
+    } finally {
+      setSavingTitle(null);
+    }
+  };
+
+  const handleDeleteOriginal = async (title: string) => {
+    try {
+      // Delete from DB if exists
+      const existing = translations.get(title);
+      if (existing?.id) {
+        await supabase.from('movement_translations').delete().eq('id', existing.id);
+      }
+
+      // Remove from local state
+      setUniqueTitles(prev => prev.filter(t => t !== title));
+      setTranslations(prev => {
+        const next = new Map(prev);
+        next.delete(title);
+        return next;
+      });
+      setEditValues(prev => {
+        const next = new Map(prev);
+        next.delete(title);
+        return next;
+      });
+
+      toast({ title: 'Andamento removido' });
+    } catch (error: any) {
+      toast({ title: 'Erro ao remover', description: error.message, variant: 'destructive' });
+    }
+  };
+
     const pending = filteredTitles.filter(t => !translations.get(t)?.translated_text);
     if (pending.length === 0) {
       toast({ title: 'Todos já possuem tradução' });
