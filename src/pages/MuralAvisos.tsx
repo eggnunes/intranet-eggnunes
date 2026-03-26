@@ -46,16 +46,30 @@ const MuralAvisos = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
+  const [editPendingFiles, setEditPendingFiles] = useState<File[]>([]);
+  const [editLinkInput, setEditLinkInput] = useState('');
+  const [editPendingLinks, setEditPendingLinks] = useState<string[]>([]);
+  const [editExistingAttachments, setEditExistingAttachments] = useState<Attachment[]>([]);
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
   const { isAdmin } = useUserRole();
   const { canEdit, isSocioOrRafael } = useAdminPermissions();
   const { toast } = useToast();
   const { user } = useAuth();
   const { sendAnnouncementEmail } = useEmailNotification();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   const canManageAnnouncements = isSocioOrRafael || canEdit('announcements');
 
   const [formData, setFormData] = useState({
+    title: '',
+    content: '',
+    type: 'comunicado' as 'comunicado' | 'evento' | 'conquista',
+    is_pinned: false
+  });
+  const [editFormData, setEditFormData] = useState({
     title: '',
     content: '',
     type: 'comunicado' as 'comunicado' | 'evento' | 'conquista',
