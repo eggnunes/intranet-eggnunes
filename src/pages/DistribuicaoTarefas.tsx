@@ -43,7 +43,23 @@ export default function DistribuicaoTarefas() {
 
   useEffect(() => {
     fetchTasks();
+    fetchActiveProfiles();
   }, []);
+
+  const fetchActiveProfiles = async () => {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('is_active', true)
+        .eq('is_suspended', false)
+        .eq('approval_status', 'approved');
+      
+      setActiveProfileNames((data || []).map(p => p.full_name?.toLowerCase()).filter(Boolean) as string[]);
+    } catch (error) {
+      console.error('Error fetching active profiles:', error);
+    }
+  };
 
   const fetchTasks = async () => {
     setLoading(true);
