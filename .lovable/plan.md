@@ -1,40 +1,72 @@
 
 
-## Converter arquivo para PDF e salvar na mesma pasta do Teams
+## Tradução de Andamentos Processuais do ADVBox
 
 ### O que será feito
-Adicionar um botão "Converter para PDF" nos arquivos do Teams (Word, Excel, PowerPoint, etc.) que utiliza a API Microsoft Graph para converter o arquivo em PDF e salvar na mesma pasta, sem apagar o original.
-
-### Como funciona
-A API Microsoft Graph oferece endpoint de conversão nativo: `GET /drives/{driveId}/items/{itemId}/content?format=pdf` — retorna o conteúdo do arquivo convertido em PDF. Funciona para `.docx`, `.doc`, `.xlsx`, `.xls`, `.pptx`, `.ppt`, `.odt`, `.ods`, `.odp`.
+Nova página "Tradução de Andamentos" no menu de Produção Jurídica. Busca todos os andamentos do ADVBox, exibe apenas os títulos únicos (sem duplicatas), permite digitar ou editar uma tradução humanizada para cada um, e oferece botões para sugerir tradução com IA (Anthropic Claude) — individual ou em lote.
 
 ### Alterações
 
-#### 1. Edge function: nova action `convert-to-pdf`
-**Arquivo:** `supabase/functions/microsoft-teams/index.ts`
+#### 1. Migration SQL — tabela `movement_translations`
+```sql
+CREATE TABLE public.movement_translations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  original_title TEXT NOT NULL UNIQUE,
+  translated_text TEXT,
+  suggested_by_ai BOOLEAN DEFAULT false,
+  updated_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
 
-- Recebe `driveId`, `itemId`, `fileName`, `folderId`
-- Chama `GET /drives/{driveId}/items/{itemId}/content?format=pdf` para obter o binário PDF
-- Faz upload do PDF na mesma pasta com nome `{nomeOriginal}.pdf` (ex: `contrato.docx` → `contrato.pdf`)
-- Retorna o item criado
+ALTER TABLE movement_translations ENABLE ROW LEVEL SECURITY;
 
-#### 2. Frontend: botão de converter
-**Arquivo:** `src/pages/ArquivosTeams.tsx`
+CREATE POLICY "Approved users can view" ON movement_translations
+  FOR SELECT TO authenticated USING (is_approved(auth.uid()));
 
-- Adicionar função `handleConvertToPdf(item)` que:
-  - Chama a nova action `convert-to-pdf`
-  - Mostra toast de progresso e sucesso
-  - Recarrega a lista de arquivos
-- Adicionar botão com ícone `FileOutput` na lista de arquivos (ao lado de download) — visível apenas para tipos convertíveis (Word, Excel, PowerPoint)
-- Adicionar botão "Converter para PDF" também no modal de preview
-- Função helper `canConvertToPdf(item)` para verificar extensões suportadas
+CREATE POLICY "Approved users can insert" ON movement_translations
+  FOR INSERT TO authenticated WITH CHECK (is_approved(auth.uid()));
 
-### Arquivos modificados
-- `supabase/functions/microsoft-teams/index.ts` — nova action `convert-to-pdf`
-- `src/pages/ArquivosTeams.tsx` — botão e lógica de conversão
+CREATE POLICY "Approved users can update" ON movement_translations
+  FOR UPDATE TO authenticated USING (is_approved(auth.uid()));
+```
+
+#### 2. Edge function `translate-movement/index.ts`
+- Recebe `{ title: string }` ou `{ titles: string[] }` (lote)
+- Usa Anthropic Claude (ANTHROPIC_API_KEY já configurado)
+- Prompt: "Traduza este andamento processual jurídico para linguagem simples e humanizada, sem termos técnicos, para que um cliente leigo entenda o que aconteceu no processo"
+- Retorna `{ translations: { original: string, translated: string }[] }`
+
+#### 3. Nova página `src/pages/TraducaoAndamentos.tsx`
+- Busca movimentações do cache local (mesmo padrão do `MovimentacoesAdvbox`)
+- Extrai títulos únicos com `new Set(movements.map(m => m.title))`
+- Busca traduções existentes da tabela `movement_translations`
+- Exibe tabela com: Andamento Original | Tradução | Ações
+- Campo de texto editável na coluna "Tradução"
+- Botão "Sugerir com IA" por linha (chama edge function para 1 título)
+- Botão global "Sugerir todas com IA" (envia apenas os sem tradução)
+- Salva/atualiza no banco ao editar (upsert por `original_title`)
+- Busca com filtro por texto
+- Indicador visual de quais já têm tradução vs pendentes
+
+#### 4. Rota no `App.tsx`
+- Adicionar rota `/traducao-andamentos` com `TraducaoAndamentos`
+
+#### 5. Menu lateral (`src/lib/menuData.ts`)
+- Adicionar no grupo `producao-juridica` após "Movimentações Advbox":
+```typescript
+{ icon: Languages, path: '/traducao-andamentos', label: 'Tradução de Andamentos', searchDescription: 'Traduzir andamentos para linguagem simples' }
+```
+
+### Arquivos modificados/criados
+- Migration SQL — nova tabela `movement_translations`
+- `supabase/functions/translate-movement/index.ts` — edge function com Anthropic
+- `src/pages/TraducaoAndamentos.tsx` — nova página
+- `src/App.tsx` — rota
+- `src/lib/menuData.ts` — item de menu
 
 ### Resultado
-- Ao navegar nos arquivos do Teams pela intranet, arquivos Office terão botão "Converter para PDF"
-- O PDF é salvo na mesma pasta do arquivo original
-- O arquivo original permanece intacto
+- Página lista todos os andamentos únicos do ADVBox
+- Cada um pode receber tradução manual ou sugerida por IA (Anthropic Claude)
+- Traduções ficam salvas no banco para uso futuro na comunicação com clientes
 
