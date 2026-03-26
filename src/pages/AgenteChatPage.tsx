@@ -153,8 +153,8 @@ export default function AgenteChatPage() {
     if (!files) return;
 
     for (const file of Array.from(files)) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error(`Arquivo ${file.name} excede 10MB`);
+      if (file.size > 50 * 1024 * 1024) {
+        toast.error(`Arquivo ${file.name} excede 50MB`);
         continue;
       }
       const base64 = await new Promise<string>((resolve) => {
@@ -367,6 +367,51 @@ export default function AgenteChatPage() {
     toast.success('PDF baixado com sucesso!');
   };
 
+  const downloadAsDOCX = async (content: string) => {
+    try {
+      const lines = content.split('\n');
+      const htmlParts: string[] = [];
+      
+      for (const line of lines) {
+        if (line.startsWith('### ')) {
+          htmlParts.push(`<h3>${line.slice(4)}</h3>`);
+        } else if (line.startsWith('## ')) {
+          htmlParts.push(`<h2>${line.slice(3)}</h2>`);
+        } else if (line.startsWith('# ')) {
+          htmlParts.push(`<h1>${line.slice(2)}</h1>`);
+        } else if (line.startsWith('- ') || line.startsWith('* ')) {
+          htmlParts.push(`<li>${line.slice(2)}</li>`);
+        } else if (line.startsWith('**') && line.endsWith('**')) {
+          htmlParts.push(`<p><b>${line.slice(2, -2)}</b></p>`);
+        } else if (line.trim() === '') {
+          htmlParts.push('<br/>');
+        } else {
+          htmlParts.push(`<p>${line}</p>`);
+        }
+      }
+
+      const htmlContent = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head><meta charset='utf-8'><title>Documento</title></head>
+        <body style="font-family: Calibri, Arial, sans-serif; font-size: 12pt; line-height: 1.5;">
+        ${htmlParts.join('\n')}
+        </body></html>
+      `;
+
+      const blob = new Blob([htmlContent], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${agent?.name || 'resposta'}_${new Date().toISOString().slice(0, 10)}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('DOCX baixado com sucesso!');
+    } catch (error) {
+      console.error('Error generating DOCX:', error);
+      toast.error('Erro ao gerar DOCX');
+    }
+  };
+
   const downloadAsTXT = (content: string) => {
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -507,6 +552,10 @@ export default function AgenteChatPage() {
                               <Download className="h-3 w-3" />
                               PDF
                             </Button>
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground" onClick={() => downloadAsDOCX(msg.content)} title="Baixar como DOCX">
+                              <FileText className="h-3 w-3" />
+                              DOCX
+                            </Button>
                             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground" onClick={() => downloadAsTXT(msg.content)} title="Baixar como TXT">
                               <FileText className="h-3 w-3" />
                               TXT
@@ -574,7 +623,7 @@ export default function AgenteChatPage() {
                   type="file"
                   className="hidden"
                   multiple
-                  accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp,.csv,.xlsx"
+                  
                   onChange={handleFileSelect}
                 />
                 <Button

@@ -3,7 +3,8 @@ import { Layout } from '@/components/Layout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChatGPTAgentsTab } from '@/components/agents/ChatGPTAgentsTab';
 import { IntranetAgentsTab } from '@/components/agents/IntranetAgentsTab';
-import { ExternalLink, Server } from 'lucide-react';
+import { ExternalLink, Server, History } from 'lucide-react';
+import { AgentUsageHistory } from '@/components/agents/AgentUsageHistory';
 
 export default function AgentesIA() {
   useEffect(() => {
@@ -23,7 +24,7 @@ export default function AgentesIA() {
         </div>
 
         <Tabs defaultValue="intranet" className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-lg grid-cols-3">
             <TabsTrigger value="intranet" className="flex items-center gap-2">
               <Server className="h-4 w-4" />
               Agentes da Intranet
@@ -31,6 +32,10 @@ export default function AgentesIA() {
             <TabsTrigger value="chatgpt" className="flex items-center gap-2">
               <ExternalLink className="h-4 w-4" />
               Agentes do ChatGPT
+            </TabsTrigger>
+            <TabsTrigger value="historico" className="flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Histórico de Uso
             </TabsTrigger>
           </TabsList>
 
@@ -40,6 +45,10 @@ export default function AgentesIA() {
 
           <TabsContent value="chatgpt">
             <ChatGPTAgentsTab />
+          </TabsContent>
+
+          <TabsContent value="historico">
+            <AgentUsageHistory />
           </TabsContent>
         </Tabs>
       </div>
