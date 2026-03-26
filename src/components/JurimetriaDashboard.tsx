@@ -58,6 +58,7 @@ interface JurimetriaDashboardProps {
 export function JurimetriaDashboard({ decisions }: JurimetriaDashboardProps) {
   const [filterMateria, setFilterMateria] = useState('all');
   const [filterRegiao, setFilterRegiao] = useState('all');
+  const [filterProduct, setFilterProduct] = useState('all');
   const [filterDateStart, setFilterDateStart] = useState('');
   const [filterDateEnd, setFilterDateEnd] = useState('');
 

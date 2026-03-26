@@ -186,6 +186,9 @@ export default function DecisoesFavoraveis() {
   }>>([]);
   const [isLoadingMissingLinks, setIsLoadingMissingLinks] = useState(false);
   const [activeTab, setActiveTab] = useState('decisoes');
+  const [quickEditDecision, setQuickEditDecision] = useState<FavorableDecision | null>(null);
+  const [quickEditResultado, setQuickEditResultado] = useState('');
+  const [quickEditLink, setQuickEditLink] = useState('');
 
   // Form state
   const [formData, setFormData] = useState({
