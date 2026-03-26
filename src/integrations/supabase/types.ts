@@ -5656,6 +5656,36 @@ export type Database = {
           },
         ]
       }
+      movement_translations: {
+        Row: {
+          created_at: string | null
+          id: string
+          original_title: string
+          suggested_by_ai: boolean | null
+          translated_text: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          original_title: string
+          suggested_by_ai?: boolean | null
+          translated_text?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          original_title?: string
+          suggested_by_ai?: boolean | null
+          translated_text?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       objeto_contrato_templates: {
         Row: {
           created_at: string
