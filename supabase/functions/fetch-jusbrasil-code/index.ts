@@ -64,15 +64,19 @@ serve(async (req) => {
     const accessToken = await getAccessToken();
 
     const userEmail = 'rafael@eggnunes.com.br';
-    const graphUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userEmail)}/messages?$search="jusbrasil"&$top=10&$select=subject,body,receivedDateTime,from`;
-
-    let emails: any[] = [];
+    const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const queryParams = new URLSearchParams({
+      '$filter': `receivedDateTime ge ${last24h}`,
+      '$orderby': 'receivedDateTime desc',
+      '$top': '50',
+      '$select': 'subject,body,receivedDateTime,from',
+    });
+    const graphUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(userEmail)}/messages?${queryParams}`;
 
     const graphResponse = await fetch(graphUrl, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
-        'ConsistencyLevel': 'eventual',
       },
     });
 
@@ -83,9 +87,7 @@ serve(async (req) => {
     }
 
     const data = await graphResponse.json();
-    emails = (data.value || []).sort((a: any, b: any) =>
-      new Date(b.receivedDateTime).getTime() - new Date(a.receivedDateTime).getTime()
-    );
+    const emails = data.value || [];
 
     const codes = extractCodes(emails);
 
