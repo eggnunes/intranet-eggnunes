@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Sparkles, Save, Check, Loader2, Languages, Plus } from 'lucide-react';
+import { Search, Sparkles, Save, Check, Loader2, Languages, Plus, Pencil, Trash2, X } from 'lucide-react';
 
 const MOVEMENTS_CACHE_KEY = 'advbox-movements-full-cache';
 
@@ -83,6 +83,8 @@ export default function TraducaoAndamentos() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'translated' | 'pending'>('all');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  const [editingOriginal, setEditingOriginal] = useState<string | null>(null);
+  const [editOriginalValues, setEditOriginalValues] = useState<Map<string, string>>(new Map());
   const { toast } = useToast();
 
   useEffect(() => {
@@ -303,6 +305,90 @@ export default function TraducaoAndamentos() {
     await handleSuggestAI(normalized);
   };
 
+  const handleRenameOriginal = async (oldTitle: string) => {
+    const newTitleText = (editOriginalValues.get(oldTitle) || oldTitle).trim();
+    if (!newTitleText || newTitleText === oldTitle) {
+      setEditingOriginal(null);
+      return;
+    }
+
+    if (uniqueTitles.includes(newTitleText)) {
+      toast({ title: 'Já existe um andamento com esse título', variant: 'destructive' });
+      return;
+    }
+
+    setSavingTitle(oldTitle);
+    try {
+      // Update DB record if exists
+      const existing = translations.get(oldTitle);
+      if (existing?.id) {
+        const { error } = await supabase
+          .from('movement_translations')
+          .update({ original_title: newTitleText, updated_at: new Date().toISOString() })
+          .eq('id', existing.id);
+        if (error) throw error;
+      }
+
+      // Update local state
+      setUniqueTitles(prev => prev.map(t => t === oldTitle ? newTitleText : t));
+      setTranslations(prev => {
+        const next = new Map(prev);
+        const entry = next.get(oldTitle);
+        if (entry) {
+          next.delete(oldTitle);
+          next.set(newTitleText, { ...entry, original_title: newTitleText });
+        }
+        return next;
+      });
+      setEditValues(prev => {
+        const next = new Map(prev);
+        const val = next.get(oldTitle) || '';
+        next.delete(oldTitle);
+        next.set(newTitleText, val);
+        return next;
+      });
+      setEditOriginalValues(prev => {
+        const next = new Map(prev);
+        next.delete(oldTitle);
+        return next;
+      });
+
+      setEditingOriginal(null);
+      toast({ title: 'Andamento atualizado' });
+    } catch (error: any) {
+      toast({ title: 'Erro ao renomear', description: error.message, variant: 'destructive' });
+    } finally {
+      setSavingTitle(null);
+    }
+  };
+
+  const handleDeleteOriginal = async (title: string) => {
+    try {
+      // Delete from DB if exists
+      const existing = translations.get(title);
+      if (existing?.id) {
+        await supabase.from('movement_translations').delete().eq('id', existing.id);
+      }
+
+      // Remove from local state
+      setUniqueTitles(prev => prev.filter(t => t !== title));
+      setTranslations(prev => {
+        const next = new Map(prev);
+        next.delete(title);
+        return next;
+      });
+      setEditValues(prev => {
+        const next = new Map(prev);
+        next.delete(title);
+        return next;
+      });
+
+      toast({ title: 'Andamento removido' });
+    } catch (error: any) {
+      toast({ title: 'Erro ao remover', description: error.message, variant: 'destructive' });
+    }
+  };
+
   const handleSuggestAll = async () => {
     const pending = filteredTitles.filter(t => !translations.get(t)?.translated_text);
     if (pending.length === 0) {
@@ -496,15 +582,47 @@ export default function TraducaoAndamentos() {
                       return (
                         <TableRow key={title}>
                           <TableCell className="align-top">
-                            <div className="flex items-start gap-2">
-                              <span className="text-sm font-medium">{title}</span>
-                              {existing?.suggested_by_ai && (
-                                <Badge variant="secondary" className="text-xs shrink-0">
-                                  <Sparkles className="h-3 w-3 mr-1" />
-                                  IA
-                                </Badge>
-                              )}
-                            </div>
+                            {editingOriginal === title ? (
+                              <div className="space-y-1.5">
+                                <Textarea
+                                  value={editOriginalValues.get(title) ?? title}
+                                  onChange={(e) => setEditOriginalValues(prev => new Map(prev).set(title, e.target.value))}
+                                  className="min-h-[60px] text-sm"
+                                  rows={2}
+                                  autoFocus
+                                />
+                                <div className="flex gap-1">
+                                  <Button size="sm" className="gap-1 text-xs" onClick={() => handleRenameOriginal(title)} disabled={isSaving}>
+                                    {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                                    Salvar
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="text-xs" onClick={() => setEditingOriginal(null)}>
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-start gap-1.5 group">
+                                <span className="text-sm font-medium flex-1">{title}</span>
+                                <div className="flex gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {existing?.suggested_by_ai && (
+                                    <Badge variant="secondary" className="text-xs shrink-0">
+                                      <Sparkles className="h-3 w-3 mr-1" />
+                                      IA
+                                    </Badge>
+                                  )}
+                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => {
+                                    setEditOriginalValues(prev => new Map(prev).set(title, title));
+                                    setEditingOriginal(title);
+                                  }}>
+                                    <Pencil className="h-3 w-3 text-muted-foreground" />
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => handleDeleteOriginal(title)}>
+                                    <Trash2 className="h-3 w-3 text-destructive" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className="align-top">
                             <Textarea
