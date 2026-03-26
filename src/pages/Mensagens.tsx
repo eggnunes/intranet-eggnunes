@@ -255,7 +255,7 @@ const Mensagens = () => {
     });
   };
 
-  const uploadFile = async (file: File): Promise<string | null> => {
+  const uploadFile = async (file: File, retryCount = 0): Promise<string | null> => {
     try {
       const fileName = `${Date.now()}_${file.name}`;
       const filePath = `${user?.id}/${fileName}`;
@@ -276,8 +276,14 @@ const Mensagens = () => {
       }
 
       return signedUrlData.signedUrl;
-    } catch (error) {
-      console.error('Error uploading file:', error);
+    } catch (error: any) {
+      console.error(`Error uploading file "${file.name}":`, error);
+      // Retry once on transient failures
+      if (retryCount < 1) {
+        console.log(`Retrying upload for "${file.name}"...`);
+        return uploadFile(file, retryCount + 1);
+      }
+      toast.error(`Falha ao enviar arquivo: ${file.name}`);
       return null;
     }
   };
