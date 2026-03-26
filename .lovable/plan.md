@@ -1,60 +1,53 @@
 
-## Correção definitiva: PDFs falhando nas mensagens internas
 
-### Diagnóstico
-O problema não parece ser falta de bucket ou permissão geral, porque o bucket `task-attachments` existe, tem políticas de upload/leitura, e há uploads de áudio funcionando nele. O ponto frágil está no fluxo de anexo da tela de mensagens:
+## Correção de anexos, geração de documentos e histórico global nos Agentes de IA
 
-- `src/pages/Mensagens.tsx` ainda faz upload de forma muito simples e frágil
-- a correção anterior só melhorou o feedback, mas não corrigiu a causa estrutural
-- qualquer falha no upload ou na geração da signed URL faz o arquivo virar `null`
-- para PDFs, isso está resultando em `Nenhum arquivo foi enviado`
+### Problema 1: Anexos não funcionam / tipos restritos
+O `<input type="file">` na linha 577 do `AgenteChatPage.tsx` tem `accept` limitado a `.pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp,.csv,.xlsx` — exclui vídeos, áudios e outros formatos. Além disso, o limite de 10MB pode ser restritivo para vídeos. Vou:
 
-### O que vou implementar
+- **Remover a restrição de `accept`** para permitir qualquer tipo de arquivo
+- **Aumentar o limite para 50MB** para suportar vídeos/áudios maiores
+- **Adicionar feedback visual** ao clicar no botão de anexo (toast de "carregando" para arquivos grandes)
+- **No backend** (`chat-with-agent/index.ts`): o processamento de anexos já lida com PDFs e DOCX; para outros tipos (vídeo, áudio, imagens), enviar como contexto informando o nome/tipo do arquivo
 
-#### 1. Fortalecer o upload de anexos em `src/pages/Mensagens.tsx`
-Vou substituir o fluxo atual por um helper mais robusto para documentos:
-- sanitizar nome do arquivo antes do upload
-- validar tamanho e extensão/MIME antes de enviar
-- definir `contentType` com fallback confiável para PDF/documentos
-- enviar com opções explícitas (`cacheControl`, `upsert: false`)
-- retornar erro detalhado real do storage em vez de só `null`
+### Problema 2: IA gerar documentos para download (Word/PDF)
+Já existe download como PDF e TXT. Vou adicionar:
 
-#### 2. Separar “falha no upload” de “falha na signed URL”
-Hoje os dois problemas caem no mesmo fluxo. Vou separar:
-- se o upload falhar: mostrar erro claro com motivo
-- se o upload funcionar mas a signed URL falhar: tentar recuperar com nova estratégia antes de abortar
+- **Download como DOCX** usando a biblioteca `docx` (já usada em outros componentes do projeto via `file-saver`)
+- Adicionar botão "DOCX" ao lado dos existentes PDF/TXT nas respostas do assistente
+- O DOCX será gerado com o conteúdo markdown da resposta convertido em parágrafos formatados
 
-#### 3. Adicionar fallback para link do anexo
-Como o bucket é privado, o sistema depende da signed URL no momento do envio. Vou implementar um fallback mais seguro para evitar perder o anexo por causa dessa etapa:
-- tentar gerar signed URL após upload
-- se falhar, tentar uma segunda estratégia controlada
-- só bloquear envio quando realmente não houver link utilizável
+### Problema 3: Histórico global de usos dos agentes
+Atualmente o histórico mostra apenas conversas do próprio usuário no sidebar lateral. Vou criar:
 
-#### 4. Melhorar o tratamento de PDFs especificamente
-Vou incluir tratamento explícito para PDFs:
-- fallback de MIME para `application/pdf`
-- preservação segura da extensão `.pdf`
-- mensagens de erro específicas para PDF, para parar de ficar genérico
+**Nova aba "Histórico de Uso" na página AgentesIA.tsx:**
+- Listar todas as conversas de todos os usuários com todos os agentes
+- Mostrar: nome do agente, nome do usuário, data, título da conversa
+- Ao clicar, abrir a conversa completa em modo leitura (visualizar mensagens)
+- Administradores podem excluir qualquer conversa do histórico
+- Filtros por agente e por usuário
 
-#### 5. Não limpar anexos quando houver erro parcial
-Vou garantir que:
-- anexos que falharam permaneçam na área de envio
-- anexos que subirem com sucesso possam seguir normalmente
-- o usuário não perca os arquivos selecionados ao tentar novamente
+**Implementação técnica:**
 
-### Arquivo principal
-- `src/pages/Mensagens.tsx`
+1. **`src/pages/AgentesIA.tsx`** — Adicionar 3a aba "Histórico de Uso" no TabsList
+2. **`src/components/agents/AgentUsageHistory.tsx`** (novo) — Componente que:
+   - Busca conversas de `intranet_agent_conversations` com join em `profiles` (nome do usuário) e `intranet_agents` (nome/emoji do agente)
+   - Lista em tabela com colunas: Agente, Usuário, Título, Data, Ações
+   - Modal para visualizar mensagens completas da conversa selecionada
+   - Botão de excluir visível apenas para admins (usando `useUserRole`)
+3. **`src/pages/AgenteChatPage.tsx`**:
+   - Remover restrição `accept` do input de arquivo
+   - Aumentar limite de tamanho
+   - Adicionar botão de download DOCX
+4. **`supabase/functions/chat-with-agent/index.ts`** — Manter como está (já suporta anexos no processamento)
 
-### Resultado esperado
-- PDFs passam a ser enviados normalmente nas mensagens internas
-- quando houver erro real, ele aparece com motivo mais claro
-- o sistema deixa de falhar silenciosamente
-- o usuário não perde os anexos ao tentar reenviar
+### Arquivos modificados
+- `src/pages/AgentesIA.tsx` — nova aba
+- `src/pages/AgenteChatPage.tsx` — correção de anexos + botão DOCX
+- `src/components/agents/AgentUsageHistory.tsx` — novo componente de histórico
 
-### Detalhe técnico
-O código atual já provou que:
-- storage está ativo
-- políticas existem
-- uploads de áudio funcionam
+### Resultado
+- Qualquer arquivo pode ser anexado na conversa com o agente
+- Respostas podem ser baixadas como PDF, TXT ou DOCX
+- Histórico global de uso disponível para todos, com exclusão por admins
 
-Então a correção precisa focar no fluxo de anexos de documentos no frontend, especialmente no upload + geração da URL assinada, e não em permissões genéricas do sistema.
