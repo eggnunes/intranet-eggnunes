@@ -568,9 +568,43 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                             <CardContent className="space-y-3">
                               {juris.ementa && (
                                 <div>
-                                  <h4 className="font-semibold text-sm mb-1">Ementa Completa</h4>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <h4 className="font-semibold text-sm">Ementa Completa</h4>
+                                    <div className="flex gap-1.5">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 gap-1 text-xs"
+                                        onClick={() => {
+                                          const metadados = `(Processo nº ${juris.numero_processo}, Rel. ${juris.relator || 'Não informado'}, ${juris.orgao_julgador || 'Órgão não informado'}, julgado em ${juris.data_julgamento || 'data não informada'})`;
+                                          const textoCompleto = `${metadados}\n${juris.ementa}`;
+                                          navigator.clipboard.writeText(textoCompleto);
+                                          toast.success('Ementa copiada com metadados');
+                                        }}
+                                      >
+                                        <Copy className="h-3.5 w-3.5" />
+                                        Copiar Ementa
+                                      </Button>
+                                      {juris.link_fonte && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 gap-1 text-xs"
+                                          asChild
+                                        >
+                                          <a href={juris.link_fonte} target="_blank" rel="noopener noreferrer">
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                            Ver Fonte
+                                          </a>
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
                                   <div className="text-sm bg-muted/50 p-3 rounded whitespace-pre-wrap max-h-96 overflow-y-auto">
-                                    {juris.ementa}
+                                    <span className="text-muted-foreground italic">
+                                      (Processo nº {juris.numero_processo}, Rel. {juris.relator || 'Não informado'}, {juris.orgao_julgador || 'Órgão não informado'}, julgado em {juris.data_julgamento || 'data não informada'})
+                                    </span>
+                                    {'\n'}{juris.ementa}
                                   </div>
                                 </div>
                               )}
@@ -612,6 +646,29 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                             <p className="text-sm text-muted-foreground">
                               {parsedResult.observacoes_gerais}
                             </p>
+                          </div>
+                        )}
+
+                        {citations.length > 0 && (
+                          <div className="bg-muted/50 rounded-lg p-4">
+                            <h4 className="font-semibold text-sm mb-2 flex items-center gap-1.5">
+                              <ExternalLink className="h-4 w-4" />
+                              Fontes da Pesquisa
+                            </h4>
+                            <ul className="space-y-1">
+                              {citations.map((url, i) => (
+                                <li key={i}>
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-primary hover:underline break-all"
+                                  >
+                                    {url}
+                                  </a>
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         )}
                       </div>
