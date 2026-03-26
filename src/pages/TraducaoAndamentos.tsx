@@ -389,6 +389,7 @@ export default function TraducaoAndamentos() {
     }
   };
 
+  const handleSuggestAll = async () => {
     const pending = filteredTitles.filter(t => !translations.get(t)?.translated_text);
     if (pending.length === 0) {
       toast({ title: 'Todos já possuem tradução' });
