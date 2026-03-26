@@ -12,7 +12,7 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { useAuth } from '@/hooks/useAuth';
 import { useEmailNotification } from '@/hooks/useEmailNotification';
-import { Megaphone, Plus, Trash2, Pin, Calendar, Trophy, Upload, Link2, X, Download, ExternalLink, FileText, Image, Video, File, BookmarkPlus, Copy } from 'lucide-react';
+import { Megaphone, Plus, Trash2, Pin, Calendar, Trophy, Upload, Link2, X, Download, ExternalLink, FileText, Image, Video, File, BookmarkPlus, Copy, Pencil } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
