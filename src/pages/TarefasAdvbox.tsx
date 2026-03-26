@@ -979,13 +979,11 @@ export default function TarefasAdvbox() {
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                           {task.due_date && (
                             <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
-                              {format(new Date(task.due_date), 'dd/MM/yyyy', {
-                                locale: ptBR,
-                              })}
+                              Venc: {format(new Date(task.due_date), 'dd/MM/yyyy', { locale: ptBR })}
                             </span>
                           )}
                           {task.assigned_to && (
@@ -994,6 +992,36 @@ export default function TarefasAdvbox() {
                               {task.assigned_to}
                             </span>
                           )}
+                          {task.process_number && (
+                            <span className="flex items-center gap-1">
+                              <FileText className="h-3 w-3" />
+                              {task.process_number}
+                            </span>
+                          )}
+                          {task.task_type && (
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                              {task.task_type}
+                            </Badge>
+                          )}
+                          {task.client_name && (
+                            <span className="flex items-center gap-1">
+                              <UserCircle className="h-3 w-3" />
+                              {task.client_name}
+                            </span>
+                          )}
+                          {task.created_at && (
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              Criada: {format(new Date(task.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                            </span>
+                          )}
+                          {task.completed_at && (
+                            <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                              <CalendarCheck className="h-3 w-3" />
+                              Concluída: {format(new Date(task.completed_at), 'dd/MM/yyyy', { locale: ptBR })}
+                            </span>
+                          )}
+                        </div>
                         </div>
                       </CardContent>
                     </Card>
