@@ -140,7 +140,26 @@ export const useMessaging = () => {
         };
       }) || [];
 
-      setConversations(enrichedConversations);
+      // Deduplicate 1-1 conversations: keep only the most recent per participant pair
+      const deduplicatedConversations: typeof enrichedConversations = [];
+      const seenPairs = new Set<string>();
+
+      for (const conv of enrichedConversations) {
+        if (!conv.is_group && conv.participants?.length === 2) {
+          const pairKey = conv.participants
+            .map(p => p.user_id)
+            .sort()
+            .join('-');
+
+          if (seenPairs.has(pairKey)) {
+            continue; // Skip duplicate (already sorted by updated_at desc)
+          }
+          seenPairs.add(pairKey);
+        }
+        deduplicatedConversations.push(conv);
+      }
+
+      setConversations(deduplicatedConversations);
     } catch (error) {
       console.error('Error fetching conversations:', error);
       toast.error('Erro ao carregar conversas');
