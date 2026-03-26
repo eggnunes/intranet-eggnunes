@@ -524,6 +524,72 @@ serve(async (req) => {
         });
       }
 
+      case 'convert-to-pdf': {
+        // Convert a file to PDF and save in the same folder
+        if (!driveId || !itemId || !fileName) {
+          return new Response(JSON.stringify({ error: 'driveId, itemId, and fileName are required' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        console.log(`Converting ${fileName} to PDF...`);
+
+        // Download file as PDF using Graph API conversion
+        const pdfResponse = await fetch(
+          `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/content?format=pdf`,
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        if (!pdfResponse.ok) {
+          const errorText = await pdfResponse.text();
+          console.error('PDF conversion error:', errorText);
+          return new Response(JSON.stringify({ error: 'Falha na conversão para PDF', details: errorText }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const pdfBuffer = await pdfResponse.arrayBuffer();
+        const pdfBytes = new Uint8Array(pdfBuffer);
+
+        // Build PDF filename: remove original extension, add .pdf
+        const baseName = fileName.replace(/\.[^/.]+$/, '');
+        const pdfFileName = `${baseName}.pdf`;
+
+        // Upload PDF to the same folder
+        let uploadEndpoint = `/drives/${driveId}/root:/${pdfFileName}:/content`;
+        if (folderId) {
+          uploadEndpoint = `/drives/${driveId}/items/${folderId}:/${pdfFileName}:/content`;
+        }
+
+        const uploadResponse = await fetch(`https://graph.microsoft.com/v1.0${uploadEndpoint}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/pdf',
+          },
+          body: pdfBytes,
+        });
+
+        if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          console.error('PDF upload error:', errorText);
+          throw new Error(`PDF upload failed: ${uploadResponse.status}`);
+        }
+
+        const uploadedPdf = await uploadResponse.json();
+        console.log(`PDF created: ${pdfFileName}`);
+
+        return new Response(JSON.stringify(uploadedPdf), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       case 'delete': {
         // Delete a file or folder
         if (!driveId || !itemId) {

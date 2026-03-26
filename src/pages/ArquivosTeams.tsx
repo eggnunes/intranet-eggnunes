@@ -36,6 +36,7 @@ import {
   Download,
   Upload,
   Trash2,
+  FileOutput,
   FolderPlus,
   Search,
   RefreshCw,
