@@ -93,6 +93,34 @@ export const useMessageNotifications = () => {
     return senderName;
   };
 
+  // Request native notification permission
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Send native browser notification
+  const sendNativeNotification = useCallback((title: string, body: string, conversationId: string) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        const notification = new Notification(title, {
+          body,
+          icon: '/favicon.ico',
+          tag: `msg-${conversationId}`,
+        } as NotificationOptions);
+        notification.onclick = () => {
+          window.focus();
+          navigate('/mensagens', { state: { openConversation: conversationId } });
+          notification.close();
+        };
+        setTimeout(() => notification.close(), 10000);
+      } catch {
+        // Fallback silently
+      }
+    }
+  }, [navigate]);
+
   // Show notification pop-up
   const showNotification = useCallback(async (message: NewMessage) => {
     // Don't show notification if already on mensagens page with this conversation
@@ -109,6 +137,13 @@ export const useMessageNotifications = () => {
     const truncatedContent = message.content.length > 50 
       ? message.content.substring(0, 50) + '...' 
       : message.content;
+
+    // Send native browser notification
+    sendNativeNotification(
+      `Nova mensagem de ${senderName}`,
+      truncatedContent || 'Enviou um anexo',
+      message.conversation_id
+    );
 
     // Show toast notification with action button
     toast.custom(
