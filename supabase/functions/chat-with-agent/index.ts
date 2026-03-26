@@ -203,6 +203,7 @@ ${agent.instructions}`;
         }
       }
 
+      if (dataBlocks.length > 0) {
         systemPrompt += `\n\n## Dados do Sistema (consulta em tempo real)\nAbaixo estão dados atualizados do sistema que você pode usar para responder perguntas:\n\n${dataBlocks.join('\n\n')}`;
       }
     }
