@@ -81,6 +81,10 @@ export function JurimetriaDashboard({ decisions }: JurimetriaDashboardProps) {
     return [...new Set(decisions.map(d => d.materia).filter(Boolean))] as string[];
   }, [decisions]);
 
+  const uniqueProducts = useMemo(() => {
+    return [...new Set(decisions.map(d => d.product_name).filter(Boolean))] as string[];
+  }, [decisions]);
+
   // KPIs
   const totalDecisions = filtered.length;
   const procedentes = filtered.filter(d => !d.resultado || d.resultado === 'procedente' || d.resultado === 'parcialmente_procedente').length;
