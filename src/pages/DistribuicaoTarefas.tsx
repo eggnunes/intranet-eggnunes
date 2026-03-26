@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Plus, Trophy, TrendingDown, TrendingUp, BarChart3, Loader2 } from 'lucide-react';
+import { Users, Plus, Trophy, TrendingDown, TrendingUp, BarChart3, Loader2, ShieldAlert } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -39,7 +39,7 @@ export default function DistribuicaoTarefas() {
   const [loadingAdvboxUsers, setLoadingAdvboxUsers] = useState(false);
   const [activeProfileNames, setActiveProfileNames] = useState<string[]>([]);
   const { toast } = useToast();
-  const { isAdmin, profile } = useUserRole();
+  const { isAdmin, loading: roleLoading } = useUserRole();
 
   useEffect(() => {
     fetchTasks();
@@ -282,6 +282,28 @@ export default function DistribuicaoTarefas() {
       setIsCreatingTask(false);
     }
   };
+
+  if (roleLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center h-64 space-y-4">
+          <ShieldAlert className="h-16 w-16 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">Acesso Restrito</h2>
+          <p className="text-muted-foreground">Esta página é visível apenas para administradores.</p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
