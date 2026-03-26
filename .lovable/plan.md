@@ -1,47 +1,34 @@
 
 
-## Puxar andamentos do DataJud para a Tradução de Andamentos
+## Corrigir busca de código JusBrasil — emails novos não aparecem
 
-### Correção do plano anterior
-Será buscado **apenas** da fonte **DataJud** (coluna `meio = 'DataJud'`). Os registros do ComunicaPJe (intimações) serão ignorados, pois são específicos de cada caso.
+### Problema
+A função usa `$search="jusbrasil"` na Microsoft Graph API. O parâmetro `$search` depende do **índice de busca do Microsoft 365**, que tem um atraso de indexação (pode levar minutos a horas). Emails recém-chegados não aparecem nos resultados de busca, fazendo a função retornar sempre o mesmo código antigo.
 
-### Como funciona
-A tabela `publicacoes_dje` tem uma coluna `meio` que diferencia as fontes:
-- **DataJud** (1.511 registros) — andamentos processuais genéricos
-- **ComunicaPJe** (340 registros) — intimações específicas (serão ignoradas)
-
-O campo `conteudo` do DataJud segue o padrão: `"Tipo do Andamento | detalhe: valor | Classe Processual"`. Exemplo: `"Petição | Petição (outras): 57 | Usucapião"`. Será extraída apenas a primeira parte antes do `|` como título do andamento.
+### Solução
+Trocar `$search` por `$filter` com data recente + `$orderby=receivedDateTime desc`. Isso consulta os emails diretamente (sem depender do índice de busca), garantindo que emails novos apareçam imediatamente.
 
 ### Alterações
 
-**Arquivo:** `src/pages/TraducaoAndamentos.tsx`
+**Arquivo:** `supabase/functions/fetch-jusbrasil-code/index.ts`
 
-Na função `loadData()`, após extrair títulos do ADVBox, adicionar:
+1. **Remover `$search`** e usar `$filter` com janela de 24 horas + `$orderby=receivedDateTime desc`
+2. **Buscar mais emails** (`$top=50`) para compensar a filtragem que será feita em código (já que não podemos filtrar por remetente no `$filter`)
+3. **Remover o sort manual** em JS (já vem ordenado pela API)
+4. **Remover header `ConsistencyLevel: eventual`** (necessário apenas para `$search`)
 
-1. Consultar `publicacoes_dje` filtrando `meio = 'DataJud'`, selecionando apenas `conteudo`
-2. Para cada registro, extrair a parte antes do primeiro `|` (ex: `"Petição"`, `"Expedição de documento"`, `"Publicação"`)
-3. Normalizar com `normalizeTitle()` e adicionar ao `Set` de títulos únicos — sem duplicatas com os do ADVBox
-4. Mesclar na lista final ordenada
-
-### Detalhes técnicos
-```typescript
-const { data: datajud } = await supabase
-  .from('publicacoes_dje')
-  .select('conteudo')
-  .eq('meio', 'DataJud')
-  .not('conteudo', 'is', null);
-
-for (const pub of (datajud || [])) {
-  const mainPart = (pub.conteudo || '').split('|')[0].trim();
-  if (mainPart.length > 2) {
-    const normalized = normalizeTitle(mainPart);
-    if (normalized.length > 2) titleSet.add(normalized);
-  }
-}
+Lógica da query:
+```
+$filter=receivedDateTime ge {24h atrás}
+$orderby=receivedDateTime desc
+$top=50
+$select=subject,body,receivedDateTime,from
 ```
 
+A filtragem por remetente "jusbrasil" continua sendo feita no `extractCodes()` (já implementada).
+
 ### Resultado
-- Andamentos do DataJud (movimentações processuais) são adicionados à lista de tradução
-- Intimações do ComunicaPJe são ignoradas
-- Títulos deduplicados e normalizados com os já existentes do ADVBox
+- Emails recém-chegados aparecem imediatamente na busca
+- O código mais recente do JusBrasil será retornado corretamente
+- Sem dependência do índice de busca do Microsoft 365
 
