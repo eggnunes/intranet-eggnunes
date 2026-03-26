@@ -1115,8 +1115,8 @@ const Mensagens = () => {
 
   return (
     <Layout>
-      <div className="h-[calc(100vh-8rem)] flex flex-col">
-        <div className="flex items-center justify-between mb-4">
+      <div className="-m-4 md:-m-6 lg:-m-8 flex flex-col h-[calc(100dvh-3.5rem)] overflow-hidden">
+        <div className="flex items-center justify-between px-4 pt-4 pb-2 md:px-6 md:pt-6 lg:px-8 lg:pt-8 flex-shrink-0">
           <div className="flex items-center gap-3">
             <MessageSquare className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-bold">Mensagens</h1>
@@ -1205,10 +1205,10 @@ const Mensagens = () => {
           </Dialog>
         </div>
 
-        <div className="flex-1 flex rounded-lg border overflow-hidden bg-card">
+        <div className="flex-1 flex rounded-lg border overflow-hidden bg-card mx-4 mb-4 md:mx-6 md:mb-6 lg:mx-8 lg:mb-8 min-h-0">
           {/* Conversations List */}
           <div className={cn(
-            "w-full md:w-80 border-r flex flex-col",
+            "w-full md:w-80 border-r flex flex-col min-w-0 md:min-w-[320px] md:max-w-[320px]",
             showMobileChat && "hidden md:flex"
           )}>
             <div className="p-3 border-b">
@@ -1319,7 +1319,7 @@ const Mensagens = () => {
 
           {/* Chat Area */}
           <div className={cn(
-            "flex-1 flex flex-col",
+            "flex-1 flex flex-col min-w-0",
             !showMobileChat && "hidden md:flex"
           )}>
             {activeConversation ? (
@@ -1394,7 +1394,7 @@ const Mensagens = () => {
                 </div>
 
                 {/* Messages */}
-                <ScrollArea className="flex-1 p-4">
+                <ScrollArea className="flex-1 p-4 min-h-0">
                   {loadingMessages ? (
                     <div className="flex items-center justify-center h-full">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
