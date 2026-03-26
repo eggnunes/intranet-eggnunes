@@ -163,6 +163,13 @@ const Mensagens = () => {
   const [editTemplateTitle, setEditTemplateTitle] = useState('');
   const [editTemplateContent, setEditTemplateContent] = useState('');
   
+  // Group management
+  const [showGroupManagement, setShowGroupManagement] = useState(false);
+  const [groupSearchTerm, setGroupSearchTerm] = useState('');
+  const [groupAvailableUsers, setGroupAvailableUsers] = useState<UserProfile[]>([]);
+  const [selectedNewMembers, setSelectedNewMembers] = useState<string[]>([]);
+  const [loadingGroupUsers, setLoadingGroupUsers] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
