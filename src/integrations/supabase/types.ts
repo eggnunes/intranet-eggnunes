@@ -8677,7 +8677,9 @@ export type Database = {
       }
       viabilidade_clientes: {
         Row: {
+          advbox_customer_id: string | null
           analise_realizada_em: string | null
+          como_conheceu: string | null
           cpf: string
           created_at: string
           created_by: string
@@ -8686,18 +8688,24 @@ export type Database = {
           documentos: Json | null
           email: string | null
           endereco: string | null
+          estado_civil: string | null
           id: string
           nome: string
           observacoes: string | null
           parecer_viabilidade: string | null
+          profissao: string | null
+          rg: string | null
           status: string
           telefone: string | null
           tipo_acao: string | null
+          tipo_pessoa: string | null
           titulo: string | null
           updated_at: string
         }
         Insert: {
+          advbox_customer_id?: string | null
           analise_realizada_em?: string | null
+          como_conheceu?: string | null
           cpf: string
           created_at?: string
           created_by: string
@@ -8706,18 +8714,24 @@ export type Database = {
           documentos?: Json | null
           email?: string | null
           endereco?: string | null
+          estado_civil?: string | null
           id?: string
           nome: string
           observacoes?: string | null
           parecer_viabilidade?: string | null
+          profissao?: string | null
+          rg?: string | null
           status?: string
           telefone?: string | null
           tipo_acao?: string | null
+          tipo_pessoa?: string | null
           titulo?: string | null
           updated_at?: string
         }
         Update: {
+          advbox_customer_id?: string | null
           analise_realizada_em?: string | null
+          como_conheceu?: string | null
           cpf?: string
           created_at?: string
           created_by?: string
@@ -8726,13 +8740,17 @@ export type Database = {
           documentos?: Json | null
           email?: string | null
           endereco?: string | null
+          estado_civil?: string | null
           id?: string
           nome?: string
           observacoes?: string | null
           parecer_viabilidade?: string | null
+          profissao?: string | null
+          rg?: string | null
           status?: string
           telefone?: string | null
           tipo_acao?: string | null
+          tipo_pessoa?: string | null
           titulo?: string | null
           updated_at?: string
         }

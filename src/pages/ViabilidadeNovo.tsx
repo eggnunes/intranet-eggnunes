@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -48,6 +49,12 @@ export default function ViabilidadeNovo() {
   const [loadingTipos, setLoadingTipos] = useState(true);
   const [descricaoCaso, setDescricaoCaso] = useState('');
   const [modeloIA, setModeloIA] = useState<'claude' | 'chatgpt'>('claude');
+  // ADVBox fields
+  const [tipoPessoa, setTipoPessoa] = useState('fisica');
+  const [rg, setRg] = useState('');
+  const [profissao, setProfissao] = useState('');
+  const [estadoCivil, setEstadoCivil] = useState('');
+  const [comoConheceu, setComoConheceu] = useState('');
   const [arquivos, setArquivos] = useState<File[]>([]);
 
   // Fetch dynamic action types
@@ -296,6 +303,11 @@ export default function ViabilidadeNovo() {
         titulo: tituloGerado || tipoAcao || null,
         status,
         created_by: user.id,
+        tipo_pessoa: tipoPessoa || 'fisica',
+        rg: rg || null,
+        profissao: profissao || null,
+        estado_civil: estadoCivil || null,
+        como_conheceu: comoConheceu || null,
       } as any);
 
       if (error) throw error;
@@ -417,6 +429,62 @@ export default function ViabilidadeNovo() {
 
             {/* Address Fields */}
             <AddressFields address={address} onChange={setAddress} />
+
+            {/* ADVBox Fields */}
+            <div className="border-t pt-4 mt-4">
+              <p className="text-sm font-medium text-muted-foreground mb-3">Campos adicionais (para cadastro no ADVBox)</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Tipo de Pessoa</Label>
+                  <Select value={tipoPessoa} onValueChange={setTipoPessoa}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fisica">Pessoa Física</SelectItem>
+                      <SelectItem value="juridica">Pessoa Jurídica</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>RG</Label>
+                  <Input value={rg} onChange={e => setRg(e.target.value)} placeholder="Documento de identidade" />
+                </div>
+                <div>
+                  <Label>Profissão</Label>
+                  <Input value={profissao} onChange={e => setProfissao(e.target.value)} placeholder="Profissão" />
+                </div>
+                <div>
+                  <Label>Estado Civil</Label>
+                  <Select value={estadoCivil} onValueChange={setEstadoCivil}>
+                    <SelectTrigger><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="solteiro">Solteiro(a)</SelectItem>
+                      <SelectItem value="casado">Casado(a)</SelectItem>
+                      <SelectItem value="divorciado">Divorciado(a)</SelectItem>
+                      <SelectItem value="viuvo">Viúvo(a)</SelectItem>
+                      <SelectItem value="uniao_estavel">União Estável</SelectItem>
+                      <SelectItem value="separado">Separado(a)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Como Conheceu?</Label>
+                  <Select value={comoConheceu} onValueChange={setComoConheceu}>
+                    <SelectTrigger><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="indicacao">Indicação</SelectItem>
+                      <SelectItem value="internet">Internet / Google</SelectItem>
+                      <SelectItem value="redes_sociais">Redes Sociais</SelectItem>
+                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                      <SelectItem value="panfleto">Panfleto / Material Impresso</SelectItem>
+                      <SelectItem value="tv_radio">TV / Rádio</SelectItem>
+                      <SelectItem value="parceiro">Parceiro</SelectItem>
+                      <SelectItem value="evento">Evento</SelectItem>
+                      <SelectItem value="outros">Outros</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
 
             <div>
               <div className="flex items-center gap-2 mb-1">
