@@ -34,6 +34,7 @@ import RelatoriosFinanceiros from "./pages/RelatoriosFinanceiros";
 import AdvboxConfig from "./pages/AdvboxConfig";
 import AdvboxAnalytics from "./pages/AdvboxAnalytics";
 import MovimentacoesAdvbox from "./pages/MovimentacoesAdvbox";
+import TraducaoAndamentos from "./pages/TraducaoAndamentos";
 import ProcessosAtivos from "./pages/ProcessosAtivos";
 // RelatoriosProdutividadeTarefas moved into TarefasAdvbox as a tab
 import Ferias from "./pages/Ferias";
