@@ -1,28 +1,27 @@
 
 
-## Atualizar modelo Claude descontinuado
+## Adicionar cadastro manual de andamentos na Tradução de Andamentos
 
-### Resultado da verificação
-Verifiquei **todas as 9 Edge Functions** que utilizam a API da Anthropic. Apenas **1 arquivo** ainda usa o modelo descontinuado:
+### O que será feito
+Adicionar um botão "Cadastrar Andamento" que abre um dialog para o usuário digitar manualmente um título de andamento. Ao cadastrar, o andamento é adicionado à lista e automaticamente a IA sugere uma tradução para ele.
 
-| Arquivo | Modelo atual | Status |
-|---|---|---|
-| `translate-movement/index.ts` | `claude-3-5-sonnet-20241022` | Descontinuado |
-| `meta-ads-ai-analysis/index.ts` | `claude-sonnet-4-20250514` | OK |
-| `check-portuguese/index.ts` | `claude-sonnet-4-20250514` | OK |
-| `suggest-task/index.ts` | `claude-sonnet-4-20250514` | OK |
-| `ai-assistant/index.ts` | `claude-sonnet-4-20250514` | OK |
-| `chat-with-agent/index.ts` | `claude-sonnet-4-20250514` | OK |
-| `analyze-viability/index.ts` | `claude-sonnet-4-20250514` | OK |
-| `suggest-petition/index.ts` | `claude-sonnet-4-20250514` | OK |
-| `suggest-agent-instructions/index.ts` | `claude-sonnet-4-20250514` | OK |
+### Alterações
 
-### Correção
+**Arquivo:** `src/pages/TraducaoAndamentos.tsx`
 
-**Arquivo:** `supabase/functions/translate-movement/index.ts` (linha 68)
-
-Trocar `claude-3-5-sonnet-20241022` por `claude-sonnet-4-20250514`.
+1. **Importar** `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogTrigger` e ícone `Plus`
+2. **Novo state**: `showAddDialog`, `newTitle` (texto digitado), `addingManual` (loading)
+3. **Função `handleAddManual`**:
+   - Normaliza o título digitado com `normalizeTitle()`
+   - Verifica se já existe na lista (evitar duplicata)
+   - Adiciona ao `uniqueTitles` e `editValues`
+   - Fecha o dialog
+   - Chama automaticamente `handleSuggestAI(normalizedTitle)` para sugerir tradução com IA
+4. **Dialog de cadastro**: campo de texto para o título + botão "Cadastrar e Sugerir Tradução"
+5. **Botão** ao lado do botão "Sugerir todas com IA" no header
 
 ### Resultado
-Todas as funções passarão a usar o modelo Claude Sonnet 4 atualizado.
+- Usuário pode cadastrar andamentos manualmente que não vieram do ADVBox
+- Ao cadastrar, a IA sugere automaticamente uma tradução humanizada
+- Andamento cadastrado aparece na lista e pode ser editado normalmente
 
