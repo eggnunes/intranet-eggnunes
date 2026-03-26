@@ -128,7 +128,28 @@ export default function TraducaoAndamentos() {
         }
       }
 
-      const titles = extractTitlesFromMovements(movements);
+      const titleSet = new Set(extractTitlesFromMovements(movements));
+
+      // Buscar andamentos do DataJud (apenas DataJud, sem ComunicaPJe)
+      try {
+        const { data: datajud } = await supabase
+          .from('publicacoes_dje')
+          .select('conteudo')
+          .eq('meio', 'DataJud')
+          .not('conteudo', 'is', null);
+
+        for (const pub of (datajud || [])) {
+          const mainPart = (pub.conteudo || '').split('|')[0].trim();
+          if (mainPart.length > 2) {
+            const normalized = normalizeTitle(mainPart);
+            if (normalized.length > 2) titleSet.add(normalized);
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao buscar andamentos do DataJud:', e);
+      }
+
+      const titles = Array.from(titleSet).sort((a, b) => a.localeCompare(b, 'pt-BR'));
       setUniqueTitles(titles);
 
       // 3. Load existing translations
