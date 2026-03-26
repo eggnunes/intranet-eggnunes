@@ -4,7 +4,7 @@ import { Layout } from '@/components/Layout';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, MessageSquare, TrendingUp, User, Mail, Users, Video, Building2, ExternalLink, Gavel, Clock, Cake, Megaphone, Calendar, Trophy, Pin, Search, Star, Zap, Home, Palmtree, CalendarOff } from 'lucide-react';
+import { FileText, MessageSquare, TrendingUp, User, Mail, Users, Video, Building2, ExternalLink, Gavel, Clock, Cake, Megaphone, Calendar, Trophy, Pin, Search, Star, Zap, Home, Palmtree, CalendarOff, Calculator } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -281,6 +281,7 @@ export default function Dashboard() {
     { icon: Building2, url: 'https://credlocaliza.com.br/', label: 'Credlocaliza', description: 'Consultas' },
     { icon: Gavel, url: 'https://www.jusbrasil.com.br/', label: 'JusBrasil', description: 'Pesquisa Jurídica' },
     { icon: MessageSquare, url: 'https://chat.openai.com/', label: 'ChatGPT', description: 'Inteligência Artificial' },
+    { icon: Calculator, url: 'https://www.jfrs.jus.br/projefweb/', label: 'ProjefWeb', description: 'Sistema de Cálculos TRF4' },
   ];
 
   return (
