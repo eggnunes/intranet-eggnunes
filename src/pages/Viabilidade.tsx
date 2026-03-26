@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, Clock, CheckCircle, AlertCircle, Plus, Pencil, Trash2, Search, XCircle, CloudUpload } from 'lucide-react';
+import { Users, Clock, CheckCircle, AlertCircle, Plus, Pencil, Trash2, Search, XCircle, CloudUpload, Loader2, Box } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { SaveToTeamsDialog } from '@/components/SaveToTeamsDialog';
@@ -32,6 +32,7 @@ type ViabilidadeCliente = {
   descricao_caso?: string | null;
   parecer_viabilidade?: string | null;
   titulo?: string | null;
+  advbox_customer_id?: string | null;
 };
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof Clock; className: string }> = {
@@ -57,7 +58,16 @@ export default function Viabilidade() {
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<ViabilidadeCliente | null>(null);
-  const [viewingCliente, setViewingCliente] = useState<ViabilidadeCliente | null>(null);
+
+  // Client history dialog
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [historyCliente, setHistoryCliente] = useState<{ nome: string; cpf: string } | null>(null);
+  const [historyItems, setHistoryItems] = useState<ViabilidadeCliente[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+
+  // ADVBox registration
+  const [registeringAdvbox, setRegisteringAdvbox] = useState<string | null>(null);
 
   // Form state
   const [formNome, setFormNome] = useState('');
@@ -112,15 +122,6 @@ export default function Viabilidade() {
     pendente: clientes.filter((c) => c.status === 'pendente').length,
   };
 
-  const openNewDialog = () => {
-    setEditingCliente(null);
-    setFormNome('');
-    setFormCpf('');
-    setFormStatus('pendente');
-    setFormObservacoes('');
-    setDialogOpen(true);
-  };
-
   const openEditDialog = (cliente: ViabilidadeCliente) => {
     setEditingCliente(cliente);
     setFormNome(cliente.nome);
@@ -145,16 +146,6 @@ export default function Viabilidade() {
 
       if (error) toast.error('Erro ao atualizar');
       else { toast.success('Cliente atualizado!'); setDialogOpen(false); fetchClientes(); }
-    } else {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { toast.error('Usuário não autenticado'); setSaving(false); return; }
-
-      const { error } = await supabase
-        .from('viabilidade_clientes')
-        .insert({ nome: formNome, cpf: formCpf, status: formStatus, observacoes: formObservacoes || null, created_by: user.id });
-
-      if (error) toast.error('Erro ao salvar');
-      else { toast.success('Cliente cadastrado!'); setDialogOpen(false); fetchClientes(); }
     }
     setSaving(false);
   };
@@ -211,6 +202,50 @@ export default function Viabilidade() {
     setTeamsDialogOpen(true);
   };
 
+  // Client history
+  const handleOpenHistory = async (nome: string, cpf: string) => {
+    setHistoryCliente({ nome, cpf });
+    setHistoryDialogOpen(true);
+    setHistoryLoading(true);
+    setExpandedHistoryId(null);
+
+    const cpfClean = cpf.replace(/\D/g, '');
+    const { data, error } = await supabase
+      .from('viabilidade_clientes')
+      .select('*')
+      .or(`cpf.ilike.%${cpfClean}%,nome.ilike.%${nome}%`)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      toast.error('Erro ao buscar histórico');
+      setHistoryItems([]);
+    } else {
+      setHistoryItems(data || []);
+    }
+    setHistoryLoading(false);
+  };
+
+  // Register in ADVBox
+  const handleRegisterAdvbox = async (cliente: ViabilidadeCliente) => {
+    setRegisteringAdvbox(cliente.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('register-viability-client-advbox', {
+        body: { viabilidade_id: cliente.id },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success(data.message || 'Cliente cadastrado no ADVBox!');
+      fetchClientes();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Erro ao cadastrar no ADVBox');
+    } finally {
+      setRegisteringAdvbox(null);
+    }
+  };
+
   const statCards = [
     { label: 'Total Clientes', value: stats.total, icon: Users, className: 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400' },
     { label: 'Em Análise', value: stats.em_analise, icon: Clock, className: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400' },
@@ -228,45 +263,46 @@ export default function Viabilidade() {
             <p className="text-sm text-muted-foreground">Gerencie a análise de viabilidade dos clientes</p>
           </div>
           <Button onClick={() => navigate('/viabilidade/novo')}><Plus className="h-4 w-4 mr-2" />Novo Cliente</Button>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild><span /></DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{editingCliente ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
-                <div>
-                  <Label>Nome *</Label>
-                  <Input value={formNome} onChange={(e) => setFormNome(e.target.value)} placeholder="Nome completo" />
-                </div>
-                <div>
-                  <Label>CPF *</Label>
-                  <Input value={formCpf} onChange={(e) => setFormCpf(e.target.value)} placeholder="000.000.000-00" />
-                </div>
-                <div>
-                  <Label>Status</Label>
-                  <Select value={formStatus} onValueChange={setFormStatus}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pendente">Pendente</SelectItem>
-                      <SelectItem value="em_analise">Em Análise</SelectItem>
-                      <SelectItem value="viavel">Viável</SelectItem>
-                      <SelectItem value="inviavel">Inviável</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Observações</Label>
-                  <Textarea value={formObservacoes} onChange={(e) => setFormObservacoes(e.target.value)} placeholder="Observações sobre o cliente..." />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-                <Button onClick={handleSave} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </div>
+
+        {/* Edit Dialog */}
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Cliente</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div>
+                <Label>Nome *</Label>
+                <Input value={formNome} onChange={(e) => setFormNome(e.target.value)} placeholder="Nome completo" />
+              </div>
+              <div>
+                <Label>CPF *</Label>
+                <Input value={formCpf} onChange={(e) => setFormCpf(e.target.value)} placeholder="000.000.000-00" />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select value={formStatus} onValueChange={setFormStatus}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pendente">Pendente</SelectItem>
+                    <SelectItem value="em_analise">Em Análise</SelectItem>
+                    <SelectItem value="viavel">Viável</SelectItem>
+                    <SelectItem value="inviavel">Inviável</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Observações</Label>
+                <Textarea value={formObservacoes} onChange={(e) => setFormObservacoes(e.target.value)} placeholder="Observações sobre o cliente..." />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={handleSave} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -331,6 +367,7 @@ export default function Viabilidade() {
                       <TableHead>Título/Produto</TableHead>
                       <TableHead>CPF</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>ADVBox</TableHead>
                       <TableHead>Data Criação</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -344,7 +381,7 @@ export default function Viabilidade() {
                           <TableCell>
                             <button
                               className="font-medium text-primary underline cursor-pointer hover:text-primary/80 text-left"
-                              onClick={() => setViewingCliente(c)}
+                              onClick={() => handleOpenHistory(c.nome, c.cpf)}
                             >
                               {c.nome}
                             </button>
@@ -358,6 +395,29 @@ export default function Viabilidade() {
                               <StatusIcon className="h-3 w-3" />
                               {cfg.label}
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {(c as any).advbox_customer_id ? (
+                              <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-500/30 bg-emerald-500/10">
+                                <CheckCircle className="h-3 w-3" />
+                                Cadastrado
+                              </Badge>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1 text-xs"
+                                onClick={() => handleRegisterAdvbox(c)}
+                                disabled={registeringAdvbox === c.id}
+                              >
+                                {registeringAdvbox === c.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Box className="h-3 w-3" />
+                                )}
+                                Cadastrar
+                              </Button>
+                            )}
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             {format(new Date(c.created_at), "dd/MM/yyyy", { locale: ptBR })}
@@ -401,87 +461,103 @@ export default function Viabilidade() {
         </Card>
       </div>
 
-      {/* Dialog de visualização da análise */}
-      <Dialog open={!!viewingCliente} onOpenChange={(open) => !open && setViewingCliente(null)}>
-        <DialogContent className="max-w-2xl">
+      {/* Dialog de histórico do cliente */}
+      <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Análise de Viabilidade</DialogTitle>
+            <DialogTitle>Histórico de Viabilidades — {historyCliente?.nome}</DialogTitle>
           </DialogHeader>
-          {viewingCliente && (() => {
-            const cfg = statusConfig[viewingCliente.status] || statusConfig.pendente;
-            const StatusIcon = cfg.icon;
-            return (
-              <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-foreground">{viewingCliente.nome}</h3>
-                    <p className="text-sm text-muted-foreground">CPF: {viewingCliente.cpf}</p>
-                  </div>
-                  <Badge className={`gap-1 ${cfg.className}`}>
-                    <StatusIcon className="h-3 w-3" />
-                    {cfg.label}
-                  </Badge>
-                </div>
+          {historyLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : historyItems.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">Nenhuma análise encontrada.</p>
+          ) : (
+            <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
+              {historyItems.map((item) => {
+                const cfg = statusConfig[item.status] || statusConfig.pendente;
+                const StatusIcon = cfg.icon;
+                const isExpanded = expandedHistoryId === item.id;
+                return (
+                  <Card key={item.id} className="cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => setExpandedHistoryId(isExpanded ? null : item.id)}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm text-foreground">{item.titulo || item.tipo_acao || 'Sem título'}</span>
+                            <Badge className={`gap-1 text-xs ${cfg.className}`}>
+                              <StatusIcon className="h-3 w-3" />
+                              {cfg.label}
+                            </Badge>
+                            {(item as any).advbox_customer_id && (
+                              <Badge variant="outline" className="gap-1 text-xs text-emerald-600 border-emerald-500/30">
+                                <Box className="h-3 w-3" />
+                                ADVBox
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {format(new Date(item.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                            {item.tipo_acao && ` • ${item.tipo_acao}`}
+                          </p>
+                        </div>
+                        <div className="flex gap-1 ml-2">
+                          {item.parecer_viabilidade && (
+                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleSaveToTeams(item); }}>
+                              <CloudUpload className="h-3.5 w-3.5 mr-1" />
+                              Teams
+                            </Button>
+                          )}
+                          {!(item as any).advbox_customer_id && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1"
+                              onClick={(e) => { e.stopPropagation(); handleRegisterAdvbox(item); }}
+                              disabled={registeringAdvbox === item.id}
+                            >
+                              {registeringAdvbox === item.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Box className="h-3 w-3" />}
+                              ADVBox
+                            </Button>
+                          )}
+                        </div>
+                      </div>
 
-                {viewingCliente.tipo_acao && (
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Tipo de Ação</Label>
-                    <p className="text-sm text-foreground">{viewingCliente.tipo_acao}</p>
-                  </div>
-                )}
-
-                <div>
-                  <Label className="text-xs text-muted-foreground">Data de Cadastro</Label>
-                  <p className="text-sm text-foreground">
-                    {format(new Date(viewingCliente.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                  </p>
-                </div>
-
-                {viewingCliente.descricao_caso && (
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Descrição do Caso</Label>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{viewingCliente.descricao_caso}</p>
-                  </div>
-                )}
-
-                <div>
-                  <Label className="text-xs text-muted-foreground">Parecer de Viabilidade</Label>
-                  {viewingCliente.parecer_viabilidade ? (
-                    <div className="mt-1 p-4 rounded-md border bg-muted/50 text-sm text-foreground">
-                      {viewingCliente.parecer_viabilidade.split('\n').map((line, i) => {
-                        const boldMatch = line.match(/^\*\*(.+?)\*\*(.*)$/);
-                        if (boldMatch) {
-                          return <p key={i} className="mt-2 first:mt-0"><strong>{boldMatch[1]}</strong>{boldMatch[2]}</p>;
-                        }
-                        if (line.startsWith('- ')) {
-                          return <li key={i} className="ml-4 list-disc">{line.slice(2)}</li>;
-                        }
-                        if (line.trim() === '') return <br key={i} />;
-                        return <p key={i}>{line}</p>;
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground italic mt-1">Nenhuma análise realizada ainda.</p>
-                  )}
-                </div>
-
-                {viewingCliente.observacoes && (
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Observações</Label>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{viewingCliente.observacoes}</p>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+                      {isExpanded && (
+                        <div className="mt-4 space-y-3 border-t pt-3">
+                          {item.descricao_caso && (
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Descrição do Caso</Label>
+                              <p className="text-sm text-foreground whitespace-pre-wrap mt-1">{item.descricao_caso}</p>
+                            </div>
+                          )}
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Parecer de Viabilidade</Label>
+                            {item.parecer_viabilidade ? (
+                              <div className="mt-1 p-3 rounded-md border bg-muted/50 text-sm text-foreground whitespace-pre-wrap">
+                                {item.parecer_viabilidade}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground italic mt-1">Nenhuma análise realizada.</p>
+                            )}
+                          </div>
+                          {item.observacoes && (
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Observações</Label>
+                              <p className="text-sm text-foreground whitespace-pre-wrap mt-1">{item.observacoes}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
           <DialogFooter>
-            {viewingCliente?.parecer_viabilidade && (
-              <Button variant="outline" onClick={() => { handleSaveToTeams(viewingCliente!); }}>
-                <CloudUpload className="h-4 w-4 mr-2" />
-                Salvar no Teams
-              </Button>
-            )}
-            <Button variant="outline" onClick={() => setViewingCliente(null)}>Fechar</Button>
+            <Button variant="outline" onClick={() => setHistoryDialogOpen(false)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -497,3 +573,4 @@ export default function Viabilidade() {
     </Layout>
   );
 }
+
