@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Sparkles, Save, Check, Loader2, Languages } from 'lucide-react';
+import { Search, Sparkles, Save, Check, Loader2, Languages, Plus } from 'lucide-react';
 
 const MOVEMENTS_CACHE_KEY = 'advbox-movements-full-cache';
 
