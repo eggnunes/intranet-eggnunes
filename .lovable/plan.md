@@ -1,53 +1,98 @@
 
+## Corrigir de vez a tela de Mensagens cortada + eliminar o 404 no preview
 
-## Correção de anexos, geração de documentos e histórico global nos Agentes de IA
+### O que eu identifiquei
+Há dois pontos bem prováveis no código atual:
 
-### Problema 1: Anexos não funcionam / tipos restritos
-O `<input type="file">` na linha 577 do `AgenteChatPage.tsx` tem `accept` limitado a `.pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp,.csv,.xlsx` — exclui vídeos, áudios e outros formatos. Além disso, o limite de 10MB pode ser restritivo para vídeos. Vou:
+1. **A tela de Mensagens está presa a uma altura rígida**
+   - Em `src/pages/Mensagens.tsx` existe um wrapper com `h-[calc(100vh-8rem)]`.
+   - Em layouts com sidebar + header + áreas com `ScrollArea`, isso costuma voltar a quebrar quando a viewport muda, o zoom muda ou algum conteúdo interno cresce.
 
-- **Remover a restrição de `accept`** para permitir qualquer tipo de arquivo
-- **Aumentar o limite para 50MB** para suportar vídeos/áudios maiores
-- **Adicionar feedback visual** ao clicar no botão de anexo (toast de "carregando" para arquivos grandes)
-- **No backend** (`chat-with-agent/index.ts`): o processamento de anexos já lida com PDFs e DOCX; para outros tipos (vídeo, áudio, imagens), enviar como contexto informando o nome/tipo do arquivo
+2. **O layout da conversa está permitindo overflow horizontal**
+   - A tela usa vários containers `flex` sem proteção completa de shrink (`min-w-0` / `min-h-0`).
+   - Isso bate com o sintoma do print: a área da conversa empurra para a direita e a página passa a ter barra horizontal, “cortando” a tela.
 
-### Problema 2: IA gerar documentos para download (Word/PDF)
-Já existe download como PDF e TXT. Vou adicionar:
+3. **O 404 no centro do preview indica que algum caminho inválido está sendo aberto**
+   - No app, o 404 central vem do `NotFound.tsx`.
+   - Como não apareceu log snapshot agora, os candidatos mais fortes são:
+     - alguma navegação indevida para rota inexistente
+     - algum link/recurso da tela de mensagens abrindo URL errada no preview
 
-- **Download como DOCX** usando a biblioteca `docx` (já usada em outros componentes do projeto via `file-saver`)
-- Adicionar botão "DOCX" ao lado dos existentes PDF/TXT nas respostas do assistente
-- O DOCX será gerado com o conteúdo markdown da resposta convertido em parágrafos formatados
+---
 
-### Problema 3: Histórico global de usos dos agentes
-Atualmente o histórico mostra apenas conversas do próprio usuário no sidebar lateral. Vou criar:
+## Plano de correção
 
-**Nova aba "Histórico de Uso" na página AgentesIA.tsx:**
-- Listar todas as conversas de todos os usuários com todos os agentes
-- Mostrar: nome do agente, nome do usuário, data, título da conversa
-- Ao clicar, abrir a conversa completa em modo leitura (visualizar mensagens)
-- Administradores podem excluir qualquer conversa do histórico
-- Filtros por agente e por usuário
+### 1. Reestruturar a altura da página de Mensagens
+**Arquivo:** `src/pages/Mensagens.tsx`
 
-**Implementação técnica:**
+Vou remover a dependência da altura rígida da página e trocar por uma estrutura mais estável para app com sidebar:
 
-1. **`src/pages/AgentesIA.tsx`** — Adicionar 3a aba "Histórico de Uso" no TabsList
-2. **`src/components/agents/AgentUsageHistory.tsx`** (novo) — Componente que:
-   - Busca conversas de `intranet_agent_conversations` com join em `profiles` (nome do usuário) e `intranet_agents` (nome/emoji do agente)
-   - Lista em tabela com colunas: Agente, Usuário, Título, Data, Ações
-   - Modal para visualizar mensagens completas da conversa selecionada
-   - Botão de excluir visível apenas para admins (usando `useUserRole`)
-3. **`src/pages/AgenteChatPage.tsx`**:
-   - Remover restrição `accept` do input de arquivo
-   - Aumentar limite de tamanho
-   - Adicionar botão de download DOCX
-4. **`supabase/functions/chat-with-agent/index.ts`** — Manter como está (já suporta anexos no processamento)
+- substituir o wrapper principal por uma composição com `flex`, `flex-1`, `min-h-0`
+- garantir que a área central da tela use a altura disponível real do layout, sem “estourar”
+- usar `100dvh` apenas se necessário, mas priorizando a altura herdada do `Layout`
 
-### Arquivos modificados
-- `src/pages/AgentesIA.tsx` — nova aba
-- `src/pages/AgenteChatPage.tsx` — correção de anexos + botão DOCX
-- `src/components/agents/AgentUsageHistory.tsx` — novo componente de histórico
+**Resultado esperado:** a tela não ficará mais cortada ao mudar tamanho/escala da janela.
 
-### Resultado
-- Qualquer arquivo pode ser anexado na conversa com o agente
-- Respostas podem ser baixadas como PDF, TXT ou DOCX
-- Histórico global de uso disponível para todos, com exclusão por admins
+---
 
+### 2. Travar o overflow horizontal da interface de chat
+**Arquivos:** `src/pages/Mensagens.tsx` e, se necessário, `src/components/Layout.tsx`
+
+Vou ajustar os blocos principais da página para encolherem corretamente dentro do espaço disponível:
+
+- adicionar `min-w-0` nos painéis de lista e chat
+- adicionar `min-h-0` nas áreas com scroll
+- revisar o container principal da conversa para impedir que conteúdo interno “empurre” a página
+- garantir que anexos, previews e bolhas de mensagem respeitem largura máxima e façam wrap/truncate corretamente
+
+**Resultado esperado:** some a barra horizontal da tela e a conversa passa a caber inteira em desktop normal.
+
+---
+
+### 3. Ajustar a área das mensagens para não voltar a quebrar
+**Arquivo:** `src/pages/Mensagens.tsx`
+
+Vou revisar especificamente os elementos que mais costumam causar esse retorno do bug:
+
+- bolhas com `max-w-[90%]`
+- blocos de áudio/documentos com largura mínima fixa
+- cabeçalho do chat
+- previews de anexos
+- combinação `overflow-hidden` + `ScrollArea`
+
+A correção será feita para manter leitura boa sem “empurrar” a largura total da página.
+
+---
+
+### 4. Investigar e corrigir a origem do 404
+**Arquivos principais:** `src/pages/NotFound.tsx`, `src/components/ProtectedRoute.tsx`, `src/pages/Mensagens.tsx`
+
+Vou revisar os pontos que podem estar levando o preview a abrir rota inválida:
+
+- navegação/redirecionamento de autenticação
+- links internos renderizados com `href`
+- links de anexos/arquivos dentro das mensagens
+- qualquer URL montada de forma incorreta que esteja caindo no catch-all `path="*"`
+
+**Correção prática:**
+- impedir navegação acidental para rota inexistente
+- corrigir qualquer link interno/externo mal montado
+- se o 404 estiver vindo de recurso de anexo, corrigir a URL gerada/consumida
+
+**Resultado esperado:** o aviso 404 deixa de aparecer no centro do preview.
+
+---
+
+## Arquivos que eu devo mexer
+- `src/pages/Mensagens.tsx`
+- `src/components/Layout.tsx` (se o ajuste estrutural precisar ser reforçado no layout)
+- `src/pages/NotFound.tsx` e/ou `src/components/ProtectedRoute.tsx` (apenas se a origem do 404 for rota)
+
+---
+
+## Resultado final esperado
+- a página de **Mensagens Internas** volta a ocupar a tela corretamente
+- sem corte lateral
+- sem necessidade de reduzir muito a tela para enxergar tudo
+- sem barra horizontal indevida
+- sem o 404 aparecendo no centro do preview
