@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X, Edit, History, Calendar, List, Settings, BarChart3, Lightbulb, Lock, TrendingUp } from 'lucide-react';
+import { CheckSquare, Plus, Filter, CheckCircle2, Clock, AlertCircle, User, Flag, X, Edit, History, Calendar, List, Settings, BarChart3, Lightbulb, Lock, TrendingUp, FileText, Tag, UserCircle, CalendarCheck } from 'lucide-react';
 import { TutorialOverlay } from '@/components/TutorialOverlay';
 import { tutorialsByPage } from '@/components/tutorialData';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
