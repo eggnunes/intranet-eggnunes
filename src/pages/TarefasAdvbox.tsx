@@ -46,6 +46,11 @@ interface Task {
   process_number?: string;
   category?: string;
   notes?: string;
+  task_type?: string;
+  lawsuit_id?: number;
+  completed_at?: string;
+  created_at?: string;
+  client_name?: string;
 }
 
 // Removed localStorage cache - data now comes from database
