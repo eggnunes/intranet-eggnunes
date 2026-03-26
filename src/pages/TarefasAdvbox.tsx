@@ -1022,7 +1022,6 @@ export default function TarefasAdvbox() {
                             </span>
                           )}
                         </div>
-                        </div>
                       </CardContent>
                     </Card>
                   ))}
