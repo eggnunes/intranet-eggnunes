@@ -140,7 +140,26 @@ export const useMessaging = () => {
         };
       }) || [];
 
-      setConversations(enrichedConversations);
+      // Deduplicate 1-1 conversations: keep only the most recent per participant pair
+      const deduplicatedConversations: typeof enrichedConversations = [];
+      const seenPairs = new Set<string>();
+
+      for (const conv of enrichedConversations) {
+        if (!conv.is_group && conv.participants?.length === 2) {
+          const pairKey = conv.participants
+            .map(p => p.user_id)
+            .sort()
+            .join('-');
+
+          if (seenPairs.has(pairKey)) {
+            continue; // Skip duplicate (already sorted by updated_at desc)
+          }
+          seenPairs.add(pairKey);
+        }
+        deduplicatedConversations.push(conv);
+      }
+
+      setConversations(deduplicatedConversations);
     } catch (error) {
       console.error('Error fetching conversations:', error);
       toast.error('Erro ao carregar conversas');
@@ -278,16 +297,52 @@ export const useMessaging = () => {
     if (!user) return;
 
     try {
-      // Check if 1-1 conversation already exists
+      // Check if 1-1 conversation already exists (DB-level check)
       if (!isGroup && participantIds.length === 1) {
-        const existingConv = conversations.find(conv => 
-          !conv.is_group && 
-          conv.participants?.length === 2 &&
-          conv.participants.some(p => p.user_id === participantIds[0])
-        );
+        const targetUserId = participantIds[0];
 
-        if (existingConv) {
-          return existingConv;
+        // Get all conversations where current user is participant
+        const { data: myParticipations } = await supabase
+          .from('conversation_participants')
+          .select('conversation_id')
+          .eq('user_id', user.id);
+
+        if (myParticipations && myParticipations.length > 0) {
+          const myConvIds = myParticipations.map(p => p.conversation_id);
+
+          // Find non-group conversations
+          const { data: nonGroupConvs } = await supabase
+            .from('conversations')
+            .select('id, is_group')
+            .in('id', myConvIds)
+            .eq('is_group', false);
+
+          if (nonGroupConvs) {
+            for (const conv of nonGroupConvs) {
+              const { data: targetPart } = await supabase
+                .from('conversation_participants')
+                .select('id')
+                .eq('conversation_id', conv.id)
+                .eq('user_id', targetUserId)
+                .maybeSingle();
+
+              if (targetPart) {
+                // Found existing conversation, return it enriched
+                const existing = conversations.find(c => c.id === conv.id);
+                if (existing) return existing;
+
+                // If not in local state, fetch and return
+                const { data: fullConv } = await supabase
+                  .from('conversations')
+                  .select('*')
+                  .eq('id', conv.id)
+                  .single();
+
+                await fetchConversations();
+                return fullConv;
+              }
+            }
+          }
         }
       }
 
