@@ -535,6 +535,41 @@ export default function TraducaoAndamentos() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              Cadastrar Andamento Manual
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-foreground mb-1.5 block">
+                Título do andamento
+              </label>
+              <Textarea
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="Ex: Audiência de conciliação designada"
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Informações específicas (datas, nomes, valores) serão removidas automaticamente.
+              </p>
+            </div>
+            <Button
+              onClick={handleAddManual}
+              disabled={!newTitle.trim()}
+              className="w-full gap-2"
+            >
+              <Sparkles className="h-4 w-4" />
+              Cadastrar e Sugerir Tradução
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }
