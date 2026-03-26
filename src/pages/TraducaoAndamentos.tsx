@@ -383,14 +383,24 @@ export default function TraducaoAndamentos() {
               Traduza andamentos processuais para linguagem simples
             </p>
           </div>
-          <Button 
-            onClick={handleSuggestAll} 
-            disabled={suggestingAll || pendingCount === 0}
-            className="gap-2"
-          >
-            {suggestingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            Sugerir todas com IA ({pendingCount} pendentes)
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowAddDialog(true)}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Cadastrar Andamento
+            </Button>
+            <Button 
+              onClick={handleSuggestAll} 
+              disabled={suggestingAll || pendingCount === 0}
+              className="gap-2"
+            >
+              {suggestingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              Sugerir todas com IA ({pendingCount} pendentes)
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">
