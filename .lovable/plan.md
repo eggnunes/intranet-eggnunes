@@ -1,26 +1,41 @@
-## Corrigir erros no sistema TOTP
 
-### Problema 1: "Erro ao buscar códigos" intermitente
 
-A edge function `totp-generate` valida o JWT do usuário via `supabase.auth.getUser()`. Quando o token expira entre ciclos de 30 segundos, a chamada falha com 401, e o componente exibe "Erro ao buscar códigos TOTP". O usuário precisa fazer logout e login de novo.
-
-**Causa**: O `TOTPCodeDisplay` chama `supabase.functions.invoke('totp-generate')` a cada 30s, mas não tenta renovar a sessão quando recebe erro de autenticação.
-
-**Correção em `src/components/TOTPCodeDisplay.tsx**`:
-
-- Ao receber erro da edge function (especialmente 401/403 ou mensagens JWT), usar `supabase.auth.refreshSession()` para renovar o token e repetir a chamada automaticamente
-- Só mostrar toast de erro se a retry também falhar
-- Não mostrar toast em erros silenciosos de rede (evitar spam)
+## Melhorar exibição de jurisprudências: links de fonte, ementa copiável e metadados
 
 ### Alterações
 
-**Arquivo `src/components/TOTPCodeDisplay.tsx**`:
+#### 1. Edge function: capturar citations do Perplexity
+**Arquivo:** `supabase/functions/search-jurisprudence/index.ts`
 
-- Adicionar retry com refresh de sessão no `fetchCodesFromServer`
-- Suprimir toast de erro na primeira falha; só exibir se retry falhar
-  &nbsp;
+- Extrair `data.citations` da resposta da API Perplexity (campo retornado automaticamente pelo sonar-pro)
+- Incluir no retorno JSON como `citations: string[]`
+
+#### 2. Adicionar link de fonte em cada jurisprudência no prompt
+**Arquivo:** `supabase/functions/search-jurisprudence/index.ts`
+
+- No prompt do sistema, pedir que cada jurisprudência inclua campo `"link_fonte"` com a URL da fonte original (quando disponível)
+
+#### 3. Frontend: ementa com metadados + botão copiar + link fonte
+**Arquivo:** `src/pages/PesquisaJurisprudencia.tsx`
+
+- Atualizar interface `JurisprudenciaItem` para incluir `link_fonte?: string`
+- Atualizar interface `ParsedResult` para incluir `citations?: string[]`
+- Na seção da ementa de cada card (linhas 558-564):
+  - Incluir entre parênteses antes da ementa: número do processo, data de julgamento, relator, órgão julgador
+  - Adicionar botão "Copiar Ementa" que copia a ementa completa COM os metadados entre parênteses
+- Adicionar botão/link "Ver Fonte" quando `link_fonte` estiver disponível (abre em nova aba)
+- Exibir seção "Fontes" no final dos resultados com as citations do Perplexity (links clicáveis)
+- Importar `Copy`, `ExternalLink` do lucide-react
+
+#### Formato da ementa copiada
+```
+(Processo nº [numero_processo], Rel. [relator], [orgao_julgador], julgado em [data_julgamento])
+[ementa completa]
+```
 
 ### Resultado
+- Cada jurisprudência terá link clicável para a fonte original
+- A ementa exibirá metadados entre parênteses (processo, relator, órgão, data)
+- Botão de copiar copia ementa + metadados com um clique
+- Fontes do Perplexity aparecem no final como links
 
-- Códigos TOTP não darão mais erro intermitente — sessão será renovada automaticamente
-  &nbsp;
