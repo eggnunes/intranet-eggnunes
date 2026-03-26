@@ -1,43 +1,26 @@
+## Corrigir erros no sistema TOTP
 
+### Problema 1: "Erro ao buscar códigos" intermitente
 
-## Adicionar mais detalhes nas tarefas do ADVBox
+A edge function `totp-generate` valida o JWT do usuário via `supabase.auth.getUser()`. Quando o token expira entre ciclos de 30 segundos, a chamada falha com 401, e o componente exibe "Erro ao buscar códigos TOTP". O usuário precisa fazer logout e login de novo.
 
-### Problema atual
-A listagem de tarefas mostra apenas: título, status, data de vencimento e responsável. Faltam informações como número do processo, tipo de tarefa, data de conclusão, nome do cliente (disponível no `raw_data`) e data de criação.
+**Causa**: O `TOTPCodeDisplay` chama `supabase.functions.invoke('totp-generate')` a cada 30s, mas não tenta renovar a sessão quando recebe erro de autenticação.
 
-### O que será feito
+**Correção em `src/components/TOTPCodeDisplay.tsx**`:
 
-#### 1. Buscar mais campos do banco
-**Arquivo:** `src/pages/TarefasAdvbox.tsx`
+- Ao receber erro da edge function (especialmente 401/403 ou mensagens JWT), usar `supabase.auth.refreshSession()` para renovar o token e repetir a chamada automaticamente
+- Só mostrar toast de erro se a retry também falhar
+- Não mostrar toast em erros silenciosos de rede (evitar spam)
 
-- Na query do `fetchTasks` (linha 257), adicionar os campos: `task_type`, `lawsuit_id`, `completed_at`, `created_at`, `raw_data`
-- Expandir a interface `Task` para incluir: `task_type`, `lawsuit_id`, `completed_at`, `created_at`, `client_name`
-- No mapeamento dos dados, extrair o nome do cliente de `raw_data.lawsuit.customers[0].name`
+### Alterações
 
-#### 2. Enriquecer o card de cada tarefa na lista
-**Arquivo:** `src/pages/TarefasAdvbox.tsx` (linhas 912-976)
+**Arquivo `src/components/TOTPCodeDisplay.tsx**`:
 
-Adicionar na área de metadados de cada card (abaixo do título):
-- **Data de vencimento** (já existe)
-- **Responsável** (já existe)
-- **Número do processo** — com ícone de FileText
-- **Tipo de tarefa** — com Badge secundário
-- **Cliente** — extraído do raw_data
-- **Data de criação** — "Criada em dd/MM/yyyy"
-- **Data de conclusão** — se concluída, "Concluída em dd/MM/yyyy"
-
-#### 3. Enriquecer o painel de detalhes (Dialog/Drawer)
-**Arquivo:** `src/pages/TarefasAdvbox.tsx` (linhas 1349-1373 e 1279-1296)
-
-Adicionar seção de informações detalhadas antes das tabs:
-- Processo, tipo, cliente, data de criação, conclusão, lawsuit_id
-- Organizar em grid 2 colunas para melhor visualização
-
-### Arquivos modificados
-- `src/pages/TarefasAdvbox.tsx` — interface, query, cards e painel de detalhes
+- Adicionar retry com refresh de sessão no `fetchCodesFromServer`
+- Suprimir toast de erro na primeira falha; só exibir se retry falhar
+  &nbsp;
 
 ### Resultado
-- Cada tarefa na lista mostrará processo, tipo, cliente, datas
-- O painel de detalhes terá seção completa de informações
-- Dados vêm do banco (campos existentes + raw_data), sem chamadas extras à API
 
+- Códigos TOTP não darão mais erro intermitente — sessão será renovada automaticamente
+  &nbsp;
