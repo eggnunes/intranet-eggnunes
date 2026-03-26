@@ -315,6 +315,117 @@ const MuralAvisos = () => {
     }
   };
 
+  const handleEdit = (announcement: Announcement) => {
+    setEditingAnnouncement(announcement);
+    setEditFormData({
+      title: announcement.title,
+      content: announcement.content,
+      type: announcement.type,
+      is_pinned: announcement.is_pinned
+    });
+    setEditExistingAttachments(attachmentsMap[announcement.id] || []);
+    setRemovedAttachmentIds([]);
+    setEditPendingFiles([]);
+    setEditPendingLinks([]);
+    setEditLinkInput('');
+    setEditDialogOpen(true);
+  };
+
+  const handleAddEditLink = () => {
+    const trimmed = editLinkInput.trim();
+    if (!trimmed) return;
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      toast({ title: 'Link inválido', description: 'O link deve começar com http:// ou https://', variant: 'destructive' });
+      return;
+    }
+    setEditPendingLinks(prev => [...prev, trimmed]);
+    setEditLinkInput('');
+  };
+
+  const handleUpdate = async () => {
+    if (!editingAnnouncement || !editFormData.title || !editFormData.content) {
+      toast({ title: 'Erro', description: 'Preencha todos os campos obrigatórios.', variant: 'destructive' });
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error('Usuário não autenticado');
+
+      const { error } = await supabase
+        .from('announcements')
+        .update({
+          title: editFormData.title,
+          content: editFormData.content,
+          type: editFormData.type,
+          is_pinned: editFormData.is_pinned
+        })
+        .eq('id', editingAnnouncement.id);
+
+      if (error) throw error;
+
+      // Remove deleted attachments
+      for (const attId of removedAttachmentIds) {
+        const att = editExistingAttachments.find(a => a.id === attId);
+        if (att && !att.is_link) {
+          const urlParts = att.file_url.split('/announcement-attachments/');
+          if (urlParts[1]) {
+            await supabase.storage.from('announcement-attachments').remove([decodeURIComponent(urlParts[1])]);
+          }
+        }
+        await supabase.from('announcement_attachments').delete().eq('id', attId);
+      }
+
+      // Upload new files
+      for (const file of editPendingFiles) {
+        const path = `${editingAnnouncement.id}/${Date.now()}_${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from('announcement-attachments')
+          .upload(path, file);
+
+        if (uploadError) { console.error('Upload error:', uploadError); continue; }
+
+        const { data: urlData } = supabase.storage
+          .from('announcement-attachments')
+          .getPublicUrl(path);
+
+        await supabase.from('announcement_attachments').insert({
+          announcement_id: editingAnnouncement.id,
+          file_name: file.name,
+          file_url: urlData.publicUrl,
+          file_type: file.type,
+          file_size: file.size,
+          is_link: false,
+          uploaded_by: userData.user.id
+        });
+      }
+
+      // Save new links
+      for (const link of editPendingLinks) {
+        const linkName = new URL(link).hostname;
+        await supabase.from('announcement_attachments').insert({
+          announcement_id: editingAnnouncement.id,
+          file_name: linkName,
+          file_url: link,
+          file_type: 'link',
+          file_size: null,
+          is_link: true,
+          uploaded_by: userData.user.id
+        });
+      }
+
+      toast({ title: 'Sucesso', description: 'Aviso atualizado com sucesso!' });
+      setEditDialogOpen(false);
+      setEditingAnnouncement(null);
+      fetchAnnouncements();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'comunicado': return <Megaphone className="h-5 w-5" />;
