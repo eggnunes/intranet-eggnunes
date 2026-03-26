@@ -1168,6 +1168,56 @@ export default function DecisoesFavoraveis() {
           </TabsContent>
         </Tabs>
 
+        {/* Quick Edit Dialog */}
+        <Dialog open={!!quickEditDecision} onOpenChange={(open) => !open && setQuickEditDecision(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Detalhes da Decisão</DialogTitle>
+            </DialogHeader>
+            {quickEditDecision && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><span className="text-muted-foreground">Tipo:</span> <span className="font-medium">{getDecisionTypeLabel(quickEditDecision.decision_type)}</span></div>
+                  <div><span className="text-muted-foreground">Produto:</span> <span className="font-medium">{quickEditDecision.product_name}</span></div>
+                  <div><span className="text-muted-foreground">Cliente:</span> <span className="font-medium">{quickEditDecision.client_name}</span></div>
+                  <div><span className="text-muted-foreground">Réu:</span> <span className="font-medium">{quickEditDecision.reu || '-'}</span></div>
+                  <div><span className="text-muted-foreground">Tribunal:</span> <span className="font-medium">{quickEditDecision.regiao || quickEditDecision.court || '-'}</span></div>
+                  <div><span className="text-muted-foreground">Matéria:</span> <span className="font-medium">{quickEditDecision.materia ? getMateriaLabel(quickEditDecision.materia) : '-'}</span></div>
+                  <div><span className="text-muted-foreground">Data Decisão:</span> <span className="font-medium">{format(new Date(quickEditDecision.decision_date), 'dd/MM/yyyy', { locale: ptBR })}</span></div>
+                  <div><span className="text-muted-foreground">Nº Processo:</span> <span className="font-medium">{quickEditDecision.process_number || '-'}</span></div>
+                </div>
+                {quickEditDecision.observation && (
+                  <div className="text-sm"><span className="text-muted-foreground">Observação:</span> <p className="mt-1">{quickEditDecision.observation}</p></div>
+                )}
+                <div className="border-t pt-4 space-y-3">
+                  <h4 className="text-sm font-medium">Editar</h4>
+                  <div>
+                    <Label className="text-sm">Resultado</Label>
+                    <Select value={quickEditResultado} onValueChange={setQuickEditResultado}>
+                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none_selected">Não definido</SelectItem>
+                        {RESULTADOS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-sm">Link da Decisão</Label>
+                    <Input value={quickEditLink} onChange={e => setQuickEditLink(e.target.value)} placeholder="https://..." />
+                  </div>
+                  <Button className="w-full" onClick={() => quickEditMutation.mutate({
+                    id: quickEditDecision.id,
+                    resultado: quickEditResultado === 'none_selected' ? '' : quickEditResultado,
+                    decision_link: quickEditLink,
+                  })} disabled={quickEditMutation.isPending}>
+                    {quickEditMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
         {/* Missing Links Dialog */}
         <Dialog open={showMissingLinksDialog} onOpenChange={setShowMissingLinksDialog}>
           <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
