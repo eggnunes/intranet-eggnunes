@@ -127,6 +127,9 @@ export default function TarefasAdvbox() {
         if (titleLower.includes('deleted') || titleLower.includes('exclusão') || titleLower.includes('exclusao')) return false;
       }
 
+      // Hide stale tasks by default unless explicitly filtered
+      if (statusFilter !== 'stale' && task.status === 'stale') return false;
+
       if (statusFilter !== 'all' && task.status !== statusFilter) return false;
       if (assignedFilter !== 'all' && task.assigned_to !== assignedFilter) return false;
       if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false;
@@ -567,6 +570,8 @@ export default function TarefasAdvbox() {
         return <Clock className="h-4 w-4" />;
       case 'in_progress':
       case 'em andamento':
+        return <AlertCircle className="h-4 w-4" />;
+      case 'stale':
         return <AlertCircle className="h-4 w-4" />;
       default:
         return <Clock className="h-4 w-4" />;
