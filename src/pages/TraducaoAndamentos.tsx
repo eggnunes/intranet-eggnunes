@@ -19,6 +19,57 @@ interface Translation {
   suggested_by_ai: boolean;
 }
 
+/**
+ * Normaliza um título de andamento removendo informações específicas de caso:
+ * datas, horários, números de processo, valores monetários, nomes próprios, etc.
+ */
+function normalizeTitle(title: string): string {
+  let normalized = title;
+
+  // Remove números de processo (0000000-00.0000.0.00.0000)
+  normalized = normalized.replace(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/g, '');
+
+  // Remove datas no formato DD/MM/YYYY ou DD.MM.YYYY
+  normalized = normalized.replace(/\d{1,2}[\/\.]\d{1,2}[\/\.]\d{2,4}/g, '');
+
+  // Remove datas por extenso (ex: "15 de março de 2026", "março de 2026")
+  const meses = 'janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro';
+  normalized = normalized.replace(new RegExp(`\\d{1,2}\\s+de\\s+(${meses})\\s+de\\s+\\d{4}`, 'gi'), '');
+  normalized = normalized.replace(new RegExp(`(${meses})\\s+de\\s+\\d{4}`, 'gi'), '');
+
+  // Remove horários (às 14h, 14h30, 14:00, às 14:30h)
+  normalized = normalized.replace(/\b(às?\s*)?\d{1,2}[h:]\d{0,2}h?\b/gi, '');
+
+  // Remove valores monetários (R$ 1.000,00)
+  normalized = normalized.replace(/R\$\s?[\d.,]+/g, '');
+
+  // Remove textos entre parênteses que contenham números/datas
+  normalized = normalized.replace(/\([^)]*\d[^)]*\)/g, '');
+
+  // Remove "para o dia", "no dia", "do dia" seguido de espaço vazio (onde a data foi removida)
+  normalized = normalized.replace(/\b(para o dia|no dia|do dia|em|para)\s*$/gi, '');
+  normalized = normalized.replace(/\b(para o dia|no dia|do dia)\s+(?=\s|$|,|\.)/gi, '');
+
+  // Remove "Dr.", "Dra.", "Sr.", "Sra." seguido de nomes próprios (palavras capitalizadas)
+  normalized = normalized.replace(/\b(Dr[a]?\.|Sr[a]?\.)\s*[A-ZÀ-Ú][a-zà-ú]+(\s+[A-ZÀ-Ú][a-zà-ú]+)*/g, '');
+
+  // Remove "para" seguido de nomes próprios no final da string
+  normalized = normalized.replace(/\bpara\s+[A-ZÀ-Ú][a-zà-ú]+(\s+(d[aoe]s?\s+)?[A-ZÀ-Ú][a-zà-ú]+)*\s*$/g, '');
+
+  // Remove "Juiz(a)", "Desembargador(a)" seguido de nomes
+  normalized = normalized.replace(/\b(Ju[íi]z[a]?|Desembargador[a]?)\s+[A-ZÀ-Ú][a-zà-ú]+(\s+[A-ZÀ-Ú][a-zà-ú]+)*/g, '');
+
+  // Limpa pontuação solta e espaços extras
+  normalized = normalized.replace(/\s*[,;:\-–]+\s*$/g, '');
+  normalized = normalized.replace(/\s{2,}/g, ' ');
+  normalized = normalized.trim();
+
+  // Remove pontuação final solta
+  normalized = normalized.replace(/[,;:\-–\s]+$/, '').trim();
+
+  return normalized;
+}
+
 export default function TraducaoAndamentos() {
   const [translations, setTranslations] = useState<Map<string, Translation>>(new Map());
   const [uniqueTitles, setUniqueTitles] = useState<string[]>([]);
@@ -35,31 +86,57 @@ export default function TraducaoAndamentos() {
     loadData();
   }, []);
 
+  const extractTitlesFromMovements = (movements: any[]): string[] => {
+    const titleSet = new Set<string>();
+    movements.forEach((m: any) => {
+      if (m.title && m.title.trim()) {
+        const normalized = normalizeTitle(m.title.trim());
+        if (normalized.length > 2) {
+          titleSet.add(normalized);
+        }
+      }
+    });
+    return Array.from(titleSet).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
-      // Load movements from cache
+      // 1. Try localStorage cache first
+      let movements: any[] = [];
       const cached = localStorage.getItem(MOVEMENTS_CACHE_KEY);
-      let titles: string[] = [];
       if (cached) {
-        const movements = JSON.parse(cached);
-        const titleSet = new Set<string>();
-        movements.forEach((m: any) => {
-          if (m.title && m.title.trim()) titleSet.add(m.title.trim());
-        });
-        titles = Array.from(titleSet).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+        try {
+          movements = JSON.parse(cached);
+        } catch { movements = []; }
       }
+
+      // 2. If cache has few results, fetch from API
+      if (movements.length < 100) {
+        try {
+          const { data, error } = await supabase.functions.invoke('advbox-integration/movements-full');
+          if (!error && data?.movements) {
+            movements = data.movements;
+            // Update local cache
+            localStorage.setItem(MOVEMENTS_CACHE_KEY, JSON.stringify(movements));
+          }
+        } catch (e) {
+          console.warn('Could not fetch movements from API, using cache:', e);
+        }
+      }
+
+      const titles = extractTitlesFromMovements(movements);
       setUniqueTitles(titles);
 
-      // Load existing translations
-      const { data, error } = await supabase
+      // 3. Load existing translations
+      const { data: translationData, error } = await supabase
         .from('movement_translations')
         .select('*');
 
       if (error) throw error;
 
       const map = new Map<string, Translation>();
-      (data || []).forEach((t: any) => {
+      (translationData || []).forEach((t: any) => {
         map.set(t.original_title, {
           id: t.id,
           original_title: t.original_title,
@@ -140,7 +217,6 @@ export default function TraducaoAndamentos() {
           return next;
         });
 
-        // Auto-save
         const { data: { user } } = await supabase.auth.getUser();
         await supabase
           .from('movement_translations')
@@ -181,7 +257,6 @@ export default function TraducaoAndamentos() {
 
     setSuggestingAll(true);
     try {
-      // Process in chunks of 10
       const chunkSize = 10;
       let processed = 0;
 
@@ -333,7 +408,7 @@ export default function TraducaoAndamentos() {
               </div>
             ) : uniqueTitles.length === 0 ? (
               <p className="text-center text-muted-foreground py-12">
-                Nenhum andamento encontrado no cache. Acesse a página de Movimentações ADVBox primeiro para sincronizar os dados.
+                Nenhum andamento encontrado. Acesse a página de Movimentações ADVBox primeiro para sincronizar os dados.
               </p>
             ) : (
               <div className="border rounded-lg overflow-hidden">

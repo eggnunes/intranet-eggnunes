@@ -31,19 +31,28 @@ serve(async (req) => {
     for (let i = 0; i < titlesToTranslate.length; i += batchSize) {
       const batch = titlesToTranslate.slice(i, i + batchSize);
       
+      const systemInstruction = `Você é um tradutor jurídico especializado em simplificar andamentos processuais para clientes leigos.
+
+REGRAS IMPORTANTES:
+- Traduza para linguagem simples e humanizada, sem termos técnicos
+- NÃO inclua datas, horários, nomes de partes, valores monetários ou qualquer informação específica de um caso
+- A tradução deve ser GENÉRICA e servir para qualquer cliente/processo
+- Seja claro e direto, em no máximo 2 frases curtas
+- Exemplo: "Audiência de conciliação designada" → "Foi marcada uma audiência para tentar um acordo entre as partes."`;
+
       const prompt = batch.length === 1
-        ? `Traduza este andamento processual jurídico para linguagem simples e humanizada, sem termos técnicos, para que um cliente leigo entenda o que aconteceu no processo dele. Seja claro e direto, em no máximo 2 frases curtas.
+        ? `Traduza este andamento processual:
 
 Andamento: "${batch[0]}"
 
-Responda APENAS com a tradução, sem aspas nem explicações adicionais.`
-        : `Traduza cada um dos andamentos processuais jurídicos abaixo para linguagem simples e humanizada, sem termos técnicos, para que um cliente leigo entenda o que aconteceu no processo dele. Seja claro e direto, em no máximo 2 frases curtas para cada.
+Responda APENAS com a tradução genérica, sem aspas nem explicações adicionais.`
+        : `Traduza cada andamento processual abaixo:
 
 ${batch.map((t, idx) => `${idx + 1}. "${t}"`).join('\n')}
 
 Responda no formato:
-1. [tradução]
-2. [tradução]
+1. [tradução genérica]
+2. [tradução genérica]
 ...
 
 Sem aspas, sem explicações adicionais.`;
@@ -64,6 +73,7 @@ Sem aspas, sem explicações adicionais.`;
               content: prompt,
             },
           ],
+          system: systemInstruction,
         }),
       });
 
