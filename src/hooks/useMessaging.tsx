@@ -216,6 +216,9 @@ export const useMessaging = () => {
         .eq('conversation_id', conversationId)
         .eq('user_id', user.id);
 
+      // Notify other hooks that messages were read
+      window.dispatchEvent(new Event('messages-read'));
+
     } catch (error) {
       console.error('Error fetching messages:', error);
       toast.error('Erro ao carregar mensagens');
@@ -556,6 +559,9 @@ export const useMessaging = () => {
                 .update({ last_read_at: new Date().toISOString() })
                 .eq('conversation_id', newMessage.conversation_id)
                 .eq('user_id', user.id);
+              
+              // Notify other hooks that messages were read
+              window.dispatchEvent(new Event('messages-read'));
             }
           }
 

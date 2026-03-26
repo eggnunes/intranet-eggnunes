@@ -281,13 +281,44 @@ export const useMessageNotifications = () => {
     };
   }, [user, fetchUnreadCount, showNotification]);
 
-  // Refresh conversations list when URL changes
+  // Listen for 'messages-read' events from useMessaging
+  useEffect(() => {
+    const handler = () => fetchUnreadCount();
+    window.addEventListener('messages-read', handler);
+    return () => window.removeEventListener('messages-read', handler);
+  }, [fetchUnreadCount]);
+
+  // Refresh when navigating to /mensagens
   useEffect(() => {
     if (location.pathname === '/mensagens') {
-      // Reset unread count when on messages page
-      setTimeout(() => fetchUnreadCount(), 1000);
+      fetchUnreadCount();
     }
   }, [location.pathname, fetchUnreadCount]);
+
+  // Subscribe to conversation_participants updates (last_read_at changes)
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('participants-read-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'conversation_participants',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchUnreadCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, fetchUnreadCount]);
 
   return {
     unreadCount,

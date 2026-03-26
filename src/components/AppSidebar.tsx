@@ -18,7 +18,7 @@ import {
 import { ChevronDown } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { getMenuGroups } from '@/lib/menuData';
-import { useMessageNotifications } from '@/hooks/useMessageNotifications';
+
 
 // localStorage key
 const STORAGE_KEY = 'sidebar-open-groups';
@@ -40,7 +40,11 @@ function saveOpenGroups(groups: Set<string>) {
   } catch {}
 }
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  unreadMessagesCount?: number;
+}
+
+export function AppSidebar({ unreadMessagesCount: externalUnreadCount }: AppSidebarProps = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAdmin, profile } = useUserRole();
@@ -52,7 +56,7 @@ export function AppSidebar() {
 
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
   const [criticalTasksCount, setCriticalTasksCount] = useState(0);
-  const { unreadCount: unreadMessagesCount } = useMessageNotifications();
+  const unreadMessagesCount = externalUnreadCount ?? 0;
 
   useEffect(() => {
     if (isAdmin) fetchPendingCount();
