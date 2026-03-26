@@ -818,6 +818,7 @@ export default function TarefasAdvbox() {
                         <SelectItem value="pending">Pendente</SelectItem>
                         <SelectItem value="in_progress">Em Andamento</SelectItem>
                         <SelectItem value="completed">Concluída</SelectItem>
+                        <SelectItem value="stale">Obsoleta</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
