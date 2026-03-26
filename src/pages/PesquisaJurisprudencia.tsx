@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Search, History, Bookmark, Loader2, Trash2, Download, Save, Filter, X } from 'lucide-react';
+import { Search, History, Bookmark, Loader2, Trash2, Download, Save, Filter, X, Copy, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -51,11 +51,18 @@ interface JurisprudenciaItem {
   tese_firmada?: string;
   palavras_chave?: string[];
   sumulas_relacionadas?: string;
+  link_fonte?: string;
 }
 
 interface ParsedResult {
   jurisprudencias: JurisprudenciaItem[];
   observacoes_gerais?: string;
+}
+
+interface SearchResultData {
+  result: string;
+  parsed: ParsedResult | null;
+  citations?: string[];
 }
 
 export default function PesquisaJurisprudencia() {
@@ -65,6 +72,7 @@ export default function PesquisaJurisprudencia() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<string | null>(null);
   const [parsedResult, setParsedResult] = useState<ParsedResult | null>(null);
+  const [citations, setCitations] = useState<string[]>([]);
   const [searchHistory, setSearchHistory] = useState<SearchHistory[]>([]);
   const [savedJurisprudence, setSavedJurisprudence] = useState<SavedJurisprudence[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
@@ -150,6 +158,7 @@ export default function PesquisaJurisprudencia() {
     setIsSearching(true);
     setSearchResult(null);
     setParsedResult(null);
+    setCitations([]);
 
     try {
       const { data, error } = await supabase.functions.invoke('search-jurisprudence', {
@@ -164,9 +173,11 @@ export default function PesquisaJurisprudencia() {
 
       const result = data.result;
       const parsed = data.parsed as ParsedResult | null;
+      const resultCitations = data.citations as string[] || [];
       
       setSearchResult(result);
       setParsedResult(parsed);
+      setCitations(resultCitations);
 
       // Salvar no histórico
       const { data: savedSearch, error: saveError } = await supabase
@@ -557,9 +568,43 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                             <CardContent className="space-y-3">
                               {juris.ementa && (
                                 <div>
-                                  <h4 className="font-semibold text-sm mb-1">Ementa Completa</h4>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <h4 className="font-semibold text-sm">Ementa Completa</h4>
+                                    <div className="flex gap-1.5">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 gap-1 text-xs"
+                                        onClick={() => {
+                                          const metadados = `(Processo nº ${juris.numero_processo}, Rel. ${juris.relator || 'Não informado'}, ${juris.orgao_julgador || 'Órgão não informado'}, julgado em ${juris.data_julgamento || 'data não informada'})`;
+                                          const textoCompleto = `${metadados}\n${juris.ementa}`;
+                                          navigator.clipboard.writeText(textoCompleto);
+                                          toast.success('Ementa copiada com metadados');
+                                        }}
+                                      >
+                                        <Copy className="h-3.5 w-3.5" />
+                                        Copiar Ementa
+                                      </Button>
+                                      {juris.link_fonte && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 gap-1 text-xs"
+                                          asChild
+                                        >
+                                          <a href={juris.link_fonte} target="_blank" rel="noopener noreferrer">
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                            Ver Fonte
+                                          </a>
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
                                   <div className="text-sm bg-muted/50 p-3 rounded whitespace-pre-wrap max-h-96 overflow-y-auto">
-                                    {juris.ementa}
+                                    <span className="text-muted-foreground italic">
+                                      (Processo nº {juris.numero_processo}, Rel. {juris.relator || 'Não informado'}, {juris.orgao_julgador || 'Órgão não informado'}, julgado em {juris.data_julgamento || 'data não informada'})
+                                    </span>
+                                    {'\n'}{juris.ementa}
                                   </div>
                                 </div>
                               )}
@@ -601,6 +646,29 @@ ${item.notes ? `\n---\nNotas:\n${item.notes}` : ''}
                             <p className="text-sm text-muted-foreground">
                               {parsedResult.observacoes_gerais}
                             </p>
+                          </div>
+                        )}
+
+                        {citations.length > 0 && (
+                          <div className="bg-muted/50 rounded-lg p-4">
+                            <h4 className="font-semibold text-sm mb-2 flex items-center gap-1.5">
+                              <ExternalLink className="h-4 w-4" />
+                              Fontes da Pesquisa
+                            </h4>
+                            <ul className="space-y-1">
+                              {citations.map((url, i) => (
+                                <li key={i}>
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-primary hover:underline break-all"
+                                  >
+                                    {url}
+                                  </a>
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         )}
                       </div>
