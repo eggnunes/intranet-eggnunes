@@ -1,34 +1,79 @@
 
 
-## Correções na Jurisprudência Interna (Decisões Favoráveis)
+## Melhorias no sistema de Viabilidade Jurídica
 
-### 1. Bug: clicar no resultado não abre a decisão
-**Problema**: A tabela de decisões não tem nenhum comportamento de clique na linha. Clicar em "Resultado" (ou qualquer célula) não faz nada — não há dialog de detalhes nem link.
+### 1. Salvar análise na pasta do cliente no Teams
+**Status atual**: Já existe `SaveToTeamsDialog` que auto-navega para pasta do cliente em "Operacional - Clientes/{nome}" no site Jurídico, criando a pasta se não existir. A funcionalidade já está implementada corretamente — o botão "Teams" aparece quando há parecer. Nenhuma alteração necessária neste item.
 
-**Correção em `src/pages/DecisoesFavoraveis.tsx`**:
-- Adicionar `onClick` na `TableRow` para abrir o dialog de edição (ou um dialog de visualização)
-- Como o pedido é que todos possam editar resultado e link (item 2), a solução ideal é: clicar na linha abre um dialog de detalhes/edição rápida com campos de resultado e link editáveis por qualquer colaborador
-- Usar `cursor-pointer` e `hover:bg-muted/50` na linha
+### 2. Adicionar campos obrigatórios do ADVBox ao formulário de viabilidade
+**Arquivo:** `src/pages/ViabilidadeNovo.tsx`
 
-### 2. Todos podem editar resultado e link
-**Problema**: Atualmente, editar e excluir só aparecem para `isSocioOrRafael` (linhas 1111-1129). Colaboradores comuns não podem editar resultado nem link.
+Campos obrigatórios da API ADVBox para criar cliente (baseado no `createCustomerInAdvbox`):
+- `name` (nome) — já existe
+- `cpf` — já existe  
+- `phone` (telefone) — já existe
+- `email` — já existe
+- `type` (pessoa física/jurídica) — **ADICIONAR**
+- `city` (cidade) — já existe via AddressFields
+- `state` (estado) — já existe via AddressFields
+- `street` (rua + número) — já existe via AddressFields
+- `neighborhood` (bairro) — já existe via AddressFields
+- `customers_origins_id` (origem/como conheceu) — **ADICIONAR** campo "Como Conheceu?" com opções comuns
 
-**Correção em `src/pages/DecisoesFavoraveis.tsx`**:
-- Criar uma mutation `quickEditMutation` que permite qualquer usuário autenticado atualizar apenas `resultado` e `decision_link` na tabela `favorable_decisions`
-- Ao clicar na linha da tabela, abrir um dialog simples de "Detalhes da Decisão" mostrando todas as info e com campos editáveis para `resultado` (Select) e `decision_link` (Input), com botão salvar
-- O botão de edição completa (Edit) e exclusão (Trash) continuam restritos a sócios
+Adicionar ao formulário:
+- Campo "Tipo de Pessoa" (Física/Jurídica) — Select
+- Campo "RG" — Input  
+- Campo "Profissão" — Input
+- Campo "Estado Civil" — Select
+- Campo "Como Conheceu?" (origem) — Select com opções comuns
+- Nenhum desses será obrigatório no formulário (conforme solicitado)
 
-### 3. Filtro por tipo de ação/produto na Jurimetria
-**Problema**: O `JurimetriaDashboard` tem filtros de matéria, região e data, mas NÃO tem filtro por `product_name` (tipo de ação/produto).
+Adicionar esses campos como colunas na tabela `viabilidade_clientes` via migration:
+- `rg`, `profissao`, `estado_civil`, `tipo_pessoa`, `como_conheceu`
 
-**Correção em `src/components/JurimetriaDashboard.tsx`**:
-- Adicionar `product_name` à interface `Decision` (já existe nos dados passados)
-- Adicionar estado `filterProduct` com valor `'all'`
-- Calcular `uniqueProducts` a partir dos `decisions`
-- Adicionar Select de "Tipo de Ação/Produto" nos filtros (ao lado dos existentes)
-- Incluir filtro no `useMemo` de `filtered`
+### 3. Botão "Cadastrar no ADVBox" no formulário/dashboard
+**Arquivo:** `src/pages/Viabilidade.tsx` e `src/pages/ViabilidadeNovo.tsx`
+
+- Criar nova edge function `register-viability-client-advbox` que:
+  - Recebe `viabilidade_id`
+  - Busca dados do cliente na tabela `viabilidade_clientes`
+  - Verifica se já existe no ADVBox por CPF/nome
+  - Se não existir, cria usando os campos disponíveis (preenchendo "Não informado" nos ausentes)
+  - Retorna sucesso com `advbox_customer_id`
+- Adicionar coluna `advbox_customer_id` na tabela `viabilidade_clientes` via migration
+- No dashboard (dialog de visualização) e na tabela, adicionar botão "Cadastrar no ADVBox":
+  - Se `advbox_customer_id` já existir → mostrar badge "Cadastrado no ADVBox"
+  - Se não → botão que chama a edge function
+
+### 4. Clicar no cliente para ver histórico de viabilidades
+**Arquivo:** `src/pages/Viabilidade.tsx`
+
+- Ao clicar no nome do cliente na tabela, em vez de abrir apenas a análise individual, abrir um dialog que:
+  - Busca todas as viabilidades com o mesmo `nome` ou `cpf`
+  - Lista todas as análises daquele cliente em ordem cronológica
+  - Cada item mostra: título, tipo de ação, status, data, resumo do parecer
+  - Clicar em um item expande os detalhes completos
+
+### Migration SQL
+```sql
+ALTER TABLE viabilidade_clientes 
+  ADD COLUMN IF NOT EXISTS rg TEXT,
+  ADD COLUMN IF NOT EXISTS profissao TEXT,
+  ADD COLUMN IF NOT EXISTS estado_civil TEXT,
+  ADD COLUMN IF NOT EXISTS tipo_pessoa TEXT DEFAULT 'fisica',
+  ADD COLUMN IF NOT EXISTS como_conheceu TEXT,
+  ADD COLUMN IF NOT EXISTS advbox_customer_id TEXT;
+```
 
 ### Arquivos modificados
-- `src/pages/DecisoesFavoraveis.tsx` — dialog de detalhes ao clicar, edição rápida de resultado/link por todos
-- `src/components/JurimetriaDashboard.tsx` — filtro por produto/ação
+- `src/pages/ViabilidadeNovo.tsx` — novos campos do ADVBox no formulário + salvar campos extras
+- `src/pages/Viabilidade.tsx` — histórico por cliente ao clicar + botão cadastrar ADVBox + dialog atualizado
+- `supabase/functions/register-viability-client-advbox/index.ts` — nova edge function
+- Migration para adicionar colunas
+
+### Resultado
+- Formulário de viabilidade terá todos os campos necessários para cadastro no ADVBox (sem obrigatoriedade)
+- Botão para cadastrar cliente diretamente no ADVBox a partir da viabilidade
+- Clicar no nome do cliente mostra histórico de todas as viabilidades dele
+- Salvar no Teams já funciona corretamente (auto-cria pasta do cliente)
 
