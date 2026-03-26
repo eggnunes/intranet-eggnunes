@@ -163,7 +163,7 @@ export const Layout = ({ children }: LayoutProps) => {
   return (
     <SidebarProvider defaultOpen={true}>
       <div className="min-h-[100dvh] flex w-full">
-        <AppSidebar />
+        <AppSidebar unreadMessagesCount={unreadMessagesCount} />
         
         <SidebarInset className="flex-1 flex flex-col">
           {/* Global Search Dialog */}
