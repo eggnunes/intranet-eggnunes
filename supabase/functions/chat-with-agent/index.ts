@@ -184,7 +184,7 @@ ${agent.instructions}`;
                           teamsBlock += `  - ${file.name} | ${date} | ${sizeKB}KB\n`;
                         }
                         teamsBlock += '\n';
-                      } catch { /* skip individual folder errors */ }
+                      } catch (_e) { /* skip individual folder errors */ }
                     }
 
                     if (clientFolders.length > 30) {
