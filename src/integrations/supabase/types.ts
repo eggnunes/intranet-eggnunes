@@ -5595,6 +5595,7 @@ export type Database = {
           ad_account_id: string
           created_at: string
           id: string
+          instagram_account_id: string | null
           is_active: boolean | null
           updated_at: string
           user_id: string
@@ -5605,6 +5606,7 @@ export type Database = {
           ad_account_id: string
           created_at?: string
           id?: string
+          instagram_account_id?: string | null
           is_active?: boolean | null
           updated_at?: string
           user_id: string
@@ -5615,6 +5617,7 @@ export type Database = {
           ad_account_id?: string
           created_at?: string
           id?: string
+          instagram_account_id?: string | null
           is_active?: boolean | null
           updated_at?: string
           user_id?: string
