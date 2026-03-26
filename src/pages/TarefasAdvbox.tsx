@@ -1399,28 +1399,66 @@ export default function TarefasAdvbox() {
               <ScrollArea className="flex-1 overflow-y-auto pr-4">
               <div className="space-y-4">
                 {selectedTask && (
-                  <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground pb-4 border-b">
-                    <Badge
-                      variant={getStatusVariant(selectedTask.status)}
-                      className="flex items-center gap-1"
-                    >
-                      {getStatusIcon(selectedTask.status)}
-                      {selectedTask.status}
-                    </Badge>
-                    {selectedTask.due_date && (
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        {format(new Date(selectedTask.due_date), 'dd/MM/yyyy', {
-                          locale: ptBR,
-                        })}
-                      </span>
-                    )}
-                    {selectedTask.assigned_to && (
-                      <span className="flex items-center gap-1">
-                        <User className="h-4 w-4" />
-                        {selectedTask.assigned_to}
-                      </span>
-                    )}
+                  <div className="space-y-3 pb-4 border-b">
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                      <Badge
+                        variant={getStatusVariant(selectedTask.status)}
+                        className="flex items-center gap-1"
+                      >
+                        {getStatusIcon(selectedTask.status)}
+                        {selectedTask.status}
+                      </Badge>
+                      {selectedTask.due_date && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-4 w-4" />
+                          Venc: {format(new Date(selectedTask.due_date), 'dd/MM/yyyy', { locale: ptBR })}
+                        </span>
+                      )}
+                      {selectedTask.assigned_to && (
+                        <span className="flex items-center gap-1">
+                          <User className="h-4 w-4" />
+                          {selectedTask.assigned_to}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {selectedTask.process_number && (
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <FileText className="h-3.5 w-3.5" />
+                          <span className="font-medium">Processo:</span> {selectedTask.process_number}
+                        </div>
+                      )}
+                      {selectedTask.task_type && (
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <Tag className="h-3.5 w-3.5" />
+                          <span className="font-medium">Tipo:</span> {selectedTask.task_type}
+                        </div>
+                      )}
+                      {selectedTask.client_name && (
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <UserCircle className="h-3.5 w-3.5" />
+                          <span className="font-medium">Cliente:</span> {selectedTask.client_name}
+                        </div>
+                      )}
+                      {selectedTask.lawsuit_id && (
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <FileText className="h-3.5 w-3.5" />
+                          <span className="font-medium">Lawsuit ID:</span> {selectedTask.lawsuit_id}
+                        </div>
+                      )}
+                      {selectedTask.created_at && (
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <Calendar className="h-3.5 w-3.5" />
+                          <span className="font-medium">Criada em:</span> {format(new Date(selectedTask.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                        </div>
+                      )}
+                      {selectedTask.completed_at && (
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <CalendarCheck className="h-3.5 w-3.5" />
+                          <span className="font-medium">Concluída em:</span> {format(new Date(selectedTask.completed_at), 'dd/MM/yyyy', { locale: ptBR })}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
