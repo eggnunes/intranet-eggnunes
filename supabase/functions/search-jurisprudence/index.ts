@@ -120,8 +120,9 @@ IMPORTANTE: Traga a EMENTA COMPLETA de cada decisão, sem resumir ou cortar.`
 
     const data = await response.json();
     const rawResult = data.choices?.[0]?.message?.content || '';
+    const citations = data.citations || [];
 
-    console.log('Search completed successfully');
+    console.log('Search completed successfully, citations:', citations.length);
 
     // Try to parse as JSON
     let parsedResult = null;
@@ -138,7 +139,8 @@ IMPORTANTE: Traga a EMENTA COMPLETA de cada decisão, sem resumir ou cortar.`
     return new Response(
       JSON.stringify({ 
         result: rawResult,
-        parsed: parsedResult 
+        parsed: parsedResult,
+        citations
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
