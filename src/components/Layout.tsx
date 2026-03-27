@@ -8,6 +8,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { UpdatesNotification } from '@/components/UpdatesNotification';
 import { SystemUpdatesNotification } from '@/components/SystemUpdatesNotification';
 import { NotificationToast } from '@/components/NotificationToast';
+import { MessagePopupDialog } from '@/components/MessagePopupDialog';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar';
@@ -38,7 +39,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const showBackButton = location.pathname !== '/dashboard' && location.pathname !== '/';
   
   // Hook for real-time message notifications
-  const { unreadCount: unreadMessagesCount } = useMessageNotifications();
+  const { unreadCount: unreadMessagesCount, popupEnabled, lastReceivedMessage, dismissPopup } = useMessageNotifications();
   
   // Rastrear acessos às páginas
   useAccessTracking();
@@ -326,6 +327,11 @@ export const Layout = ({ children }: LayoutProps) => {
               )}
               {children}
               <NotificationToast />
+              <MessagePopupDialog 
+                message={lastReceivedMessage} 
+                onDismiss={dismissPopup} 
+                enabled={popupEnabled} 
+              />
             </div>
           </main>
         </SidebarInset>

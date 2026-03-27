@@ -18,6 +18,7 @@ import {
   Megaphone,
   Cake,
   MessageSquare,
+  MessageCircle,
   Users,
   Loader2,
   Save,
@@ -38,6 +39,7 @@ interface EmailPreferences {
   notify_crm: boolean;
   notify_daily_digest: boolean;
   notify_intranet_updates: boolean;
+  popup_messages_enabled: boolean;
 }
 
 const defaultPreferences: EmailPreferences = {
@@ -52,6 +54,7 @@ const defaultPreferences: EmailPreferences = {
   notify_crm: true,
   notify_daily_digest: true,
   notify_intranet_updates: true,
+  popup_messages_enabled: true,
 };
 
 const preferenceConfig = [
@@ -66,6 +69,7 @@ const preferenceConfig = [
   { key: 'notify_messages', label: 'Mensagens', description: 'Novas mensagens diretas', icon: Mail, color: 'text-red-500', requiresAdmin: false },
   { key: 'notify_crm', label: 'CRM', description: 'Atualizações de negócios e follow-ups', icon: Users, color: 'text-amber-500', requiresAdmin: true },
   { key: 'notify_intranet_updates', label: 'Atualizações da Intranet', description: 'Melhorias e novidades da intranet', icon: RefreshCw, color: 'text-teal-500', requiresAdmin: false },
+  { key: 'popup_messages_enabled', label: 'Pop-up de Mensagens', description: 'Exibir pop-up com resposta rápida ao receber novas mensagens', icon: MessageCircle, color: 'text-violet-500', requiresAdmin: false },
 ];
 
 export function EmailNotificationSettings() {
@@ -133,6 +137,7 @@ export function EmailNotificationSettings() {
           notify_crm: data.notify_crm ?? true,
           notify_daily_digest: (data as any).notify_daily_digest ?? true,
           notify_intranet_updates: (data as any).notify_intranet_updates ?? true,
+          popup_messages_enabled: (data as any).popup_messages_enabled ?? true,
         };
         setPreferences(prefs);
         setOriginalPreferences(prefs);
@@ -177,6 +182,7 @@ export function EmailNotificationSettings() {
       setPreferences(prefsToSave);
       setOriginalPreferences(prefsToSave);
       setHasChanges(false);
+      window.dispatchEvent(new Event('popup-preference-changed'));
       toast.success('Preferências de email salvas com sucesso!');
     } catch (error) {
       console.error('Error saving email preferences:', error);

@@ -2956,6 +2956,7 @@ export type Database = {
           notify_messages: boolean | null
           notify_tasks: boolean | null
           notify_vacation: boolean | null
+          popup_messages_enabled: boolean | null
           updated_at: string | null
           user_id: string
         }
@@ -2973,6 +2974,7 @@ export type Database = {
           notify_messages?: boolean | null
           notify_tasks?: boolean | null
           notify_vacation?: boolean | null
+          popup_messages_enabled?: boolean | null
           updated_at?: string | null
           user_id: string
         }
@@ -2990,6 +2992,7 @@ export type Database = {
           notify_messages?: boolean | null
           notify_tasks?: boolean | null
           notify_vacation?: boolean | null
+          popup_messages_enabled?: boolean | null
           updated_at?: string | null
           user_id?: string
         }
