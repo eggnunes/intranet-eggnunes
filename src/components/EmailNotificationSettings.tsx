@@ -54,6 +54,7 @@ const defaultPreferences: EmailPreferences = {
   notify_crm: true,
   notify_daily_digest: true,
   notify_intranet_updates: true,
+  popup_messages_enabled: true,
 };
 
 const preferenceConfig = [
