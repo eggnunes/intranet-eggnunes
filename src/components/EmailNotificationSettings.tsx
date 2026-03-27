@@ -39,6 +39,7 @@ interface EmailPreferences {
   notify_crm: boolean;
   notify_daily_digest: boolean;
   notify_intranet_updates: boolean;
+  popup_messages_enabled: boolean;
 }
 
 const defaultPreferences: EmailPreferences = {

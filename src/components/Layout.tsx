@@ -39,7 +39,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const showBackButton = location.pathname !== '/dashboard' && location.pathname !== '/';
   
   // Hook for real-time message notifications
-  const { unreadCount: unreadMessagesCount } = useMessageNotifications();
+  const { unreadCount: unreadMessagesCount, popupEnabled, lastReceivedMessage, dismissPopup } = useMessageNotifications();
   
   // Rastrear acessos às páginas
   useAccessTracking();
@@ -327,6 +327,11 @@ export const Layout = ({ children }: LayoutProps) => {
               )}
               {children}
               <NotificationToast />
+              <MessagePopupDialog 
+                message={lastReceivedMessage} 
+                onDismiss={dismissPopup} 
+                enabled={popupEnabled} 
+              />
             </div>
           </main>
         </SidebarInset>
