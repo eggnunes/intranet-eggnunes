@@ -69,6 +69,7 @@ const preferenceConfig = [
   { key: 'notify_messages', label: 'Mensagens', description: 'Novas mensagens diretas', icon: Mail, color: 'text-red-500', requiresAdmin: false },
   { key: 'notify_crm', label: 'CRM', description: 'Atualizações de negócios e follow-ups', icon: Users, color: 'text-amber-500', requiresAdmin: true },
   { key: 'notify_intranet_updates', label: 'Atualizações da Intranet', description: 'Melhorias e novidades da intranet', icon: RefreshCw, color: 'text-teal-500', requiresAdmin: false },
+  { key: 'popup_messages_enabled', label: 'Pop-up de Mensagens', description: 'Exibir pop-up com resposta rápida ao receber novas mensagens', icon: MessageCircle, color: 'text-violet-500', requiresAdmin: false },
 ];
 
 export function EmailNotificationSettings() {
