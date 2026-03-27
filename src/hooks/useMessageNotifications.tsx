@@ -21,7 +21,25 @@ export const useMessageNotifications = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [popupEnabled, setPopupEnabled] = useState(true);
+  const [lastReceivedMessage, setLastReceivedMessage] = useState<NewMessage | null>(null);
   const processedMessages = useRef<Set<string>>(new Set());
+
+  // Fetch popup preference
+  const fetchPopupPreference = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('email_notification_preferences')
+      .select('popup_messages_enabled')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    setPopupEnabled((data as any)?.popup_messages_enabled ?? true);
+  }, [user]);
+
+  useEffect(() => {
+    if (user) fetchPopupPreference();
+  }, [user, fetchPopupPreference]);
 
   // Fetch unread messages count
   const fetchUnreadCount = useCallback(async () => {
@@ -31,7 +49,6 @@ export const useMessageNotifications = () => {
     }
 
     try {
-      // Get all conversations the user participates in
       const { data: participations, error: partError } = await supabase
         .from('conversation_participants')
         .select('conversation_id, last_read_at')
@@ -43,7 +60,6 @@ export const useMessageNotifications = () => {
         return;
       }
 
-      // Count unread messages across all conversations
       let totalUnread = 0;
 
       for (const participation of participations) {
@@ -72,7 +88,6 @@ export const useMessageNotifications = () => {
       .select('full_name')
       .eq('id', senderId)
       .single();
-    
     return data?.full_name || 'Alguém';
   };
 
@@ -88,7 +103,6 @@ export const useMessageNotifications = () => {
       return conv.name;
     }
 
-    // For 1-1 conversations, get the other person's name
     const senderName = await getSenderName(senderId);
     return senderName;
   };
@@ -121,21 +135,22 @@ export const useMessageNotifications = () => {
     }
   }, [navigate]);
 
+  // Dismiss popup
+  const dismissPopup = useCallback(() => {
+    setLastReceivedMessage(null);
+  }, []);
+
   // Show notification pop-up
   const showNotification = useCallback(async (message: NewMessage) => {
-    // Don't show notification if already on mensagens page with this conversation
+    // Don't show notification if already on mensagens page
     if (location.pathname === '/mensagens') {
-      // Still update count but don't show toast
       fetchUnreadCount();
       return;
     }
 
     const senderName = await getSenderName(message.sender_id);
-    const conversationName = await getConversationName(message.conversation_id, message.sender_id);
-    
-    // Truncate message content
-    const truncatedContent = message.content.length > 50 
-      ? message.content.substring(0, 50) + '...' 
+    const truncatedContent = message.content?.length > 50
+      ? message.content.substring(0, 50) + '...'
       : message.content;
 
     // Send native browser notification
@@ -145,76 +160,69 @@ export const useMessageNotifications = () => {
       message.conversation_id
     );
 
-    // Show toast notification with action button
-    toast.custom(
-      (t) => (
-        <div className="bg-card border border-border rounded-lg shadow-lg p-4 max-w-sm w-full">
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <MessageSquare className="h-5 w-5 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground">
-                Nova mensagem de {senderName}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {conversationName}
-              </p>
-              <p className="text-sm text-foreground/80 mt-1 line-clamp-2">
-                {truncatedContent}
-              </p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="mt-2 h-7 text-xs"
-                onClick={() => {
-                  toast.dismiss(t);
-                  navigate('/mensagens', { 
-                    state: { openConversation: message.conversation_id } 
-                  });
-                }}
+    // If popup is enabled, set the message for the popup dialog
+    if (popupEnabled) {
+      setLastReceivedMessage(message);
+    } else {
+      // Fallback: show toast
+      toast.custom(
+        (t) => (
+          <div className="bg-card border border-border rounded-lg shadow-lg p-4 max-w-sm w-full">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <MessageSquare className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground">
+                  Nova mensagem de {senderName}
+                </p>
+                <p className="text-sm text-foreground/80 mt-1 line-clamp-2">
+                  {truncatedContent}
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-2 h-7 text-xs"
+                  onClick={() => {
+                    toast.dismiss(t);
+                    navigate('/mensagens', {
+                      state: { openConversation: message.conversation_id }
+                    });
+                  }}
+                >
+                  Responder
+                </Button>
+              </div>
+              <button
+                onClick={() => toast.dismiss(t)}
+                className="flex-shrink-0 text-muted-foreground hover:text-foreground"
               >
-                Responder
-              </Button>
+                <span className="sr-only">Fechar</span>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-            <button
-              onClick={() => toast.dismiss(t)}
-              className="flex-shrink-0 text-muted-foreground hover:text-foreground"
-            >
-              <span className="sr-only">Fechar</span>
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
           </div>
-        </div>
-      ),
-      {
-        duration: 8000,
-        position: 'top-right',
-      }
-    );
+        ),
+        { duration: 8000, position: 'top-right' }
+      );
+    }
 
-    // Play notification sound (optional)
+    // Play notification sound
     try {
       const audio = new Audio('/notification.mp3');
       audio.volume = 0.3;
-      audio.play().catch(() => {
-        // Ignore audio play errors (user hasn't interacted yet)
-      });
-    } catch {
-      // Ignore audio errors
-    }
-  }, [location.pathname, navigate, fetchUnreadCount]);
+      audio.play().catch(() => {});
+    } catch {}
+  }, [location.pathname, navigate, fetchUnreadCount, popupEnabled, sendNativeNotification]);
 
   // Subscribe to new messages
   useEffect(() => {
     if (!user) return;
 
-    // Initial fetch
     fetchUnreadCount();
 
-    // Get user's conversation IDs first
     const setupSubscription = async () => {
       const { data: participations } = await supabase
         .from('conversation_participants')
@@ -225,7 +233,6 @@ export const useMessageNotifications = () => {
 
       const conversationIds = participations.map(p => p.conversation_id);
 
-      // Subscribe to new messages in user's conversations
       const channel = supabase
         .channel('message-notifications')
         .on(
@@ -237,33 +244,19 @@ export const useMessageNotifications = () => {
           },
           async (payload) => {
             const newMessage = payload.new as NewMessage;
-            
-            // Check if this message is for a conversation the user is in
-            if (!conversationIds.includes(newMessage.conversation_id)) {
-              return;
-            }
 
-            // Don't notify for own messages
-            if (newMessage.sender_id === user.id) {
-              return;
-            }
+            if (!conversationIds.includes(newMessage.conversation_id)) return;
+            if (newMessage.sender_id === user.id) return;
+            if (processedMessages.current.has(newMessage.id)) return;
 
-            // Check if we already processed this message
-            if (processedMessages.current.has(newMessage.id)) {
-              return;
-            }
             processedMessages.current.add(newMessage.id);
 
-            // Keep the set from growing indefinitely
             if (processedMessages.current.size > 100) {
               const arr = Array.from(processedMessages.current);
               processedMessages.current = new Set(arr.slice(-50));
             }
 
-            // Show notification
             await showNotification(newMessage);
-            
-            // Update unread count
             fetchUnreadCount();
           }
         )
@@ -281,7 +274,7 @@ export const useMessageNotifications = () => {
     };
   }, [user, fetchUnreadCount, showNotification]);
 
-  // Listen for 'messages-read' events from useMessaging
+  // Listen for 'messages-read' events
   useEffect(() => {
     const handler = () => fetchUnreadCount();
     window.addEventListener('messages-read', handler);
@@ -295,7 +288,7 @@ export const useMessageNotifications = () => {
     }
   }, [location.pathname, fetchUnreadCount]);
 
-  // Subscribe to conversation_participants updates (last_read_at changes)
+  // Subscribe to conversation_participants updates
   useEffect(() => {
     if (!user) return;
 
@@ -320,8 +313,18 @@ export const useMessageNotifications = () => {
     };
   }, [user, fetchUnreadCount]);
 
+  // Listen for popup preference changes
+  useEffect(() => {
+    const handler = () => fetchPopupPreference();
+    window.addEventListener('popup-preference-changed', handler);
+    return () => window.removeEventListener('popup-preference-changed', handler);
+  }, [fetchPopupPreference]);
+
   return {
     unreadCount,
     refetchUnreadCount: fetchUnreadCount,
+    popupEnabled,
+    lastReceivedMessage,
+    dismissPopup,
   };
 };

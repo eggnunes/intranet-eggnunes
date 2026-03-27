@@ -8,6 +8,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { UpdatesNotification } from '@/components/UpdatesNotification';
 import { SystemUpdatesNotification } from '@/components/SystemUpdatesNotification';
 import { NotificationToast } from '@/components/NotificationToast';
+import { MessagePopupDialog } from '@/components/MessagePopupDialog';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar';

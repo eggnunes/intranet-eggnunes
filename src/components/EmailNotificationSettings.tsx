@@ -18,6 +18,7 @@ import {
   Megaphone,
   Cake,
   MessageSquare,
+  MessageCircle,
   Users,
   Loader2,
   Save,
