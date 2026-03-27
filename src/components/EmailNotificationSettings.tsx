@@ -182,6 +182,7 @@ export function EmailNotificationSettings() {
       setPreferences(prefsToSave);
       setOriginalPreferences(prefsToSave);
       setHasChanges(false);
+      window.dispatchEvent(new Event('popup-preference-changed'));
       toast.success('Preferências de email salvas com sucesso!');
     } catch (error) {
       console.error('Error saving email preferences:', error);
