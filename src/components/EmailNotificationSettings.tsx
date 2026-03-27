@@ -136,6 +136,7 @@ export function EmailNotificationSettings() {
           notify_crm: data.notify_crm ?? true,
           notify_daily_digest: (data as any).notify_daily_digest ?? true,
           notify_intranet_updates: (data as any).notify_intranet_updates ?? true,
+          popup_messages_enabled: (data as any).popup_messages_enabled ?? true,
         };
         setPreferences(prefs);
         setOriginalPreferences(prefs);
